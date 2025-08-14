@@ -16,7 +16,7 @@ export type ScheduledPost = {
   projectId: string;
   postId: string;
   scheduledTime: string; // ISO string
-  platform: 'facebook' | 'instagram' | 'linkedin';
+  platform: 'facebook' | 'instagram' | 'both';
   status: 'scheduled' | 'pending' | 'failed' | 'published';
 };
 
@@ -127,25 +127,22 @@ export const usePostStore = create<State>((set, get) => ({
 
                 console.log('✅ Found post in store:', post);
 
-                // Create scheduled post entries
-                const platforms = platform === 'both' ? ['facebook', 'instagram'] : [platform];
+                // Create only one scheduled post with the specified platform
+                // This prevents double-posting when platform is 'both'
+                const scheduledPost: ScheduledPost = {
+                  id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                  clientId,
+                  projectId,
+                  postId,
+                  scheduledTime: scheduledDateTime.toISOString(),
+                  platform: platform as 'facebook' | 'instagram' | 'both',
+                  status: 'scheduled',
+                };
 
-                for (const platformType of platforms) {
-                  const scheduledPost: ScheduledPost = {
-                    id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-                    clientId,
-                    projectId,
-                    postId,
-                    scheduledTime: scheduledDateTime.toISOString(),
-                    platform: platformType as 'facebook' | 'instagram' | 'linkedin',
-                    status: 'scheduled',
-                  };
+                console.log('🔄 Creating scheduled post:', scheduledPost);
 
-                  console.log('🔄 Creating scheduled post for platform:', platformType, scheduledPost);
-
-                  // Use the new API-integrated addScheduledPost method
-                  await get().addScheduledPost(scheduledPost);
-                }
+                // Use the new API-integrated addScheduledPost method
+                await get().addScheduledPost(scheduledPost);
                 
                 console.log('✅ schedulePost completed successfully');
               },

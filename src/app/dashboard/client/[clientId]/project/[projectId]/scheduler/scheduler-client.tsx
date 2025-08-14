@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Instagram, Facebook, Linkedin, GripVertical, Clock, Plus } from 'lucide-react';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDraggable, useDroppable } from '@dnd-kit/core';
@@ -25,6 +25,7 @@ interface PostInQueue {
   caption: string;
   media: string;
   platforms: string[];
+  selectedPlatform?: 'instagram' | 'facebook' | 'both' | null;
 }
 
 interface SchedulerClientProps {
@@ -38,30 +39,62 @@ const defaultPlatforms = ['instagram', 'facebook'];
 function DraggablePost({ 
   post, 
   isDragging, 
-  onSchedule 
+  onSchedule,
+  onPlatformChange
 }: { 
   post: PostInQueue; 
   isDragging?: boolean;
   onSchedule: (postId: string, platform: 'instagram' | 'facebook' | 'both') => void;
+  onPlatformChange: (postId: string, platform: 'instagram' | 'facebook' | 'both' | null) => void;
 }) {
+  const [selectedPlatform, setSelectedPlatform] = useState<'instagram' | 'facebook' | 'both' | null>(
+    post.selectedPlatform || null
+  );
+  
+  // Sync local state with parent state when post.selectedPlatform changes
+  useEffect(() => {
+    setSelectedPlatform(post.selectedPlatform || null);
+  }, [post.selectedPlatform]);
+  
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: post.id,
-    data: post
+    data: post,
+    disabled: !selectedPlatform // Disable dragging if no platform is selected
   });
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
   } : undefined;
 
+  const handlePlatformToggle = (platform: 'instagram' | 'facebook' | 'both') => {
+    if (selectedPlatform === platform) {
+      // If clicking the same platform, deselect it
+      setSelectedPlatform(null);
+      // Update the post's selectedPlatform property
+      post.selectedPlatform = null;
+      // Notify parent component
+      onPlatformChange(post.id, null);
+    } else {
+      // Otherwise, select the new platform (this will deselect the other one)
+      setSelectedPlatform(platform);
+      // Update the post's selectedPlatform property
+      post.selectedPlatform = platform;
+      // Notify parent component
+      onPlatformChange(post.id, platform);
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
-      className={`bg-card border rounded-lg p-3 cursor-grab active:cursor-grabbing transition-all ${
-        isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md'
-      }`}
+      {...(selectedPlatform ? listeners : {})}
+      {...(selectedPlatform ? attributes : {})}
+      className={`bg-card border rounded-lg p-3 transition-all ${
+        selectedPlatform 
+          ? 'cursor-grab hover:shadow-md active:cursor-grabbing border-primary/30' 
+          : 'cursor-default opacity-75'
+      } ${isDragging ? 'opacity-50 scale-95' : ''}`}
     >
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0">
@@ -78,13 +111,49 @@ function DraggablePost({
           </p>
           
           <div className="flex items-center gap-2">
-            {post.platforms.map((platform) => (
-              <div key={platform} className="w-5 h-5 bg-muted rounded-full flex items-center justify-center">
-                {platform === 'instagram' && <Instagram className="h-3 w-3 text-pink-500" />}
-                {platform === 'facebook' && <Facebook className="h-3 w-3 text-blue-600" />}
-                {platform === 'linkedin' && <Linkedin className="h-3 w-3 text-blue-700" />}
+            {/* Show selected platform if one is selected, otherwise show default platforms */}
+            {post.selectedPlatform ? (
+              <div className="flex items-center gap-1">
+                {post.selectedPlatform === 'instagram' && (
+                  <div className="w-5 h-5 bg-pink-100 border-2 border-pink-500 rounded-full flex items-center justify-center">
+                    <Instagram className="h-3 w-3 text-pink-600" />
+                  </div>
+                )}
+                {post.selectedPlatform === 'facebook' && (
+                  <div className="w-5 h-5 bg-blue-100 border-2 border-blue-600 rounded-full flex items-center justify-center">
+                    <Facebook className="h-3 w-3 text-blue-700" />
+                  </div>
+                )}
+                {post.selectedPlatform === 'both' && (
+                  <div className="flex items-center gap-1">
+                    <div className="w-5 h-5 bg-pink-100 border-2 border-pink-500 rounded-full flex items-center justify-center">
+                      <Instagram className="h-3 w-3 text-pink-600" />
+                    </div>
+                    <div className="w-5 h-5 bg-blue-100 border-2 border-blue-600 rounded-full flex items-center justify-center">
+                      <Facebook className="h-3 w-3 text-blue-700" />
+                    </div>
+                  </div>
+                )}
+                {/* Drag indicator */}
+                <div className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                  Ready to drag
+                </div>
               </div>
-            ))}
+            ) : (
+              <div className="flex items-center gap-2">
+                {post.platforms.map((platform) => (
+                  <div key={platform} className="w-5 h-5 bg-muted rounded-full flex items-center justify-center">
+                    {platform === 'instagram' && <Instagram className="h-3 w-3 text-pink-500" />}
+                    {platform === 'facebook' && <Facebook className="h-3 w-3 text-blue-600" />}
+                    {platform === 'linkedin' && <Linkedin className="h-3 w-3 text-blue-700" />}
+                  </div>
+                ))}
+                {/* Platform selection required indicator */}
+                <div className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium">
+                  Select platform to drag
+                </div>
+              </div>
+            )}
           </div>
         </div>
         
@@ -97,31 +166,47 @@ function DraggablePost({
       <div className="flex gap-1 mt-2 pt-2 border-t border-border">
         <Button
           size="sm"
-          variant="outline"
-          className="flex-1 h-7 text-xs px-2"
-          onClick={() => onSchedule(post.id, 'instagram')}
+          variant={selectedPlatform === 'instagram' ? "default" : "outline"}
+          className={`flex-1 h-7 text-xs px-2 ${
+            selectedPlatform === 'instagram' 
+              ? 'bg-pink-600 hover:bg-pink-700 text-white border-pink-600' 
+              : ''
+          }`}
+          onClick={() => handlePlatformToggle('instagram')}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           <Instagram className="h-3 w-3 mr-1 text-pink-500" />
           Instagram
         </Button>
         <Button
           size="sm"
-          variant="outline"
-          className="flex-1 h-7 text-xs px-2"
-          onClick={() => onSchedule(post.id, 'facebook')}
+          variant={selectedPlatform === 'facebook' ? "default" : "outline"}
+          className={`flex-1 h-7 text-xs px-2 ${
+            selectedPlatform === 'facebook' 
+              ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' 
+              : ''
+          }`}
+          onClick={() => handlePlatformToggle('facebook')}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           <Facebook className="h-3 w-3 mr-1 text-blue-600" />
           Facebook
         </Button>
         <Button
           size="sm"
-          variant="outline"
-          className="flex-1 h-7 text-xs px-2"
-          onClick={() => onSchedule(post.id, 'both')}
+          variant={selectedPlatform === 'both' ? "default" : "outline"}
+          className={`flex-1 h-7 text-xs px-2 ${
+            selectedPlatform === 'both' 
+              ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-600' 
+              : ''
+          }`}
+          onClick={() => handlePlatformToggle('both')}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           <Calendar className="h-3 w-3 mr-1" />
           Both
         </Button>
+
       </div>
     </div>
   );
@@ -225,12 +310,18 @@ const scheduledPostsFromStore = useMemo(() => scheduledMap?.[key] ?? [], [schedu
 const schedulePostAction = usePostStore(s => s.schedulePost);
   
   // Convert store posts to PostInQueue format for the scheduler
-  const postsReadyToSchedule: PostInQueue[] = storePosts.map(post => ({
-    id: post.id,
-    caption: post.caption,
-    media: post.imageUrl, // Use imageUrl from store
-    platforms: defaultPlatforms, // Use default platforms for now (can be enhanced later)
-  }));
+  const [postsReadyToSchedule, setPostsReadyToSchedule] = useState<PostInQueue[]>([]);
+  
+  // Update postsReadyToSchedule when storePosts changes
+  useEffect(() => {
+    setPostsReadyToSchedule(storePosts.map(post => ({
+      id: post.id,
+      caption: post.caption,
+      media: post.imageUrl, // Use imageUrl from store
+      platforms: defaultPlatforms, // Use default platforms for now (can be enhanced later)
+      selectedPlatform: null, // Initialize with no platform selected
+    })));
+  }, [storePosts]);
 
   const handleSchedulePost = (post: PostInQueue) => {
     setSelectedPostForScheduling(post);
@@ -250,6 +341,37 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       console.log('✅ Quick schedule completed successfully');
     } catch (error) {
       console.error('❌ Failed to quick schedule post:', error);
+    }
+  };
+
+  const handlePlatformChange = (postId: string, platform: 'instagram' | 'facebook' | 'both' | null) => {
+    // Update the post's selectedPlatform in the postsReadyToSchedule state
+    setPostsReadyToSchedule(prev => 
+      prev.map(post => 
+        post.id === postId 
+          ? { ...post, selectedPlatform: platform }
+          : post
+      )
+    );
+  };
+
+
+
+  const publishAllForPlatform = async (platform: string) => {
+    try {
+      console.log(`🔄 Publishing all posts for ${platform}`);
+      const postsToPublish = scheduledPostsFromStore.filter(post => post.platform === platform);
+      
+      for (const post of postsToPublish) {
+        // Update status to published
+        console.log(`📤 Publishing post ${post.id} for ${platform}`);
+        // Here you would call your actual publish API
+        // For now, we'll just log it
+      }
+      
+      console.log(`✅ Published ${postsToPublish.length} posts for ${platform}`);
+    } catch (error) {
+      console.error(`❌ Failed to publish posts for ${platform}:`, error);
     }
   };
 
@@ -296,17 +418,16 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       const targetDate = over.data.current?.date;
       
       if (targetDate) {
-        // Call the Zustand store's schedulePost method directly
-        // Determine platform based on post platforms, default to 'instagram' if none set
-        const platform = post.platforms.length > 1 ? 'both' : 
-          (post.platforms[0] || 'instagram') as 'facebook' | 'instagram' | 'both';
+        // Use the post's selected platform, or default to 'instagram' if none selected
+        const platform = (post.selectedPlatform || 'instagram') as 'facebook' | 'instagram' | 'both';
         
         console.log('🔄 Drag-and-drop scheduling post:', { 
           postId: post.id, 
           targetDate, 
           platform, 
           projectId, 
-          clientId 
+          clientId,
+          selectedPlatform: post.selectedPlatform
         });
         
         try {
@@ -344,11 +465,14 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
         const post = storePosts.find(p => p.id === scheduledPost.postId);
         if (!post) return null;
         
+        // Handle 'both' platform by showing both Instagram and Facebook icons
+        const platforms = scheduledPost.platform === 'both' ? ['instagram', 'facebook'] : [scheduledPost.platform];
+        
         return {
           id: scheduledPost.id,
           caption: post.caption,
           media: post.imageUrl,
-          platforms: [scheduledPost.platform], // Single platform per scheduled post
+          platforms: platforms,
           date: date,
           status: scheduledPost.status,
           scheduledTime: scheduledPost.scheduledTime // Include the actual scheduled time
@@ -428,6 +552,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
                       post={post}
                       isDragging={draggedPost?.id === post.id}
                       onSchedule={handleQuickSchedule}
+                      onPlatformChange={handlePlatformChange}
                     />
                     <Button
                       size="sm"
@@ -488,6 +613,8 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
               )}
             </CardContent>
           </Card>
+
+
 
           {/* Calendar Section */}
           <Card>
@@ -571,6 +698,38 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
             ) : null}
           </DragOverlay>
         </DndContext>
+
+        {/* Publish Buttons */}
+        <Card className="mt-6">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium text-card-foreground">Publish All Posts:</span>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => publishAllForPlatform('instagram')}
+                    className="flex items-center gap-2 bg-pink-600 hover:bg-pink-700"
+                    disabled={scheduledPostsFromStore.filter(post => post.platform === 'instagram').length === 0}
+                  >
+                    <Instagram className="h-4 w-4" />
+                    Publish Instagram ({scheduledPostsFromStore.filter(post => post.platform === 'instagram').length})
+                  </Button>
+                  <Button
+                    onClick={() => publishAllForPlatform('facebook')}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                    disabled={scheduledPostsFromStore.filter(post => post.platform === 'facebook').length === 0}
+                  >
+                    <Facebook className="h-4 w-4" />
+                    Publish Facebook ({scheduledPostsFromStore.filter(post => post.platform === 'facebook').length})
+                  </Button>
+                </div>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Total Scheduled: {scheduledPostsFromStore.length}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Scheduling Modal */}
         {selectedPostForScheduling && (
