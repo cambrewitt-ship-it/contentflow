@@ -18,6 +18,8 @@ A modern SaaS landing page for ContentFlow, an AI-powered social media managemen
 - **Tailwind CSS**: Utility-first CSS framework
 - **Shadcn/ui**: Modern component library
 - **Inter Font**: Professional typography
+- **Supabase**: Database and authentication
+- **Meta Graph API**: Facebook and Instagram integration
 
 ## Getting Started
 
@@ -26,12 +28,27 @@ A modern SaaS landing page for ContentFlow, an AI-powered social media managemen
    npm install
    ```
 
-2. **Run the development server**:
+2. **Set up environment variables**:
+   Create a `.env.local` file with the following variables:
+   ```bash
+   # Supabase Configuration
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   NEXT_SUPABASE_SERVICE_ROLE=your_supabase_service_role_key
+   
+   # Meta API Configuration
+   META_APP_ID=your_meta_app_id
+   META_APP_SECRET=your_meta_app_secret
+   META_PAGE_ID=your_facebook_page_id
+   META_ACCESS_TOKEN=your_meta_access_token
+   ```
+
+3. **Run the development server**:
    ```bash
    npm run dev
    ```
 
-3. **Open your browser**:
+4. **Open your browser**:
    Navigate to [http://localhost:3000](http://localhost:3000)
 
 ## Project Structure
@@ -39,6 +56,11 @@ A modern SaaS landing page for ContentFlow, an AI-powered social media managemen
 ```
 src/
 ├── app/
+│   ├── api/                 # API routes
+│   │   ├── ai/              # AI integration
+│   │   ├── schedulePost/    # Post scheduling to Supabase
+│   │   └── publishToMeta/   # Meta API integration
+│   ├── dashboard/           # Client dashboard and scheduler
 │   ├── globals.css          # Global styles and CSS variables
 │   ├── layout.tsx           # Root layout with metadata
 │   └── page.tsx             # Main landing page
@@ -47,8 +69,44 @@ src/
 │       ├── button.tsx
 │       └── card.tsx
 └── lib/
+    ├── store.ts             # Zustand state management
     └── utils.ts             # Utility functions
 ```
+
+## Meta API Integration
+
+The application includes a complete Meta API integration for scheduling posts to Facebook and Instagram:
+
+### **API Endpoint**: `/api/publishToMeta`
+
+**Supported Platforms**:
+- **Instagram**: Creates media containers and schedules posts
+- **Facebook**: Schedules posts directly to page feed
+- **Both**: Schedules to both platforms simultaneously
+
+**Required Environment Variables**:
+- `META_APP_ID`: Your Meta App ID
+- `META_APP_SECRET`: Your Meta App Secret
+- `META_PAGE_ID`: Your Facebook Page ID
+- `META_ACCESS_TOKEN`: Your Meta Access Token
+
+**API Request Format**:
+```json
+{
+  "postId": "string",
+  "platform": "instagram" | "facebook" | "both",
+  "caption": "string",
+  "imageUrl": "string",
+  "scheduledTime": "ISO string"
+}
+```
+
+**Features**:
+- ✅ Automatic media container creation for Instagram
+- ✅ Scheduled publishing with Unix timestamp conversion
+- ✅ Comprehensive error handling and logging
+- ✅ Support for single platform or dual platform posting
+- ✅ Detailed success/failure responses
 
 ## Landing Page Sections
 
