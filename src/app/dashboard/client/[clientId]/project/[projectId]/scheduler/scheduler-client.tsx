@@ -18,6 +18,7 @@ interface ScheduledPost {
   date: string;
   status?: string;
   scheduledTime?: string;
+  scheduledTimeString?: string; // For storing the time portion (HH:MM)
 }
 
 interface PostInQueue {
@@ -216,12 +217,22 @@ function DroppableCalendarCell({
   date, 
   posts, 
   isToday, 
-  isCurrentMonth 
+  isCurrentMonth,
+  onTimeChange,
+  generateTimeOptions,
+  globalScheduleTime,
+  individualPostTimes,
+  globalTimeApplied
 }: { 
   date: string; 
   posts: ScheduledPost[]; 
   isToday: boolean; 
   isCurrentMonth: boolean;
+  onTimeChange: (postId: string, newTime: string) => void;
+  generateTimeOptions: () => string[];
+  globalScheduleTime: string | null;
+  individualPostTimes: Record<string, string>;
+  globalTimeApplied: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `date-${date}`,
@@ -272,14 +283,28 @@ function DroppableCalendarCell({
             </div>
             
             {/* Time and Platform Info */}
-            {post.scheduledTime && (
-              <div className="flex items-center gap-2 mb-1 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3" />
-                <span>{new Date(post.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                <span className="text-xs opacity-75">•</span>
-                <span className="capitalize">{post.platforms.join(', ')}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 mb-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              <select 
+                className={`px-2 py-1 border rounded text-xs ${
+                  globalTimeApplied 
+                    ? 'bg-muted text-muted-foreground cursor-not-allowed' 
+                    : 'bg-background border-border'
+                }`}
+                value={globalTimeApplied ? (globalScheduleTime || '09:00') : (individualPostTimes[post.id] || '09:00')}
+                onChange={(e) => onTimeChange(post.id, e.target.value)}
+                disabled={globalTimeApplied}
+              >
+                {generateTimeOptions().map(time => (
+                  <option key={time} value={time}>{time}</option>
+                ))}
+              </select>
+              {globalTimeApplied && (
+                <span className="text-xs text-muted-foreground">(Applied)</span>
+              )}
+              <span className="text-xs opacity-75">•</span>
+              <span className="capitalize">{post.platforms.join(', ')}</span>
+            </div>
             
             <p className="line-clamp-2 text-muted-foreground">
               {post.caption}
@@ -297,6 +322,9 @@ export function SchedulerClient({ clientId, projectId }: SchedulerClientProps) {
   const [draggedPost, setDraggedPost] = useState<PostInQueue | null>(null);
   const [isSchedulingModalOpen, setIsSchedulingModalOpen] = useState(false);
   const [selectedPostForScheduling, setSelectedPostForScheduling] = useState<PostInQueue | null>(null);
+  const [globalScheduleTime, setGlobalScheduleTime] = useState<string | null>(null);
+  const [individualPostTimes, setIndividualPostTimes] = useState<Record<string, string>>({});
+  const [globalTimeApplied, setGlobalTimeApplied] = useState(false);
   
   // Get posts from Zustand store
   const key = `${clientId}:${projectId}`;
@@ -353,6 +381,62 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
           : post
       )
     );
+  };
+
+  const generateTimeOptions = () => {
+    const times = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        times.push(timeString);
+      }
+    }
+    return times;
+  };
+
+  const handleApplyToAll = () => {
+    if (!globalScheduleTime) return;
+    
+    // Update all scheduled posts to use the global time
+    const updatedPosts = scheduledPostsFromStore.map(post => ({
+      ...post,
+      scheduledTime: `${post.scheduledTime.split('T')[0]}T${globalScheduleTime}:00.000Z`
+    }));
+    
+    // Update individual post times to match global time
+    const newIndividualTimes: Record<string, string> = {};
+    updatedPosts.forEach(post => {
+      newIndividualTimes[post.id] = globalScheduleTime;
+    });
+    setIndividualPostTimes(newIndividualTimes);
+    
+    // Mark that global time has been applied
+    setGlobalTimeApplied(true);
+    
+    console.log('🕐 Global time override applied:', globalScheduleTime, 'to all posts');
+  };
+
+  const handleIndividualTimeChange = (postId: string, newTime: string) => {
+    // Always allow individual time changes - global time is just a selection until applied
+    setIndividualPostTimes(prev => ({
+      ...prev,
+      [postId]: newTime
+    }));
+    
+    console.log('🕐 Updated post time:', postId, 'to', newTime);
+  };
+
+  const handleGlobalTimeChange = (newTime: string | null) => {
+    setGlobalScheduleTime(newTime);
+    
+    // Reset the applied flag when global time changes
+    setGlobalTimeApplied(false);
+    
+    if (newTime) {
+      console.log('🕐 Global time selected:', newTime, '- waiting for Apply to All');
+    } else {
+      console.log('🕐 Global time cleared');
+    }
   };
 
 
@@ -432,6 +516,16 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
         
         try {
           await schedulePostAction(post.id, new Date(targetDate), platform, projectId, clientId);
+          
+          // If global time is set, use it; otherwise use default time
+          const scheduleTime = globalScheduleTime || '09:00';
+          
+          // Set the individual post time (either global time or default)
+          setIndividualPostTimes(prev => ({
+            ...prev,
+            [post.id]: scheduleTime
+          }));
+          
           console.log('✅ Drag-and-drop schedule completed successfully');
         } catch (error) {
           console.error('❌ Failed to schedule post via drag-and-drop:', error);
@@ -644,6 +738,39 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
                 </Button>
               </div>
 
+              {/* Schedule All Section */}
+              <div className="flex items-center gap-4 mb-6 p-4 bg-muted/30 rounded-lg">
+                <span className="text-sm font-medium text-card-foreground">Schedule all at:</span>
+                <select 
+                  className="px-3 py-2 border border-border rounded-md bg-background text-sm"
+                  value={globalScheduleTime || ''}
+                  onChange={(e) => setGlobalScheduleTime(e.target.value || null)}
+                >
+                  <option value="">Select time...</option>
+                  {generateTimeOptions().map(time => (
+                    <option key={time} value={time}>{time}</option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  onClick={handleApplyToAll}
+                  disabled={scheduledPostsFromStore.length === 0 || !globalScheduleTime}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  Apply to All
+                </Button>
+                {globalScheduleTime && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setGlobalScheduleTime(null)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    Clear Global Time
+                  </Button>
+                )}
+              </div>
+
               {/* Calendar Grid */}
               <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden border">
                 {/* Day Headers */}
@@ -661,6 +788,11 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
                     posts={getPostsForDate(date.toISOString().split('T')[0])}
                     isToday={isToday(date)}
                     isCurrentMonth={isCurrentMonth(date)}
+                    onTimeChange={handleIndividualTimeChange}
+                    generateTimeOptions={generateTimeOptions}
+                    globalScheduleTime={globalScheduleTime}
+                    individualPostTimes={individualPostTimes}
+                    globalTimeApplied={globalTimeApplied}
                   />
                 ))}
               </div>
