@@ -721,7 +721,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
               <h2 className="text-xl font-semibold text-card-foreground mb-4">Scheduled Posts</h2>
               {scheduledPostsFromStore.length === 0 ? (
                 <p className="text-muted-foreground text-center py-8">
-                  No posts scheduled yet. Use the calendar below or click "Schedule Post" above.
+                  No posts scheduled yet. Use the calendar below or click 'Schedule Post' above.
                 </p>
               ) : (
                 <div className="space-y-3">

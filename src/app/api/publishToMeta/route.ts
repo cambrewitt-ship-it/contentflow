@@ -1,6 +1,28 @@
 // src/app/api/publishToMeta/route.ts
 import { NextResponse } from 'next/server';
 
+// TypeScript interfaces for better type safety
+interface MetaApiResponse {
+  id?: string;
+  error?: {
+    message: string;
+    type: string;
+    code: number;
+  };
+}
+
+interface SchedulingResult {
+  success: boolean;
+  postId?: string;
+  platform: 'instagram' | 'facebook';
+  error?: string;
+}
+
+interface ErrorWithMessage {
+  message: string;
+  [key: string]: unknown;
+}
+
 // Meta API configuration from environment variables
 const META_APP_ID = process.env.META_APP_ID;
 const META_APP_SECRET = process.env.META_APP_SECRET;
@@ -73,16 +95,17 @@ export async function POST(req: Request) {
       }, { status: 500 });
     }
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('❌ Unexpected error in publishToMeta route:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
     return NextResponse.json({ 
       success: false, 
-      error: err?.message || 'Unknown error occurred' 
+      error: errorMessage
     }, { status: 500 });
   }
 }
 
-async function scheduleInstagramPost(caption: string, imageUrl: string, scheduledTime: string): Promise<any> {
+async function scheduleInstagramPost(caption: string, imageUrl: string, scheduledTime: string): Promise<SchedulingResult> {
   try {
     console.log('📸 Scheduling Instagram post:', { scheduledTime });
     
@@ -129,13 +152,14 @@ async function scheduleInstagramPost(caption: string, imageUrl: string, schedule
     console.log('✅ Instagram post scheduled successfully:', publishData.id);
     return { success: true, postId: publishData.id, platform: 'instagram' };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Instagram scheduling error:', error);
-    return { success: false, error: error.message, platform: 'instagram' };
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return { success: false, error: errorMessage, platform: 'instagram' };
   }
 }
 
-async function scheduleFacebookPost(caption: string, imageUrl: string, scheduledTime: string): Promise<any> {
+async function scheduleFacebookPost(caption: string, imageUrl: string, scheduledTime: string): Promise<SchedulingResult> {
   try {
     console.log('📘 Scheduling Facebook post:', { scheduledTime });
     
@@ -162,8 +186,9 @@ async function scheduleFacebookPost(caption: string, imageUrl: string, scheduled
     console.log('✅ Facebook post scheduled successfully:', data.id);
     return { success: true, postId: data.id, platform: 'facebook' };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Facebook scheduling error:', error);
-    return { success: false, error: error.message, platform: 'facebook' };
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return { success: false, error: errorMessage, platform: 'facebook' };
   }
 }

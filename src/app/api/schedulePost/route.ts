@@ -53,8 +53,9 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true, id: data.id, record: data }, { status: 200 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Unexpected error in schedulePost route', err);
-    return NextResponse.json({ success: false, error: err?.message || 'Unknown error' }, { status: 500 });
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }

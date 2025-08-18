@@ -180,7 +180,7 @@ export default function ContentSuitePage({ params }: PageProps) {
     const existing = getPostsInStore(resolvedParams.projectId, resolvedParams.clientId) || [];
     const existingIds = new Set(existing.map(p => p.id));
 
-    (currentLocalPosts || []).forEach((p: any) => {
+    (currentLocalPosts || []).forEach((p: { id: string; imageUrl: string; caption: string; notes?: string }) => {
       if (!existingIds.has(p.id)) {
         addPostToStore(p.imageUrl, p.caption, resolvedParams.projectId, resolvedParams.clientId, p.notes || '');
       }
