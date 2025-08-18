@@ -416,6 +416,60 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
     console.log('🕐 Global time override applied:', globalScheduleTime, 'to all posts');
   };
 
+  // Test Ayrshare API function
+  const testAyrshareAPI = async () => {
+    try {
+      console.log('🧪 Testing Ayrshare API...');
+      
+      const testPayload = {
+        scheduled_post_id: 'test-uuid-123',
+        caption: 'Test from scheduler',
+        image_url: 'https://example.com/image.jpg',
+        scheduled_time: '2025-08-20T10:00:00.000Z',
+        platforms: ['facebook'],
+        client_id: clientId,
+        project_id: projectId
+      };
+      
+      console.log('📤 Sending test payload:', testPayload);
+      
+      const response = await fetch('/api/publishViaAyrshare', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(testPayload)
+      });
+      
+      console.log('📡 Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
+      const result = await response.json();
+      console.log('📄 Parsed response result:', result);
+      
+      if (response.ok) {
+        console.log('✅ Ayrshare API test successful:', result);
+      } else {
+        console.error('❌ Ayrshare API test failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          result: result,
+          error: result.error,
+          debug: result.debug
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('💥 Error testing Ayrshare API:', error);
+      throw error;
+    }
+  };
+
   const handleIndividualTimeChange = (postId: string, newTime: string) => {
     // Always allow individual time changes - global time is just a selection until applied
     setIndividualPostTimes(prev => ({
@@ -709,6 +763,27 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
           </Card>
 
 
+
+          {/* Test Ayrshare API Section */}
+          <Card className="mb-8">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-card-foreground mb-2">Test Ayrshare Integration</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Test the Ayrshare API endpoint with a sample post to Facebook
+                  </p>
+                </div>
+                <Button
+                  onClick={testAyrshareAPI}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  size="sm"
+                >
+                  🧪 Test Ayrshare API
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Calendar Section */}
           <Card>
