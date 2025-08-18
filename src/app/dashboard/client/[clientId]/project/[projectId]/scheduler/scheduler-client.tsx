@@ -416,24 +416,20 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
     console.log('🕐 Global time override applied:', globalScheduleTime, 'to all posts');
   };
 
-  // Test Ayrshare API function
-  const testAyrshareAPI = async () => {
+  // Test LATE API function
+  const testLateAPI = async () => {
     try {
-      console.log('🧪 Testing Ayrshare API...');
+      console.log('🧪 Testing LATE API...');
       
       const testPayload = {
-        scheduled_post_id: 'test-uuid-123',
-        caption: 'Test from scheduler',
-        image_url: 'https://example.com/image.jpg',
-        scheduled_time: '2025-08-20T10:00:00.000Z',
-        platforms: ['facebook'],
-        client_id: clientId,
-        project_id: projectId
+        platform: 'facebook',
+        message: 'Test post from scheduler',
+        scheduled_time: '2025-08-20T12:00:00Z'
       };
       
       console.log('📤 Sending test payload:', testPayload);
       
-      const response = await fetch('/api/publishViaAyrshare', {
+      const response = await fetch('/api/publishViaLate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -452,9 +448,9 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       console.log('📄 Parsed response result:', result);
       
       if (response.ok) {
-        console.log('✅ Ayrshare API test successful:', result);
+        console.log('✅ LATE API test successful:', result);
       } else {
-        console.error('❌ Ayrshare API test failed:', {
+        console.error('❌ LATE API test failed:', {
           status: response.status,
           statusText: response.statusText,
           result: result,
@@ -465,7 +461,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       
       return result;
     } catch (error) {
-      console.error('💥 Error testing Ayrshare API:', error);
+      console.error('💥 Error testing LATE API:', error);
       throw error;
     }
   };
@@ -720,9 +716,9 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
             <CardContent className="p-6">
               <h2 className="text-xl font-semibold text-card-foreground mb-4">Scheduled Posts</h2>
               {scheduledPostsFromStore.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  No posts scheduled yet. Use the calendar below or click 'Schedule Post' above.
-                </p>
+                                  <p className="text-muted-foreground text-center py-8">
+                    No posts scheduled yet. Use the calendar below or click &apos;Schedule Post&apos; above.
+                  </p>
               ) : (
                 <div className="space-y-3">
                   {scheduledPostsFromStore.map((scheduledPost) => {
@@ -764,22 +760,22 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
 
 
 
-          {/* Test Ayrshare API Section */}
+          {/* Test LATE API Section */}
           <Card className="mb-8">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-semibold text-card-foreground mb-2">Test Ayrshare Integration</h2>
+                  <h2 className="text-xl font-semibold text-card-foreground mb-2">Test LATE API Integration</h2>
                   <p className="text-sm text-muted-foreground">
-                    Test the Ayrshare API endpoint with a sample post to Facebook
+                    Test the LATE API endpoint with a sample post to Facebook
                   </p>
                 </div>
                 <Button
-                  onClick={testAyrshareAPI}
+                  onClick={testLateAPI}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                   size="sm"
                 >
-                  🧪 Test Ayrshare API
+                  🧪 Test LATE API
                 </Button>
               </div>
             </CardContent>

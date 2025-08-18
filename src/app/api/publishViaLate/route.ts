@@ -1,6 +1,5 @@
-// src/app/api/publishViaAyrshare/route.ts
-// Replaced Ayrshare integration with LATE API for scheduling.
-// TODO: later rename file to publishViaLate and remove Ayrshare libs.
+// src/app/api/publishViaLate/route.ts
+// LATE API integration for social media scheduling.
 
 import { NextResponse } from "next/server";
 

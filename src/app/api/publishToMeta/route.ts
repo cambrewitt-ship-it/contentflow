@@ -2,25 +2,11 @@
 import { NextResponse } from 'next/server';
 
 // TypeScript interfaces for better type safety
-interface MetaApiResponse {
-  id?: string;
-  error?: {
-    message: string;
-    type: string;
-    code: number;
-  };
-}
-
 interface SchedulingResult {
   success: boolean;
   postId?: string;
   platform: 'instagram' | 'facebook';
   error?: string;
-}
-
-interface ErrorWithMessage {
-  message: string;
-  [key: string]: unknown;
 }
 
 // Meta API configuration from environment variables
