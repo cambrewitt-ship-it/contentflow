@@ -10,6 +10,35 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "components/ui/dropdown-menu";
 import { Loader2, Upload, Trash2, Globe, Plus, MoreHorizontal, Calendar, FileText } from "lucide-react";
 
+// LateConnectButton component
+function LateConnectButton({ platform }: { platform: string }) {
+  const [loading, setLoading] = useState(false);
+
+  async function startConnect() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/late/start-connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform })
+      });
+      const { connectUrl } = await res.json();
+      window.location.href = connectUrl;
+    } catch (e) {
+      console.error(e);
+      alert('Error starting connect flow');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Button onClick={startConnect} disabled={loading}>
+      {loading ? `Connecting ${platform}…` : `Connect ${platform}`}
+    </Button>
+  );
+}
+
 const initialData = {
   logo: "☕",
   name: "Coastal Coffee Co.",
@@ -288,10 +317,38 @@ export default function ClientDashboard() {
                     onClick={() => handleDeleteFile(idx)}
                     className="text-destructive hover:bg-destructive/10"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-4 w-4" />
                   </Button>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* LATE API Connections Section */}
+      <div className="mb-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Social Media Connections</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center">
+                <h4 className="font-medium mb-2">Instagram</h4>
+                <LateConnectButton platform="instagram" />
+              </div>
+              <div className="text-center">
+                <h4 className="font-medium mb-2">Facebook</h4>
+                <LateConnectButton platform="facebook" />
+              </div>
+              <div className="text-center">
+                <h4 className="font-medium mb-2">Twitter</h4>
+                <LateConnectButton platform="twitter" />
+              </div>
+            </div>
+            <div className="mt-4 text-sm text-muted-foreground text-center">
+              Connect your social media accounts to enable automated posting via LATE API
             </div>
           </CardContent>
         </Card>
