@@ -11,7 +11,7 @@ interface PageProps {
 export default async function SchedulerPage({ params }: PageProps) {
   const { clientId, projectId } = await params;
   
-  return (
+    return (
     <Suspense fallback={
       <div className="min-h-screen bg-background">
         <div className="mx-auto max-w-7xl px-4 py-8">

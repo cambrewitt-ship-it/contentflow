@@ -422,9 +422,10 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       console.log('🧪 Testing LATE API...');
       
       const testPayload = {
-        platform: 'facebook',
-        message: 'Test post from scheduler',
-        scheduled_time: '2025-08-20T12:00:00Z'
+        content: "Test post from my app",
+        platforms: ["facebook"],
+        profileId: "test_profile_id",
+        publishNow: true
       };
       
       console.log('📤 Sending test payload:', testPayload);
@@ -449,6 +450,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       
       if (response.ok) {
         console.log('✅ LATE API test successful:', result);
+        alert(`✅ LATE API test successful!\n\nResponse: ${JSON.stringify(result, null, 2)}`);
       } else {
         console.error('❌ LATE API test failed:', {
           status: response.status,
@@ -457,11 +459,14 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
           error: result.error,
           debug: result.debug
         });
+        alert(`❌ LATE API test failed!\n\nStatus: ${response.status} ${response.statusText}\n\nError: ${JSON.stringify(result, null, 2)}`);
       }
       
       return result;
     } catch (error) {
       console.error('💥 Error testing LATE API:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`💥 Error testing LATE API!\n\nError: ${errorMessage}`);
       throw error;
     }
   };
