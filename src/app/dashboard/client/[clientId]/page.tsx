@@ -1,6 +1,6 @@
 "use client";
-import { useState, useRef } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
+import { use } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "components/ui/card";
 import { Input } from "components/ui/input";
 import { Textarea } from "components/ui/textarea";
@@ -8,112 +8,107 @@ import { Button } from "components/ui/button";
 import { Badge } from "components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "components/ui/dropdown-menu";
-import { Loader2, Upload, Trash2, Globe, Plus, MoreHorizontal, Calendar, FileText } from "lucide-react";
+import { Loader2, Upload, Trash2, Globe, Plus, MoreHorizontal, Calendar, FileText, AlertCircle, UserX } from "lucide-react";
+import Link from "next/link";
 
-// LateConnectButton component
-function LateConnectButton({ platform }: { platform: string }) {
-  const [loading, setLoading] = useState(false);
-
-  async function startConnect() {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/late/start-connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform })
-      });
-      const { connectUrl } = await res.json();
-      window.location.href = connectUrl;
-    } catch (e) {
-      console.error(e);
-      alert('Error starting connect flow');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <Button onClick={startConnect} disabled={loading}>
-      {loading ? `Connecting ${platform}…` : `Connect ${platform}`}
-    </Button>
-  );
+interface Client {
+  id: string;
+  name: string;
+  description?: string;
+  website?: string;
+  industry?: string;
+  founded_date?: string;
+  created_at: string;
 }
 
-const initialData = {
-  logo: "☕",
-  name: "Coastal Coffee Co.",
-  website: "www.coastalcoffee.com",
-  description:
-    "Premium artisanal coffee roasters focusing on sustainable, locally-sourced beans with a coastal lifestyle brand.",
-};
-
-// Sample projects data
-const initialProjects = [
-  {
-    id: 1,
-    name: "July Content",
-    status: "Active",
-    postCount: 8,
-    lastUpdated: "2 days ago",
-    description: "Monthly content calendar for July"
-  },
-  {
-    id: 2,
-    name: "Christmas Campaign",
-    status: "Draft",
-    postCount: 15,
-    lastUpdated: "5 days ago",
-    description: "Holiday season promotional content"
-  },
-  {
-    id: 3,
-    name: "Summer Sale Promo",
-    status: "Completed",
-    postCount: 6,
-    lastUpdated: "1 week ago",
-    description: "Summer sale promotional campaign"
-  },
-  {
-    id: 4,
-    name: "Brand Awareness",
-    status: "Review",
-    postCount: 10,
-    lastUpdated: "yesterday",
-    description: "Brand awareness campaign"
-  }
-];
-
-const statusColors = {
-  Draft: "bg-gray-100 text-gray-800",
-  Active: "bg-green-100 text-green-800",
-  Review: "bg-blue-100 text-blue-800",
-  Completed: "bg-purple-100 text-purple-800"
-};
-
-export default function ClientDashboard() {
-  const [website, setWebsite] = useState(initialData.website);
-  const [about, setAbout] = useState(initialData.description);
+export default function ClientDashboard({ params }: { params: Promise<{ clientId: string }> }) {
+  const { clientId } = use(params);
+  const [client, setClient] = useState<Client | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [website, setWebsite] = useState("");
+  const [about, setAbout] = useState("");
   const [saving, setSaving] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [projects, setProjects] = useState(initialProjects);
   const [newProjectDialog, setNewProjectDialog] = useState(false);
   const [newProject, setNewProject] = useState({ name: "", description: "", status: "Draft" });
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
-  const pathname = usePathname();
-  // Extract clientId from pathname
-  const clientId = pathname.split("/").filter(Boolean)[2];
 
-  // Simulate save
+  // Sample projects data
+  const projects = [
+    {
+      id: 1,
+      name: "July Content",
+      status: "Active",
+      postCount: 8,
+      lastUpdated: "2 days ago",
+      description: "Monthly content calendar for July"
+    },
+    {
+      id: 2,
+      name: "Christmas Campaign",
+      status: "Draft",
+      postCount: 15,
+      lastUpdated: "5 days ago",
+      description: "Holiday season promotional content"
+    }
+  ];
+
+  const statusColors = {
+    Draft: "bg-gray-100 text-gray-800",
+    Active: "bg-green-100 text-green-800",
+    Review: "bg-blue-100 text-blue-800",
+    Completed: "bg-purple-100 text-purple-800"
+  };
+
+  // Fetch client data via API
+  useEffect(() => {
+    async function fetchClient() {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log('🔍 Fetching client data for ID:', clientId);
+        
+        const response = await fetch(`/api/clients/${clientId}`);
+        
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error('Client not found');
+          }
+          throw new Error(`Failed to fetch client: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('✅ Client data fetched:', data);
+        
+        setClient(data.client);
+        setWebsite(data.client.website || "");
+        setAbout(data.client.description || "");
+        
+      } catch (err) {
+        console.error('❌ Error fetching client:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch client data');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (clientId) {
+      fetchClient();
+    }
+  }, [clientId]);
+
+  // Handle save
   const handleSave = async () => {
     setSaving(true);
+    // TODO: Implement save to API
     await new Promise((r) => setTimeout(r, 1200));
     setSaving(false);
   };
 
-  // Simulate file upload
+  // Handle file upload
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files || []);
     for (const file of selected) {
@@ -128,10 +123,9 @@ export default function ClientDashboard() {
       setUploading(false);
       setUploadProgress(0);
     }
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // Drag & drop
+  // Handle drag & drop
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const dropped = Array.from(e.dataTransfer.files || []);
@@ -152,73 +146,96 @@ export default function ClientDashboard() {
     setFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // Project functions
+  // Handle project creation
   const handleCreateProject = () => {
     if (newProject.name.trim()) {
-      const project = {
-        id: Date.now(),
-        name: newProject.name,
-        status: newProject.status,
-        postCount: 0,
-        lastUpdated: "just now",
-        description: newProject.description
-      };
-      setProjects((prev) => [...prev, project]);
+      // TODO: Implement project creation
       setNewProject({ name: "", description: "", status: "Draft" });
       setNewProjectDialog(false);
     }
   };
 
-  const handleProjectClick = (project: typeof initialProjects[0]) => {
-    router.push(`/dashboard/client/${clientId}/project/${project.id}/content-suite`);
-  };
+  // Loading state
+  if (loading) {
+    return (
+      <div className="p-8 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+        <h2 className="text-xl font-semibold text-gray-700">Loading client data...</h2>
+        <p className="text-gray-500">Please wait while we fetch the client information.</p>
+      </div>
+    );
+  }
 
-  const handleProjectAction = (action: string, project: typeof initialProjects[0]) => {
-    switch (action) {
-      case "edit":
-        alert(`Edit ${project.name} - Coming Soon!`);
-        break;
-      case "duplicate":
-        const duplicated = {
-          ...project,
-          id: Date.now(),
-          name: `${project.name} (Copy)`,
-          lastUpdated: "just now"
-        };
-        setProjects((prev) => [...prev, duplicated]);
-        break;
-      case "delete":
-        if (confirm(`Are you sure you want to delete "${project.name}"?`)) {
-          setProjects((prev) => prev.filter((p) => p.id !== project.id));
-        }
-        break;
-    }
-  };
+  // Error state
+  if (error) {
+    return (
+      <div className="p-8 text-center">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <AlertCircle className="h-8 w-8 text-red-600" />
+        </div>
+        <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Client</h1>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <Button onClick={() => window.location.reload()} variant="outline">
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
+  // Client not found state
+  if (!client) {
+    return (
+      <div className="p-8 text-center">
+        <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <UserX className="h-8 w-8 text-yellow-600" />
+        </div>
+        <h1 className="text-2xl font-bold text-yellow-600 mb-4">Client Not Found</h1>
+        <p className="text-gray-600 mb-4">The client with ID "{clientId}" could not be found.</p>
+        <Link href="/dashboard">
+          <Button variant="outline">
+            Back to Dashboard
+          </Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto py-10 px-2 md:px-8 w-full">
       {/* Header */}
       <div className="flex items-center gap-6 mb-10">
         <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center text-3xl">
-          {initialData.logo}
+          {client.name.charAt(0).toUpperCase()}
         </div>
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-              {initialData.name}
+              {client.name}
             </h1>
+            {client.industry && (
+              <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                {client.industry}
+              </Badge>
+            )}
           </div>
-          <a
-            href={`https://${website}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-blue-600 hover:underline text-sm mt-1"
-          >
-            <Globe className="w-4 h-4" />
-            {website}
-          </a>
+          {client.website && (
+            <a
+              href={`https://${client.website}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-blue-600 hover:underline text-sm mt-1"
+            >
+              <Globe className="w-4 h-4" />
+              {client.website}
+            </a>
+          )}
+          {client.founded_date && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Founded {new Date(client.founded_date).getFullYear()}
+            </p>
+          )}
           <div className="text-muted-foreground text-sm mt-2 max-w-xl">
-            {initialData.description}
+            {client.description || 'No description provided'}
           </div>
         </div>
       </div>
@@ -228,7 +245,7 @@ export default function ClientDashboard() {
         {/* Left: Company Info */}
         <Card>
           <CardHeader>
-            <CardTitle>Company Information</CardTitle>
+            <CardTitle>Website & Contact</CardTitle>
           </CardHeader>
           <CardContent>
             <form
@@ -249,42 +266,92 @@ export default function ClientDashboard() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">About</label>
-                <Textarea
+                <label className="block text-sm font-medium text-gray-700">
+                  Company Information
+                </label>
+                <textarea
                   value={about}
                   onChange={(e) => setAbout(e.target.value)}
-                  rows={5}
-                  placeholder="Company description or notes"
-                  required
+                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter company description..."
                 />
+                <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                  Save Changes
+                </button>
               </div>
-              <Button type="submit" disabled={saving} className="w-full mt-2">
-                {saving ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="animate-spin h-4 w-4" /> Saving...
-                  </span>
-                ) : (
-                  "Save"
-                )}
-              </Button>
             </form>
           </CardContent>
         </Card>
 
-        {/* Right: Brand Documents */}
+        {/* Social Media Platforms Bar */}
+        <div className="col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Social Media Platforms</h3>
+          <div className="flex justify-between items-center">
+            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-bold">f</span>
+              </div>
+              <span className="text-xs text-gray-600">Facebook</span>
+            </button>
+            
+            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-bold">IG</span>
+              </div>
+              <span className="text-xs text-gray-600">Instagram</span>
+            </button>
+            
+            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-bold">X</span>
+              </div>
+              <span className="text-xs text-gray-600">X</span>
+            </button>
+            
+            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-bold">in</span>
+              </div>
+              <span className="text-xs text-gray-600">LinkedIn</span>
+            </button>
+            
+            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-bold">TT</span>
+              </div>
+              <span className="text-xs text-gray-600">TikTok</span>
+            </button>
+            
+            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-bold">YT</span>
+              </div>
+              <span className="text-xs text-gray-600">YouTube</span>
+            </button>
+            
+            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-bold">T</span>
+              </div>
+              <span className="text-xs text-gray-600">Threads</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Right: Tone of Voice Documents */}
         <Card>
           <CardHeader>
-            <CardTitle>Brand Documents</CardTitle>
+            <CardTitle>Tone of Voice Documents</CardTitle>
           </CardHeader>
           <CardContent>
             <div
               className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${uploading ? "border-primary bg-primary/10" : "hover:border-primary/60"}`}
               onDrop={handleDrop}
               onDragOver={(e) => e.preventDefault()}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => document.getElementById('fileInput')?.click()}
             >
               <input
-                ref={fileInputRef}
+                id="fileInput"
                 type="file"
                 accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
                 multiple
@@ -321,34 +388,6 @@ export default function ClientDashboard() {
                   </Button>
                 </div>
               ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* LATE API Connections Section */}
-      <div className="mb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Social Media Connections</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center">
-                <h4 className="font-medium mb-2">Instagram</h4>
-                <LateConnectButton platform="instagram" />
-              </div>
-              <div className="text-center">
-                <h4 className="font-medium mb-2">Facebook</h4>
-                <LateConnectButton platform="facebook" />
-              </div>
-              <div className="text-center">
-                <h4 className="font-medium mb-2">Twitter</h4>
-                <LateConnectButton platform="twitter" />
-              </div>
-            </div>
-            <div className="mt-4 text-sm text-muted-foreground text-center">
-              Connect your social media accounts to enable automated posting via LATE API
             </div>
           </CardContent>
         </Card>
@@ -420,7 +459,6 @@ export default function ClientDashboard() {
             <Card
               key={project.id}
               className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50"
-              onClick={() => handleProjectClick(project)}
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -439,16 +477,9 @@ export default function ClientDashboard() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleProjectAction("edit", project); }}>
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleProjectAction("duplicate", project); }}>
-                        Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={(e) => { e.stopPropagation(); handleProjectAction("delete", project); }}
-                        className="text-destructive"
-                      >
+                      <DropdownMenuItem>Edit</DropdownMenuItem>
+                      <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive">
                         Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
