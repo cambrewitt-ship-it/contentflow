@@ -1,271 +1,388 @@
-"use client";
-import { useState, useEffect } from "react";
-import { use } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "components/ui/card";
-import { Input } from "components/ui/input";
-import { Textarea } from "components/ui/textarea";
-import { Button } from "components/ui/button";
-import { Badge } from "components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "components/ui/dropdown-menu";
-import { Loader2, Upload, Trash2, Globe, Plus, MoreHorizontal, Calendar, FileText, AlertCircle, UserX } from "lucide-react";
-import Link from "next/link";
+'use client'
 
-interface Client {
-  id: string;
-  name: string;
-  description?: string;
-  website?: string;
-  industry?: string;
-  founded_date?: string;
-  created_at: string;
-}
+import { use, useEffect, useState } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
 
 export default function ClientDashboard({ params }: { params: Promise<{ clientId: string }> }) {
-  const { clientId } = use(params);
-  const [client, setClient] = useState<Client | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [website, setWebsite] = useState("");
-  const [about, setAbout] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [newProjectDialog, setNewProjectDialog] = useState(false);
-  const [newProject, setNewProject] = useState({ name: "", description: "", status: "Draft" });
+  const { clientId } = use(params)
+  const [client, setClient] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [website, setWebsite] = useState("")
+  const [about, setAbout] = useState("")
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null)
+  const [oauthMessage, setOauthMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null)
 
-  // Sample projects data
-  const projects = [
-    {
-      id: 1,
-      name: "July Content",
-      status: "Active",
-      postCount: 8,
-      lastUpdated: "2 days ago",
-      description: "Monthly content calendar for July"
-    },
-    {
-      id: 2,
-      name: "Christmas Campaign",
-      status: "Draft",
-      postCount: 15,
-      lastUpdated: "5 days ago",
-      description: "Holiday season promotional content"
+  // Check for OAuth callback messages in URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const oauthSuccess = urlParams.get('oauth_success');
+      const oauthError = urlParams.get('oauth_error');
+      const errorDescription = urlParams.get('error_description');
+      const username = urlParams.get('username');
+      
+      if (oauthSuccess) {
+        setOauthMessage({
+          type: 'success',
+          message: `Successfully connected to ${oauthSuccess}${username ? ` (${username})` : ''}!`
+        });
+        // Clear URL parameters
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (oauthError) {
+        setOauthMessage({
+          type: 'error',
+          message: `Failed to connect: ${errorDescription || oauthError}`
+        });
+        // Clear URL parameters
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
-  ];
-
-  const statusColors = {
-    Draft: "bg-gray-100 text-gray-800",
-    Active: "bg-green-100 text-green-800",
-    Review: "bg-blue-100 text-blue-800",
-    Completed: "bg-purple-100 text-purple-800"
-  };
+  }, []);
 
   // Fetch client data via API
   useEffect(() => {
     async function fetchClient() {
       try {
-        setLoading(true);
-        setError(null);
+        setLoading(true)
+        setError(null)
         
-        console.log('🔍 Fetching client data for ID:', clientId);
+        console.log('🔍 Fetching client data for ID:', clientId)
         
-        const response = await fetch(`/api/clients/${clientId}`);
+        const response = await fetch(`/api/clients/${clientId}`)
         
         if (!response.ok) {
           if (response.status === 404) {
-            throw new Error('Client not found');
+            throw new Error('Client not found')
           }
-          throw new Error(`Failed to fetch client: ${response.statusText}`);
+          throw new Error(`Failed to fetch client: ${response.statusText}`)
         }
         
-        const data = await response.json();
-        console.log('✅ Client data fetched:', data);
+        const data = await response.json()
+        console.log('✅ Client data fetched:', data)
         
-        setClient(data.client);
-        setWebsite(data.client.website || "");
-        setAbout(data.client.description || "");
+        setClient(data.client)
+        setWebsite(data.client.website || "")
+        setAbout(data.client.description || "")
         
       } catch (err) {
-        console.error('❌ Error fetching client:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch client data');
+        console.error('❌ Error fetching client:', err)
+        setError(err instanceof Error ? err.message : 'Failed to fetch client data')
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
     }
 
     if (clientId) {
-      fetchClient();
+      fetchClient()
     }
-  }, [clientId]);
+  }, [clientId])
 
-  // Handle save
-  const handleSave = async () => {
-    setSaving(true);
-    // TODO: Implement save to API
-    await new Promise((r) => setTimeout(r, 1200));
-    setSaving(false);
-  };
-
-  // Handle file upload
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files || []);
-    for (const file of selected) {
-      setUploading(true);
-      setUploadProgress(0);
-      // Simulate upload progress
-      for (let i = 1; i <= 100; i += 10) {
-        setUploadProgress(i);
-        await new Promise((r) => setTimeout(r, 20));
+  // Handle platform connection
+  const handlePlatformConnect = async (platform: string) => {
+    try {
+      setConnectingPlatform(platform)
+      setError(null)
+      setOauthMessage(null) // Clear any previous OAuth messages
+      
+      console.log(`🔗 Connecting to ${platform} for client:`, clientId)
+      
+      // Use Facebook-specific route for Facebook, general route for others
+      const apiRoute = platform === 'facebook' 
+        ? '/api/late/connect-facebook'
+        : '/api/late/connect-platform'
+      
+      const requestBody = platform === 'facebook'
+        ? { clientId }
+        : { platform, clientId }
+      
+      const response = await fetch(apiRoute, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `Failed to connect to ${platform}`)
       }
-      setFiles((prev) => [...prev, file]);
-      setUploading(false);
-      setUploadProgress(0);
+      
+      const data = await response.json()
+      console.log(`✅ ${platform} connection URL generated:`, data.connectUrl)
+      
+      // Redirect to the connect URL from our API (which calls LATE API)
+      window.location.assign(data.connectUrl)
+      
+    } catch (err) {
+      console.error(`❌ Error connecting to ${platform}:`, err)
+      setError(err instanceof Error ? err.message : `Failed to connect to ${platform}`)
+    } finally {
+      setConnectingPlatform(null)
     }
-  };
+  }
 
-  // Handle drag & drop
-  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const dropped = Array.from(e.dataTransfer.files || []);
-    for (const file of dropped) {
-      setUploading(true);
-      setUploadProgress(0);
-      for (let i = 1; i <= 100; i += 10) {
-        setUploadProgress(i);
-        await new Promise((r) => setTimeout(r, 20));
-      }
-      setFiles((prev) => [...prev, file]);
-      setUploading(false);
-      setUploadProgress(0);
-    }
-  };
-
-  const handleDeleteFile = (idx: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  // Handle project creation
-  const handleCreateProject = () => {
-    if (newProject.name.trim()) {
-      // TODO: Implement project creation
-      setNewProject({ name: "", description: "", status: "Draft" });
-      setNewProjectDialog(false);
-    }
-  };
-
-  // Loading state
   if (loading) {
     return (
-      <div className="p-8 text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-        <h2 className="text-xl font-semibold text-gray-700">Loading client data...</h2>
-        <p className="text-gray-500">Please wait while we fetch the client information.</p>
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading client dashboard...</p>
+            </div>
+          </div>
+        </div>
       </div>
-    );
+    )
   }
 
-  // Error state
   if (error) {
     return (
-      <div className="p-8 text-center">
-        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <AlertCircle className="h-8 w-8 text-red-600" />
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-red-800 mb-2">Error Loading Dashboard</h2>
+            <p className="text-red-600">{error}</p>
+          </div>
         </div>
-        <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Client</h1>
-        <p className="text-gray-600 mb-4">{error}</p>
-        <Button onClick={() => window.location.reload()} variant="outline">
-          Try Again
-        </Button>
       </div>
-    );
+    )
   }
 
-  // Client not found state
   if (!client) {
     return (
-      <div className="p-8 text-center">
-        <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <UserX className="h-8 w-8 text-yellow-600" />
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-yellow-800 mb-2">Client Not Found</h2>
+            <p className="text-yellow-600">No client data available for ID: {clientId}</p>
+          </div>
         </div>
-        <h1 className="text-2xl font-bold text-yellow-600 mb-4">Client Not Found</h1>
-        <p className="text-gray-600 mb-4">The client with ID "{clientId}" could not be found.</p>
-        <Link href="/dashboard">
-          <Button variant="outline">
-            Back to Dashboard
-          </Button>
-        </Link>
       </div>
-    );
+    )
   }
 
   return (
-    <div className="max-w-5xl mx-auto py-10 px-2 md:px-8 w-full">
-      {/* Header */}
-      <div className="flex items-center gap-6 mb-10">
-        <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center text-3xl">
-          {client.name.charAt(0).toUpperCase()}
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-              {client.name}
-            </h1>
-            {client.industry && (
-              <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                {client.industry}
-              </Badge>
-            )}
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8">
+          <div className="flex items-center space-x-6">
+            <div className="w-20 h-20 bg-gray-300 rounded-full flex items-center justify-center">
+              <span className="text-2xl font-bold text-gray-600">
+                {client.name ? client.name.charAt(0).toUpperCase() : 'C'}
+              </span>
+            </div>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">{client.name || 'Client Name'}</h1>
+              <div className="flex items-center space-x-4 text-gray-600">
+                <div className="flex items-center space-x-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                  </svg>
+                  <span>{website || 'No website set'}</span>
+                </div>
+                <span className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">
+                  {client.industry || 'Technology'}
+                </span>
+                <span className="text-sm">
+                  Founded: {client.founded_date || 'Not specified'}
+                </span>
+              </div>
+            </div>
           </div>
-          {client.website && (
-            <a
-              href={`https://${client.website}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-blue-600 hover:underline text-sm mt-1"
-            >
-              <Globe className="w-4 h-4" />
-              {client.website}
-            </a>
-          )}
-          {client.founded_date && (
-            <p className="text-sm text-muted-foreground mt-1">
-              Founded {new Date(client.founded_date).getFullYear()}
-            </p>
-          )}
-          <div className="text-muted-foreground text-sm mt-2 max-w-xl">
-            {client.description || 'No description provided'}
-          </div>
+          <p className="text-gray-600 mt-4 text-lg">
+            {about || 'No company description available. Add a description to provide more context about your business.'}
+          </p>
         </div>
-      </div>
 
-      {/* Two-Column Layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        {/* Left: Company Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Website & Contact</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                await handleSave();
-              }}
-              className="space-y-4"
-            >
+        {/* Two-Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+          
+          {/* Social Media Platforms Bar */}
+          <div className="col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Social Media Platforms</h3>
+            
+            {/* OAuth Success/Error Messages */}
+            {oauthMessage && (
+              <div className={`mb-4 border rounded-lg p-4 ${
+                oauthMessage.type === 'success' 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <p className={`text-sm ${
+                    oauthMessage.type === 'success' ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {oauthMessage.message}
+                  </p>
+                  <button 
+                    onClick={() => setOauthMessage(null)}
+                    className={`text-xs hover:opacity-70 ${
+                      oauthMessage.type === 'success' ? 'text-green-500' : 'text-red-500'
+                    }`}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Error Message */}
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-600 text-sm">{error}</p>
+                <button 
+                  onClick={() => setError(null)}
+                  className="text-red-500 text-xs mt-2 hover:text-red-700"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+            
+            <div className="flex justify-between items-center">
+              <button 
+                onClick={() => handlePlatformConnect('facebook')}
+                disabled={connectingPlatform === 'facebook'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'facebook' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">f</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'facebook' ? 'Connecting...' : 'Facebook'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={() => handlePlatformConnect('instagram')}
+                disabled={connectingPlatform === 'instagram'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'instagram' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">IG</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'instagram' ? 'Connecting...' : 'Instagram'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={() => handlePlatformConnect('twitter')}
+                disabled={connectingPlatform === 'twitter'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'twitter' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">X</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'twitter' ? 'Connecting...' : 'X'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={() => handlePlatformConnect('linkedin')}
+                disabled={connectingPlatform === 'linkedin'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'linkedin' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">in</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'linkedin' ? 'Connecting...' : 'LinkedIn'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={() => handlePlatformConnect('tiktok')}
+                disabled={connectingPlatform === 'tiktok'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'tiktok' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">TT</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'tiktok' ? 'Connecting...' : 'TikTok'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={() => handlePlatformConnect('youtube')}
+                disabled={connectingPlatform === 'youtube'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'youtube' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">YT</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'youtube' ? 'Connecting...' : 'YouTube'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={() => handlePlatformConnect('threads')}
+                disabled={connectingPlatform === 'threads'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'threads' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">T</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'threads' ? 'Connecting...' : 'Threads'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Left Column: Website & Contact */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">Website & Contact</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Website</label>
-                <Input
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Website URL
+                </label>
+                <input
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
-                  type="url"
-                  placeholder="Website URL"
-                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="https://example.com"
                 />
               </div>
-              <div>
+              <div className="space-y-4">
                 <label className="block text-sm font-medium text-gray-700">
                   Company Information
                 </label>
@@ -279,233 +396,53 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   Save Changes
                 </button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Social Media Platforms Bar */}
-        <div className="col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Social Media Platforms</h3>
-          <div className="flex justify-between items-center">
-            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">f</span>
+          {/* Right Column: Tone of Voice Documents */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">Tone of Voice Documents</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                  <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <div className="mt-4">
+                  <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Choose Files
+                  </button>
+                </div>
+                <p className="mt-2 text-sm text-gray-600">
+                  Upload brand guidelines, tone of voice documents, or style guides
+                </p>
               </div>
-              <span className="text-xs text-gray-600">Facebook</span>
-            </button>
-            
-            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">IG</span>
-              </div>
-              <span className="text-xs text-gray-600">Instagram</span>
-            </button>
-            
-            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">X</span>
-              </div>
-              <span className="text-xs text-gray-600">X</span>
-            </button>
-            
-            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">in</span>
-              </div>
-              <span className="text-xs text-gray-600">LinkedIn</span>
-            </button>
-            
-            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">TT</span>
-              </div>
-              <span className="text-xs text-gray-600">TikTok</span>
-            </button>
-            
-            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">YT</span>
-              </div>
-              <span className="text-xs text-gray-600">YouTube</span>
-            </button>
-            
-            <button className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-              <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">T</span>
-              </div>
-              <span className="text-xs text-gray-600">Threads</span>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Projects Section */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">Projects</h2>
+            <button className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors">
+              New Project
             </button>
           </div>
-        </div>
-
-        {/* Right: Tone of Voice Documents */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Tone of Voice Documents</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${uploading ? "border-primary bg-primary/10" : "hover:border-primary/60"}`}
-              onDrop={handleDrop}
-              onDragOver={(e) => e.preventDefault()}
-              onClick={() => document.getElementById('fileInput')?.click()}
-            >
-              <input
-                id="fileInput"
-                type="file"
-                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
-                multiple
-                className="hidden"
-                onChange={handleFileChange}
-              />
-              <Upload className="mx-auto mb-2 text-primary" />
-              <div className="font-medium">Upload brand documents, tone of voice guides, logos, etc.</div>
-              <div className="text-xs text-muted-foreground mt-1">PDF, DOC, DOCX, PNG, JPG</div>
-              {uploading && (
-                <div className="mt-4 flex items-center justify-center gap-2 text-primary">
-                  <Loader2 className="animate-spin h-4 w-4" />
-                  Uploading... {uploadProgress}%
-                </div>
-              )}
-            </div>
-            {/* File List */}
-            <div className="mt-6 space-y-2">
-              {files.length === 0 && (
-                <div className="text-sm text-muted-foreground text-center">No files uploaded yet.</div>
-              )}
-              {files.map((file, idx) => (
-                <div key={idx} className="flex items-center justify-between bg-muted rounded px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-medium truncate max-w-[180px]">{file.name}</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteFile(idx)}
-                    className="text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="w-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Projects Section */}
-      <div className="border-t border-border pt-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-foreground">Projects</h2>
-          <Dialog open={newProjectDialog} onOpenChange={setNewProjectDialog}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                New Project
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Project</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Project Name *</label>
-                  <Input
-                    value={newProject.name}
-                    onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                    placeholder="Enter project name"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Description</label>
-                  <Textarea
-                    value={newProject.description}
-                    onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-                    placeholder="Project description (optional)"
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Status</label>
-                  <select
-                    value={newProject.status}
-                    onChange={(e) => setNewProject({ ...newProject, status: e.target.value })}
-                    className="w-full p-2 border border-input rounded-md bg-background"
-                  >
-                    <option value="Draft">Draft</option>
-                    <option value="Active">Active</option>
-                    <option value="Review">Review</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                </div>
-                <div className="flex gap-2 pt-4">
-                  <Button onClick={handleCreateProject} className="flex-1">
-                    Create Project
-                  </Button>
-                  <Button variant="outline" onClick={() => setNewProjectDialog(false)} className="flex-1">
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Projects Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((project) => (
-            <Card
-              key={project.id}
-              className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/50"
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-foreground truncate mb-1">
-                      {project.name}
-                    </h3>
-                    <Badge className={statusColors[project.status as keyof typeof statusColors]}>
-                      {project.status}
-                    </Badge>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Edit</DropdownMenuItem>
-                      <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    <span>{project.postCount} posts</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    <span>Updated {project.lastUpdated}</span>
-                  </div>
-                  {project.description && (
-                    <p className="text-xs text-muted-foreground truncate">
-                      {project.description}
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">No projects yet</h3>
+            <p className="mt-2 text-gray-600">Get started by creating your first project to organize your content strategy.</p>
+          </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

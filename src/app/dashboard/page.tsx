@@ -1,5 +1,7 @@
 "use client";
-import { User } from "lucide-react";
+import { User, Plus } from "lucide-react";
+import { Button } from "components/ui/button";
+import Link from "next/link";
 
 export default function Dashboard() {
   return (
@@ -14,11 +16,19 @@ export default function Dashboard() {
         <p className="text-lg text-muted-foreground mb-8">
           Pick a client to get started with your social media management workflow.
         </p>
-        <div className="text-sm text-muted-foreground space-y-1">
+        <div className="text-sm text-muted-foreground space-y-1 mb-8">
           <p>• Upload content and generate AI captions</p>
           <p>• Organize campaigns by client</p>
           <p>• Schedule posts across all platforms</p>
         </div>
+        
+        {/* Create New Client Button */}
+        <Link href="/dashboard/clients/new">
+          <Button className="w-full">
+            <Plus className="w-4 h-4 mr-2" />
+            Create New Client
+          </Button>
+        </Link>
       </div>
     </div>
   );
