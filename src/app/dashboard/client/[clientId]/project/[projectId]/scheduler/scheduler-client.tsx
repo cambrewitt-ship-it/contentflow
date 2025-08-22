@@ -2,13 +2,34 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Instagram, Facebook, Linkedin, GripVertical, Clock, Plus } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Instagram, Facebook, Linkedin, GripVertical, Clock, Plus, AlertCircle } from 'lucide-react';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDraggable, useDroppable } from '@dnd-kit/core';
 import { Button } from 'components/ui/button';
 import { Card, CardContent } from 'components/ui/card';
 import { usePostStore } from 'lib/store';
 import SchedulingModal from 'components/scheduling-modal';
 
+interface ConnectedAccount {
+  id: string;
+  platform: string;
+  username: string;
+  accountId: string;
+  profilePicture?: string;
+  isActive: boolean;
+  connectedAt: string;
+  permissions: string[];
+  // Platform-specific fields
+  followers?: number;
+  isBusiness?: boolean;
+  isVerified?: boolean;
+  pageName?: string;
+  pageId?: string;
+  pageCategory?: string;
+  pageFollowers?: number;
+  companyName?: string;
+  companyId?: string;
+  connectionCount?: number;
+}
 
 interface ScheduledPost {
   id: string;
@@ -26,7 +47,7 @@ interface PostInQueue {
   caption: string;
   media: string;
   platforms: string[];
-  selectedPlatform?: 'instagram' | 'facebook' | 'both' | null;
+  selectedAccounts: string[]; // Array of selected account IDs
 }
 
 interface SchedulerClientProps {
@@ -41,47 +62,68 @@ function DraggablePost({
   post, 
   isDragging, 
   onSchedule,
-  onPlatformChange
+  onAccountSelection,
+  connectedAccounts
 }: { 
   post: PostInQueue; 
   isDragging?: boolean;
-  onSchedule: (postId: string, platform: 'instagram' | 'facebook' | 'both') => void;
-  onPlatformChange: (postId: string, platform: 'instagram' | 'facebook' | 'both' | null) => void;
+  onSchedule: (postId: string, accountIds: string[]) => void;
+  onAccountSelection: (postId: string, accountIds: string[]) => void;
+  connectedAccounts: ConnectedAccount[];
 }) {
-  const [selectedPlatform, setSelectedPlatform] = useState<'instagram' | 'facebook' | 'both' | null>(
-    post.selectedPlatform || null
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
+    post.selectedAccounts || []
   );
   
-  // Sync local state with parent state when post.selectedPlatform changes
+  // Sync local state with parent state when post.selectedAccounts changes
   useEffect(() => {
-    setSelectedPlatform(post.selectedPlatform || null);
-  }, [post.selectedPlatform]);
+    setSelectedAccounts(post.selectedAccounts || []);
+  }, [post.selectedAccounts]);
   
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: post.id,
     data: post,
-    disabled: !selectedPlatform // Disable dragging if no platform is selected
+    disabled: selectedAccounts.length === 0 // Disable dragging if no accounts are selected
   });
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
   } : undefined;
 
-  const handlePlatformToggle = (platform: 'instagram' | 'facebook' | 'both') => {
-    if (selectedPlatform === platform) {
-      // If clicking the same platform, deselect it
-      setSelectedPlatform(null);
-      // Update the post's selectedPlatform property
-      post.selectedPlatform = null;
-      // Notify parent component
-      onPlatformChange(post.id, null);
-    } else {
-      // Otherwise, select the new platform (this will deselect the other one)
-      setSelectedPlatform(platform);
-      // Update the post's selectedPlatform property
-      post.selectedPlatform = platform;
-      // Notify parent component
-      onPlatformChange(post.id, platform);
+  const handleAccountToggle = (accountId: string) => {
+    const newSelectedAccounts = selectedAccounts.includes(accountId)
+      ? selectedAccounts.filter(id => id !== accountId)
+      : [...selectedAccounts, accountId];
+    
+    setSelectedAccounts(newSelectedAccounts);
+    post.selectedAccounts = newSelectedAccounts;
+    onAccountSelection(post.id, newSelectedAccounts);
+  };
+
+  const getPlatformIcon = (platform: string) => {
+    switch (platform.toLowerCase()) {
+      case 'instagram':
+        return <Instagram className="h-3 w-3 text-pink-500" />;
+      case 'facebook':
+        return <Facebook className="h-3 w-3 text-blue-600" />;
+      case 'linkedin':
+        return <Linkedin className="h-3 w-3 text-blue-700" />;
+      case 'twitter':
+        return <div className="h-3 w-3 bg-black rounded-full flex items-center justify-center">
+          <span className="text-white text-xs font-bold">X</span>
+        </div>;
+      case 'tiktok':
+        return <div className="h-3 w-3 bg-black rounded-full flex items-center justify-center">
+          <span className="text-white text-xs font-bold">TT</span>
+        </div>;
+      case 'youtube':
+        return <div className="h-3 w-3 bg-red-600 rounded-full flex items-center justify-center">
+          <span className="text-white text-xs font-bold">YT</span>
+        </div>;
+      default:
+        return <div className="h-3 w-3 bg-gray-500 rounded-full flex items-center justify-center">
+          <span className="text-white text-xs font-bold">?</span>
+        </div>;
     }
   };
 
@@ -89,10 +131,10 @@ function DraggablePost({
     <div
       ref={setNodeRef}
       style={style}
-      {...(selectedPlatform ? listeners : {})}
-      {...(selectedPlatform ? attributes : {})}
+      {...(selectedAccounts.length > 0 ? listeners : {})}
+      {...(selectedAccounts.length > 0 ? attributes : {})}
       className={`bg-card border rounded-lg p-3 transition-all ${
-        selectedPlatform 
+        selectedAccounts.length > 0 
           ? 'cursor-grab hover:shadow-md active:cursor-grabbing border-primary/30' 
           : 'cursor-default opacity-75'
       } ${isDragging ? 'opacity-50 scale-95' : ''}`}
@@ -112,29 +154,22 @@ function DraggablePost({
           </p>
           
           <div className="flex items-center gap-2">
-            {/* Show selected platform if one is selected, otherwise show default platforms */}
-            {post.selectedPlatform ? (
-              <div className="flex items-center gap-1">
-                {post.selectedPlatform === 'instagram' && (
-                  <div className="w-5 h-5 bg-pink-100 border-2 border-pink-500 rounded-full flex items-center justify-center">
-                    <Instagram className="h-3 w-3 text-pink-600" />
-                  </div>
-                )}
-                {post.selectedPlatform === 'facebook' && (
-                  <div className="w-5 h-5 bg-blue-100 border-2 border-blue-600 rounded-full flex items-center justify-center">
-                    <Facebook className="h-3 w-3 text-blue-700" />
-                  </div>
-                )}
-                {post.selectedPlatform === 'both' && (
-                  <div className="flex items-center gap-1">
-                    <div className="w-5 h-5 bg-pink-100 border-2 border-pink-500 rounded-full flex items-center justify-center">
-                      <Instagram className="h-3 w-3 text-pink-600" />
+            {/* Show selected accounts if any are selected, otherwise show available platforms */}
+            {selectedAccounts.length > 0 ? (
+              <div className="flex items-center space-x-1">
+                {selectedAccounts.map(accountId => {
+                  const account = connectedAccounts.find(acc => acc.id === accountId);
+                  if (!account) return null;
+                  
+                  return (
+                    <div key={accountId} className="flex items-center gap-1">
+                      {getPlatformIcon(account.platform)}
+                      <span className="text-xs text-muted-foreground">
+                        {account.username}
+                      </span>
                     </div>
-                    <div className="w-5 h-5 bg-blue-100 border-2 border-blue-600 rounded-full flex items-center justify-center">
-                      <Facebook className="h-3 w-3 text-blue-700" />
-                    </div>
-                  </div>
-                )}
+                  );
+                })}
                 {/* Drag indicator */}
                 <div className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
                   Ready to drag
@@ -142,16 +177,14 @@ function DraggablePost({
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                {post.platforms.map((platform) => (
-                  <div key={platform} className="w-5 h-5 bg-muted rounded-full flex items-center justify-center">
-                    {platform === 'instagram' && <Instagram className="h-3 w-3 text-pink-500" />}
-                    {platform === 'facebook' && <Facebook className="h-3 w-3 text-blue-600" />}
-                    {platform === 'linkedin' && <Linkedin className="h-3 w-3 text-blue-700" />}
+                {connectedAccounts.map((account) => (
+                  <div key={account.id} className="w-5 h-5 bg-muted rounded-full flex items-center justify-center">
+                    {getPlatformIcon(account.platform)}
                   </div>
                 ))}
-                {/* Platform selection required indicator */}
+                {/* Account selection required indicator */}
                 <div className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium">
-                  Select platform to drag
+                  Select accounts to drag
                 </div>
               </div>
             )}
@@ -163,51 +196,34 @@ function DraggablePost({
         </div>
       </div>
       
-      {/* Scheduling Buttons */}
-      <div className="flex gap-1 mt-2 pt-2 border-t border-border">
-        <Button
-          size="sm"
-          variant={selectedPlatform === 'instagram' ? "default" : "outline"}
-          className={`flex-1 h-7 text-xs px-2 ${
-            selectedPlatform === 'instagram' 
-              ? 'bg-pink-600 hover:bg-pink-700 text-white border-pink-600' 
-              : ''
-          }`}
-          onClick={() => handlePlatformToggle('instagram')}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <Instagram className="h-3 w-3 mr-1 text-pink-500" />
-          Instagram
-        </Button>
-        <Button
-          size="sm"
-          variant={selectedPlatform === 'facebook' ? "default" : "outline"}
-          className={`flex-1 h-7 text-xs px-2 ${
-            selectedPlatform === 'facebook' 
-              ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600' 
-              : ''
-          }`}
-          onClick={() => handlePlatformToggle('facebook')}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <Facebook className="h-3 w-3 mr-1 text-blue-600" />
-          Facebook
-        </Button>
-        <Button
-          size="sm"
-          variant={selectedPlatform === 'both' ? "default" : "outline"}
-          className={`flex-1 h-7 text-xs px-2 ${
-            selectedPlatform === 'both' 
-              ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-600' 
-              : ''
-          }`}
-          onClick={() => handlePlatformToggle('both')}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <Calendar className="h-3 w-3 mr-1" />
-          Both
-        </Button>
-
+      {/* Account Selection */}
+      <div className="mt-3 pt-2 border-t border-border">
+        <div className="text-xs text-muted-foreground mb-2">Select accounts to post to:</div>
+        <div className="grid grid-cols-2 gap-2">
+          {connectedAccounts.map((account) => (
+            <label
+              key={account.id}
+              className={`flex items-center space-x-2 p-2 rounded border cursor-pointer transition-colors ${
+                selectedAccounts.includes(account.id)
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:border-primary/30'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={selectedAccounts.includes(account.id)}
+                onChange={() => handleAccountToggle(account.id)}
+                className="text-primary focus:ring-primary"
+              />
+              <div className="flex items-center space-x-2">
+                {getPlatformIcon(account.platform)}
+                <span className="text-xs font-medium truncate">
+                  {account.username}
+                </span>
+              </div>
+            </label>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -325,6 +341,7 @@ export function SchedulerClient({ clientId, projectId }: SchedulerClientProps) {
   const [globalScheduleTime, setGlobalScheduleTime] = useState<string | null>(null);
   const [individualPostTimes, setIndividualPostTimes] = useState<Record<string, string>>({});
   const [globalTimeApplied, setGlobalTimeApplied] = useState(false);
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   
   // Get posts from Zustand store
   const key = `${clientId}:${projectId}`;
@@ -347,7 +364,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       caption: post.caption,
       media: post.imageUrl, // Use imageUrl from store
       platforms: defaultPlatforms, // Use default platforms for now (can be enhanced later)
-      selectedPlatform: null, // Initialize with no platform selected
+      selectedAccounts: [], // Initialize with no accounts selected
     })));
   }, [storePosts]);
 
@@ -361,23 +378,23 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
     setSelectedPostForScheduling(null);
   };
 
-  const handleQuickSchedule = async (postId: string, platform: 'instagram' | 'facebook' | 'both') => {
+  const handleQuickSchedule = async (postId: string, accountIds: string[]) => {
     try {
-      console.log('🔄 Quick scheduling post:', { postId, platform, projectId, clientId });
+      console.log('🔄 Quick scheduling post:', { postId, accountIds, projectId, clientId });
       // Schedule the post immediately for the current date
-      await schedulePostAction(postId, new Date(), platform, projectId, clientId);
+      await schedulePostAction(postId, new Date(), accountIds, projectId, clientId);
       console.log('✅ Quick schedule completed successfully');
     } catch (error) {
       console.error('❌ Failed to quick schedule post:', error);
     }
   };
 
-  const handlePlatformChange = (postId: string, platform: 'instagram' | 'facebook' | 'both' | null) => {
-    // Update the post's selectedPlatform in the postsReadyToSchedule state
+  const handleAccountSelection = (postId: string, accountIds: string[]) => {
+    // Update the post's selectedAccounts in the postsReadyToSchedule state
     setPostsReadyToSchedule(prev => 
       prev.map(post => 
         post.id === postId 
-          ? { ...post, selectedPlatform: platform }
+          ? { ...post, selectedAccounts: accountIds }
           : post
       )
     );
@@ -499,7 +516,9 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
   const publishAllForPlatform = async (platform: string) => {
     try {
       console.log(`🔄 Publishing all posts for ${platform}`);
-      const postsToPublish = scheduledPostsFromStore.filter(post => post.platform === platform);
+      const postsToPublish = scheduledPostsFromStore.filter(post => 
+        post.accountIds && post.accountIds.length > 0
+      );
       
       for (const post of postsToPublish) {
         // Update status to published
@@ -514,6 +533,30 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
     }
   };
 
+  // Fetch connected accounts from LATE API
+  const fetchConnectedAccounts = async () => {
+    try {
+      console.log('🔄 Fetching connected accounts...');
+      const response = await fetch(`/api/late/get-accounts/${clientId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch connected accounts: ${response.statusText}`);
+      }
+      const data = await response.json();
+      if (data.success) {
+        setConnectedAccounts(data.accounts);
+        console.log('✅ Connected accounts fetched:', data.accounts);
+      } else {
+        throw new Error(data.error || 'Failed to fetch connected accounts');
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch connected accounts:', error);
+      // Don't show alert, just log the error
+    }
+  };
+
+  useEffect(() => {
+    fetchConnectedAccounts();
+  }, [clientId, projectId]);
 
 
   // Generate calendar days for the current month
@@ -557,20 +600,20 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       const targetDate = over.data.current?.date;
       
       if (targetDate) {
-        // Use the post's selected platform, or default to 'instagram' if none selected
-        const platform = (post.selectedPlatform || 'instagram') as 'facebook' | 'instagram' | 'both';
+        // Use the post's selected accounts, or default to all connected accounts
+        const accountIds = post.selectedAccounts.length > 0 ? post.selectedAccounts : connectedAccounts.map(acc => acc.id);
         
         console.log('🔄 Drag-and-drop scheduling post:', { 
           postId: post.id, 
           targetDate, 
-          platform, 
+          accountIds, 
           projectId, 
           clientId,
-          selectedPlatform: post.selectedPlatform
+          selectedAccounts: post.selectedAccounts
         });
         
         try {
-          await schedulePostAction(post.id, new Date(targetDate), platform, projectId, clientId);
+          await schedulePostAction(post.id, new Date(targetDate), accountIds, projectId, clientId);
           
           // If global time is set, use it; otherwise use default time
           const scheduleTime = globalScheduleTime || '09:00';
@@ -614,8 +657,11 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
         const post = storePosts.find(p => p.id === scheduledPost.postId);
         if (!post) return null;
         
-        // Handle 'both' platform by showing both Instagram and Facebook icons
-        const platforms = scheduledPost.platform === 'both' ? ['instagram', 'facebook'] : [scheduledPost.platform];
+        // Get the platforms from the connected accounts
+        const platforms = scheduledPost.accountIds.map(accountId => {
+          const account = connectedAccounts.find(acc => acc.id === accountId);
+          return account ? account.platform : 'unknown';
+        });
         
         return {
           id: scheduledPost.id,
@@ -701,7 +747,8 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
                       post={post}
                       isDragging={draggedPost?.id === post.id}
                       onSchedule={handleQuickSchedule}
-                      onPlatformChange={handlePlatformChange}
+                      onAccountSelection={handleAccountSelection}
+                      connectedAccounts={connectedAccounts}
                     />
                     <Button
                       size="sm"
@@ -743,7 +790,10 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
                             <Clock className="h-3 w-3" />
                             {new Date(scheduledPost.scheduledTime).toLocaleString()}
                             <span className="px-2 py-1 rounded-full text-xs bg-muted">
-                              {scheduledPost.platform}
+                              {scheduledPost.accountIds.length > 0 
+                                ? `${scheduledPost.accountIds.length} account(s)`
+                                : 'No accounts selected'
+                              }
                             </span>
                             <span className={`px-2 py-1 rounded-full text-xs ${
                               scheduledPost.status === 'scheduled' ? 'bg-green-100 text-green-800' :
@@ -917,18 +967,18 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
                   <Button
                     onClick={() => publishAllForPlatform('instagram')}
                     className="flex items-center gap-2 bg-pink-600 hover:bg-pink-700"
-                    disabled={scheduledPostsFromStore.filter(post => post.platform === 'instagram').length === 0}
+                    disabled={scheduledPostsFromStore.filter(post => post.accountIds && post.accountIds.length > 0).length === 0}
                   >
                     <Instagram className="h-4 w-4" />
-                    Publish Instagram ({scheduledPostsFromStore.filter(post => post.platform === 'instagram').length})
+                    Publish Instagram ({scheduledPostsFromStore.filter(post => post.accountIds && post.accountIds.length > 0).length})
                   </Button>
                   <Button
                     onClick={() => publishAllForPlatform('facebook')}
                     className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
-                    disabled={scheduledPostsFromStore.filter(post => post.platform === 'facebook').length === 0}
+                    disabled={scheduledPostsFromStore.filter(post => post.accountIds && post.accountIds.length > 0).length === 0}
                   >
                     <Facebook className="h-4 w-4" />
-                    Publish Facebook ({scheduledPostsFromStore.filter(post => post.platform === 'facebook').length})
+                    Publish Facebook ({scheduledPostsFromStore.filter(post => post.accountIds && post.accountIds.length > 0).length})
                   </Button>
                 </div>
               </div>

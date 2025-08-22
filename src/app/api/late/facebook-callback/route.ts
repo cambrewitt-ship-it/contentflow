@@ -18,9 +18,27 @@ export async function GET(req: NextRequest) {
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
     const profileId = searchParams.get('profileId');
-    const clientId = searchParams.get('clientId');
+    let clientId = searchParams.get('clientId');
     const code = searchParams.get('code');
     const state = searchParams.get('state');
+    
+    // If clientId is not in query params, try to extract it from the redirect_url
+    if (!clientId) {
+      const redirectUrl = searchParams.get('redirect_url');
+      if (redirectUrl) {
+        try {
+          const redirectUrlObj = new URL(redirectUrl);
+          const pathParts = redirectUrlObj.pathname.split('/');
+          const clientIdIndex = pathParts.indexOf('client');
+          if (clientIdIndex !== -1 && pathParts[clientIdIndex + 1]) {
+            clientId = pathParts[clientIdIndex + 1];
+            console.log('🔍 Extracted clientId from redirect_url:', clientId);
+          }
+        } catch (err) {
+          console.log('Could not parse redirect_url for clientId extraction');
+        }
+      }
+    }
     
     console.log('🔍 Extracted parameters:', {
       success,

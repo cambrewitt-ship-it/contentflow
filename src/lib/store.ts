@@ -16,7 +16,7 @@ export type ScheduledPost = {
   projectId: string;
   postId: string;
   scheduledTime: string; // ISO string
-  platform: 'facebook' | 'instagram' | 'both';
+  accountIds: string[]; // Array of account IDs to post to
   status: 'scheduled' | 'pending' | 'failed' | 'published';
 };
 
@@ -28,7 +28,7 @@ type State = {
   getScheduledPosts: (projectId: string, clientId: string) => ScheduledPost[];
   addScheduledPost: (sp: ScheduledPost) => void;
   addPostFromContentSuite: (imageUrl: string, caption: string, projectId: string, clientId: string, notes?: string) => void;
-  schedulePost: (postId: string, scheduledDateTime: Date, platform: 'facebook' | 'instagram' | 'both', projectId: string, clientId: string) => Promise<void>;
+  schedulePost: (postId: string, scheduledDateTime: Date, accountIds: string[], projectId: string, clientId: string) => Promise<void>;
 };
 
 // Create the store ONCE at module scope
@@ -59,7 +59,7 @@ export const usePostStore = create<State>((set, get) => ({
                       project_id: sp.projectId,
                       post_id: sp.postId,
                       scheduled_time: sp.scheduledTime,
-                      platform: sp.platform,
+                      account_ids: sp.accountIds, // Updated to use accountIds
                     }),
                   });
 
@@ -107,11 +107,11 @@ export const usePostStore = create<State>((set, get) => ({
     }));
   },
 
-                schedulePost: async (postId, scheduledDateTime, platform, projectId, clientId) => {
+                schedulePost: async (postId, scheduledDateTime, accountIds, projectId, clientId) => {
                 console.log('🔄 Zustand store schedulePost called with:', { 
                   postId, 
                   scheduledDateTime, 
-                  platform, 
+                  accountIds, 
                   projectId, 
                   clientId 
                 });
@@ -135,7 +135,7 @@ export const usePostStore = create<State>((set, get) => ({
                   projectId,
                   postId,
                   scheduledTime: scheduledDateTime.toISOString(),
-                  platform: platform as 'facebook' | 'instagram' | 'both',
+                  accountIds: accountIds,
                   status: 'scheduled',
                 };
 

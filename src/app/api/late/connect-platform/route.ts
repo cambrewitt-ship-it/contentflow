@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Build the callback URL for OAuth completion
-    const callbackUrl = `${appUrl}/api/late/oauth-callback`;
+    const callbackUrl = `${appUrl}/api/late/oauth-callback?clientId=${clientId}`;
     console.log('🔗 Callback URL built:', callbackUrl);
     
     // Prepare LATE API request - using GET with query parameters

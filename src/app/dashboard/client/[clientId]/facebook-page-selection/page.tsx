@@ -114,7 +114,7 @@ export default function FacebookPageSelection({ params }: PageSelectionProps) {
       console.log('✅ Facebook page connected successfully:', data)
       
       // Redirect to client dashboard with success message
-      const successUrl = `/dashboard/client/${clientId}?oauth_success=facebook&username=${encodeURIComponent(selectedPage.name)}`
+      const successUrl = `/dashboard/client/${clientId}?connected=facebook&username=${encodeURIComponent(selectedPage.name)}`
       window.location.href = successUrl
       
     } catch (err) {

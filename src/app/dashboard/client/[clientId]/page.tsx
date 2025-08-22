@@ -2,6 +2,17 @@
 
 import { use, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
+import { Button } from 'components/ui/button'
+import { Plus, Edit3, Calendar, FileText, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
+
+interface Project {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  created_at: string;
+}
 
 export default function ClientDashboard({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params)
@@ -12,6 +23,13 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [about, setAbout] = useState("")
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null)
   const [oauthMessage, setOauthMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [projectsLoading, setProjectsLoading] = useState(false)
+  const [showNewProjectForm, setShowNewProjectForm] = useState(false)
+  const [newProjectName, setNewProjectName] = useState("")
+  const [newProjectDescription, setNewProjectDescription] = useState("")
+  const [creatingProject, setCreatingProject] = useState(false)
+  const [showProjectSelection, setShowProjectSelection] = useState(false)
 
   // Check for OAuth callback messages in URL
   useEffect(() => {
@@ -21,6 +39,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       const oauthError = urlParams.get('oauth_error');
       const errorDescription = urlParams.get('error_description');
       const username = urlParams.get('username');
+      const connected = urlParams.get('connected');
       
       if (oauthSuccess) {
         setOauthMessage({
@@ -33,6 +52,15 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         setOauthMessage({
           type: 'error',
           message: `Failed to connect: ${errorDescription || oauthError}`
+        });
+        // Clear URL parameters
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (connected) {
+        // Handle the new 'connected' parameter for all platforms
+        const platformName = connected.charAt(0).toUpperCase() + connected.slice(1);
+        setOauthMessage({
+          type: 'success',
+          message: `${platformName} connected successfully${username ? ` (${username})` : ''}!`
         });
         // Clear URL parameters
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -77,6 +105,82 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       fetchClient()
     }
   }, [clientId])
+
+  // Fetch projects for the client
+  useEffect(() => {
+    async function fetchProjects() {
+      if (!clientId) return;
+      
+      try {
+        setProjectsLoading(true)
+        const response = await fetch(`/api/projects?clientId=${clientId}`)
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch projects: ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        if (data.success) {
+          setProjects(data.projects)
+          console.log('✅ Projects fetched:', data.projects)
+        } else {
+          console.error('❌ Failed to fetch projects:', data.error)
+        }
+      } catch (err) {
+        console.error('❌ Error fetching projects:', err)
+        // Don't show error to user for projects, just log it
+      } finally {
+        setProjectsLoading(false)
+      }
+    }
+
+    fetchProjects()
+  }, [clientId])
+
+  // Create new project
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) return;
+    
+    try {
+      setCreatingProject(true)
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          name: newProjectName.trim(),
+          description: newProjectDescription.trim()
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to create project: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      if (data.success) {
+        setProjects(prev => [data.project, ...prev])
+        setNewProjectName("")
+        setNewProjectDescription("")
+        setShowNewProjectForm(false)
+        console.log('✅ Project created successfully:', data.project)
+      } else {
+        throw new Error(data.error || 'Failed to create project')
+      }
+    } catch (err) {
+      console.error('❌ Error creating project:', err)
+      alert(`Failed to create project: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setCreatingProject(false)
+    }
+  }
+
+  // Navigate to Content Suite
+  const navigateToContentSuite = (projectId: string) => {
+    window.location.href = `/dashboard/client/${clientId}/project/${projectId}/content-suite`
+  }
 
   // Handle platform connection
   const handlePlatformConnect = async (platform: string) => {
@@ -167,35 +271,75 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8">
-          <div className="flex items-center space-x-6">
-            <div className="w-20 h-20 bg-gray-300 rounded-full flex items-center justify-center">
-              <span className="text-2xl font-bold text-gray-600">
-                {client.name ? client.name.charAt(0).toUpperCase() : 'C'}
-              </span>
+        {/* Header with Client Info and Quick Actions */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                {client?.name || 'Client Dashboard'}
+              </h1>
+              {client?.description && (
+                <p className="text-gray-600 mt-2">{client.description}</p>
+              )}
             </div>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">{client.name || 'Client Name'}</h1>
-              <div className="flex items-center space-x-4 text-gray-600">
-                <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                  </svg>
-                  <span>{website || 'No website set'}</span>
-                </div>
-                <span className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">
-                  {client.industry || 'Technology'}
-                </span>
-                <span className="text-sm">
-                  Founded: {client.founded_date || 'Not specified'}
-                </span>
+            
+            {/* Quick Actions */}
+            {projects.length > 0 && (
+              <div className="flex gap-3">
+                {projects.length === 1 ? (
+                  <Button 
+                    onClick={() => navigateToContentSuite(projects[0].id)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3"
+                  >
+                    <FileText className="w-5 h-5 mr-2" />
+                    Create Content
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={() => setShowProjectSelection(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3"
+                  >
+                    <FileText className="w-5 h-5 mr-2" />
+                    Create Content
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Button>
+                )}
               </div>
-            </div>
+            )}
           </div>
-          <p className="text-gray-600 mt-4 text-lg">
-            {about || 'No company description available. Add a description to provide more context about your business.'}
-          </p>
+          
+          {/* Client Details Card */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-6">
+                <div className="w-20 h-20 bg-gray-300 rounded-full flex items-center justify-center">
+                  <span className="text-2xl font-bold text-gray-600">
+                    {client?.name ? client.name.charAt(0).toUpperCase() : 'C'}
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-4 text-gray-600 mb-2">
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                      </svg>
+                      <span>{website || 'No website set'}</span>
+                    </div>
+                    <span className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">
+                      {client?.industry || 'Technology'}
+                    </span>
+                    <span className="text-sm">
+                      Founded: {client?.founded_date || 'Not specified'}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 text-lg">
+                    {about || 'No company description available. Add a description to provide more context about your business.'}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Two-Column Layout */}
@@ -429,18 +573,201 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         <div className="mt-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Projects</h2>
-            <button className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors">
+            <Button 
+              onClick={() => setShowNewProjectForm(true)}
+              className="bg-black hover:bg-gray-800 text-white"
+            >
+              <Plus className="w-4 h-4 mr-2" />
               New Project
-            </button>
+            </Button>
           </div>
-          
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">No projects yet</h3>
-            <p className="mt-2 text-gray-600">Get started by creating your first project to organize your content strategy.</p>
-          </div>
+
+          {/* New Project Form */}
+          {showNewProjectForm && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg">Create New Project</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Project Name *
+                  </label>
+                  <input
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter project name..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={newProjectDescription}
+                    onChange={(e) => setNewProjectDescription(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter project description..."
+                    rows={3}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleCreateProject}
+                    disabled={!newProjectName.trim() || creatingProject}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {creatingProject ? 'Creating...' : 'Create Project'}
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      setShowNewProjectForm(false)
+                      setNewProjectName("")
+                      setNewProjectDescription("")
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Project Selection Modal */}
+          {showProjectSelection && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg">Choose Project for Content Creation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-gray-600">
+                    Select which project you'd like to create content for:
+                  </p>
+                  
+                  <div className="grid gap-3">
+                    {projects.map((project) => (
+                      <div 
+                        key={project.id}
+                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer"
+                        onClick={() => {
+                          navigateToContentSuite(project.id)
+                          setShowProjectSelection(false)
+                        }}
+                      >
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900">{project.name}</h4>
+                          {project.description && (
+                            <p className="text-sm text-gray-600 mt-1">{project.description}</p>
+                          )}
+                          <p className="text-xs text-gray-500 mt-1">
+                            Created {new Date(project.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <ArrowRight className="w-5 h-5 text-gray-400" />
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="pt-4 border-t border-gray-200">
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          setShowProjectSelection(false)
+                          setShowNewProjectForm(true)
+                        }}
+                        className="flex-1"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create New Project
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        onClick={() => setShowProjectSelection(false)}
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Projects List */}
+          {projectsLoading ? (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+              <p className="mt-2 text-gray-600">Loading projects...</p>
+            </div>
+          ) : projects.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {projects.map((project) => (
+                <Card key={project.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="text-lg">{project.name}</CardTitle>
+                    {project.description && (
+                      <p className="text-sm text-gray-600">{project.description}</p>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center text-sm text-gray-500">
+                      <Calendar className="w-4 h-4 mr-2" />
+                      Created {new Date(project.created_at).toLocaleDateString()}
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={() => navigateToContentSuite(project.id)}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        Content Suite
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <Link 
+                        href={`/dashboard/client/${clientId}/project/${project.id}/scheduler`}
+                        className="flex-1"
+                      >
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                        >
+                          <Calendar className="w-4 h-4 mr-2" />
+                          Scheduler
+                        </Button>
+                      </Link>
+                      <Button variant="outline" size="sm">
+                        <Edit3 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <h3 className="mt-4 text-lg font-medium text-gray-900">No projects yet</h3>
+              <p className="mt-2 text-gray-600 mb-4">Get started by creating your first project to organize your content strategy.</p>
+              <Button 
+                onClick={() => setShowNewProjectForm(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Your First Project
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

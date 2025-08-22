@@ -10,19 +10,34 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     
-    console.log('🔄 OAuth callback received with params:', Object.fromEntries(searchParams.entries()));
-    
-    // Extract parameters from LATE callback
+    // Extract parameters from URL
     const success = searchParams.get('success');
     const platform = searchParams.get('platform');
     const profileId = searchParams.get('profileId');
     const username = searchParams.get('username');
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
-    const clientId = searchParams.get('clientId'); // We'll need to pass this in the redirect_url
+    let clientId = searchParams.get('clientId');
     
-    // Log the callback details
-    console.log('📱 OAuth Callback Details:', {
+    // If clientId is not in query params, try to extract it from the redirect_url
+    if (!clientId) {
+      const redirectUrl = searchParams.get('redirect_url');
+      if (redirectUrl) {
+        try {
+          const redirectUrlObj = new URL(redirectUrl);
+          const pathParts = redirectUrlObj.pathname.split('/');
+          const clientIdIndex = pathParts.indexOf('client');
+          if (clientIdIndex !== -1 && pathParts[clientIdIndex + 1]) {
+            clientId = pathParts[clientIdIndex + 1];
+            console.log('🔍 Extracted clientId from redirect_url:', clientId);
+          }
+        } catch (err) {
+          console.log('Could not parse redirect_url for clientId extraction');
+        }
+      }
+    }
+    
+    console.log('📥 OAuth callback parameters:', {
       success,
       platform,
       profileId,
@@ -31,126 +46,159 @@ export async function GET(req: NextRequest) {
       errorDescription,
       clientId
     });
-    
+
+    // Handle OAuth errors
     if (error) {
-      console.error('❌ OAuth error received:', { error, errorDescription });
+      console.log('❌ OAuth error received:', { error, errorDescription });
+      const errorRedirectUrl = clientId 
+        ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=${encodeURIComponent(errorDescription || error)}`
+        : `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=${encodeURIComponent(errorDescription || error)}`;
       
-      // Redirect back to client dashboard with error
-      const redirectUrl = clientId 
-        ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${encodeURIComponent(error)}&error_description=${encodeURIComponent(errorDescription || 'Authentication failed')}`
-        : `${appUrl}/dashboard?oauth_error=${encodeURIComponent(error)}`;
-      
-      return NextResponse.redirect(redirectUrl);
+      return NextResponse.redirect(errorRedirectUrl);
     }
-    
+
+    // Validate required parameters
     if (!success || !platform || !profileId) {
-      console.error('❌ Missing required OAuth parameters:', { success, platform, profileId });
+      console.log('❌ Missing required OAuth parameters');
+      const errorRedirectUrl = clientId 
+        ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=Missing required OAuth parameters`
+        : `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=Missing required OAuth parameters`;
       
-      const redirectUrl = clientId 
-        ? `${appUrl}/dashboard/client/${clientId}?oauth_error=missing_parameters&error_description=Incomplete OAuth response`
-        : `${appUrl}/dashboard?oauth_error=missing_parameters`;
+      return NextResponse.redirect(errorRedirectUrl);
+    }
+
+    // Check environment variables
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      console.log('❌ Missing Supabase environment variables');
+      const errorRedirectUrl = clientId 
+        ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Configuration error: Missing database credentials`
+        : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Configuration error: Missing database credentials`;
       
-      return NextResponse.redirect(redirectUrl);
+      return NextResponse.redirect(errorRedirectUrl);
     }
-    
-    // Extract clientId from the redirect_url if not provided directly
-    let extractedClientId = clientId;
-    if (!extractedClientId) {
-      const redirectUrl = searchParams.get('redirect_url');
-      if (redirectUrl) {
-        const match = redirectUrl.match(/\/dashboard\/client\/([^\/]+)/);
-        if (match) {
-          extractedClientId = match[1];
-          console.log('🔍 Extracted clientId from redirect_url:', extractedClientId);
-        }
-      }
-    }
-    
-    if (!extractedClientId) {
-      console.error('❌ Could not determine clientId for OAuth callback');
-      return NextResponse.redirect(`${appUrl}/dashboard?oauth_error=client_not_found`);
-    }
-    
+
+    console.log('✅ OAuth parameters validated, proceeding to update database');
+
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    
-    // Check if this connection already exists
-    console.log('🔍 Checking for existing connection:', { platform, profileId, extractedClientId });
+
+    // Check if a connection already exists for this client and platform
     const { data: existingConnection, error: checkError } = await supabase
       .from('social_connections')
-      .select('*')
-      .eq('client_id', extractedClientId)
+      .select('id, platform_user_id, username, connected_at, status')
+      .eq('client_id', clientId)
       .eq('platform', platform)
       .single();
-    
+
     if (checkError && checkError.code !== 'PGRST116') {
       console.error('❌ Error checking existing connection:', checkError);
+      const errorRedirectUrl = clientId 
+        ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Database query failed`
+        : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Database query failed`;
+      
+      return NextResponse.redirect(errorRedirectUrl);
     }
+
+    let connectionResult;
     
     if (existingConnection) {
-      console.log('🔄 Updating existing connection:', existingConnection.id);
-      
       // Update existing connection
-      const { error: updateError } = await supabase
+      console.log('🔄 Updating existing connection:', existingConnection);
+      
+      const { data: updatedConnection, error: updateError } = await supabase
         .from('social_connections')
         .update({
+          platform_user_id: profileId,
           username: username || existingConnection.username,
           profile_id: profileId,
           connected_at: new Date().toISOString(),
           status: 'connected',
           last_sync: new Date().toISOString()
         })
-        .eq('id', existingConnection.id);
-      
+        .eq('id', existingConnection.id)
+        .select()
+        .single();
+
       if (updateError) {
-        console.error('❌ Error updating existing connection:', updateError);
-      } else {
-        console.log('✅ Existing connection updated successfully');
+        console.error('❌ Error updating connection:', updateError);
+        const errorRedirectUrl = clientId 
+          ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Failed to update connection`
+          : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Failed to update connection`;
+        
+        return NextResponse.redirect(errorRedirectUrl);
       }
-    } else {
-      console.log('🆕 Creating new social connection');
+
+      connectionResult = updatedConnection;
+      console.log('✅ Connection updated successfully');
       
-      // Create new social connection record
+    } else {
+      // Create new connection
+      console.log('🆕 Creating new connection');
+      
       const { data: newConnection, error: insertError } = await supabase
         .from('social_connections')
         .insert({
-          client_id: extractedClientId,
+          client_id: clientId,
           platform: platform,
-          username: username,
+          platform_user_id: profileId,
+          username: username || 'Unknown',
           profile_id: profileId,
           connected_at: new Date().toISOString(),
           status: 'connected',
-          created_at: new Date().toISOString(),
           last_sync: new Date().toISOString()
         })
         .select()
         .single();
-      
+
       if (insertError) {
-        console.error('❌ Error creating new connection:', insertError);
-      } else {
-        console.log('✅ New social connection created:', newConnection.id);
+        console.error('❌ Error creating connection:', insertError);
+        const errorRedirectUrl = clientId 
+          ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Failed to create connection`
+          : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Failed to create connection`;
+        
+        return NextResponse.redirect(errorRedirectUrl);
       }
+
+      connectionResult = newConnection;
+      console.log('✅ Connection created successfully');
     }
-    
-    // Log successful connection
-    console.log('🎉 OAuth connection successful:', {
-      platform,
-      profileId,
-      username,
-      clientId: extractedClientId
-    });
-    
+
+    console.log('✅ Connection result:', connectionResult);
+
     // Redirect back to client dashboard with success message
-    const successRedirectUrl = `${appUrl}/dashboard/client/${extractedClientId}?oauth_success=${encodeURIComponent(platform)}&username=${encodeURIComponent(username || '')}`;
-    
-    return NextResponse.redirect(successRedirectUrl);
-    
+    if (clientId) {
+      const successRedirectUrl = `${appUrl}/dashboard/client/${clientId}?connected=${platform}${username ? `&username=${encodeURIComponent(username)}` : ''}`;
+      console.log('🔗 Redirecting to client dashboard:', successRedirectUrl);
+      return NextResponse.redirect(successRedirectUrl);
+    } else {
+      // Fallback to general dashboard if no clientId
+      const fallbackRedirectUrl = `${appUrl}/dashboard?oauth_success=${platform}${username ? `&username=${encodeURIComponent(username)}` : ''}`;
+      console.log('🔗 Redirecting to general dashboard (fallback):', fallbackRedirectUrl);
+      return NextResponse.redirect(fallbackRedirectUrl);
+    }
+
   } catch (error: unknown) {
     console.error('💥 Error in OAuth callback route:', error);
+    console.error('💥 Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : 'No stack trace'
+    });
     
-    // Redirect to dashboard with generic error
-    const errorRedirectUrl = `${appUrl}/dashboard?oauth_error=callback_failed&error_description=${encodeURIComponent('OAuth callback processing failed')}`;
+    // Try to extract clientId from the error context for better error handling
+    let clientId = '';
+    let platform = 'unknown';
+    try {
+      const { searchParams } = new URL(req.url);
+      clientId = searchParams.get('clientId') || '';
+      platform = searchParams.get('platform') || 'unknown';
+    } catch (e) {
+      console.log('Could not extract clientId from URL for error redirect');
+    }
+    
+    const errorRedirectUrl = clientId 
+      ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Unexpected error during OAuth`
+      : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Unexpected error during OAuth`;
     
     return NextResponse.redirect(errorRedirectUrl);
   }

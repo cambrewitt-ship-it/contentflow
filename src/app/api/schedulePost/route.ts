@@ -20,10 +20,15 @@ export async function POST(req: Request) {
   try {
     console.log("Received body:", req.body);
     const body = await req.json();
-    const { client_id, project_id, post_id, scheduled_time, platform } = body ?? {};
+    const { client_id, project_id, post_id, scheduled_time, account_ids } = body ?? {};
 
-    if (!client_id || !project_id || !post_id || !scheduled_time || !platform) {
+    if (!client_id || !project_id || !post_id || !scheduled_time || !account_ids) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Validate account_ids is an array
+    if (!Array.isArray(account_ids) || account_ids.length === 0) {
+      return NextResponse.json({ success: false, error: 'account_ids must be a non-empty array' }, { status: 400 });
     }
 
     // Test if table exists
@@ -41,7 +46,7 @@ export async function POST(req: Request) {
         project_id,
         post_id,
         scheduled_time,
-        platform,
+        account_ids, // Store as JSONB array
         status: 'scheduled'
       }])
       .select('*')

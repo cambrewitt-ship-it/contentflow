@@ -4,36 +4,27 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 const lateApiKey = process.env.LATE_API_KEY!;
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-export async function POST(req: NextRequest) {
-  console.log('🚀 Connect Facebook API route called');
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ clientId: string }> }
+) {
+  console.log('🚀 Get connected accounts API route called');
   
   try {
-    // Parse request body
-    const body = await req.json();
-    console.log('📥 Request body received:', body);
-    
-    const { clientId } = body;
-    console.log('🔍 Extracted clientId:', clientId);
+    const { clientId } = await params;
+    console.log('🔍 Fetching accounts for clientId:', clientId);
 
     // Validate required fields
     if (!clientId) {
-      console.log('❌ Missing required field:', { clientId });
+      console.log('❌ Missing clientId parameter');
       return NextResponse.json({ 
-        error: 'Missing required field',
+        error: 'Missing required parameter',
         details: 'clientId is required'
       }, { status: 400 });
     }
 
     // Check environment variables
-    console.log('🔧 Environment check:', {
-      hasSupabaseUrl: !!supabaseUrl,
-      hasSupabaseServiceRole: !!supabaseServiceRoleKey,
-      hasLateApiKey: !!lateApiKey,
-      hasAppUrl: !!appUrl
-    });
-
     if (!lateApiKey) {
       console.log('❌ LATE_API_KEY is missing');
       return NextResponse.json({ 
@@ -43,7 +34,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Create Supabase client
-    console.log('🔌 Creating Supabase client with URL:', supabaseUrl);
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // Fetch client data to get late_profile_id
@@ -70,8 +60,6 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log('✅ Client data found:', client);
-
     if (!client.late_profile_id) {
       console.log('❌ Client missing late_profile_id:', client);
       return NextResponse.json({ 
@@ -87,27 +75,18 @@ export async function POST(req: NextRequest) {
       profileId: profileId 
     });
 
-    // Build Facebook-specific callback URL
-    const callbackUrl = `${appUrl}/api/late/facebook-callback?clientId=${clientId}`;
-    console.log('🔗 Facebook callback URL built:', callbackUrl);
+    // Call LATE API to get connected accounts
+    console.log('🌐 Fetching connected accounts from LATE API for profileId:', profileId);
+    const lateApiUrl = `https://getlate.dev/api/v1/accounts?profileId=${profileId}`;
     
-    // Prepare LATE API request - using GET with query parameters
-    const lateApiUrl = `https://getlate.dev/api/v1/connect/facebook?profileId=${profileId}&redirect_url=${encodeURIComponent(callbackUrl)}`;
-    
-    console.log('🌐 About to call LATE API for Facebook:', {
+    console.log('🌐 Calling LATE API:', {
       url: lateApiUrl,
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${lateApiKey.substring(0, 10)}...` // Log partial key for security
-      },
-      queryParams: {
-        profileId: profileId,
-        redirect_url: callbackUrl
       }
     });
     
-    // Call LATE API to get the Facebook auth URL - using GET method
-    console.log('🌐 Calling LATE API for Facebook platform');
     const lateResponse = await fetch(lateApiUrl, {
       method: 'GET',
       headers: {
@@ -117,8 +96,7 @@ export async function POST(req: NextRequest) {
 
     console.log('📡 LATE API response received:', {
       status: lateResponse.status,
-      statusText: lateResponse.statusText,
-      headers: Object.fromEntries(lateResponse.headers.entries())
+      statusText: lateResponse.statusText
     });
 
     if (!lateResponse.ok) {
@@ -128,6 +106,7 @@ export async function POST(req: NextRequest) {
         statusText: lateResponse.statusText,
         body: errorText
       });
+      
       return NextResponse.json({ 
         error: 'LATE API request failed',
         details: `Status: ${lateResponse.status}, Response: ${errorText}`
@@ -135,56 +114,76 @@ export async function POST(req: NextRequest) {
     }
 
     const lateData = await lateResponse.json();
-    console.log('✅ LATE API response data for Facebook:', lateData);
+    console.log('✅ LATE API accounts response:', lateData);
 
-    // Extract the authUrl from LATE response
-    const authUrl = lateData.authUrl || lateData.url || lateData.connectUrl;
-    console.log('🔍 Extracted Facebook authUrl from response:', {
-      authUrl: authUrl,
-      availableKeys: Object.keys(lateData),
-      authUrlFound: !!authUrl
-    });
+    // Extract accounts from LATE response
+    const accounts = lateData.accounts || lateData.data || [];
     
-    if (!authUrl) {
-      console.error('❌ No authUrl found in LATE response:', {
-        response: lateData,
-        checkedKeys: ['authUrl', 'url', 'connectUrl']
-      });
+    if (!Array.isArray(accounts) || accounts.length === 0) {
+      console.log('❌ No connected accounts found');
       return NextResponse.json({ 
-        error: 'LATE API response missing authUrl',
-        details: 'The LATE API did not return a valid Facebook authentication URL'
-      }, { status: 500 });
+        success: true,
+        accounts: [],
+        message: 'No social media accounts are currently connected'
+      });
     }
 
-    console.log('🔗 Successfully extracted Facebook authUrl from LATE:', authUrl);
+    console.log('📋 Found connected accounts:', accounts);
 
-    const responseData = { 
+    // Transform accounts to a consistent format
+    const transformedAccounts = accounts.map((account: any) => ({
+      id: account.id || account.accountId || account._id,
+      platform: account.platform || account.socialPlatform,
+      username: account.username || account.handle || account.name,
+      accountId: account.accountId || account.id || account._id,
+      profilePicture: account.profilePicture || account.picture?.data?.url,
+      isActive: account.isActive !== false, // Default to true unless explicitly false
+      connectedAt: account.connectedAt || account.createdAt,
+      permissions: account.permissions || [],
+      // Platform-specific fields
+      ...(account.platform === 'instagram' && {
+        followers: account.followers,
+        isBusiness: account.isBusiness,
+        isVerified: account.isVerified
+      }),
+      ...(account.platform === 'facebook' && {
+        pageName: account.pageName || account.name,
+        pageId: account.pageId,
+        pageCategory: account.pageCategory,
+        pageFollowers: account.pageFollowers
+      }),
+      ...(account.platform === 'linkedin' && {
+        companyName: account.companyName,
+        companyId: account.companyId,
+        connectionCount: account.connectionCount
+      })
+    }));
+
+    console.log('🔄 Transformed accounts:', transformedAccounts);
+
+    const responseData = {
       success: true,
-      connectUrl: authUrl,
-      platform: 'facebook',
+      accounts: transformedAccounts,
+      totalAccounts: transformedAccounts.length,
       clientId: clientId,
-      lateProfileId: profileId,
-      notes: 'Facebook requires page selection after OAuth. User will be redirected to page selection flow after authentication.'
+      lateProfileId: profileId
     };
     
-    console.log('📤 Returning Facebook success response:', responseData);
+    console.log('📤 Returning accounts response:', {
+      success: responseData.success,
+      totalAccounts: responseData.totalAccounts,
+      platforms: transformedAccounts.map(acc => acc.platform)
+    });
+    
     return NextResponse.json(responseData);
 
   } catch (error: unknown) {
-    console.error('💥 Error in connect-facebook route:', error);
+    console.error('💥 Error in get-accounts route:', error);
     console.error('💥 Error details:', {
       name: error instanceof Error ? error.name : 'Unknown',
       message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : 'No stack trace',
-      cause: error instanceof Error ? error.cause : 'No cause'
+      stack: error instanceof Error ? error.stack : 'No stack trace'
     });
-    
-    if (error instanceof SyntaxError) {
-      return NextResponse.json({ 
-        error: 'Invalid JSON in request body',
-        details: 'Request body must be valid JSON'
-      }, { status: 400 });
-    }
     
     return NextResponse.json({ 
       error: 'Internal server error', 
