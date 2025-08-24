@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { usePostStore } from 'lib/store';
+import { useParams } from 'next/navigation';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Instagram, Facebook, Linkedin, GripVertical, Clock, Plus, AlertCircle } from 'lucide-react';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDraggable, useDroppable } from '@dnd-kit/core';
 import { Button } from 'components/ui/button';
 import { Card, CardContent } from 'components/ui/card';
-import { usePostStore } from 'lib/store';
-import SchedulingModal from 'components/scheduling-modal';
 
 // Import the Post type from the store
 import type { Post, ScheduledPost as StoreScheduledPost } from 'lib/store';
@@ -476,10 +476,14 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       console.log('🔍 clientId type:', typeof clientId);
       console.log('🔍 clientId length:', clientId?.length);
       console.log('🔍 clientId value:', JSON.stringify(clientId));
+      console.log('🔍 clientId from props:', clientId);
+      console.log('🔍 clientId from useParams:', useParams());
       
       const apiUrl = `/api/late/get-accounts/${clientId}`;
       console.log('🌐 API URL:', apiUrl);
       console.log('🌐 Full API URL:', `${window.location.origin}${apiUrl}`);
+      console.log('🌐 Current window location:', window.location.href);
+      console.log('🌐 Current pathname:', window.location.pathname);
       
       const response = await fetch(apiUrl);
       console.log('📡 Response received:', {

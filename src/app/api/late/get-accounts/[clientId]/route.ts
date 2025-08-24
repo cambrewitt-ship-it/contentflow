@@ -11,17 +11,24 @@ export async function GET(
 ) {
   console.log('🚀 Get connected accounts API route called');
   console.log('📅 Timestamp:', new Date().toISOString());
-  console.log('🔗 Request URL:', req.url);
-  console.log('🔍 Raw URL:', req.url);
-  console.log('📋 Params received:', params);
+  console.log('🔗 Full request URL:', req.url);
+  console.log('🔗 URL pathname:', new URL(req.url).pathname);
+  console.log('🔗 URL search params:', new URL(req.url).searchParams.toString());
+  console.log('🔗 URL hostname:', new URL(req.url).hostname);
+  console.log('🔗 URL protocol:', new URL(req.url).protocol);
+  console.log('🔍 Raw params object:', params);
+  console.log('🔍 Params type:', typeof params);
+  console.log('🔍 Params keys:', Object.keys(params));
   console.log('🆔 ClientId extracted:', params.clientId);
   console.log('🔍 ClientId type:', typeof params.clientId);
   console.log('🔍 ClientId length:', params.clientId?.length);
+  console.log('🔍 ClientId value:', JSON.stringify(params.clientId));
   
   try {
     const { clientId } = params;
-    console.log('🔍 Fetching accounts for clientId:', clientId);
     console.log('🔍 Final clientId after destructuring:', clientId);
+    console.log('🔍 Final clientId type:', typeof clientId);
+    console.log('🔍 Final clientId value:', JSON.stringify(clientId));
 
     // Validate required fields
     if (!clientId) {
