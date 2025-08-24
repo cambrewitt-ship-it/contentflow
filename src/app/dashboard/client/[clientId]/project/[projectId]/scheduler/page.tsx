@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { SchedulerClient } from './scheduler-client';
+import SchedulerClient from './scheduler-client';
 
 interface PageProps {
   params: {
@@ -12,6 +12,7 @@ export default async function SchedulerPage({ params }: PageProps) {
   console.log('📅 Scheduler page called with params:', params);
   console.log('📅 Params type:', typeof params);
   console.log('📅 Params keys:', Object.keys(params));
+  console.log('📅 SchedulerClient component:', SchedulerClient); // Should not be undefined
   
   const { clientId, projectId } = params;
   
