@@ -32,6 +32,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [showProjectSelection, setShowProjectSelection] = useState(false)
   const [debugInfo, setDebugInfo] = useState<any>(null)
   const [debugLoading, setDebugLoading] = useState(false)
+  const [projectsFailed, setProjectsFailed] = useState(false)
 
   // Check for OAuth callback messages in URL
   useEffect(() => {
@@ -146,8 +147,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         }
       } catch (err) {
         console.error('❌ Error fetching projects:', err);
-        // Show error to user for projects since it's critical functionality
-        setError(`Failed to load projects: ${err instanceof Error ? err.message : String(err)}`);
+        // Don't crash the dashboard - just log the error and set projects to empty array
+        console.log('⚠️ Projects unavailable, continuing with empty projects state');
+        setProjects([]); // Set to empty array instead of crashing
+        setProjectsFailed(true); // Mark that projects failed to load
+        // Don't set the main error state - let the dashboard render without projects
       } finally {
         setProjectsLoading(false)
       }
@@ -328,7 +332,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             </div>
             
             {/* Quick Actions */}
-            {projects.length > 0 && (
+            {!projectsFailed && projects.length > 0 && (
               <div className="flex gap-3">
                 {projects.length === 1 ? (
                   <Button 
@@ -349,6 +353,25 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Button>
                 )}
+              </div>
+            )}
+            
+            {/* Quick Actions when Projects Failed */}
+            {projectsFailed && (
+              <div className="flex gap-3">
+                <Button 
+                  onClick={handleDebugDatabase}
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-3"
+                >
+                  🔍 Debug Database
+                </Button>
+                <Button 
+                  onClick={() => window.location.reload()}
+                  variant="outline"
+                  className="px-6 py-3"
+                >
+                  🔄 Retry
+                </Button>
               </div>
             )}
           </div>
@@ -626,15 +649,54 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               >
                 {debugLoading ? '🔍 Debugging...' : '🔍 Debug DB'}
               </Button>
-              <Button 
-                onClick={() => setShowNewProjectForm(true)}
-                className="bg-black hover:bg-gray-800 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                New Project
-              </Button>
+              {!projectsFailed && (
+                <Button 
+                  onClick={() => setShowNewProjectForm(true)}
+                  className="bg-black hover:bg-gray-800 text-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Project
+                </Button>
+              )}
             </div>
           </div>
+
+          {/* Projects Failed Message */}
+          {projectsFailed && (
+            <Card className="mb-6 border-yellow-200 bg-yellow-50">
+              <CardHeader>
+                <CardTitle className="text-lg text-yellow-800">Projects Temporarily Unavailable</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <p className="text-yellow-700">
+                    Unable to load projects at this time. This might be due to:
+                  </p>
+                  <ul className="list-disc list-inside text-sm text-yellow-700 space-y-1">
+                    <li>Database connection issues</li>
+                    <li>Projects table not yet created</li>
+                    <li>Temporary service interruption</li>
+                  </ul>
+                  <div className="flex gap-2 pt-2">
+                    <Button 
+                      onClick={handleDebugDatabase}
+                      variant="outline"
+                      size="sm"
+                    >
+                      🔍 Debug Database
+                    </Button>
+                    <Button 
+                      onClick={() => window.location.reload()}
+                      variant="outline"
+                      size="sm"
+                    >
+                      🔄 Retry
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Debug Information */}
           {debugInfo && (
@@ -666,8 +728,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             </Card>
           )}
 
-          {/* New Project Form */}
-          {showNewProjectForm && (
+          {/* New Project Form - Only show if projects haven't failed */}
+          {!projectsFailed && showNewProjectForm && (
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="text-lg">Create New Project</CardTitle>
@@ -719,8 +781,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             </Card>
           )}
 
-          {/* Project Selection Modal */}
-          {showProjectSelection && (
+          {/* Project Selection Modal - Only show if projects haven't failed */}
+          {!projectsFailed && showProjectSelection && (
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="text-lg">Choose Project for Content Creation</CardTitle>
@@ -782,75 +844,79 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             </Card>
           )}
 
-          {/* Projects List */}
-          {projectsLoading ? (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-              <p className="mt-2 text-gray-600">Loading projects...</p>
-            </div>
-          ) : projects.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {projects.map((project) => (
-                <Card key={project.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
-                    {project.description && (
-                      <p className="text-sm text-gray-600">{project.description}</p>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center text-sm text-gray-500">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      Created {new Date(project.created_at).toLocaleDateString()}
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button 
-                        onClick={() => navigateToContentSuite(project.id)}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                      >
-                        <FileText className="w-4 h-4 mr-2" />
-                        Content Suite
-                        <ArrowRight className="w-4 h-4 ml-2" />
-                      </Button>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Link 
-                        href={`/dashboard/client/${clientId}/project/${project.id}/scheduler`}
-                        className="flex-1"
-                      >
-                        <Button 
-                          variant="outline" 
-                          className="w-full"
-                        >
+          {/* Projects List - Only show if projects haven't failed */}
+          {!projectsFailed && (
+            <>
+              {projectsLoading ? (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                  <p className="mt-2 text-gray-600">Loading projects...</p>
+                </div>
+              ) : projects.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {projects.map((project) => (
+                    <Card key={project.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader>
+                        <CardTitle className="text-lg">{project.name}</CardTitle>
+                        {project.description && (
+                          <p className="text-sm text-gray-600">{project.description}</p>
+                        )}
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="flex items-center text-sm text-gray-500">
                           <Calendar className="w-4 h-4 mr-2" />
-                          Scheduler
-                        </Button>
-                      </Link>
-                      <Button variant="outline" size="sm">
-                        <Edit3 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">No projects yet</h3>
-              <p className="mt-2 text-gray-600 mb-4">Get started by creating your first project to organize your content strategy.</p>
-              <Button 
-                onClick={() => setShowNewProjectForm(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create Your First Project
-              </Button>
-            </div>
+                          Created {new Date(project.created_at).toLocaleDateString()}
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={() => navigateToContentSuite(project.id)}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            Content Suite
+                            <ArrowRight className="w-4 h-4 ml-2" />
+                          </Button>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <Link 
+                            href={`/dashboard/client/${clientId}/project/${project.id}/scheduler`}
+                            className="flex-1"
+                          >
+                            <Button 
+                              variant="outline" 
+                              className="w-full"
+                            >
+                              <Calendar className="w-4 h-4 mr-2" />
+                              Scheduler
+                            </Button>
+                          </Link>
+                          <Button variant="outline" size="sm">
+                            <Edit3 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">No projects yet</h3>
+                  <p className="mt-2 text-gray-600 mb-4">Get started by creating your first project to organize your content strategy.</p>
+                  <Button 
+                    onClick={() => setShowNewProjectForm(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Your First Project
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
