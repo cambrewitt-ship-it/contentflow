@@ -7,14 +7,14 @@ const lateApiKey = process.env.LATE_API_KEY!;
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ clientId: string } } }
+  { params }: { params: { clientId: string } }
 ) {
   console.log('🚀 Get connected accounts API route called');
   console.log('📅 Timestamp:', new Date().toISOString());
   console.log('🔗 Request URL:', req.url);
   
   try {
-    const { clientId } = await params;
+    const { clientId } = params;
     console.log('🔍 Fetching accounts for clientId:', clientId);
 
     // Validate required fields

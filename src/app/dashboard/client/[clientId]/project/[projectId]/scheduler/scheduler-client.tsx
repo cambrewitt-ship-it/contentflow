@@ -255,6 +255,8 @@ function DroppableCalendarCell({
 }
 
 export function SchedulerClient({ clientId, projectId }: SchedulerClientProps) {
+  console.log('🎯 SchedulerClient rendered with:', { clientId, projectId });
+  
   const [currentDate, setCurrentDate] = useState(new Date());
   const [scheduledPosts, setScheduledPosts] = useState<SchedulerScheduledPost[]>([]);
   const [draggedPost, setDraggedPost] = useState<PostInQueue | null>(null);
