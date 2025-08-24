@@ -9,6 +9,9 @@ import { Card, CardContent } from 'components/ui/card';
 import { usePostStore } from 'lib/store';
 import SchedulingModal from 'components/scheduling-modal';
 
+// Import the Post type from the store
+import type { Post, ScheduledPost as StoreScheduledPost } from 'lib/store';
+
 interface ConnectedAccount {
   id: string;
   platform: string;
@@ -31,24 +34,13 @@ interface ConnectedAccount {
   connectionCount?: number;
 }
 
-interface ScheduledPost {
-  id: string;
-  caption: string;
-  media: string;
-  platforms: string[];
-  date: string;
-  status?: string;
-  scheduledTime?: string;
-  scheduledTimeString?: string; // For storing the time portion (HH:MM)
-}
-
-interface PostInQueue {
-  id: string;
-  caption: string;
-  media: string;
-  platforms: string[];
+// Updated to use the store's Post type
+interface PostInQueue extends Post {
   selectedAccounts: string[]; // Array of selected account IDs
 }
+
+// Use the store's ScheduledPost type
+type SchedulerScheduledPost = StoreScheduledPost;
 
 interface SchedulerClientProps {
   clientId: string;
@@ -100,129 +92,59 @@ function DraggablePost({
     onAccountSelection(post.id, newSelectedAccounts);
   };
 
-  const getPlatformIcon = (platform: string) => {
-    switch (platform.toLowerCase()) {
-      case 'instagram':
-        return <Instagram className="h-3 w-3 text-pink-500" />;
-      case 'facebook':
-        return <Facebook className="h-3 w-3 text-blue-600" />;
-      case 'linkedin':
-        return <Linkedin className="h-3 w-3 text-blue-700" />;
-      case 'twitter':
-        return <div className="h-3 w-3 bg-black rounded-full flex items-center justify-center">
-          <span className="text-white text-xs font-bold">X</span>
-        </div>;
-      case 'tiktok':
-        return <div className="h-3 w-3 bg-black rounded-full flex items-center justify-center">
-          <span className="text-white text-xs font-bold">TT</span>
-        </div>;
-      case 'youtube':
-        return <div className="h-3 w-3 bg-red-600 rounded-full flex items-center justify-center">
-          <span className="text-white text-xs font-bold">YT</span>
-        </div>;
-      default:
-        return <div className="h-3 w-3 bg-gray-500 rounded-full flex items-center justify-center">
-          <span className="text-white text-xs font-bold">?</span>
-        </div>;
-    }
-  };
-
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...(selectedAccounts.length > 0 ? listeners : {})}
-      {...(selectedAccounts.length > 0 ? attributes : {})}
-      className={`bg-card border rounded-lg p-3 transition-all ${
-        selectedAccounts.length > 0 
-          ? 'cursor-grab hover:shadow-md active:cursor-grabbing border-primary/30' 
-          : 'cursor-default opacity-75'
-      } ${isDragging ? 'opacity-50 scale-95' : ''}`}
+      {...attributes}
+      {...listeners}
+      className={`bg-white rounded-lg border-2 border-gray-200 p-4 cursor-grab active:cursor-grabbing ${
+        isDragging ? 'opacity-50' : ''
+      } ${selectedAccounts.length === 0 ? 'opacity-60' : ''}`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start space-x-3">
         <div className="flex-shrink-0">
-          <img
-            src={post.media}
-            alt="Post media"
-            className="w-12 h-12 bg-muted rounded-md object-cover"
+          <img 
+            src={post.imageUrl} 
+            alt="Post content" 
+            className="w-16 h-16 object-cover rounded-lg"
           />
         </div>
-        
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-card-foreground line-clamp-3 mb-2">
+          <p className="text-sm text-gray-900 line-clamp-2 mb-2">
             {post.caption}
           </p>
           
-          <div className="flex items-center gap-2">
-            {/* Show selected accounts if any are selected, otherwise show available platforms */}
-            {selectedAccounts.length > 0 ? (
-              <div className="flex items-center space-x-1">
-                {selectedAccounts.map(accountId => {
-                  const account = connectedAccounts.find(acc => acc.id === accountId);
-                  if (!account) return null;
-                  
-                  return (
-                    <div key={accountId} className="flex items-center gap-1">
-                      {getPlatformIcon(account.platform)}
-                      <span className="text-xs text-muted-foreground">
-                        {account.username}
-                      </span>
-                    </div>
-                  );
-                })}
-                {/* Drag indicator */}
-                <div className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
-                  Ready to drag
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                {connectedAccounts.map((account) => (
-                  <div key={account.id} className="w-5 h-5 bg-muted rounded-full flex items-center justify-center">
-                    {getPlatformIcon(account.platform)}
-                  </div>
-                ))}
-                {/* Account selection required indicator */}
-                <div className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium">
-                  Select accounts to drag
-                </div>
-              </div>
-            )}
+          {/* Account Selection */}
+          <div className="space-y-2">
+            <div className="text-xs text-gray-500">Select accounts:</div>
+            <div className="grid grid-cols-2 gap-1">
+              {connectedAccounts.map((account) => (
+                <label
+                  key={account.id}
+                  className={`flex items-center space-x-1 p-1 rounded text-xs cursor-pointer transition-colors ${
+                    selectedAccounts.includes(account.id)
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedAccounts.includes(account.id)}
+                    onChange={() => handleAccountToggle(account.id)}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="truncate">{account.username}</span>
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
-        
-        <div className="flex-shrink-0">
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </div>
-      </div>
-      
-      {/* Account Selection */}
-      <div className="mt-3 pt-2 border-t border-border">
-        <div className="text-xs text-muted-foreground mb-2">Select accounts to post to:</div>
-        <div className="grid grid-cols-2 gap-2">
-          {connectedAccounts.map((account) => (
-            <label
-              key={account.id}
-              className={`flex items-center space-x-2 p-2 rounded border cursor-pointer transition-colors ${
-                selectedAccounts.includes(account.id)
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/30'
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={selectedAccounts.includes(account.id)}
-                onChange={() => handleAccountToggle(account.id)}
-                className="text-primary focus:ring-primary"
-              />
-              <div className="flex items-center space-x-2">
-                {getPlatformIcon(account.platform)}
-                <span className="text-xs font-medium truncate">
-                  {account.username}
-                </span>
-              </div>
-            </label>
-          ))}
+          
+          {selectedAccounts.length === 0 && (
+            <div className="text-xs text-red-500 mt-1">
+              Account selection required
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -241,7 +163,7 @@ function DroppableCalendarCell({
   globalTimeApplied
 }: { 
   date: string; 
-  posts: ScheduledPost[]; 
+  posts: SchedulerScheduledPost[]; 
   isToday: boolean; 
   isCurrentMonth: boolean;
   onTimeChange: (postId: string, newTime: string) => void;
@@ -334,7 +256,7 @@ function DroppableCalendarCell({
 
 export function SchedulerClient({ clientId, projectId }: SchedulerClientProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
+  const [scheduledPosts, setScheduledPosts] = useState<SchedulerScheduledPost[]>([]);
   const [draggedPost, setDraggedPost] = useState<PostInQueue | null>(null);
   const [isSchedulingModalOpen, setIsSchedulingModalOpen] = useState(false);
   const [selectedPostForScheduling, setSelectedPostForScheduling] = useState<PostInQueue | null>(null);
@@ -348,25 +270,37 @@ export function SchedulerClient({ clientId, projectId }: SchedulerClientProps) {
 const postsMap = usePostStore(s => s.posts);
 const scheduledMap = usePostStore(s => s.scheduled);
 
-const storePosts = useMemo(() => postsMap?.[key] ?? [], [postsMap, key]);
+const posts = useMemo(() => postsMap?.[key] ?? [], [postsMap, key]);
 const scheduledPostsFromStore = useMemo(() => scheduledMap?.[key] ?? [], [scheduledMap, key]);
 
 // Get the schedule action from the store
 const schedulePostAction = usePostStore(s => s.schedulePost);
   
-  // Convert store posts to PostInQueue format for the scheduler
-  const [postsReadyToSchedule, setPostsReadyToSchedule] = useState<PostInQueue[]>([]);
-  
-  // Update postsReadyToSchedule when storePosts changes
-  useEffect(() => {
-    setPostsReadyToSchedule(storePosts.map(post => ({
-      id: post.id,
-      caption: post.caption,
-      media: post.imageUrl, // Use imageUrl from store
-      platforms: defaultPlatforms, // Use default platforms for now (can be enhanced later)
+  // Convert posts from store to scheduler format
+  const postsInQueue: PostInQueue[] = useMemo(() => {
+    return posts.map(post => ({
+      ...post, // Include all Post properties
       selectedAccounts: [], // Initialize with no accounts selected
-    })));
-  }, [storePosts]);
+    }));
+  }, [posts]);
+
+  // Convert scheduled posts from store to display format
+  const scheduledPostsForDisplay = useMemo(() => {
+    return scheduledPostsFromStore.map(scheduledPost => {
+      const post = posts.find(p => p.id === scheduledPost.postId);
+      if (!post) return null;
+      
+      return {
+        id: scheduledPost.id,
+        caption: post.caption,
+        imageUrl: post.imageUrl,
+        date: new Date(scheduledPost.scheduledTime).toDateString(),
+        status: scheduledPost.status,
+        scheduledTime: scheduledPost.scheduledTime,
+        accountIds: scheduledPost.accountIds,
+      };
+    }).filter(Boolean);
+  }, [scheduledPostsFromStore, posts]);
 
   const handleSchedulePost = (post: PostInQueue) => {
     setSelectedPostForScheduling(post);
@@ -586,7 +520,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    const post = postsReadyToSchedule.find(p => p.id === active.id);
+    const post = postsInQueue.find(p => p.id === active.id);
     if (post) {
       setDraggedPost(post);
     }
@@ -654,7 +588,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
         return scheduledDate === date;
       })
       .map(scheduledPost => {
-        const post = storePosts.find(p => p.id === scheduledPost.postId);
+        const post = posts.find(p => p.id === scheduledPost.postId);
         if (!post) return null;
         
         // Get the platforms from the connected accounts
@@ -666,14 +600,14 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
         return {
           id: scheduledPost.id,
           caption: post.caption,
-          media: post.imageUrl,
+          imageUrl: post.imageUrl,
           platforms: platforms,
           date: date,
           status: scheduledPost.status,
           scheduledTime: scheduledPost.scheduledTime // Include the actual scheduled time
         };
       })
-      .filter(Boolean) as ScheduledPost[];
+      .filter(Boolean) as SchedulerScheduledPost[];
   };
 
   const isToday = (date: Date) => {
@@ -734,14 +668,14 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
                   variant="outline"
                   size="sm"
                   onClick={() => setIsSchedulingModalOpen(true)}
-                  disabled={postsReadyToSchedule.length === 0}
+                  disabled={postsInQueue.length === 0}
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Schedule Post
                 </Button>
               </div>
               <div className="flex gap-4 overflow-x-auto pb-4">
-                {postsReadyToSchedule.map((post) => (
+                {postsInQueue.map((post) => (
                   <div key={post.id} className="relative">
                     <DraggablePost
                       post={post}
@@ -767,14 +701,14 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
           <Card className="mb-8">
             <CardContent className="p-6">
               <h2 className="text-xl font-semibold text-card-foreground mb-4">Scheduled Posts</h2>
-              {scheduledPostsFromStore.length === 0 ? (
+              {scheduledPostsForDisplay.length === 0 ? (
                                   <p className="text-muted-foreground text-center py-8">
                     No posts scheduled yet. Use the calendar below or click &apos;Schedule Post&apos; above.
                   </p>
               ) : (
                 <div className="space-y-3">
-                  {scheduledPostsFromStore.map((scheduledPost) => {
-                    const post = storePosts.find(p => p.id === scheduledPost.postId);
+                  {scheduledPostsForDisplay.map((scheduledPost) => {
+                    const post = posts.find(p => p.id === scheduledPost.id);
                     if (!post) return null;
                     
                     return (
@@ -998,7 +932,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
             projectId={projectId}
             clientId={clientId}
             postCaption={selectedPostForScheduling.caption}
-            postImageUrl={selectedPostForScheduling.media}
+            postImageUrl={selectedPostForScheduling.imageUrl}
           />
         )}
       </div>

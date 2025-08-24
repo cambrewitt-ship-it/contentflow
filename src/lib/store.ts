@@ -6,8 +6,14 @@ export type Post = {
   id: string;
   clientId: string;
   projectId: string;
-  imageUrl: string;
+  imageUrl: string; // Original blob URL for preview
   caption: string;
+  lateMediaUrl?: string; // LATE API media URL for posting
+  mediaType: 'image' | 'video';
+  originalCaption?: string; // Selected caption from content suite
+  notes?: string;
+  createdAt: string; // ISO string
+  status: 'draft' | 'ready' | 'scheduled' | 'published';
 };
 
 export type ScheduledPost = {
@@ -28,6 +34,7 @@ type State = {
   getScheduledPosts: (projectId: string, clientId: string) => ScheduledPost[];
   addScheduledPost: (sp: ScheduledPost) => void;
   addPostFromContentSuite: (imageUrl: string, caption: string, projectId: string, clientId: string, notes?: string) => void;
+  sendToScheduler: (imageUrl: string, caption: string, projectId: string, clientId: string, notes?: string) => Promise<Post>;
   schedulePost: (postId: string, scheduledDateTime: Date, accountIds: string[], projectId: string, clientId: string) => Promise<void>;
 };
 
@@ -97,6 +104,10 @@ export const usePostStore = create<State>((set, get) => ({
       projectId,
       imageUrl,
       caption,
+      mediaType: 'image', // Default to image for now
+      createdAt: new Date().toISOString(),
+      status: 'draft',
+      notes: notes || '',
     };
     
     set((state) => ({
@@ -105,6 +116,65 @@ export const usePostStore = create<State>((set, get) => ({
         [key]: [...(state.posts[key] ?? []), newPost],
       },
     }));
+  },
+
+  // New function for LATE API integration
+  sendToScheduler: async (imageUrl: string, caption: string, projectId: string, clientId: string, notes?: string) => {
+    try {
+      console.log('🚀 Starting LATE media upload process...');
+      
+      // Step 1: Upload media to LATE API
+      const mediaFormData = new FormData();
+      // Convert blob URL to File object for upload
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const file = new File([blob], 'content-image.jpg', { type: blob.type });
+      mediaFormData.append('media', file);
+      
+      console.log('📤 Uploading media to LATE API...');
+      const mediaResponse = await fetch('/api/late/upload-media', {
+        method: 'POST',
+        body: mediaFormData,
+      });
+      
+      if (!mediaResponse.ok) {
+        throw new Error(`LATE media upload failed: ${mediaResponse.statusText}`);
+      }
+      
+      const mediaData = await mediaResponse.json();
+      console.log('✅ LATE media upload successful:', mediaData);
+      
+      // Step 2: Create post object with LATE media URL
+      const newPost: Post = {
+        id: Date.now().toString(),
+        clientId,
+        projectId,
+        imageUrl, // Keep original for preview
+        caption,
+        lateMediaUrl: mediaData.mediaUrl, // LATE API media URL
+        mediaType: 'image',
+        originalCaption: caption,
+        createdAt: new Date().toISOString(),
+        status: 'ready', // Mark as ready for scheduling
+        notes: notes || '',
+      };
+      
+      // Step 3: Save to store
+      const key = `${clientId}:${projectId}`;
+      set((state) => ({
+        posts: {
+          ...state.posts,
+          [key]: [...(state.posts[key] ?? []), newPost],
+        },
+      }));
+      
+      console.log('✅ Post created and saved to store:', newPost);
+      return newPost;
+      
+    } catch (error) {
+      console.error('❌ Error sending to scheduler:', error);
+      throw error;
+    }
   },
 
                 schedulePost: async (postId, scheduledDateTime, accountIds, projectId, clientId) => {

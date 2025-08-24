@@ -16,6 +16,7 @@ import {
   type AICaptionResult,
   type AIRemixResult
 } from "lib/ai-utils";
+import { usePostStore } from "lib/store";
 
 // Global store context
 interface ContentStore {
@@ -255,6 +256,7 @@ function ContentStoreProvider({ children }: { children: React.ReactNode }) {
 
 export default function ProjectPage({ params }: PageProps) {
   const resolvedParams = use(params);
+  const { clientId, projectId } = resolvedParams;
 
   return (
     <ContentStoreProvider>
@@ -308,10 +310,10 @@ export default function ProjectPage({ params }: PageProps) {
             <ImageUploadColumn />
             
             {/* Column 2: Editable Captions */}
-            <CaptionColumn />
+            <CaptionColumn clientId={clientId} projectId={projectId} />
             
             {/* Column 3: Social Preview */}
-            <SocialPreviewColumn clientId={resolvedParams.clientId} projectId={resolvedParams.projectId} />
+            <SocialPreviewColumn clientId={clientId} projectId={projectId} />
           </div>
         </div>
       </div>
@@ -460,7 +462,7 @@ function ImageUploadColumn() {
 }
 
 // Column 2: Editable Captions
-function CaptionColumn() {
+function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: string }) {
   const { 
     captions, 
     selectedCaptions, 
@@ -507,6 +509,42 @@ function CaptionColumn() {
       console.error('Failed to generate AI captions:', error);
     } finally {
       setGeneratingCaptions(false);
+    }
+  };
+
+  const handleSendToScheduler = async (captionText: string) => {
+    try {
+      if (!activeImageId || !clientId || !projectId) {
+        alert('Missing required information. Please ensure an image is selected and you have proper access.');
+        return;
+      }
+
+      const activeImage = uploadedImages.find(img => img.id === activeImageId);
+      if (!activeImage) {
+        alert('Selected image not found.');
+        return;
+      }
+
+      console.log('🚀 Sending content to scheduler with LATE API integration...');
+      
+      // Use the store's sendToScheduler function
+      const { sendToScheduler } = usePostStore.getState();
+      const newPost = await sendToScheduler(
+        activeImage.preview,
+        captionText,
+        projectId,
+        clientId,
+        activeImage.notes
+      );
+
+      console.log('✅ Content successfully sent to scheduler:', newPost);
+      
+      // Navigate to scheduler with the new post
+      window.location.href = `/dashboard/client/${clientId}/project/${projectId}/scheduler`;
+      
+    } catch (error) {
+      console.error('❌ Error sending to scheduler:', error);
+      alert(`Failed to send content to scheduler: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -587,7 +625,7 @@ function CaptionColumn() {
                     onClick={() => handleRemixThis(caption.id)}
                     className="flex-1"
                   >
-                    <RefreshCw className="h-4 w-4 mr-2" />
+                    <RefreshCw className="h-4 h-4 mr-2" />
                     Remix This
                   </Button>
                   <Button
@@ -597,6 +635,21 @@ function CaptionColumn() {
                   >
                     {selectedCaptions.includes(caption.id) ? "Selected" : "Select This"}
                   </Button>
+                  
+                  {/* Send to Scheduler Button */}
+                  {selectedCaptions.includes(caption.id) && uploadedImages.length > 0 && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleSendToScheduler(caption.text)}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Send to Scheduler
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
