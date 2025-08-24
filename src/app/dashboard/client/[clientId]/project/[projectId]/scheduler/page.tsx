@@ -9,9 +9,17 @@ interface PageProps {
 }
 
 export default async function SchedulerPage({ params }: PageProps) {
+  console.log('📅 Scheduler page called with params:', params);
+  console.log('📅 Params type:', typeof params);
+  console.log('📅 Params keys:', Object.keys(params));
+  
   const { clientId, projectId } = params;
   
   console.log('📅 Scheduler page params resolved:', { clientId, projectId });
+  console.log('📅 clientId type:', typeof clientId);
+  console.log('📅 clientId value:', clientId);
+  console.log('📅 projectId type:', typeof projectId);
+  console.log('📅 projectId value:', projectId);
   
   return (
     <Suspense fallback={

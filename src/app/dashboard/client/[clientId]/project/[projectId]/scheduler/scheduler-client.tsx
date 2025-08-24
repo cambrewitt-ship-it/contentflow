@@ -475,9 +475,11 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       console.log('🔍 Using clientId:', clientId);
       console.log('🔍 clientId type:', typeof clientId);
       console.log('🔍 clientId length:', clientId?.length);
+      console.log('🔍 clientId value:', JSON.stringify(clientId));
       
       const apiUrl = `/api/late/get-accounts/${clientId}`;
       console.log('🌐 API URL:', apiUrl);
+      console.log('🌐 Full API URL:', `${window.location.origin}${apiUrl}`);
       
       const response = await fetch(apiUrl);
       console.log('📡 Response received:', {
