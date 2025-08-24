@@ -140,7 +140,32 @@ export default function NewSchedulerPage() {
       postsMapKeys: Object.keys(posts || {}),
       scheduledMapKeys: Object.keys(scheduled || {})
     });
-  }, [clientId, projectId, key, posts, scheduled, unscheduledPosts.length, scheduledPosts.length]);
+    
+    // More detailed debugging
+    console.log('🔍 Detailed store debugging:', {
+      postsObject: posts,
+      scheduledObject: scheduled,
+      postsType: typeof posts,
+      scheduledType: typeof scheduled,
+      postsIsArray: Array.isArray(posts),
+      scheduledIsArray: Array.isArray(scheduled),
+      postsKeys: posts ? Object.keys(posts) : 'posts is null/undefined',
+      scheduledKeys: scheduled ? Object.keys(scheduled) : 'scheduled is null/undefined',
+      postsForKey: posts?.[key],
+      scheduledForKey: scheduled?.[key],
+      postsForKeyType: typeof posts?.[key],
+      scheduledForKeyType: typeof scheduled?.[key],
+      postsForKeyLength: posts?.[key]?.length || 0,
+      scheduledForKeyLength: scheduled?.[key]?.length || 0
+    });
+    
+    // Check if store functions exist
+    console.log('🔍 Store function debugging:', {
+      getPostsByProjectAndClientExists: typeof getPostsByProjectAndClient === 'function',
+      addScheduledPostExists: typeof addScheduledPost === 'function',
+      usePostStoreExists: typeof usePostStore === 'function'
+    });
+  }, [clientId, projectId, key, posts, scheduled, unscheduledPosts.length, scheduledPosts.length, getPostsByProjectAndClient, addScheduledPost]);
 
   if (!clientId) {
     return (

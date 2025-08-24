@@ -565,11 +565,21 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
         storeKeys: Object.keys(storeState.posts)
       });
       
+      // Debug: Check if post is actually in the store
+      const postsForKey = storeState.posts[key] || [];
+      const postExists = postsForKey.find(p => p.id === newPost.id);
+      console.log('🔍 Post verification:', {
+        postExists: !!postExists,
+        postsForKeyLength: postsForKey.length,
+        postId: newPost.id,
+        allPostIds: postsForKey.map(p => p.id)
+      });
+      
       // Provide visual feedback
       alert('Content sent to scheduler successfully!');
       
-      // Navigate to scheduler with the new post
-      window.location.href = `/dashboard/client/${clientId}/project/${projectId}/scheduler`;
+      // Navigate to new scheduler instead of old one
+      window.location.href = `/dashboard/client/${clientId}/new-scheduler`;
       
     } catch (error) {
       console.error('❌ Error sending to scheduler:', error);
