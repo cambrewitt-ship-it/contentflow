@@ -513,6 +513,15 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
   };
 
   const handleSendToScheduler = async (captionText: string) => {
+    console.log('🚀 handleSendToScheduler function called with captionText:', captionText);
+    console.log('🔍 Function execution context:', {
+      activeImageId,
+      clientId,
+      projectId,
+      uploadedImagesLength: uploadedImages.length,
+      selectedCaptions
+    });
+    
     try {
       if (!activeImageId || !clientId || !projectId) {
         alert('Missing required information. Please ensure an image is selected and you have proper access.');
@@ -573,6 +582,32 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
         postsForKeyLength: postsForKey.length,
         postId: newPost.id,
         allPostIds: postsForKey.map(p => p.id)
+      });
+      
+      // Test: Manually add another post to verify store is working
+      const testPost = {
+        id: 'test-' + Date.now().toString(),
+        clientId,
+        projectId,
+        imageUrl: 'https://via.placeholder.com/300x200?text=Test+Post',
+        caption: 'This is a test post to verify the store is working',
+        mediaType: 'image' as const,
+        originalCaption: 'Test post',
+        createdAt: new Date().toISOString(),
+        status: 'draft' as const,
+        notes: 'Test post for debugging',
+      };
+      
+      console.log('🧪 Adding test post to verify store:', testPost);
+      addPost(testPost);
+      
+      // Check store state after adding test post
+      const storeStateAfterTest = usePostStore.getState();
+      console.log('🧪 Store state after test post:', {
+        key,
+        postsInStore: storeStateAfterTest.posts[key],
+        totalPosts: storeStateAfterTest.posts,
+        storeKeys: Object.keys(storeStateAfterTest.posts)
       });
       
       // Provide visual feedback
@@ -680,7 +715,18 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
                     <Button
                       variant="default"
                       size="sm"
-                      onClick={() => handleSendToScheduler(caption.text)}
+                      onClick={() => {
+                        console.log('🖱️ Send to Scheduler button clicked!');
+                        console.log('🔍 Button click context:', {
+                          captionId: caption.id,
+                          captionText: caption.text,
+                          activeImageId,
+                          clientId,
+                          projectId,
+                          uploadedImagesLength: uploadedImages.length
+                        });
+                        handleSendToScheduler(caption.text);
+                      }}
                       className="bg-green-600 hover:bg-green-700 text-white"
                     >
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -713,6 +759,45 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
                   Generate AI Captions
                 </>
               )}
+            </Button>
+            
+            {/* Test Store Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const testPost = {
+                  id: 'manual-test-' + Date.now().toString(),
+                  clientId,
+                  projectId,
+                  imageUrl: 'https://via.placeholder.com/300x200?text=Manual+Test',
+                  caption: 'Manual test post added directly to store',
+                  mediaType: 'image' as const,
+                  originalCaption: 'Manual test',
+                  createdAt: new Date().toISOString(),
+                  status: 'draft' as const,
+                  notes: 'Manual test post for debugging store',
+                };
+                
+                console.log('🧪 Manual test: Adding post directly to store:', testPost);
+                const { addPost } = usePostStore.getState();
+                addPost(testPost);
+                
+                // Check store state
+                const storeState = usePostStore.getState();
+                const key = `${clientId}:${projectId}`;
+                console.log('🧪 Manual test: Store state after adding:', {
+                  key,
+                  postsInStore: storeState.posts[key],
+                  totalPosts: storeState.posts,
+                  storeKeys: Object.keys(storeState.posts)
+                });
+                
+                alert('Test post added to store! Check console for details.');
+              }}
+              className="w-full mt-2"
+            >
+              🧪 Test Store (Add Test Post)
             </Button>
           </div>
         </div>

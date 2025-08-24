@@ -121,14 +121,58 @@ export const usePostStore = create<State>((set, get) => ({
 
   // Add a simple post to the store
   addPost: (post: Post) => {
+    console.log('🚀 addPost function called with:', post);
+    console.log('🔍 Post data validation:', {
+      hasId: !!post.id,
+      hasClientId: !!post.clientId,
+      hasProjectId: !!post.projectId,
+      hasImageUrl: !!post.imageUrl,
+      hasCaption: !!post.caption,
+      postType: typeof post,
+      postKeys: Object.keys(post)
+    });
+    
     const key = `${post.clientId}:${post.projectId}`;
-    set((state) => ({
-      posts: {
-        ...state.posts,
-        [key]: [...(state.posts[key] ?? []), post],
-      },
-    }));
-    console.log('✅ Post added to store:', post);
+    console.log('🔑 Store key created:', key);
+    
+    // Get current state before modification
+    const currentState = get();
+    console.log('📊 Current store state before adding:', {
+      totalPosts: Object.keys(currentState.posts || {}).length,
+      postsKeys: Object.keys(currentState.posts || {}),
+      postsForKey: currentState.posts?.[key] || [],
+      postsForKeyLength: currentState.posts?.[key]?.length || 0
+    });
+    
+    set((state) => {
+      const newState = {
+        posts: {
+          ...state.posts,
+          [key]: [...(state.posts[key] ?? []), post],
+        },
+      };
+      
+      console.log('🔄 State update applied:', {
+        newPostsKeys: Object.keys(newState.posts),
+        newPostsForKey: newState.posts[key],
+        newPostsForKeyLength: newState.posts[key]?.length || 0
+      });
+      
+      return newState;
+    });
+    
+    // Verify the post was actually added
+    const updatedState = get();
+    const addedPost = updatedState.posts[key]?.find(p => p.id === post.id);
+    console.log('✅ Post verification after adding:', {
+      postFound: !!addedPost,
+      totalPostsAfter: Object.keys(updatedState.posts).length,
+      postsForKeyAfter: updatedState.posts[key]?.length || 0,
+      addedPostId: addedPost?.id,
+      storeKey: key
+    });
+    
+    console.log('✅ Post added to store successfully:', post);
   },
 
   // New function for LATE API integration
