@@ -30,6 +30,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [newProjectDescription, setNewProjectDescription] = useState("")
   const [creatingProject, setCreatingProject] = useState(false)
   const [showProjectSelection, setShowProjectSelection] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
+  const [debugLoading, setDebugLoading] = useState(false)
 
   // Check for OAuth callback messages in URL
   useEffect(() => {
@@ -113,22 +115,39 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       
       try {
         setProjectsLoading(true)
+        console.log('🔄 Fetching projects for clientId:', clientId);
+        
         const response = await fetch(`/api/projects?clientId=${clientId}`)
+        console.log('📡 Projects API response:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        });
         
         if (!response.ok) {
-          throw new Error(`Failed to fetch projects: ${response.statusText}`)
+          const errorText = await response.text();
+          console.error('❌ Projects API error response:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText
+          });
+          throw new Error(`Failed to fetch projects: ${response.status} ${response.statusText}`);
         }
         
         const data = await response.json()
+        console.log('📄 Projects API response data:', data);
+        
         if (data.success) {
           setProjects(data.projects)
-          console.log('✅ Projects fetched:', data.projects)
+          console.log('✅ Projects fetched successfully:', data.projects)
         } else {
-          console.error('❌ Failed to fetch projects:', data.error)
+          console.error('❌ Projects API returned success: false:', data.error);
+          throw new Error(data.error || 'Failed to fetch projects');
         }
       } catch (err) {
-        console.error('❌ Error fetching projects:', err)
-        // Don't show error to user for projects, just log it
+        console.error('❌ Error fetching projects:', err);
+        // Show error to user for projects since it's critical functionality
+        setError(`Failed to load projects: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
         setProjectsLoading(false)
       }
@@ -180,6 +199,31 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   // Navigate to Content Suite
   const navigateToContentSuite = (projectId: string) => {
     window.location.href = `/dashboard/client/${clientId}/project/${projectId}/content-suite`
+  }
+
+  // Debug database issues
+  const handleDebugDatabase = async () => {
+    try {
+      setDebugLoading(true)
+      console.log('🔍 Calling debug endpoint...');
+      
+      const response = await fetch('/api/projects/debug')
+      const data = await response.json()
+      
+      console.log('📊 Debug endpoint response:', data);
+      setDebugInfo(data)
+      
+      if (data.success) {
+        console.log('✅ Debug info collected successfully');
+      } else {
+        console.error('❌ Debug endpoint failed:', data.error);
+      }
+    } catch (err) {
+      console.error('❌ Error calling debug endpoint:', err);
+      setDebugInfo({ error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setDebugLoading(false)
+    }
   }
 
   // Handle platform connection
@@ -573,14 +617,54 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         <div className="mt-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Projects</h2>
-            <Button 
-              onClick={() => setShowNewProjectForm(true)}
-              className="bg-black hover:bg-gray-800 text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Project
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleDebugDatabase}
+                disabled={debugLoading}
+                variant="outline"
+                className="text-sm"
+              >
+                {debugLoading ? '🔍 Debugging...' : '🔍 Debug DB'}
+              </Button>
+              <Button 
+                onClick={() => setShowNewProjectForm(true)}
+                className="bg-black hover:bg-gray-800 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New Project
+              </Button>
+            </div>
           </div>
+
+          {/* Debug Information */}
+          {debugInfo && (
+            <Card className="mb-6 border-orange-200 bg-orange-50">
+              <CardHeader>
+                <CardTitle className="text-lg text-orange-800">Database Debug Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <pre className="text-xs bg-white p-3 rounded border overflow-auto max-h-96">
+                  {JSON.stringify(debugInfo, null, 2)}
+                </pre>
+                <div className="mt-3 flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setDebugInfo(null)}
+                  >
+                    Close
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleDebugDatabase}
+                  >
+                    Refresh
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* New Project Form */}
           {showNewProjectForm && (
