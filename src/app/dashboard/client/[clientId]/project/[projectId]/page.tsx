@@ -555,6 +555,16 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
       
       console.log('✅ Post successfully added to store');
       
+      // Debug: Check store state after adding
+      const storeState = usePostStore.getState();
+      const key = `${clientId}:${projectId}`;
+      console.log('🔍 Store state after adding post:', {
+        key,
+        postsInStore: storeState.posts[key],
+        totalPosts: storeState.posts,
+        storeKeys: Object.keys(storeState.posts)
+      });
+      
       // Provide visual feedback
       alert('Content sent to scheduler successfully!');
       

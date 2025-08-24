@@ -284,11 +284,21 @@ export default function SchedulerClient({ clientId: propClientId, projectId: pro
   
   // Get posts from Zustand store
   const key = `${clientId}:${projectId}`;
-const postsMap = usePostStore(s => s.posts);
-const scheduledMap = usePostStore(s => s.scheduled);
+  const postsMap = usePostStore(s => s.posts);
+  const scheduledMap = usePostStore(s => s.scheduled);
 
-const posts = useMemo(() => postsMap?.[key] ?? [], [postsMap, key]);
-const scheduledPostsFromStore = useMemo(() => scheduledMap?.[key] ?? [], [scheduledMap, key]);
+  console.log('🔍 Store debugging:', {
+    key,
+    postsMap,
+    scheduledMap,
+    postsMapKeys: Object.keys(postsMap || {}),
+    scheduledMapKeys: Object.keys(scheduledMap || {}),
+    postsForKey: postsMap?.[key],
+    scheduledForKey: scheduledMap?.[key]
+  });
+
+  const posts = useMemo(() => postsMap?.[key] ?? [], [postsMap, key]);
+  const scheduledPostsFromStore = useMemo(() => scheduledMap?.[key] ?? [], [scheduledMap, key]);
 
 // Get the schedule action from the store
 const schedulePostAction = usePostStore(s => s.schedulePost);
