@@ -254,8 +254,20 @@ function DroppableCalendarCell({
   );
 }
 
-export function SchedulerClient({ clientId, projectId }: SchedulerClientProps) {
+export default function SchedulerClient({ clientId: propClientId, projectId: propProjectId }: SchedulerClientProps) {
+  // Get params from URL as fallback
+  const params = useParams();
+  const urlClientId = params?.clientId as string;
+  const urlProjectId = params?.projectId as string;
+  
+  // Use props if available, otherwise fall back to URL params
+  const clientId = propClientId || urlClientId;
+  const projectId = propProjectId || urlProjectId;
+  
   console.log('🎯 SchedulerClient rendered with:', { clientId, projectId });
+  console.log('🎯 Props received:', { propClientId, propProjectId });
+  console.log('🎯 URL params:', { urlClientId, urlProjectId });
+  console.log('🎯 Final values:', { clientId, projectId });
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [scheduledPosts, setScheduledPosts] = useState<SchedulerScheduledPost[]>([]);
@@ -469,7 +481,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
   };
 
   // Fetch connected accounts from LATE API
-  const fetchConnectedAccounts = async () => {
+  const fetchConnectedAccounts = async (clientId: string) => {
     try {
       console.log('🔄 Fetching connected accounts...');
       console.log('🔍 Using clientId:', clientId);
@@ -477,7 +489,6 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       console.log('🔍 clientId length:', clientId?.length);
       console.log('🔍 clientId value:', JSON.stringify(clientId));
       console.log('🔍 clientId from props:', clientId);
-      console.log('🔍 clientId from useParams:', useParams());
       
       const apiUrl = `/api/late/get-accounts/${clientId}`;
       console.log('🌐 API URL:', apiUrl);
@@ -514,7 +525,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
   };
 
   useEffect(() => {
-    fetchConnectedAccounts();
+    fetchConnectedAccounts(clientId);
   }, [clientId, projectId]);
 
 
