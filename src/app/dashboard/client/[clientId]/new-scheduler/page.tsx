@@ -6,9 +6,6 @@ import { usePostStore } from 'lib/store';
 import { Button } from 'components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card';
 import { Input } from 'components/ui/input';
-import { Label } from 'components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'components/ui/select';
-import { Checkbox } from 'components/ui/checkbox';
 import { Calendar, Clock, Image as ImageIcon, MessageSquare, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface ConnectedAccount {
@@ -221,7 +218,7 @@ export default function NewSchedulerPage() {
 
                         {/* Post Caption */}
                         <div className="mb-3">
-                          <Label className="text-sm font-medium">Caption:</Label>
+                          <label className="text-sm font-medium">Caption:</label>
                           <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                             {post.caption}
                           </p>
@@ -229,23 +226,25 @@ export default function NewSchedulerPage() {
 
                         {/* Account Selection */}
                         <div className="mb-3">
-                          <Label className="text-sm font-medium">Select Accounts:</Label>
+                          <label className="text-sm font-medium">Select Accounts:</label>
                           <div className="flex flex-wrap gap-2 mt-2">
                             {MOCK_CONNECTED_ACCOUNTS.map((account) => (
                               <div key={account._id} className="flex items-center space-x-2">
-                                <Checkbox
+                                <input
+                                  type="checkbox"
                                   id={`${post.id}-${account._id}`}
                                   checked={selectedAccounts[post.id]?.includes(account._id) || false}
-                                  onCheckedChange={(checked) => 
-                                    handleAccountSelection(post.id, account._id, checked as boolean)
+                                  onChange={(e) => 
+                                    handleAccountSelection(post.id, account._id, e.target.checked)
                                   }
+                                  className="rounded border-gray-300"
                                 />
-                                <Label 
+                                <label 
                                   htmlFor={`${post.id}-${account._id}`}
                                   className="text-sm cursor-pointer"
                                 >
                                   {account.platform} ({account.username})
-                                </Label>
+                                </label>
                               </div>
                             ))}
                           </div>
@@ -254,7 +253,7 @@ export default function NewSchedulerPage() {
                         {/* Date and Time Selection */}
                         <div className="grid grid-cols-2 gap-3 mb-3">
                           <div>
-                            <Label htmlFor={`date-${post.id}`} className="text-sm font-medium">Date:</Label>
+                            <label htmlFor={`date-${post.id}`} className="text-sm font-medium">Date:</label>
                             <Input
                               id={`date-${post.id}`}
                               type="date"
@@ -264,19 +263,18 @@ export default function NewSchedulerPage() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor={`time-${post.id}`} className="text-sm font-medium">Time:</Label>
-                            <Select value={selectedTime} onValueChange={setSelectedTime}>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {timeOptions.map((time) => (
-                                  <SelectItem key={time} value={time}>
-                                    {time}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <label htmlFor={`time-${post.id}`} className="text-sm font-medium">Time:</label>
+                            <select 
+                              value={selectedTime} 
+                              onChange={(e) => setSelectedTime(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              {timeOptions.map((time) => (
+                                <option key={time} value={time}>
+                                  {time}
+                                </option>
+                              ))}
+                            </select>
                           </div>
                         </div>
 
@@ -338,21 +336,21 @@ export default function NewSchedulerPage() {
                         {/* Post Details */}
                         <div className="space-y-2">
                           <div>
-                            <Label className="text-sm font-medium">Caption:</Label>
+                            <label className="text-sm font-medium">Caption:</label>
                             <p className="text-sm text-muted-foreground line-clamp-2">
                               {post.caption}
                             </p>
                           </div>
                           
                           <div>
-                            <Label className="text-sm font-medium">Scheduled:</Label>
+                            <label className="text-sm font-medium">Scheduled:</label>
                             <p className="text-sm text-muted-foreground">
                               {post.scheduledTime ? new Date(post.scheduledTime).toLocaleString() : 'Not set'}
                             </p>
                           </div>
 
                           <div>
-                            <Label className="text-sm font-medium">Status:</Label>
+                            <label className="text-sm font-medium">Status:</label>
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                               Scheduled
                             </span>
