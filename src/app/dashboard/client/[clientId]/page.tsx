@@ -331,30 +331,44 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               )}
             </div>
             
-            {/* Quick Actions */}
-            {!projectsFailed && projects.length > 0 && (
-              <div className="flex gap-3">
-                {projects.length === 1 ? (
-                  <Button 
-                    onClick={() => navigateToContentSuite(projects[0].id)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3"
-                  >
-                    <FileText className="w-5 h-5 mr-2" />
-                    Create Content
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={() => setShowProjectSelection(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3"
-                  >
-                    <FileText className="w-5 h-5 mr-2" />
-                    Create Content
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </Button>
-                )}
-              </div>
-            )}
+            {/* Main Create Content Button - Always Visible */}
+            <div className="flex gap-3">
+              <Button 
+                onClick={() => navigateToContentSuite('default')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+              >
+                <Plus className="w-6 h-6 mr-2" />
+                Create Content
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
+              
+              {/* Additional Quick Actions */}
+              {!projectsFailed && projects.length > 0 && (
+                <div className="flex gap-3">
+                  {projects.length === 1 ? (
+                    <Button 
+                      onClick={() => navigateToContentSuite(projects[0].id)}
+                      variant="outline"
+                      className="px-6 py-3"
+                    >
+                      <FileText className="w-5 h-5 mr-2" />
+                      Use Existing Project
+                      <ArrowRight className="w-5 h-5 ml-2" />
+                    </Button>
+                  ) : (
+                    <Button 
+                      onClick={() => setShowProjectSelection(true)}
+                      variant="outline"
+                      className="px-6 py-3"
+                    >
+                      <FileText className="w-5 h-5 mr-2" />
+                      Choose Project
+                      <ArrowRight className="w-5 h-5 ml-2" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
             
             {/* Quick Actions when Projects Failed */}
             {projectsFailed && (
@@ -641,6 +655,16 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Projects</h2>
             <div className="flex gap-2">
+              {/* Main Create Content Button in Projects Section */}
+              <Button 
+                onClick={() => navigateToContentSuite('default')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Create Content
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+              
               <Button 
                 onClick={handleDebugDatabase}
                 disabled={debugLoading}
@@ -907,13 +931,24 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   </svg>
                   <h3 className="mt-4 text-lg font-medium text-gray-900">No projects yet</h3>
                   <p className="mt-2 text-gray-600 mb-4">Get started by creating your first project to organize your content strategy.</p>
-                  <Button 
-                    onClick={() => setShowNewProjectForm(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Your First Project
-                  </Button>
+                  <div className="flex gap-3 justify-center">
+                    <Button 
+                      onClick={() => navigateToContentSuite('default')}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 font-semibold"
+                    >
+                      <Plus className="w-5 h-5 mr-2" />
+                      Create Content Now
+                      <ArrowRight className="w-5 h-5 ml-2" />
+                    </Button>
+                    <Button 
+                      onClick={() => setShowNewProjectForm(true)}
+                      variant="outline"
+                      className="px-6 py-3"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Project First
+                    </Button>
+                  </div>
                 </div>
               )}
             </>
