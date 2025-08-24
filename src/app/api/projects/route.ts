@@ -74,6 +74,7 @@ async function getTableSchema(supabase: SupabaseClient, tableName: string) {
 }
 
 export async function POST(req: NextRequest) {
+  console.log('🚨 PROJECTS API POST ROUTE HIT! 🚨');
   console.log('=== PROJECTS API POST CALLED ===');
   console.log('Request URL:', req.url);
   console.log('Request method:', req.method);
@@ -232,13 +233,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  console.log('🚨 PROJECTS API GET ROUTE HIT! 🚨');
   console.log('=== PROJECTS API GET CALLED ===');
   console.log('Request URL:', req.url);
   console.log('Request method:', req.method);
   console.log('Request headers:', Object.fromEntries(req.headers.entries()));
-  
-  // Add immediate response for debugging
-  console.log('=== SENDING IMMEDIATE RESPONSE FOR DEBUGGING ===');
   
   // Simple fallback response to test if route is working
   if (req.url.includes('test=true')) {
@@ -247,6 +246,20 @@ export async function GET(req: NextRequest) {
       success: true, 
       message: 'Projects API route is working (test mode)',
       timestamp: new Date().toISOString()
+    });
+  }
+  
+  // Add immediate response for debugging
+  console.log('=== SENDING IMMEDIATE RESPONSE FOR DEBUGGING ===');
+  
+  // Very simple health check - always return something
+  if (req.url.includes('health=true')) {
+    console.log('=== HEALTH CHECK - RETURNING BASIC RESPONSE ===');
+    return NextResponse.json({ 
+      status: 'healthy',
+      route: 'projects',
+      timestamp: new Date().toISOString(),
+      message: 'Projects API route is responding'
     });
   }
   
