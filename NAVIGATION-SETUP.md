@@ -28,7 +28,7 @@ Client Dashboard → Content Suite → Scheduler
   - No projects: Create new project form
 
 ### 3. Enhanced Navigation
-- **Content Suite Access**: Direct navigation to `/dashboard/client/[clientId]/project/[projectId]/content-suite`
+- **Content Suite Access**: Direct navigation to `/dashboard/client/[clientId]/project/[projectId]`
 - **Scheduler Access**: Direct navigation to `/dashboard/client/[clientId]/project/[projectId]/scheduler`
 - **Context Preservation**: Client ID maintained throughout navigation
 
@@ -108,8 +108,7 @@ src/
 │               ├── page.tsx      # Client dashboard (updated)
 │               └── project/
 │                   └── [projectId]/
-│                       ├── content-suite/
-│                       │   └── page.tsx  # Content creation
+│                       ├── page.tsx (Content Suite)
 │                       └── scheduler/
 │                           └── scheduler-client.tsx  # Post scheduling
 ├── lib/

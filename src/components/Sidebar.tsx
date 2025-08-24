@@ -99,9 +99,9 @@ export default function Sidebar() {
     },
     {
       name: 'Content Suite',
-      href: isOnClientPage ? `/dashboard/client/${currentClientId}/project/1/content-suite` : '/dashboard',
+      href: isOnClientPage ? `/dashboard/client/${currentClientId}/project/1` : '/dashboard',
       icon: FileText,
-      active: pathname?.includes('/content-suite')
+      active: pathname?.includes('/project/') && !pathname?.includes('/scheduler')
     }
   ];
 

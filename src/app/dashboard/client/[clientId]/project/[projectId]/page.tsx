@@ -267,10 +267,10 @@ export default function ProjectPage({ params }: PageProps) {
                 href={`/dashboard/client/${resolvedParams.clientId}`}
                 className="hover:text-foreground transition-colors"
               >
-                Client
+                Client Dashboard
               </Link>
               <span>&gt;</span>
-              <span className="text-foreground font-medium">Project</span>
+              <span className="text-foreground font-medium">Content Suite</span>
             </div>
             
             <div className="flex items-center gap-4">

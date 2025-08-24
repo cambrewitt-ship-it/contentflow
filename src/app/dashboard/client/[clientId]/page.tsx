@@ -202,7 +202,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   // Navigate to Content Suite
   const navigateToContentSuite = (projectId: string) => {
-    window.location.href = `/dashboard/client/${clientId}/project/${projectId}/content-suite`
+    window.location.href = `/dashboard/client/${clientId}/project/${projectId}`
   }
 
   // Debug database issues
