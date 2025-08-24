@@ -472,11 +472,29 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
   const fetchConnectedAccounts = async () => {
     try {
       console.log('🔄 Fetching connected accounts...');
-      const response = await fetch(`/api/late/get-accounts/${clientId}`);
+      console.log('🔍 Using clientId:', clientId);
+      console.log('🔍 clientId type:', typeof clientId);
+      console.log('🔍 clientId length:', clientId?.length);
+      
+      const apiUrl = `/api/late/get-accounts/${clientId}`;
+      console.log('🌐 API URL:', apiUrl);
+      
+      const response = await fetch(apiUrl);
+      console.log('📡 Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+      
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API error response:', errorText);
         throw new Error(`Failed to fetch connected accounts: ${response.statusText}`);
       }
+      
       const data = await response.json();
+      console.log('📄 Response data:', data);
+      
       if (data.success) {
         setConnectedAccounts(data.accounts);
         console.log('✅ Connected accounts fetched:', data.accounts);

@@ -12,10 +12,16 @@ export async function GET(
   console.log('🚀 Get connected accounts API route called');
   console.log('📅 Timestamp:', new Date().toISOString());
   console.log('🔗 Request URL:', req.url);
+  console.log('🔍 Raw URL:', req.url);
+  console.log('📋 Params received:', params);
+  console.log('🆔 ClientId extracted:', params.clientId);
+  console.log('🔍 ClientId type:', typeof params.clientId);
+  console.log('🔍 ClientId length:', params.clientId?.length);
   
   try {
     const { clientId } = params;
     console.log('🔍 Fetching accounts for clientId:', clientId);
+    console.log('🔍 Final clientId after destructuring:', clientId);
 
     // Validate required fields
     if (!clientId) {

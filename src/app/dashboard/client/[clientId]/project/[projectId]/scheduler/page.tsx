@@ -2,14 +2,14 @@ import { Suspense } from 'react';
 import { SchedulerClient } from './scheduler-client';
 
 interface PageProps {
-  params: Promise<{
+  params: {
     clientId: string;
     projectId: string;
-  }>;
+  };
 }
 
 export default async function SchedulerPage({ params }: PageProps) {
-  const { clientId, projectId } = await params;
+  const { clientId, projectId } = params;
   
   console.log('📅 Scheduler page params resolved:', { clientId, projectId });
   
