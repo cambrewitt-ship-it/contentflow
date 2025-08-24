@@ -9,6 +9,14 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { clientId: string } }
 ) {
+  // Add detailed debugging at the very beginning
+  console.log('🚀 API Route called');
+  console.log('🔍 Request URL:', req.url);
+  console.log('🔍 Request pathname:', new URL(req.url).pathname);
+  console.log('🔍 Params object:', JSON.stringify(params, null, 2));
+  console.log('🔍 ClientId extracted:', params.clientId);
+  console.log('🔍 ClientId type:', typeof params.clientId);
+  
   console.log('🚀 Get connected accounts API route called');
   console.log('📅 Timestamp:', new Date().toISOString());
   console.log('🔗 Full request URL:', req.url);

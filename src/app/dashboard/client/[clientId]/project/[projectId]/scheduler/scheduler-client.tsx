@@ -269,6 +269,11 @@ export default function SchedulerClient({ clientId: propClientId, projectId: pro
   console.log('🎯 URL params:', { urlClientId, urlProjectId });
   console.log('🎯 Final values:', { clientId, projectId });
   
+  // Add detailed debugging for clientId parameter issue
+  console.log('🔍 Scheduler clientId from useParams:', urlClientId);
+  console.log('🔍 About to fetch accounts for clientId:', clientId);
+  console.log('🔍 API URL being called:', `/api/late/get-accounts/${clientId}`);
+  
   const [currentDate, setCurrentDate] = useState(new Date());
   const [scheduledPosts, setScheduledPosts] = useState<SchedulerScheduledPost[]>([]);
   const [draggedPost, setDraggedPost] = useState<PostInQueue | null>(null);
@@ -505,6 +510,10 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       console.log('🌐 Full API URL:', `${window.location.origin}${apiUrl}`);
       console.log('🌐 Current window location:', window.location.href);
       console.log('🌐 Current pathname:', window.location.pathname);
+      
+      // Add debugging right before the fetch call
+      console.log('🚀 About to make fetch request to:', apiUrl);
+      console.log('🚀 With clientId parameter:', clientId);
       
       const response = await fetch(apiUrl);
       console.log('📡 Response received:', {
