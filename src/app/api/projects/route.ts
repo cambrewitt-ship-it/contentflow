@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 // Helper function to check if projects table exists
-async function checkProjectsTableExists(supabase: any) {
+async function checkProjectsTableExists(supabase: SupabaseClient) {
   console.log('=== CHECKING PROJECTS TABLE EXISTENCE ===');
   
   try {
@@ -40,7 +40,7 @@ async function checkProjectsTableExists(supabase: any) {
 }
 
 // Helper function to get table schema information
-async function getTableSchema(supabase: any, tableName: string) {
+async function getTableSchema(supabase: SupabaseClient, tableName: string) {
   console.log(`=== GETTING ${tableName.toUpperCase()} TABLE SCHEMA ===`);
   
   try {
@@ -132,22 +132,29 @@ export async function POST(req: NextRequest) {
       });
       
       // Check if table doesn't exist
-      if (tableCheck.error && tableCheck.error.code === '42P01') {
-        console.error('Table does not exist error detected');
-        return NextResponse.json({ 
-          success: false, 
-          error: 'Projects table does not exist. Please run the database setup script.',
-          details: tableCheck.error.message,
-          code: tableCheck.error.code,
-          solution: 'Run the SQL commands in database-setup.sql to create the projects table'
-        }, { status: 500 });
+      if (tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error) {
+        const error = tableCheck.error as { code: string; message: string };
+        if (error.code === '42P01') {
+          console.error('Table does not exist error detected');
+          return NextResponse.json({ 
+            success: false, 
+            error: 'Projects table does not exist. Please run the database setup script.',
+            details: error.message,
+            code: error.code,
+            solution: 'Run the SQL commands in database-setup.sql to create the projects table'
+          }, { status: 500 });
+        }
       }
       
       return NextResponse.json({ 
         success: false, 
         error: 'Database table access failed',
-        details: tableCheck.error?.message || 'Unknown table access error',
-        code: tableCheck.error?.code || 'UNKNOWN'
+        details: tableCheck.error && typeof tableCheck.error === 'object' && 'message' in tableCheck.error 
+          ? (tableCheck.error as { message: string }).message 
+          : 'Unknown table access error',
+        code: tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error 
+          ? (tableCheck.error as { code: string }).code 
+          : 'UNKNOWN'
       }, { status: 500 });
     }
 
@@ -230,6 +237,19 @@ export async function GET(req: NextRequest) {
   console.log('Request method:', req.method);
   console.log('Request headers:', Object.fromEntries(req.headers.entries()));
   
+  // Add immediate response for debugging
+  console.log('=== SENDING IMMEDIATE RESPONSE FOR DEBUGGING ===');
+  
+  // Simple fallback response to test if route is working
+  if (req.url.includes('test=true')) {
+    console.log('=== TEST MODE - RETURNING SIMPLE RESPONSE ===');
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Projects API route is working (test mode)',
+      timestamp: new Date().toISOString()
+    });
+  }
+  
   try {
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get('clientId');
@@ -287,22 +307,29 @@ export async function GET(req: NextRequest) {
       });
       
       // Check if table doesn't exist
-      if (tableCheck.error && tableCheck.error.code === '42P01') {
-        console.error('Table does not exist error detected');
-        return NextResponse.json({ 
-          success: false, 
-          error: 'Projects table does not exist. Please run the database setup script.',
-          details: tableCheck.error.message,
-          code: tableCheck.error.code,
-          solution: 'Run the SQL commands in database-setup.sql to create the projects table'
-        }, { status: 500 });
+      if (tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error) {
+        const error = tableCheck.error as { code: string; message: string };
+        if (error.code === '42P01') {
+          console.error('Table does not exist error detected');
+          return NextResponse.json({ 
+            success: false, 
+            error: 'Projects table does not exist. Please run the database setup script.',
+            details: error.message,
+            code: error.code,
+            solution: 'Run the SQL commands in database-setup.sql to create the projects table'
+          }, { status: 500 });
+        }
       }
       
       return NextResponse.json({ 
         success: false, 
         error: 'Database table access failed',
-        details: tableCheck.error?.message || 'Unknown table access error',
-        code: tableCheck.error?.code || 'UNKNOWN'
+        details: tableCheck.error && typeof tableCheck.error === 'object' && 'message' in tableCheck.error 
+          ? (tableCheck.error as { message: string }).message 
+          : 'Unknown table access error',
+        code: tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error 
+          ? (tableCheck.error as { code: string }).code 
+          : 'UNKNOWN'
       }, { status: 500 });
     }
 
