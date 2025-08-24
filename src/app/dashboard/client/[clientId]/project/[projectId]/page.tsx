@@ -280,12 +280,26 @@ export default function ProjectPage({ params }: PageProps) {
               >
                 <ArrowLeft className="h-5 w-5" />
               </Link>
-              <div>
+              <div className="flex-1">
                 <h1 className="text-3xl font-bold text-foreground">Content Suite</h1>
                 <p className="text-muted-foreground mt-2">
                   Upload images, add notes, and craft compelling captions for your social media content.
                 </p>
               </div>
+              
+              {/* Scheduler Navigation Button */}
+              <Link 
+                href={`/dashboard/client/${resolvedParams.clientId}/project/${resolvedParams.projectId}/scheduler`}
+                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Go to Scheduler
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
             </div>
           </div>
 
@@ -297,7 +311,7 @@ export default function ProjectPage({ params }: PageProps) {
             <CaptionColumn />
             
             {/* Column 3: Social Preview */}
-            <SocialPreviewColumn />
+            <SocialPreviewColumn clientId={resolvedParams.clientId} projectId={resolvedParams.projectId} />
           </div>
         </div>
       </div>
@@ -616,7 +630,7 @@ function CaptionColumn() {
 }
 
 // Column 3: Social Preview
-function SocialPreviewColumn() {
+function SocialPreviewColumn({ clientId, projectId }: { clientId: string; projectId: string }) {
   const { 
     uploadedImages, 
     captions, 
@@ -632,12 +646,36 @@ function SocialPreviewColumn() {
   };
 
   return (
-    <SocialPreview 
-      images={uploadedImages}
-      activeImageId={activeImageId}
-      onImageSelect={handleImageSelect}
-      caption={selectedCaption}
-      totalCaptionCount={captions.length}
-    />
+    <div className="space-y-6">
+      <SocialPreview 
+        images={uploadedImages}
+        activeImageId={activeImageId}
+        onImageSelect={handleImageSelect}
+        caption={selectedCaption}
+        totalCaptionCount={captions.length}
+      />
+      
+      {/* Scheduler Action Button */}
+      {uploadedImages.length > 0 && selectedCaptions.length > 0 && (
+        <div className="bg-card rounded-lg border p-6">
+          <h3 className="text-lg font-semibold text-card-foreground mb-3">Ready to Schedule?</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Your content is ready! Head to the scheduler to plan your posts.
+          </p>
+          <Link 
+            href={`/dashboard/client/${clientId}/project/${projectId}/scheduler`}
+            className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold w-full justify-center shadow-md hover:shadow-lg transition-all duration-200"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Schedule This Content
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }
