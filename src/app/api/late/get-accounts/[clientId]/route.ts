@@ -7,9 +7,11 @@ const lateApiKey = process.env.LATE_API_KEY!;
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ clientId: string }> }
+  { params }: { params: Promise<{ clientId: string } } }
 ) {
   console.log('🚀 Get connected accounts API route called');
+  console.log('📅 Timestamp:', new Date().toISOString());
+  console.log('🔗 Request URL:', req.url);
   
   try {
     const { clientId } = await params;
@@ -20,21 +22,41 @@ export async function GET(
       console.log('❌ Missing clientId parameter');
       return NextResponse.json({ 
         error: 'Missing required parameter',
-        details: 'clientId is required'
+        details: 'clientId is required',
+        timestamp: new Date().toISOString()
       }, { status: 400 });
     }
 
     // Check environment variables
+    console.log('🔧 Environment check:', {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasSupabaseServiceRole: !!supabaseServiceRoleKey,
+      hasLateApiKey: !!lateApiKey,
+      lateApiKeyLength: lateApiKey ? lateApiKey.length : 0
+    });
+
     if (!lateApiKey) {
       console.log('❌ LATE_API_KEY is missing');
       return NextResponse.json({ 
         error: 'Configuration error',
-        details: 'LATE_API_KEY environment variable is not set'
+        details: 'LATE_API_KEY environment variable is not set',
+        timestamp: new Date().toISOString()
+      }, { status: 500 });
+    }
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      console.log('❌ Supabase environment variables missing');
+      return NextResponse.json({ 
+        error: 'Configuration error',
+        details: 'Supabase environment variables are not set',
+        timestamp: new Date().toISOString()
       }, { status: 500 });
     }
 
     // Create Supabase client
+    console.log('🔌 Creating Supabase client...');
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    console.log('✅ Supabase client created successfully');
 
     // Fetch client data to get late_profile_id
     console.log('🔍 Fetching client data for ID:', clientId);
@@ -45,26 +67,42 @@ export async function GET(
       .single();
 
     if (clientError) {
-      console.error('❌ Supabase client query error:', clientError);
+      console.error('❌ Supabase client query error:', {
+        code: clientError.code,
+        message: clientError.message,
+        details: clientError.details,
+        hint: clientError.hint,
+        fullError: clientError
+      });
       
       if (clientError.code === 'PGRST116') {
         return NextResponse.json({ 
           error: 'Client not found',
-          details: `No client found with ID: ${clientId}`
+          details: `No client found with ID: ${clientId}`,
+          code: clientError.code,
+          timestamp: new Date().toISOString()
         }, { status: 404 });
       }
       
       return NextResponse.json({ 
         error: 'Database query failed', 
-        details: clientError.message 
+        details: clientError.message,
+        code: clientError.code,
+        timestamp: new Date().toISOString()
       }, { status: 500 });
     }
 
     if (!client.late_profile_id) {
-      console.log('❌ Client missing late_profile_id:', client);
+      console.log('❌ Client missing late_profile_id:', {
+        clientId: client.id,
+        clientName: client.name,
+        lateProfileId: client.late_profile_id
+      });
       return NextResponse.json({ 
         error: 'LATE profile not found',
-        details: `Client ${client.name} does not have a LATE profile ID`
+        details: `Client ${client.name} does not have a LATE profile ID`,
+        clientId: client.id,
+        timestamp: new Date().toISOString()
       }, { status: 404 });
     }
 
@@ -82,9 +120,9 @@ export async function GET(
     console.log('🌐 Calling LATE API:', {
       url: lateApiUrl,
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${lateApiKey.substring(0, 10)}...` // Log partial key for security
-      }
+      profileId: profileId,
+      hasAuthHeader: !!lateApiKey,
+      authHeaderLength: lateApiKey.length
     });
     
     const lateResponse = await fetch(lateApiUrl, {
@@ -96,7 +134,9 @@ export async function GET(
 
     console.log('📡 LATE API response received:', {
       status: lateResponse.status,
-      statusText: lateResponse.statusText
+      statusText: lateResponse.statusText,
+      ok: lateResponse.ok,
+      headers: Object.fromEntries(lateResponse.headers.entries())
     });
 
     if (!lateResponse.ok) {
@@ -104,17 +144,27 @@ export async function GET(
       console.error('❌ LATE API error response:', {
         status: lateResponse.status,
         statusText: lateResponse.statusText,
-        body: errorText
+        body: errorText,
+        url: lateApiUrl,
+        profileId: profileId
       });
       
       return NextResponse.json({ 
         error: 'LATE API request failed',
-        details: `Status: ${lateResponse.status}, Response: ${errorText}`
+        details: `Status: ${lateResponse.status}, Response: ${errorText}`,
+        url: lateApiUrl,
+        profileId: profileId,
+        timestamp: new Date().toISOString()
       }, { status: 500 });
     }
 
     const lateData = await lateResponse.json();
-    console.log('✅ LATE API accounts response:', lateData);
+    console.log('✅ LATE API accounts response:', {
+      hasData: !!lateData,
+      dataKeys: Object.keys(lateData),
+      accountsCount: lateData.accounts?.length || lateData.data?.length || 0,
+      rawResponse: lateData
+    });
 
     // Extract accounts from LATE response
     const accounts = lateData.accounts || lateData.data || [];
@@ -124,11 +174,17 @@ export async function GET(
       return NextResponse.json({ 
         success: true,
         accounts: [],
-        message: 'No social media accounts are currently connected'
+        message: 'No social media accounts are currently connected',
+        profileId: profileId,
+        timestamp: new Date().toISOString()
       });
     }
 
-    console.log('📋 Found connected accounts:', accounts);
+    console.log('📋 Found connected accounts:', {
+      count: accounts.length,
+      platforms: accounts.map((acc: any) => acc.platform || acc.socialPlatform),
+      sampleAccount: accounts[0]
+    });
 
     // Transform accounts to a consistent format
     const transformedAccounts = accounts.map((account: any) => ({
@@ -159,20 +215,27 @@ export async function GET(
       })
     }));
 
-    console.log('🔄 Transformed accounts:', transformedAccounts);
+    console.log('🔄 Transformed accounts:', {
+      count: transformedAccounts.length,
+      platforms: transformedAccounts.map(acc => acc.platform),
+      sampleTransformed: transformedAccounts[0]
+    });
 
     const responseData = {
       success: true,
       accounts: transformedAccounts,
       totalAccounts: transformedAccounts.length,
       clientId: clientId,
-      lateProfileId: profileId
+      lateProfileId: profileId,
+      timestamp: new Date().toISOString()
     };
     
     console.log('📤 Returning accounts response:', {
       success: responseData.success,
       totalAccounts: responseData.totalAccounts,
-      platforms: transformedAccounts.map(acc => acc.platform)
+      platforms: transformedAccounts.map(acc => acc.platform),
+      clientId: responseData.clientId,
+      lateProfileId: responseData.lateProfileId
     });
     
     return NextResponse.json(responseData);
@@ -182,12 +245,16 @@ export async function GET(
     console.error('💥 Error details:', {
       name: error instanceof Error ? error.name : 'Unknown',
       message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : 'No stack trace'
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      constructor: error?.constructor?.name,
+      type: typeof error
     });
     
     return NextResponse.json({ 
       error: 'Internal server error', 
-      details: error instanceof Error ? error.message : String(error)
+      details: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      timestamp: new Date().toISOString()
     }, { status: 500 });
   }
 }
