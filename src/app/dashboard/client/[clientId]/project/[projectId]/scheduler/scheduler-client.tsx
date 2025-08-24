@@ -260,10 +260,13 @@ export function SchedulerClient({ clientId, projectId }: SchedulerClientProps) {
   const [draggedPost, setDraggedPost] = useState<PostInQueue | null>(null);
   const [isSchedulingModalOpen, setIsSchedulingModalOpen] = useState(false);
   const [selectedPostForScheduling, setSelectedPostForScheduling] = useState<PostInQueue | null>(null);
-  const [globalScheduleTime, setGlobalScheduleTime] = useState<string | null>(null);
-  const [individualPostTimes, setIndividualPostTimes] = useState<Record<string, string>>({});
-  const [globalTimeApplied, setGlobalTimeApplied] = useState(false);
+  const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string[]>>({}); // Track selected accounts per post
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [globalScheduleTime, setGlobalScheduleTime] = useState<string>('');
+  const [globalTimeApplied, setGlobalTimeApplied] = useState(false);
+  const [individualPostTimes, setIndividualPostTimes] = useState<Record<string, string>>({});
   
   // Get posts from Zustand store
   const key = `${clientId}:${projectId}`;
@@ -324,14 +327,10 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
   };
 
   const handleAccountSelection = (postId: string, accountIds: string[]) => {
-    // Update the post's selectedAccounts in the postsReadyToSchedule state
-    setPostsReadyToSchedule(prev => 
-      prev.map(post => 
-        post.id === postId 
-          ? { ...post, selectedAccounts: accountIds }
-          : post
-      )
-    );
+    setSelectedAccounts(prev => ({
+      ...prev,
+      [postId]: accountIds
+    }));
   };
 
   const generateTimeOptions = () => {
@@ -433,7 +432,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
   };
 
   const handleGlobalTimeChange = (newTime: string | null) => {
-    setGlobalScheduleTime(newTime);
+    setGlobalScheduleTime(newTime || '');
     
     // Reset the applied flag when global time changes
     setGlobalTimeApplied(false);
@@ -535,7 +534,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
       
       if (targetDate) {
         // Use the post's selected accounts, or default to all connected accounts
-        const accountIds = post.selectedAccounts.length > 0 ? post.selectedAccounts : connectedAccounts.map(acc => acc.id);
+        const accountIds = selectedAccounts[post.id]?.length > 0 ? selectedAccounts[post.id] : connectedAccounts.map(acc => acc.id);
         
         console.log('🔄 Drag-and-drop scheduling post:', { 
           postId: post.id, 
@@ -543,7 +542,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
           accountIds, 
           projectId, 
           clientId,
-          selectedAccounts: post.selectedAccounts
+          selectedAccounts: selectedAccounts[post.id]
         });
         
         try {
@@ -804,7 +803,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
                 <select 
                   className="px-3 py-2 border border-border rounded-md bg-background text-sm"
                   value={globalScheduleTime || ''}
-                  onChange={(e) => setGlobalScheduleTime(e.target.value || null)}
+                  onChange={(e) => handleGlobalTimeChange(e.target.value || null)}
                 >
                   <option value="">Select time...</option>
                   {generateTimeOptions().map(time => (
@@ -823,7 +822,7 @@ const schedulePostAction = usePostStore(s => s.schedulePost);
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setGlobalScheduleTime(null)}
+                    onClick={() => handleGlobalTimeChange(null)}
                     className="text-muted-foreground hover:text-foreground"
                   >
                     Clear Global Time

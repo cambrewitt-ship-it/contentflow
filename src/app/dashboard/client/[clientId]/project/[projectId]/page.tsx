@@ -525,19 +525,38 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
         return;
       }
 
-      console.log('🚀 Sending content to scheduler with LATE API integration...');
-      
-      // Use the store's sendToScheduler function
-      const { sendToScheduler } = usePostStore.getState();
-      const newPost = await sendToScheduler(
-        activeImage.preview,
-        captionText,
-        projectId,
+      console.log('🚀 Sending content to scheduler...', {
+        caption: captionText,
+        imageUrl: activeImage.preview,
         clientId,
-        activeImage.notes
-      );
+        projectId,
+        notes: activeImage.notes
+      });
+      
+      // Create post object with all required fields
+      const newPost = {
+        id: Date.now().toString(),
+        clientId,
+        projectId,
+        imageUrl: activeImage.preview,
+        caption: captionText,
+        mediaType: 'image' as const,
+        originalCaption: captionText,
+        createdAt: new Date().toISOString(),
+        status: 'draft' as const,
+        notes: activeImage.notes || '',
+      };
 
-      console.log('✅ Content successfully sent to scheduler:', newPost);
+      console.log('📝 Created post object:', newPost);
+      
+      // Add post to store
+      const { addPost } = usePostStore.getState();
+      addPost(newPost);
+      
+      console.log('✅ Post successfully added to store');
+      
+      // Provide visual feedback
+      alert('Content sent to scheduler successfully!');
       
       // Navigate to scheduler with the new post
       window.location.href = `/dashboard/client/${clientId}/project/${projectId}/scheduler`;

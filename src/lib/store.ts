@@ -33,6 +33,7 @@ type State = {
   getPostsByProjectAndClient: (projectId: string, clientId: string) => Post[];
   getScheduledPosts: (projectId: string, clientId: string) => ScheduledPost[];
   addScheduledPost: (sp: ScheduledPost) => void;
+  addPost: (post: Post) => void;
   addPostFromContentSuite: (imageUrl: string, caption: string, projectId: string, clientId: string, notes?: string) => void;
   sendToScheduler: (imageUrl: string, caption: string, projectId: string, clientId: string, notes?: string) => Promise<Post>;
   schedulePost: (postId: string, scheduledDateTime: Date, accountIds: string[], projectId: string, clientId: string) => Promise<void>;
@@ -116,6 +117,18 @@ export const usePostStore = create<State>((set, get) => ({
         [key]: [...(state.posts[key] ?? []), newPost],
       },
     }));
+  },
+
+  // Add a simple post to the store
+  addPost: (post: Post) => {
+    const key = `${post.clientId}:${post.projectId}`;
+    set((state) => ({
+      posts: {
+        ...state.posts,
+        [key]: [...(state.posts[key] ?? []), post],
+      },
+    }));
+    console.log('✅ Post added to store:', post);
   },
 
   // New function for LATE API integration
