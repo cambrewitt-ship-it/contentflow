@@ -12,7 +12,13 @@ import Link from "next/link";
 export default function NewClientPage() {
   const [formData, setFormData] = useState({
     name: "",
-    description: ""
+    description: "",
+    company_description: "",
+    website_url: "",
+    brand_tone: "",
+    target_audience: "",
+    industry: "",
+    brand_keywords: ""
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -143,6 +149,125 @@ export default function NewClientPage() {
                 <p className="text-gray-500 text-sm mt-1">
                   Brief description of the client or their business
                 </p>
+              </div>
+
+              {/* Brand Information Section */}
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Brand Information</h3>
+                
+                {/* Company Description */}
+                <div className="mb-4">
+                  <label htmlFor="company_description" className="block text-sm font-medium text-gray-700 mb-2">
+                    Company Description
+                  </label>
+                  <Textarea
+                    id="company_description"
+                    value={formData.company_description}
+                    onChange={(e) => handleInputChange("company_description", e.target.value)}
+                    placeholder="Detailed description of the company, mission, and values"
+                    rows={3}
+                    disabled={loading}
+                  />
+                  <p className="text-gray-500 text-sm mt-1">
+                    This helps AI generate more contextual and on-brand content
+                  </p>
+                </div>
+
+                {/* Website URL */}
+                <div className="mb-4">
+                  <label htmlFor="website_url" className="block text-sm font-medium text-gray-700 mb-2">
+                    Website URL
+                  </label>
+                  <Input
+                    id="website_url"
+                    type="url"
+                    value={formData.website_url}
+                    onChange={(e) => handleInputChange("website_url", e.target.value)}
+                    placeholder="https://example.com"
+                    disabled={loading}
+                  />
+                  <p className="text-gray-500 text-sm mt-1">
+                    AI will analyze this website for brand insights
+                  </p>
+                </div>
+
+                {/* Brand Tone */}
+                <div className="mb-4">
+                  <label htmlFor="brand_tone" className="block text-sm font-medium text-gray-700 mb-2">
+                    Brand Tone
+                  </label>
+                  <select
+                    id="brand_tone"
+                    value={formData.brand_tone}
+                    onChange={(e) => handleInputChange("brand_tone", e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                    disabled={loading}
+                  >
+                    <option value="">Select brand tone</option>
+                    <option value="professional">Professional</option>
+                    <option value="casual">Casual</option>
+                    <option value="friendly">Friendly</option>
+                    <option value="luxury">Luxury</option>
+                    <option value="innovative">Innovative</option>
+                    <option value="trustworthy">Trustworthy</option>
+                    <option value="creative">Creative</option>
+                    <option value="authoritative">Authoritative</option>
+                  </select>
+                  <p className="text-gray-500 text-sm mt-1">
+                    The overall tone and personality of your brand
+                  </p>
+                </div>
+
+                {/* Target Audience */}
+                <div className="mb-4">
+                  <label htmlFor="target_audience" className="block text-sm font-medium text-gray-700 mb-2">
+                    Target Audience
+                  </label>
+                  <Textarea
+                    id="target_audience"
+                    value={formData.target_audience}
+                    onChange={(e) => handleInputChange("target_audience", e.target.value)}
+                    placeholder="Describe your target audience (e.g., 'Business professionals aged 25-45')"
+                    rows={2}
+                    disabled={loading}
+                  />
+                  <p className="text-gray-500 text-sm mt-1">
+                    Helps AI tailor content to your specific audience
+                  </p>
+                </div>
+
+                {/* Industry */}
+                <div className="mb-4">
+                  <label htmlFor="industry" className="block text-sm font-medium text-gray-700 mb-2">
+                    Industry
+                  </label>
+                  <Input
+                    id="industry"
+                    type="text"
+                    value={formData.industry}
+                    onChange={(e) => handleInputChange("industry", e.target.value)}
+                    placeholder="e.g., Technology, Healthcare, Finance"
+                    disabled={loading}
+                  />
+                </div>
+
+                {/* Brand Keywords */}
+                <div className="mb-4">
+                  <label htmlFor="brand_keywords" className="block text-sm font-medium text-gray-700 mb-2">
+                    Brand Keywords
+                  </label>
+                  <Input
+                    id="brand_keywords"
+                    type="text"
+                    value={formData.brand_keywords}
+                    onChange={(e) => handleInputChange("brand_keywords", e.target.value)}
+                    placeholder="innovation, quality, customer-focused (comma-separated)"
+                    disabled={loading}
+                  />
+                  <p className="text-gray-500 text-sm mt-1">
+                    Key terms and concepts associated with your brand
+                  </p>
+                </div>
               </div>
 
               {/* Submit Error */}

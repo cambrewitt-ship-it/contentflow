@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
 import { Button } from 'components/ui/button'
 import { Plus, Edit3, Calendar, FileText, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
+import BrandInformationPanel from 'components/BrandInformationPanel'
 
 interface Project {
   id: string;
@@ -590,64 +591,14 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             </div>
           </div>
 
-          {/* Left Column: Website & Contact */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Website & Contact</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Website URL
-                </label>
-                <input
-                  value={website}
-                  onChange={(e) => setWebsite(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="https://example.com"
-                />
-              </div>
-              <div className="space-y-4">
-                <label className="block text-sm font-medium text-gray-700">
-                  Company Information
-                </label>
-                <textarea
-                  value={about}
-                  onChange={(e) => setAbout(e.target.value)}
-                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter company description..."
-                />
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-                  Save Changes
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Right Column: Tone of Voice Documents */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Tone of Voice Documents</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                  <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <div className="mt-4">
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Choose Files
-                  </button>
-                </div>
-                <p className="mt-2 text-sm text-gray-600">
-                  Upload brand guidelines, tone of voice documents, or style guides
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Brand Information Panel */}
+          <div className="col-span-2">
+            <BrandInformationPanel 
+              clientId={clientId} 
+              client={client} 
+              onUpdate={setClient}
+            />
+          </div>
         </div>
 
         {/* Projects Section */}

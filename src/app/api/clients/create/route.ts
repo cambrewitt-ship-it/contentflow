@@ -8,7 +8,16 @@ const LATE_API_KEY = process.env.LATE_API_KEY!;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, description } = body;
+    const { 
+      name, 
+      description, 
+      company_description, 
+      website_url, 
+      brand_tone, 
+      target_audience, 
+      industry, 
+      brand_keywords 
+    } = body;
 
     // Validate required fields
     if (!name || !name.trim()) {
@@ -202,11 +211,17 @@ export async function POST(req: NextRequest) {
         {
           name: name.trim(),
           description: description?.trim() || null,
+          company_description: company_description?.trim() || null,
+          website_url: website_url?.trim() || null,
+          brand_tone: brand_tone?.trim() || null,
+          target_audience: target_audience?.trim() || null,
+          industry: industry?.trim() || null,
+          brand_keywords: brand_keywords?.trim() ? brand_keywords.split(',').map(k => k.trim()) : null,
           late_profile_id: profileId,
           created_at: new Date().toISOString()
         }
       ])
-      .select('id, name, description, late_profile_id, created_at')
+      .select('id, name, description, company_description, website_url, brand_tone, target_audience, industry, brand_keywords, late_profile_id, created_at')
       .single();
 
     if (supabaseError) {
@@ -262,6 +277,12 @@ export async function POST(req: NextRequest) {
         id: client.id,
         name: client.name,
         description: client.description,
+        company_description: client.company_description,
+        website_url: client.website_url,
+        brand_tone: client.brand_tone,
+        target_audience: client.target_audience,
+        industry: client.industry,
+        brand_keywords: client.brand_keywords,
         late_profile_id: profileId,
         created_at: client.created_at
       },

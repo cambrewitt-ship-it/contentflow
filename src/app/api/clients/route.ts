@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     // Query all clients from the clients table
     const { data: clients, error } = await supabase
       .from('clients')
-      .select('id, name, description, created_at, updated_at')
+      .select('id, name, description, company_description, website_url, brand_tone, target_audience, industry, brand_keywords, created_at, updated_at')
       .order('name', { ascending: true });
 
     if (error) {

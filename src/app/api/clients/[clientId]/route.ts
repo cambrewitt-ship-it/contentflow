@@ -5,7 +5,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function GET(
-  req: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ clientId: string }> }
 ) {
   try {
@@ -13,10 +13,8 @@ export async function GET(
     
     console.log('🔍 Fetching client data for ID:', clientId);
 
-    // Create Supabase client with service role for admin access
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    // Query specific client from the clients table
     const { data: client, error } = await supabase
       .from('clients')
       .select('*')
@@ -25,30 +23,82 @@ export async function GET(
 
     if (error) {
       console.error('❌ Supabase query error:', error);
-      
       if (error.code === 'PGRST116') {
-        // No rows returned
         return NextResponse.json({ 
-          error: 'Client not found',
-          details: `No client found with ID: ${clientId}`
+          error: 'Client not found' 
         }, { status: 404 });
       }
-      
       return NextResponse.json({ 
         error: 'Database query failed', 
         details: error.message 
       }, { status: 500 });
     }
 
-    console.log('✅ Client fetched successfully:', client);
+    console.log('✅ Client data fetched successfully:', client);
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       client: client
     });
 
   } catch (error: unknown) {
     console.error('💥 Error in get client route:', error);
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ clientId: string }> }
+) {
+  try {
+    const { clientId } = await params;
+    const body = await request.json();
+    
+    console.log('🔄 Updating client data for ID:', clientId, 'Body:', body);
+
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    // Prepare update data (only include fields that are provided)
+    const updateData: any = {};
+    
+    if (body.company_description !== undefined) updateData.company_description = body.company_description;
+    if (body.website_url !== undefined) updateData.website_url = body.website_url;
+    if (body.brand_tone !== undefined) updateData.brand_tone = body.brand_tone;
+    if (body.target_audience !== undefined) updateData.target_audience = body.target_audience;
+    if (body.industry !== undefined) updateData.industry = body.industry;
+    if (body.brand_keywords !== undefined) updateData.brand_keywords = body.brand_keywords;
+    
+    // Add updated_at timestamp
+    updateData.updated_at = new Date().toISOString();
+
+    const { data: updatedClient, error } = await supabase
+      .from('clients')
+      .update(updateData)
+      .eq('id', clientId)
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('❌ Supabase update error:', error);
+      return NextResponse.json({ 
+        error: 'Failed to update client', 
+        details: error.message 
+      }, { status: 500 });
+    }
+
+    console.log('✅ Client updated successfully:', updatedClient);
+
+    return NextResponse.json({
+      success: true,
+      client: updatedClient
+    });
+
+  } catch (error: unknown) {
+    console.error('💥 Error in update client route:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)
