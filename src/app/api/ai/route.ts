@@ -1,14 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Fetch brand context for a client
+async function getBrandContext(clientId: string) {
+  try {
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    
+    // Get client brand information
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('company_description, website_url, brand_tone, target_audience, industry, brand_keywords')
+      .eq('id', clientId)
+      .single();
+    
+    if (clientError || !client) {
+      console.warn('Could not fetch client brand info:', clientError);
+      return null;
+    }
+
+    // Get brand documents
+    const { data: documents, error: docsError } = await supabase
+      .from('brand_documents')
+      .select('extracted_text, original_filename')
+      .eq('client_id', clientId)
+      .eq('processing_status', 'completed')
+      .not('extracted_text', 'is', null);
+    
+    if (docsError) {
+      console.warn('Could not fetch brand documents:', docsError);
+    }
+
+    // Get website scrapes
+    const { data: scrapes, error: scrapeError } = await supabase
+      .from('website_scrapes')
+      .select('scraped_content, page_title, meta_description')
+      .eq('client_id', clientId)
+      .eq('scrape_status', 'completed')
+      .not('scraped_content', 'is', null)
+      .order('scraped_at', { ascending: false })
+      .limit(1);
+    
+    if (scrapeError) {
+      console.warn('Could not fetch website scrapes:', scrapeError);
+    }
+
+    // Build comprehensive brand context
+    const brandContext = {
+      company: client.company_description,
+      tone: client.brand_tone,
+      audience: client.target_audience,
+      industry: client.industry,
+      keywords: client.brand_keywords || [],
+      documents: documents || [],
+      website: scrapes?.[0] || null
+    };
+
+    return brandContext;
+  } catch (error) {
+    console.error('Error fetching brand context:', error);
+    return null;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { action, imageData, prompt, existingCaptions, aiContext } = await request.json();
+    const { action, imageData, prompt, existingCaptions, aiContext, clientId } = await request.json();
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
@@ -22,10 +88,10 @@ export async function POST(request: NextRequest) {
         return await analyzeImage(imageData, prompt);
       
       case 'generate_captions':
-        return await generateCaptions(imageData, existingCaptions, aiContext);
+        return await generateCaptions(imageData, existingCaptions, aiContext, clientId);
       
       case 'remix_caption':
-        return await remixCaption(imageData, prompt, existingCaptions, aiContext);
+        return await remixCaption(imageData, prompt, existingCaptions, aiContext, clientId);
       
       default:
         return NextResponse.json(
@@ -99,19 +165,39 @@ async function analyzeImage(imageData: string, prompt?: string) {
   }
 }
 
-async function generateCaptions(imageData: string, existingCaptions: string[] = [], aiContext?: string) {
+async function generateCaptions(imageData: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string) {
   try {
-    const systemPrompt = `You are a creative social media copywriter. 
+    // Fetch brand context if clientId is provided
+    let brandContext = null;
+    if (clientId) {
+      brandContext = await getBrandContext(clientId);
+    }
+
+    const systemPrompt = `You are a creative social media copywriter specializing in brand-aware content creation. 
     Generate exactly 3 engaging, diverse captions for the provided image.
     
-    Requirements:
+    CRITICAL REQUIREMENTS:
+    - User notes and image analysis take HIGHEST PRIORITY - incorporate these first and foremost
+    - Brand information serves as GUIDING CONTEXT to inform tone, style, and messaging
     - Each caption should be different in tone and approach
     - Include relevant hashtags (3-5 per caption)
     - Keep captions engaging and shareable
     - Consider the visual elements and mood of the image
     - Make them suitable for platforms like Instagram, Facebook, or LinkedIn
     
-    ${aiContext ? `Use this comprehensive context to inform your captions: ${aiContext}` : ''}
+    ${aiContext ? `USER PRIORITY CONTEXT (incorporate this first): ${aiContext}` : ''}
+    
+    ${brandContext ? `BRAND GUIDING CONTEXT (use to inform style and tone):
+    - Company: ${brandContext.company || 'Not specified'}
+    - Brand Tone: ${brandContext.tone || 'Not specified'}
+    - Target Audience: ${brandContext.audience || 'Not specified'}
+    - Industry: ${brandContext.industry || 'Not specified'}
+    - Brand Keywords: ${brandContext.keywords?.join(', ') || 'None specified'}
+    ${brandContext.documents?.length > 0 ? `- Brand Documents: ${brandContext.documents.map(d => `${d.original_filename}: ${d.extracted_text?.substring(0, 200)}...`).join('\n    ')}` : ''}
+    ${brandContext.website ? `- Website Content: ${brandContext.website.page_title || ''} - ${brandContext.website.meta_description || ''} - ${brandContext.website.scraped_content?.substring(0, 300)}...` : ''}
+    
+    Use this brand context to ensure your captions align with the company's voice, target the right audience, and incorporate relevant industry terminology and brand keywords naturally.` : ''}
+    
     ${existingCaptions.length > 0 ? `Avoid duplicating these existing captions: ${existingCaptions.join(', ')}` : ''}
     
     IMPORTANT: Start directly with the first caption. Do not include any introductory text like "Here are three captions:" or similar. Just provide the 3 captions directly, each separated by a blank line.`;
@@ -199,14 +285,35 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
   }
 }
 
-async function remixCaption(imageData: string, prompt: string, existingCaptions: string[] = [], aiContext?: string) {
+async function remixCaption(imageData: string, prompt: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string) {
   try {
-    const systemPrompt = `You are a creative social media copywriter. 
+    // Fetch brand context if clientId is provided
+    let brandContext = null;
+    if (clientId) {
+      brandContext = await getBrandContext(clientId);
+    }
+
+    const systemPrompt = `You are a creative social media copywriter specializing in brand-aware content creation. 
     The user wants to remix/improve a caption based on their feedback.
     
     User feedback: ${prompt}
     
-    ${aiContext ? `Use this comprehensive context to inform your caption improvement: ${aiContext}` : ''}
+    CRITICAL REQUIREMENTS:
+    - User feedback takes HIGHEST PRIORITY - address this directly and completely
+    - Brand information serves as GUIDING CONTEXT to inform tone, style, and messaging
+    - Maintain the core message while improving based on feedback
+    
+    ${aiContext ? `USER PRIORITY CONTEXT: ${aiContext}` : ''}
+    
+    ${brandContext ? `BRAND GUIDING CONTEXT (use to inform style and tone):
+    - Company: ${brandContext.company || 'Not specified'}
+    - Brand Tone: ${brandContext.tone || 'Not specified'}
+    - Target Audience: ${brandContext.audience || 'Not specified'}
+    - Industry: ${brandContext.industry || 'Not specified'}
+    - Brand Keywords: ${brandContext.keywords?.join(', ') || 'None specified'}
+    
+    Use this brand context to ensure your improved caption aligns with the company's voice, targets the right audience, and incorporates relevant industry terminology and brand keywords naturally.` : ''}
+    
     ${existingCaptions.length > 0 ? `Existing captions for reference: ${existingCaptions.join(', ')}` : ''}
     
     Generate 1 improved caption that addresses the user's feedback while maintaining the core message and adding relevant hashtags.`;

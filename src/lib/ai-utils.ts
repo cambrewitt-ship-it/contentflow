@@ -66,7 +66,8 @@ export async function analyzeImageWithAI(
 export async function generateCaptionsWithAI(
   imageFile: File,
   existingCaptions: string[] = [],
-  aiContext?: string
+  aiContext?: string,
+  clientId?: string
 ): Promise<AICaptionResult> {
   try {
     const imageData = await fileToDataURL(imageFile);
@@ -81,6 +82,7 @@ export async function generateCaptionsWithAI(
         imageData,
         existingCaptions,
         aiContext,
+        clientId,
       }),
     });
 
@@ -105,7 +107,8 @@ export async function remixCaptionWithAI(
   imageFile: File,
   prompt: string,
   existingCaptions: string[] = [],
-  aiContext?: string
+  aiContext?: string,
+  clientId?: string
 ): Promise<AIRemixResult> {
   try {
     const imageData = await fileToDataURL(imageFile);
@@ -121,6 +124,7 @@ export async function remixCaptionWithAI(
         prompt,
         existingCaptions,
         aiContext,
+        clientId,
       }),
     });
 

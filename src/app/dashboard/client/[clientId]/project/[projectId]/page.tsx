@@ -26,6 +26,7 @@ import { usePostStore } from "lib/store";
 
 // Global store context
 interface ContentStore {
+  clientId: string;
   uploadedImages: UploadedImage[];
   captions: Caption[];
   selectedCaptions: string[];
@@ -79,7 +80,7 @@ interface PageProps {
 const getStorageKey = (key: string) => `contentflow_${key}`;
 
 // Store provider component
-function ContentStoreProvider({ children }: { children: React.ReactNode }) {
+function ContentStoreProvider({ children, clientId }: { children: React.ReactNode; clientId: string }) {
   // Default values
   const defaultCaptions: Caption[] = [
     {
@@ -344,6 +345,7 @@ function ContentStoreProvider({ children }: { children: React.ReactNode }) {
           image.file,
           existingCaptionTexts,
           aiContext,
+          clientId,
         );
 
         if (result.success && result.captions && result.captions.length > 0) {
@@ -365,7 +367,7 @@ function ContentStoreProvider({ children }: { children: React.ReactNode }) {
         console.error("AI caption generation failed:", error);
       }
     },
-    [uploadedImages, captions, setCaptions],
+    [uploadedImages, captions, setCaptions, clientId],
   );
 
   const remixCaption = useCallback(
@@ -398,6 +400,7 @@ function ContentStoreProvider({ children }: { children: React.ReactNode }) {
           prompt,
           existingCaptionTexts,
           aiContext,
+          clientId,
         );
 
         if (result.success && result.caption) {
@@ -412,10 +415,11 @@ function ContentStoreProvider({ children }: { children: React.ReactNode }) {
         console.error("AI caption remix failed:", error);
       }
     },
-    [uploadedImages, captions, activeImageId, setCaptions],
+    [uploadedImages, captions, activeImageId, setCaptions, clientId],
   );
 
   const store: ContentStore = {
+    clientId,
     uploadedImages,
     captions,
     selectedCaptions,
@@ -535,7 +539,7 @@ export default function ProjectPage({ params }: PageProps) {
   };
 
   return (
-    <ContentStoreProvider>
+    <ContentStoreProvider clientId={clientId}>
       <div className="min-h-screen bg-background p-6">
         <div className="mx-auto max-w-7xl">
           {/* Breadcrumb and Header */}
