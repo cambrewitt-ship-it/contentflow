@@ -458,6 +458,7 @@ function ContentStoreProvider({ children }: { children: React.ReactNode }) {
 export default function ProjectPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const { clientId, projectId } = resolvedParams;
+  const [isSendingToScheduler, setIsSendingToScheduler] = useState(false);
 
   const handleSendToScheduler = async (
     selectedCaption: string,
@@ -473,6 +474,8 @@ export default function ProjectPage({ params }: PageProps) {
       alert("Please select a caption and upload at least one image");
       return;
     }
+
+    setIsSendingToScheduler(true);
 
     try {
       // Convert blob URLs to base64
@@ -521,11 +524,16 @@ export default function ProjectPage({ params }: PageProps) {
 
       console.log("✅ Posts saved successfully:", result);
 
+      // Show success message before navigating
+      alert("Posts saved successfully! Redirecting to scheduler...");
+      
       // Navigate to new scheduler
       window.location.href = `/dashboard/client/${clientId}/new-scheduler`;
     } catch (error) {
       console.error("❌ Error in handleSendToScheduler:", error);
       alert("Failed to save posts. Please try again.");
+    } finally {
+      setIsSendingToScheduler(false);
     }
   };
 
@@ -591,6 +599,7 @@ export default function ProjectPage({ params }: PageProps) {
               clientId={clientId}
               projectId={projectId}
               handleSendToScheduler={handleSendToScheduler}
+              isSendingToScheduler={isSendingToScheduler}
             />
           </div>
         </div>
@@ -995,6 +1004,7 @@ function SocialPreviewColumn({
   clientId,
   projectId,
   handleSendToScheduler,
+  isSendingToScheduler,
 }: {
   clientId: string;
   projectId: string;
@@ -1002,6 +1012,7 @@ function SocialPreviewColumn({
     selectedCaption: string,
     uploadedImages: any[],
   ) => Promise<void>;
+  isSendingToScheduler: boolean;
 }) {
   const {
     uploadedImages,
@@ -1048,22 +1059,32 @@ function SocialPreviewColumn({
                 handleSendToScheduler(selectedCaption, uploadedImages);
               }
             }}
-            className="w-full bg-green-600 hover:bg-green-700 text-white"
+            disabled={isSendingToScheduler}
+            className="w-full bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            <svg
-              className="w-5 h-5 mr-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2V7a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-            Send to Scheduler
+            {isSendingToScheduler ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Processing & Redirecting...
+              </>
+            ) : (
+              <>
+                <svg
+                  className="w-5 h-5 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2V7a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                Send to Scheduler
+              </>
+            )}
           </Button>
         </div>
       )}
