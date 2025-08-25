@@ -1,94 +1,51 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    console.log('🚀 LATE media upload endpoint hit');
+    const { imageBlob } = await request.json();
     
-    // Get the LATE API key from environment
-    const lateApiKey = process.env.LATE_API_KEY;
-    if (!lateApiKey) {
-      console.error('❌ LATE_API_KEY not found in environment');
-      return NextResponse.json(
-        { error: 'LATE API key not configured' },
-        { status: 500 }
-      );
-    }
-
-    // Parse the form data
-    const formData = await request.formData();
-    const mediaFile = formData.get('media') as File;
+    console.log('Upload media request received');
     
-    if (!mediaFile) {
-      console.error('❌ No media file found in request');
-      return NextResponse.json(
-        { error: 'No media file provided' },
-        { status: 400 }
-      );
+    if (!imageBlob) {
+      throw new Error('No image data provided');
     }
-
-    console.log('📁 Media file received:', {
-      name: mediaFile.name,
-      type: mediaFile.type,
-      size: mediaFile.size
-    });
-
-    // Convert File to Buffer for LATE API
-    const arrayBuffer = await mediaFile.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Create form data for LATE API
-    const lateFormData = new FormData();
-    lateFormData.append('media', new Blob([buffer], { type: mediaFile.type }), mediaFile.name);
-
-    console.log('📤 Uploading to LATE API...');
+    
+    console.log('Processing base64 image blob');
+    
+    // Convert base64 to blob
+    const base64Data = imageBlob.split(',')[1];
+    const binaryData = Buffer.from(base64Data, 'base64');
+    const blob = new Blob([binaryData], { type: 'image/jpeg' });
+    
+    // Create form data
+    const formData = new FormData();
+    formData.append('files', blob, 'image.jpg');
     
     // Upload to LATE API
-    const lateResponse = await fetch('https://getlate.dev/api/v1/media', {
+    const response = await fetch('https://getlate.dev/api/v1/media', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lateApiKey}`,
+        'Authorization': `Bearer ${process.env.LATE_API_KEY}`
       },
-      body: lateFormData,
+      body: formData
     });
-
-    if (!lateResponse.ok) {
-      const errorText = await lateResponse.text();
-      console.error('❌ LATE API upload failed:', {
-        status: lateResponse.status,
-        statusText: lateResponse.statusText,
-        error: errorText
-      });
-      throw new Error(`LATE API upload failed: ${lateResponse.status} ${lateResponse.statusText}`);
-    }
-
-    const lateData = await lateResponse.json();
-    console.log('✅ LATE API upload successful:', lateData);
-
-    // Extract the media URL from LATE response
-    const mediaUrl = lateData.mediaUrl || lateData.url || lateData.media?.url;
     
-    if (!mediaUrl) {
-      console.error('❌ No media URL in LATE response:', lateData);
-      throw new Error('No media URL received from LATE API');
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('LATE API error:', error);
+      throw new Error('Failed to upload to LATE');
     }
-
-    console.log('✅ Media URL extracted:', mediaUrl);
-
-    return NextResponse.json({
-      success: true,
-      mediaUrl: mediaUrl,
-      mediaId: lateData.mediaId || lateData.id,
-      message: 'Media uploaded successfully to LATE API'
+    
+    const data = await response.json();
+    console.log('LATE media upload success:', data);
+    
+    return NextResponse.json({ 
+      success: true, 
+      lateMediaUrl: data.files[0].url 
     });
-
+    
   } catch (error) {
-    console.error('❌ Error in LATE media upload:', error);
-    return NextResponse.json(
-      { 
-        error: 'Failed to upload media to LATE API',
-        details: error instanceof Error ? error.message : String(error)
-      },
-      { status: 500 }
-    );
+    console.error('Error uploading media:', error);
+    return NextResponse.json({ error: 'Failed to upload media' }, { status: 500 });
   }
 }

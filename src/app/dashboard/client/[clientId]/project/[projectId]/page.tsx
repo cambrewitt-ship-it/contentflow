@@ -512,115 +512,69 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
     }
   };
 
-  const handleSendToScheduler = async (captionText: string) => {
-    console.log('🚀 handleSendToScheduler function called with captionText:', captionText);
-    console.log('🔍 Function execution context:', {
-      activeImageId,
-      clientId,
-      projectId,
-      uploadedImagesLength: uploadedImages.length,
-      selectedCaptions
+const handleSendToScheduler = async (selectedCaption: string) => {
+  console.log('🚀 Starting handleSendToScheduler with caption:', selectedCaption);
+  
+  if (!selectedCaption || uploadedImages.length === 0) {
+    console.error('❌ Missing caption or images');
+    alert('Please select a caption and upload at least one image');
+    return;
+  }
+
+  try {
+    // Convert blob URLs to base64
+    const postsToSave = await Promise.all(
+      uploadedImages.map(async (image) => {
+        let base64Image = image.preview;
+        
+        // Convert blob URL to base64
+        if (image.preview.startsWith('blob:')) {
+          const response = await fetch(image.preview);
+          const blob = await response.blob();
+          const reader = new FileReader();
+          
+          base64Image = await new Promise((resolve) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+        }
+        
+        return {
+          imageUrl: base64Image,
+          caption: selectedCaption,
+          notes: ''
+        };
+      })
+    );
+
+    console.log('📦 Saving posts to database:', postsToSave.length);
+
+    // Save to database
+    const response = await fetch('/api/posts/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId: clientId,
+        projectId: projectId || 'complete',
+        posts: postsToSave
+      })
     });
+
+    const result = await response.json();
     
-    try {
-      if (!activeImageId || !clientId || !projectId) {
-        alert('Missing required information. Please ensure an image is selected and you have proper access.');
-        return;
-      }
-
-      const activeImage = uploadedImages.find(img => img.id === activeImageId);
-      if (!activeImage) {
-        alert('Selected image not found.');
-        return;
-      }
-
-      console.log('🚀 Sending content to scheduler...', {
-        caption: captionText,
-        imageUrl: activeImage.preview,
-        clientId,
-        projectId,
-        notes: activeImage.notes
-      });
-      
-      // Create post object with all required fields
-      const newPost = {
-        id: Date.now().toString(),
-        clientId,
-        projectId,
-        imageUrl: activeImage.preview,
-        caption: captionText,
-        mediaType: 'image' as const,
-        originalCaption: captionText,
-        createdAt: new Date().toISOString(),
-        status: 'draft' as const,
-        notes: activeImage.notes || '',
-      };
-
-      console.log('📝 Created post object:', newPost);
-      
-      // Add post to store
-      const { addPost } = usePostStore.getState();
-      addPost(newPost);
-      
-      console.log('✅ Post successfully added to store');
-      
-      // Debug: Check store state after adding
-      const storeState = usePostStore.getState();
-      const key = `${clientId}:${projectId}`;
-      console.log('🔍 Store state after adding post:', {
-        key,
-        postsInStore: storeState.posts[key],
-        totalPosts: storeState.posts,
-        storeKeys: Object.keys(storeState.posts)
-      });
-      
-      // Debug: Check if post is actually in the store
-      const postsForKey = storeState.posts[key] || [];
-      const postExists = postsForKey.find(p => p.id === newPost.id);
-      console.log('🔍 Post verification:', {
-        postExists: !!postExists,
-        postsForKeyLength: postsForKey.length,
-        postId: newPost.id,
-        allPostIds: postsForKey.map(p => p.id)
-      });
-      
-      // Test: Manually add another post to verify store is working
-      const testPost = {
-        id: 'test-' + Date.now().toString(),
-        clientId,
-        projectId,
-        imageUrl: 'https://via.placeholder.com/300x200?text=Test+Post',
-        caption: 'This is a test post to verify the store is working',
-        mediaType: 'image' as const,
-        originalCaption: 'Test post',
-        createdAt: new Date().toISOString(),
-        status: 'draft' as const,
-        notes: 'Test post for debugging',
-      };
-      
-      console.log('🧪 Adding test post to verify store:', testPost);
-      addPost(testPost);
-      
-      // Check store state after adding test post
-      const storeStateAfterTest = usePostStore.getState();
-      console.log('🧪 Store state after test post:', {
-        key,
-        postsInStore: storeStateAfterTest.posts[key],
-        totalPosts: storeStateAfterTest.posts,
-        storeKeys: Object.keys(storeStateAfterTest.posts)
-      });
-      
-      // Provide visual feedback
-      alert('Content sent to scheduler successfully!');
-      
-      // Navigate to new scheduler instead of old one
-      window.location.href = `/dashboard/client/${clientId}/new-scheduler`;
-      
-    } catch (error) {
-      console.error('❌ Error sending to scheduler:', error);
-      alert(`Failed to send content to scheduler: ${error instanceof Error ? error.message : String(error)}`);
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to save posts');
     }
-  };
+
+    console.log('✅ Posts saved successfully:', result);
+    
+    // Navigate to new scheduler
+    window.location.href = `/dashboard/client/${clientId}/new-scheduler`;
+  } catch (error) {
+    console.error('❌ Error in handleSendToScheduler:', error);
+    alert('Failed to save posts. Please try again.');
+  }
+};
 
   return (
     <div className="space-y-6">
