@@ -35,6 +35,7 @@ export default function NewSchedulerPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [scheduledPosts, setScheduledPosts] = useState<Map<string, ScheduledPost>>(new Map());
+  const [loadingPostId, setLoadingPostId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPosts();
@@ -112,6 +113,7 @@ export default function NewSchedulerPage() {
     }
 
     try {
+      setLoadingPostId(post.id);
       console.log('Starting scheduling process for post:', post.id);
       
       // Step 1: Upload media to LATE (image is already base64)
@@ -167,9 +169,12 @@ export default function NewSchedulerPage() {
       // Remove the post from the list
       setPosts(prev => prev.filter(p => p.id !== post.id));
       
+      setLoadingPostId(null);
+      
     } catch (error) {
       console.error('Error scheduling post:', error);
       alert('Failed to schedule post. Please try again.');
+      setLoadingPostId(null);
     }
   };
 
@@ -282,17 +287,26 @@ export default function NewSchedulerPage() {
                         {/* Schedule Button */}
                         <button
                           onClick={() => schedulePost(post)}
-                          disabled={!scheduled?.selectedAccounts.length}
+                          disabled={!scheduled?.selectedAccounts.length || loadingPostId === post.id}
                           className={`
                             px-6 py-2 rounded-lg font-medium flex items-center gap-2 mt-6
-                            ${scheduled?.selectedAccounts.length 
+                            ${scheduled?.selectedAccounts.length && loadingPostId !== post.id
                               ? 'bg-green-600 hover:bg-green-700 text-white' 
                               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                             }
                           `}
                         >
-                          <Send className="w-4 h-4" />
-                          Schedule Post
+                          {loadingPostId === post.id ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              Scheduling...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-4 h-4" />
+                              Schedule Post
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
