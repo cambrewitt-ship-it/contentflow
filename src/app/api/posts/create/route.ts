@@ -4,9 +4,9 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const { clientId, projectId, posts } = await request.json();
+    const { clientId, projectId, posts, status = 'draft' } = await request.json();
     
-    console.log('Creating posts:', { clientId, projectId, postsCount: posts.length });
+    console.log('Creating posts:', { clientId, projectId, postsCount: posts.length, status });
     
     const supabase = createRouteHandlerClient({ cookies });
     
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
           caption: post.caption,
           image_url: post.imageUrl,
           media_type: 'image',
-          status: 'draft',
+          status: status,
           notes: post.notes || ''
         }))
       )

@@ -16,7 +16,7 @@ export async function GET(
       .from('posts')
       .select('*')
       .eq('client_id', clientId)
-      .eq('status', 'draft')
+      .in('status', ['draft', 'ready'])
       .order('created_at', { ascending: false });
     
     if (error) {

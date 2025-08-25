@@ -519,6 +519,7 @@ export default function ProjectPage({ params }: PageProps) {
           clientId: clientId,
           projectId: projectId || "complete",
           posts: postsToSave,
+          status: "ready", // Mark as ready for scheduling
         }),
       });
 
