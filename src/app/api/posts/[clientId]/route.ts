@@ -31,3 +31,35 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { clientId: string } }
+) {
+  try {
+    const { postId } = await request.json();
+    const clientId = params.clientId;
+    
+    console.log('Deleting post:', postId, 'for client:', clientId);
+    
+    const supabase = createRouteHandlerClient({ cookies });
+    
+    // Delete the post completely from the database
+    const { error } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', postId)
+      .eq('client_id', clientId);
+    
+    if (error) {
+      console.error('Supabase delete error:', error);
+      throw error;
+    }
+    
+    console.log('Post deleted successfully:', postId);
+    return NextResponse.json({ success: true, message: 'Post deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting post:', error);
+    return NextResponse.json({ error: 'Failed to delete post' }, { status: 500 });
+  }
+}

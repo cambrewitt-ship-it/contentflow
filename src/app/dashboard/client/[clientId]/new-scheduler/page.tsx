@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Calendar, Clock, Check, Send } from 'lucide-react';
+import { Calendar, Clock, Check, Send, Trash2 } from 'lucide-react';
 
 interface Post {
   id: string;
@@ -98,6 +98,47 @@ export default function NewSchedulerPage() {
       map.set(postId, { ...current, scheduledDateTime: dateTime });
       return map;
     });
+  };
+
+  const deletePost = async (postId: string) => {
+    if (!confirm('Are you sure you want to delete this post? This action cannot be undone and will remove the post from the database completely.')) {
+      return;
+    }
+
+    try {
+      console.log('Deleting post:', postId);
+      
+      const response = await fetch(`/api/posts/${clientId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId })
+      });
+      
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Delete failed:', error);
+        throw new Error('Failed to delete post');
+      }
+      
+      const result = await response.json();
+      console.log('Post deleted successfully:', result);
+      
+      // Remove the post from the local state
+      setPosts(prev => prev.filter(p => p.id !== postId));
+      
+      // Remove from scheduled posts if it was there
+      setScheduledPosts(prev => {
+        const map = new Map(prev);
+        map.delete(postId);
+        return map;
+      });
+      
+      alert('Post deleted successfully!');
+      
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      alert('Failed to delete post. Please try again.');
+    }
   };
 
   const schedulePost = async (post: Post) => {
@@ -319,30 +360,42 @@ export default function NewSchedulerPage() {
                           />
                         </div>
                         
-                        {/* Schedule Button */}
-                        <button
-                          onClick={() => schedulePost(post)}
-                          disabled={!scheduled?.selectedAccounts.length || loadingPostId === post.id}
-                          className={`
-                            px-6 py-2 rounded-lg font-medium flex items-center gap-2 mt-6
-                            ${scheduled?.selectedAccounts.length && loadingPostId !== post.id
-                              ? 'bg-green-600 hover:bg-green-700 text-white' 
-                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            }
-                          `}
-                        >
-                          {loadingPostId === post.id ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                              Scheduling...
-                            </>
-                          ) : (
-                            <>
-                              <Send className="w-4 h-4" />
-                              Schedule Post
-                            </>
-                          )}
-                        </button>
+                        {/* Action Buttons */}
+                        <div className="flex gap-3 mt-6">
+                          {/* Schedule Button */}
+                          <button
+                            onClick={() => schedulePost(post)}
+                            disabled={!scheduled?.selectedAccounts.length || loadingPostId === post.id}
+                            className={`
+                              px-6 py-2 rounded-lg font-medium flex items-center gap-2
+                              ${scheduled?.selectedAccounts.length && loadingPostId !== post.id
+                                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              }
+                            `}
+                          >
+                            {loadingPostId === post.id ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                Scheduling...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="w-4 h-4" />
+                                Schedule Post
+                              </>
+                            )}
+                          </button>
+                          
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => deletePost(post.id)}
+                            className="px-6 py-2 rounded-lg font-medium bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete Post
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
