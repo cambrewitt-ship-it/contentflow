@@ -36,7 +36,9 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
     brand_tone: client?.brand_tone || '',
     target_audience: client?.target_audience || '',
     industry: client?.industry || '',
-    brand_keywords: client?.brand_keywords?.join(', ') || ''
+    brand_keywords: client?.brand_keywords?.join(', ') || '',
+    caption_dos: client?.caption_dos || '',
+    caption_donts: client?.caption_donts || ''
   });
 
   const [brandDocuments, setBrandDocuments] = useState<any[]>([]);
@@ -380,6 +382,101 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
                 )}
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Do's & Don'ts Card */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg">AI Caption Rules</CardTitle>
+          <div className="flex gap-2">
+            {isEditing ? (
+              <>
+                <Button 
+                  size="sm" 
+                  onClick={handleSave}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4 mr-2" />
+                  )}
+                  Save
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => setIsEditing(false)}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => setIsEditing(true)}
+              >
+                <Edit3 className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-gray-600 mb-4">
+            Set concrete rules for AI caption generation. These will take high priority over other brand information.
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Do's */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ✅ Do's
+              </label>
+              {isEditing ? (
+                <Textarea
+                  value={formData.caption_dos}
+                  onChange={(e) => handleInputChange('caption_dos', e.target.value)}
+                  placeholder="e.g., Always mention pricing, Use emojis, Include call-to-action"
+                  rows={4}
+                  className="border-green-300 focus:ring-green-500 focus:border-green-500"
+                />
+              ) : (
+                <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
+                  {client?.caption_dos || 'No Do\'s specified'}
+                </p>
+              )}
+              <p className="text-green-600 text-sm mt-1">
+                What the AI MUST include in captions
+              </p>
+            </div>
+
+            {/* Don'ts */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ❌ Don'ts
+              </label>
+              {isEditing ? (
+                <Textarea
+                  value={formData.caption_donts}
+                  onChange={(e) => handleInputChange('caption_donts', e.target.value)}
+                  placeholder="e.g., Never use slang, Avoid technical jargon, Don't mention competitors"
+                  rows={4}
+                  className="border-red-300 focus:ring-red-500 focus:border-red-500"
+                />
+              ) : (
+                <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
+                  {client?.caption_donts || 'No Don\'ts specified'}
+                </p>
+              )}
+              <p className="text-red-600 text-sm mt-1">
+                What the AI MUST NOT include in captions
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

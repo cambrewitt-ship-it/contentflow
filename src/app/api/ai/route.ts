@@ -19,7 +19,7 @@ async function getBrandContext(clientId: string) {
     // Get client brand information
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('company_description, website_url, brand_tone, target_audience, industry, brand_keywords')
+      .select('company_description, website_url, brand_tone, target_audience, industry, brand_keywords, caption_dos, caption_donts')
       .eq('id', clientId)
       .single();
     
@@ -61,6 +61,8 @@ async function getBrandContext(clientId: string) {
       audience: client.target_audience,
       industry: client.industry,
       keywords: client.brand_keywords || [],
+      dos: client.caption_dos,
+      donts: client.caption_donts,
       documents: documents || [],
       website: scrapes?.[0] || null
     };
@@ -233,6 +235,12 @@ ${aiContext}
     
     Use this brand context to ensure your captions align with the company's voice, target the right audience, and incorporate relevant industry terminology and brand keywords naturally.` : ''}
     
+    ${brandContext?.dos || brandContext?.donts ? `🚨 MANDATORY AI RULES (HIGHEST PRIORITY - follow these exactly):
+    ${brandContext.dos ? `✅ DO: ${brandContext.dos}` : ''}
+    ${brandContext.donts ? `❌ DON'T: ${brandContext.donts}` : ''}
+    
+    These rules are ABSOLUTE and must be followed in every caption.` : ''}
+    
     ${existingCaptions.length > 0 ? `Avoid duplicating these existing captions: ${existingCaptions.join(', ')}` : ''}
     
     FINAL REMINDER: Post Notes are MANDATORY. Every caption must prominently feature the Post Notes content.
@@ -362,6 +370,12 @@ ${aiContext}
     - Brand Keywords: ${brandContext.keywords?.join(', ') || 'None specified'}
     
     Use this brand context to ensure your improved caption aligns with the company's voice, targets the right audience, and incorporates relevant industry terminology and brand keywords naturally.` : ''}
+    
+    ${brandContext?.dos || brandContext?.donts ? `🚨 MANDATORY AI RULES (HIGHEST PRIORITY - follow these exactly):
+    ${brandContext.dos ? `✅ DO: ${brandContext.dos}` : ''}
+    ${brandContext.donts ? `❌ DON'T: ${brandContext.donts}` : ''}
+    
+    These rules are ABSOLUTE and must be followed in your improved caption.` : ''}
     
     ${existingCaptions.length > 0 ? `Existing captions for reference: ${existingCaptions.join(', ')}` : ''}
     

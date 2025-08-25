@@ -10,6 +10,10 @@ ALTER TABLE clients ADD COLUMN IF NOT EXISTS brand_keywords TEXT[]; -- Array of 
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS industry VARCHAR(100);
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS brand_guidelines_summary TEXT;
 
+-- Add Do's & Don'ts columns for AI caption rules
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS caption_dos TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS caption_donts TEXT;
+
 -- 2. Create brand_documents table for storing uploaded brand materials
 CREATE TABLE IF NOT EXISTS brand_documents (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

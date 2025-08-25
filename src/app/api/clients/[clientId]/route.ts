@@ -71,6 +71,8 @@ export async function PUT(
     if (body.target_audience !== undefined) updateData.target_audience = body.target_audience;
     if (body.industry !== undefined) updateData.industry = body.industry;
     if (body.brand_keywords !== undefined) updateData.brand_keywords = body.brand_keywords;
+    if (body.caption_dos !== undefined) updateData.caption_dos = body.caption_dos;
+    if (body.caption_donts !== undefined) updateData.caption_donts = body.caption_donts;
     
     // Add updated_at timestamp
     updateData.updated_at = new Date().toISOString();

@@ -18,7 +18,9 @@ export default function NewClientPage() {
     brand_tone: "",
     target_audience: "",
     industry: "",
-    brand_keywords: ""
+    brand_keywords: "",
+    caption_dos: "",
+    caption_donts: ""
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -267,6 +269,54 @@ export default function NewClientPage() {
                   <p className="text-gray-500 text-sm mt-1">
                     Key terms and concepts associated with your brand
                   </p>
+                </div>
+
+                {/* Do's & Don'ts Section */}
+                <div className="border-t border-gray-200 pt-6 mt-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">AI Caption Rules</h3>
+                  <p className="text-gray-600 text-sm mb-4">
+                    Set concrete rules for AI caption generation. These will take high priority over other brand information.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Do's */}
+                    <div>
+                      <label htmlFor="caption_dos" className="block text-sm font-medium text-gray-700 mb-2">
+                        ✅ Do's
+                      </label>
+                      <Textarea
+                        id="caption_dos"
+                        value={formData.caption_dos}
+                        onChange={(e) => handleInputChange("caption_dos", e.target.value)}
+                        placeholder="e.g., Always mention pricing, Use emojis, Include call-to-action"
+                        rows={4}
+                        disabled={loading}
+                        className="border-green-300 focus:ring-green-500 focus:border-green-500"
+                      />
+                      <p className="text-green-600 text-sm mt-1">
+                        What the AI MUST include in captions
+                      </p>
+                    </div>
+
+                    {/* Don'ts */}
+                    <div>
+                      <label htmlFor="caption_donts" className="block text-sm font-medium text-gray-700 mb-2">
+                        ❌ Don'ts
+                      </label>
+                      <Textarea
+                        id="caption_donts"
+                        value={formData.caption_donts}
+                        onChange={(e) => handleInputChange("caption_donts", e.target.value)}
+                        placeholder="e.g., Never use slang, Avoid technical jargon, Don't mention competitors"
+                        rows={4}
+                        disabled={loading}
+                        className="border-red-300 focus:ring-red-500 focus:border-red-500"
+                      />
+                      <p className="text-red-600 text-sm mt-1">
+                        What the AI MUST NOT include in captions
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 

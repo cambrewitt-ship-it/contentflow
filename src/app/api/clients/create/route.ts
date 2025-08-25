@@ -16,7 +16,9 @@ export async function POST(req: NextRequest) {
       brand_tone, 
       target_audience, 
       industry, 
-      brand_keywords 
+      brand_keywords,
+      caption_dos,
+      caption_donts
     } = body;
 
     // Validate required fields
@@ -217,11 +219,13 @@ export async function POST(req: NextRequest) {
           target_audience: target_audience?.trim() || null,
           industry: industry?.trim() || null,
           brand_keywords: brand_keywords?.trim() ? brand_keywords.split(',').map(k => k.trim()) : null,
+          caption_dos: caption_dos?.trim() || null,
+          caption_donts: caption_donts?.trim() || null,
           late_profile_id: profileId,
           created_at: new Date().toISOString()
         }
       ])
-      .select('id, name, description, company_description, website_url, brand_tone, target_audience, industry, brand_keywords, late_profile_id, created_at')
+      .select('id, name, description, company_description, website_url, brand_tone, target_audience, industry, brand_keywords, caption_dos, caption_donts, late_profile_id, created_at')
       .single();
 
     if (supabaseError) {
@@ -283,6 +287,8 @@ export async function POST(req: NextRequest) {
         target_audience: client.target_audience,
         industry: client.industry,
         brand_keywords: client.brand_keywords,
+        caption_dos: client.caption_dos,
+        caption_donts: client.caption_donts,
         late_profile_id: profileId,
         created_at: client.created_at
       },
