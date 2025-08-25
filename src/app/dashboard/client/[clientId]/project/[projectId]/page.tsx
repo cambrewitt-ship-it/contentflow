@@ -102,9 +102,9 @@ function ContentStoreProvider({ children }: { children: React.ReactNode }) {
         
         if (savedImages) {
           const parsedImages = JSON.parse(savedImages);
-          // Filter out invalid blob URLs that might have expired
+          // Only keep base64 data URLs (blob URLs expire)
           const validImages = parsedImages.filter((img: any) => 
-            img.preview && (img.preview.startsWith('data:') || img.preview.startsWith('blob:'))
+            img.preview && img.preview.startsWith('data:')
           );
           setUploadedImages(validImages);
         }
@@ -170,18 +170,52 @@ function ContentStoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeImageId, hasHydrated, getStorageKey]);
 
-  const addImage = useCallback((image: UploadedImage) => {
-    setUploadedImages(prev => [...prev, image]);
+  // Helper function to convert blob URL to base64 data URL
+  const convertBlobToBase64 = useCallback(async (blobUrl: string): Promise<string> => {
+    try {
+      const response = await fetch(blobUrl);
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Error converting blob to base64:', error);
+      return blobUrl; // Fallback to original URL if conversion fails
+    }
+  };
+
+  const addImage = useCallback(async (image: UploadedImage) => {
+    // Convert blob URL to base64 data URL for persistence
+    let persistentImage = image;
+    if (image.preview.startsWith('blob:')) {
+      try {
+        const base64Url = await convertBlobToBase64(image.preview);
+        persistentImage = {
+          ...image,
+          preview: base64Url
+        };
+        // Revoke the original blob URL to free memory
+        URL.revokeObjectURL(image.preview);
+      } catch (error) {
+        console.error('Error converting image to base64:', error);
+        // Continue with original image if conversion fails
+      }
+    }
+    
+    setUploadedImages(prev => [...prev, persistentImage]);
     // Set as active image if it's the first one
     if (uploadedImages.length === 0) {
-      setActiveImageId(image.id);
+      setActiveImageId(persistentImage.id);
     }
-  }, [uploadedImages.length]);
+  }, [uploadedImages.length, convertBlobToBase64]);
 
   const removeImage = useCallback((id: string) => {
     setUploadedImages(prev => {
       const image = prev.find(img => img.id === id);
-      if (image) {
+      if (image && image.preview.startsWith('blob:')) {
+        // Only revoke blob URLs, not base64 data URLs
         URL.revokeObjectURL(image.preview);
       }
       const newImages = prev.filter(img => img.id !== id);

@@ -225,6 +225,13 @@ export default function NewSchedulerPage() {
             Project Default
           </a>
           <span>&gt;</span>
+          <a 
+            href={`/dashboard/client/${clientId}/project/default`}
+            className="hover:text-foreground transition-colors"
+          >
+            Content Suite
+          </a>
+          <span>&gt;</span>
           <span className="text-foreground font-medium">Scheduler</span>
         </div>
       </div>
