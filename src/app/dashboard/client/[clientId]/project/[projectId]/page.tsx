@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, createContext, useContext, useCallback, useEffect } from "react";
+import {
+  useState,
+  createContext,
+  useContext,
+  useCallback,
+  useEffect,
+} from "react";
 import { use } from "react";
 import { Button } from "components/ui/button";
 import { Input } from "components/ui/input";
@@ -8,13 +14,13 @@ import { Textarea } from "components/ui/textarea";
 import { ArrowLeft, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { SocialPreview } from "components/social-preview";
-import { 
-  analyzeImageWithAI, 
-  generateCaptionsWithAI, 
+import {
+  analyzeImageWithAI,
+  generateCaptionsWithAI,
   remixCaptionWithAI,
   type AIAnalysisResult,
   type AICaptionResult,
-  type AIRemixResult
+  type AIRemixResult,
 } from "lib/ai-utils";
 import { usePostStore } from "lib/store";
 
@@ -70,286 +76,344 @@ interface PageProps {
   }>;
 }
 
+const getStorageKey = (key: string) => `contentflow_${key}`;
+
 // Store provider component
 function ContentStoreProvider({ children }: { children: React.ReactNode }) {
-  // Helper function to get storage key
-  const getStorageKey = (key: string) => `contentflow_${key}`;
-  
   // Default values
   const defaultCaptions: Caption[] = [
-    { id: "1", text: "Ready to create amazing content? Let's make something special! ✨" },
-    { id: "2", text: "Your brand story deserves to be told. Let's craft the perfect message together. 🚀" },
-    { id: "3", text: "From concept to creation, we're here to bring your vision to life. 💫" }
+    {
+      id: "1",
+      text: "Ready to create amazing content? Let's make something special! ✨",
+    },
+    {
+      id: "2",
+      text: "Your brand story deserves to be told. Let's craft the perfect message together. 🚀",
+    },
+    {
+      id: "3",
+      text: "From concept to creation, we're here to bring your vision to life. 💫",
+    },
   ];
-  
+
   // Initialize state with default values (same for server and client)
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [captions, setCaptions] = useState<Caption[]>(defaultCaptions);
   const [selectedCaptions, setSelectedCaptions] = useState<string[]>([]);
   const [activeImageId, setActiveImageId] = useState<string | null>(null);
-  
+
   // Track if we've hydrated from localStorage
   const [hasHydrated, setHasHydrated] = useState(false);
 
   // Hydrate from localStorage on mount (client-side only)
   useEffect(() => {
-    if (typeof window !== 'undefined' && !hasHydrated) {
+    if (typeof window !== "undefined" && !hasHydrated) {
       try {
-        const savedImages = localStorage.getItem(getStorageKey('uploadedImages'));
-        const savedCaptions = localStorage.getItem(getStorageKey('captions'));
-        const savedSelectedCaptions = localStorage.getItem(getStorageKey('selectedCaptions'));
-        const savedActiveImageId = localStorage.getItem(getStorageKey('activeImageId'));
-        
+        const savedImages = localStorage.getItem(
+          getStorageKey("uploadedImages"),
+        );
+        const savedCaptions = localStorage.getItem(getStorageKey("captions"));
+        const savedSelectedCaptions = localStorage.getItem(
+          getStorageKey("selectedCaptions"),
+        );
+        const savedActiveImageId = localStorage.getItem(
+          getStorageKey("activeImageId"),
+        );
+
         if (savedImages) {
           const parsedImages = JSON.parse(savedImages);
           // Only keep base64 data URLs (blob URLs expire)
-          const validImages = parsedImages.filter((img: any) => 
-            img.preview && img.preview.startsWith('data:')
+          const validImages = parsedImages.filter(
+            (img: any) => img.preview && img.preview.startsWith("data:"),
           );
           setUploadedImages(validImages);
         }
-        
+
         if (savedCaptions) {
           setCaptions(JSON.parse(savedCaptions));
         }
-        
+
         if (savedSelectedCaptions) {
           setSelectedCaptions(JSON.parse(savedSelectedCaptions));
         }
-        
+
         if (savedActiveImageId) {
           setActiveImageId(JSON.parse(savedActiveImageId));
         }
-        
+
         setHasHydrated(true);
       } catch (error) {
-        console.error('Error hydrating from localStorage:', error);
+        console.error("Error hydrating from localStorage:", error);
         setHasHydrated(true);
       }
     }
-  }, [hasHydrated, getStorageKey]);
+  }, [hasHydrated]);
 
   // Save state to localStorage whenever it changes (only after hydration)
   useEffect(() => {
-    if (typeof window !== 'undefined' && hasHydrated) {
+    if (typeof window !== "undefined" && hasHydrated) {
       try {
-        localStorage.setItem(getStorageKey('uploadedImages'), JSON.stringify(uploadedImages));
+        localStorage.setItem(
+          getStorageKey("uploadedImages"),
+          JSON.stringify(uploadedImages),
+        );
       } catch (error) {
-        console.error('Error saving images to localStorage:', error);
+        console.error("Error saving images to localStorage:", error);
       }
     }
-  }, [uploadedImages, hasHydrated, getStorageKey]);
+  }, [uploadedImages, hasHydrated]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && hasHydrated) {
+    if (typeof window !== "undefined" && hasHydrated) {
       try {
-        localStorage.setItem(getStorageKey('captions'), JSON.stringify(captions));
+        localStorage.setItem(
+          getStorageKey("captions"),
+          JSON.stringify(captions),
+        );
       } catch (error) {
-        console.error('Error saving captions to localStorage:', error);
+        console.error("Error saving captions to localStorage:", error);
       }
     }
-  }, [captions, hasHydrated, getStorageKey]);
+  }, [captions, hasHydrated]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && hasHydrated) {
+    if (typeof window !== "undefined" && hasHydrated) {
       try {
-        localStorage.setItem(getStorageKey('selectedCaptions'), JSON.stringify(selectedCaptions));
+        localStorage.setItem(
+          getStorageKey("selectedCaptions"),
+          JSON.stringify(selectedCaptions),
+        );
       } catch (error) {
-        console.error('Error saving selected captions to localStorage:', error);
+        console.error("Error saving selected captions to localStorage:", error);
       }
     }
-  }, [selectedCaptions, hasHydrated, getStorageKey]);
+  }, [selectedCaptions, hasHydrated]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && hasHydrated) {
+    if (typeof window !== "undefined" && hasHydrated) {
       try {
-        localStorage.setItem(getStorageKey('activeImageId'), JSON.stringify(activeImageId));
+        localStorage.setItem(
+          getStorageKey("activeImageId"),
+          JSON.stringify(activeImageId),
+        );
       } catch (error) {
-        console.error('Error saving active image ID to localStorage:', error);
+        console.error("Error saving active image ID to localStorage:", error);
       }
     }
-  }, [activeImageId, hasHydrated, getStorageKey]);
+  }, [activeImageId, hasHydrated]);
 
   // Helper function to convert blob URL to base64 data URL
-  const convertBlobToBase64 = useCallback(async (blobUrl: string): Promise<string> => {
-    try {
-      const response = await fetch(blobUrl);
-      const blob = await response.blob();
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.error('Error converting blob to base64:', error);
-      return blobUrl; // Fallback to original URL if conversion fails
-    }
-  };
-
-  const addImage = useCallback(async (image: UploadedImage) => {
-    // Convert blob URL to base64 data URL for persistence
-    let persistentImage = image;
-    if (image.preview.startsWith('blob:')) {
+  const convertBlobToBase64 = useCallback(
+    async (blobUrl: string): Promise<string> => {
       try {
-        const base64Url = await convertBlobToBase64(image.preview);
-        persistentImage = {
-          ...image,
-          preview: base64Url
-        };
-        // Revoke the original blob URL to free memory
-        URL.revokeObjectURL(image.preview);
+        const response = await fetch(blobUrl);
+        const blob = await response.blob();
+        return await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
       } catch (error) {
-        console.error('Error converting image to base64:', error);
-        // Continue with original image if conversion fails
+        console.error("Error converting blob to base64:", error);
+        return blobUrl;
       }
-    }
-    
-    setUploadedImages(prev => [...prev, persistentImage]);
-    // Set as active image if it's the first one
-    if (uploadedImages.length === 0) {
-      setActiveImageId(persistentImage.id);
-    }
-  }, [uploadedImages.length, convertBlobToBase64]);
+    },
+    [],
+  );
 
-  const removeImage = useCallback((id: string) => {
-    setUploadedImages(prev => {
-      const image = prev.find(img => img.id === id);
-      if (image && image.preview.startsWith('blob:')) {
-        // Only revoke blob URLs, not base64 data URLs
-        URL.revokeObjectURL(image.preview);
+  const addImage = useCallback(
+    async (image: UploadedImage) => {
+      // Convert blob URL to base64 data URL for persistence
+      let persistentImage = image;
+      if (image.preview.startsWith("blob:")) {
+        try {
+          const base64Url = await convertBlobToBase64(image.preview);
+          persistentImage = {
+            ...image,
+            preview: base64Url,
+          };
+          // Revoke the original blob URL to free memory
+          URL.revokeObjectURL(image.preview);
+        } catch (error) {
+          console.error("Error converting image to base64:", error);
+          // Continue with original image if conversion fails
+        }
       }
-      const newImages = prev.filter(img => img.id !== id);
-      
-      // If we're removing the active image, set a new active one
-      if (activeImageId === id) {
-        setActiveImageId(newImages.length > 0 ? newImages[0].id : null);
+
+      setUploadedImages((prev) => [...prev, persistentImage]);
+      // Set as active image if it's the first one
+      if (uploadedImages.length === 0) {
+        setActiveImageId(persistentImage.id);
       }
-      
-      return newImages;
-    });
-  }, [activeImageId]);
+    },
+    [uploadedImages.length, convertBlobToBase64],
+  );
+
+  const removeImage = useCallback(
+    (id: string) => {
+      setUploadedImages((prev) => {
+        const image = prev.find((img) => img.id === id);
+        if (image && image.preview.startsWith("blob:")) {
+          // Only revoke blob URLs, not base64 data URLs
+          URL.revokeObjectURL(image.preview);
+        }
+        const newImages = prev.filter((img) => img.id !== id);
+
+        // If we're removing the active image, set a new active one
+        if (activeImageId === id) {
+          setActiveImageId(newImages.length > 0 ? newImages[0].id : null);
+        }
+
+        return newImages;
+      });
+    },
+    [activeImageId],
+  );
 
   const updateImageNotes = useCallback((id: string, notes: string) => {
-    setUploadedImages(prev => 
-      prev.map(img => img.id === id ? { ...img, notes } : img)
+    setUploadedImages((prev) =>
+      prev.map((img) => (img.id === id ? { ...img, notes } : img)),
     );
   }, []);
 
   const updateImageAIAnalysis = useCallback((id: string, analysis: string) => {
-    setUploadedImages(prev => 
-      prev.map(img => img.id === id ? { ...img, aiAnalysis: analysis } : img)
+    setUploadedImages((prev) =>
+      prev.map((img) =>
+        img.id === id ? { ...img, aiAnalysis: analysis } : img,
+      ),
     );
   }, []);
 
   const updateCaption = useCallback((id: string, text: string) => {
-    setCaptions(prev => 
-      prev.map(cap => cap.id === id ? { ...cap, text } : cap)
+    setCaptions((prev) =>
+      prev.map((cap) => (cap.id === id ? { ...cap, text } : cap)),
     );
   }, []);
 
   const selectCaption = useCallback((id: string) => {
-    setSelectedCaptions(prev => 
-      prev.includes(id) 
-        ? [] // If clicking the already selected caption, deselect it
-        : [id] // Otherwise, select only this caption (single selection)
+    setSelectedCaptions(
+      (prev) =>
+        prev.includes(id)
+          ? [] // If clicking the already selected caption, deselect it
+          : [id], // Otherwise, select only this caption (single selection)
     );
   }, []);
 
+  const analyzeImage = useCallback(
+    async (imageId: string, prompt?: string) => {
+      const image = uploadedImages.find((img) => img.id === imageId);
+      if (!image) return;
 
+      try {
+        const result = await analyzeImageWithAI(image.file, prompt);
+        if (result.success && result.analysis) {
+          // Store AI analysis separately for internal use (hidden from UI)
+          updateImageAIAnalysis(imageId, result.analysis);
+          // Don't update the notes field - keep AI analysis hidden
+        }
+      } catch (error) {
+        console.error("AI analysis failed:", error);
+      }
+    },
+    [uploadedImages, updateImageAIAnalysis, updateImageNotes],
+  );
 
-  const analyzeImage = useCallback(async (imageId: string, prompt?: string) => {
-    const image = uploadedImages.find(img => img.id === imageId);
-    if (!image) return;
+  const generateAICaptions = useCallback(
+    async (imageId: string) => {
+      const image = uploadedImages.find((img) => img.id === imageId);
+      if (!image) return;
 
-    try {
-      const result = await analyzeImageWithAI(image.file, prompt);
-      if (result.success && result.analysis) {
-        // Store AI analysis separately for internal use (hidden from UI)
-        updateImageAIAnalysis(imageId, result.analysis);
-        // Don't update the notes field - keep AI analysis hidden
-      }
-    } catch (error) {
-      console.error('AI analysis failed:', error);
-    }
-  }, [uploadedImages, updateImageAIAnalysis, updateImageNotes]);
+      try {
+        const existingCaptionTexts = captions.map((cap) => cap.text);
 
-  const generateAICaptions = useCallback(async (imageId: string) => {
-    const image = uploadedImages.find(img => img.id === imageId);
-    if (!image) return;
+        // Build comprehensive context from both AI analysis and user notes
+        const contextParts = [];
 
-    try {
-      const existingCaptionTexts = captions.map(cap => cap.text);
-      
-      // Build comprehensive context from both AI analysis and user notes
-      const contextParts = [];
-      
-      if (image.aiAnalysis) {
-        contextParts.push(`AI Image Analysis: ${image.aiAnalysis}`);
-      }
-      
-      if (image.notes && image.notes.trim()) {
-        contextParts.push(`User Notes: ${image.notes.trim()}`);
-      }
-      
-      const aiContext = contextParts.length > 0 ? contextParts.join('\n\n') + '\n\n' : '';
-      
-      const result = await generateCaptionsWithAI(image.file, existingCaptionTexts, aiContext);
-      
-      if (result.success && result.captions && result.captions.length > 0) {
-        // Replace the existing placeholder captions with AI-generated ones
-        // Keep the same IDs but update the text content
-        const updatedCaptions = captions.map((caption, index) => {
-          if (index < result.captions!.length) {
-            return {
-              ...caption,
-              text: result.captions![index]
-            };
-          }
-          return caption;
-        });
-        
-        setCaptions(updatedCaptions);
-      }
-    } catch (error) {
-      console.error('AI caption generation failed:', error);
-    }
-  }, [uploadedImages, captions, setCaptions]);
+        if (image.aiAnalysis) {
+          contextParts.push(`AI Image Analysis: ${image.aiAnalysis}`);
+        }
 
-  const remixCaption = useCallback(async (captionId: string, prompt: string) => {
-    // Find the image associated with the current active image
-    const activeImage = uploadedImages.find(img => img.id === activeImageId);
-    if (!activeImage) return;
+        if (image.notes && image.notes.trim()) {
+          contextParts.push(`User Notes: ${image.notes.trim()}`);
+        }
 
-    try {
-      const existingCaptionTexts = captions.map(cap => cap.text);
-      
-      // Build comprehensive context from both AI analysis and user notes
-      const contextParts = [];
-      
-      if (activeImage.aiAnalysis) {
-        contextParts.push(`AI Image Analysis: ${activeImage.aiAnalysis}`);
+        const aiContext =
+          contextParts.length > 0 ? contextParts.join("\n\n") + "\n\n" : "";
+
+        const result = await generateCaptionsWithAI(
+          image.file,
+          existingCaptionTexts,
+          aiContext,
+        );
+
+        if (result.success && result.captions && result.captions.length > 0) {
+          // Replace the existing placeholder captions with AI-generated ones
+          // Keep the same IDs but update the text content
+          const updatedCaptions = captions.map((caption, index) => {
+            if (index < result.captions!.length) {
+              return {
+                ...caption,
+                text: result.captions![index],
+              };
+            }
+            return caption;
+          });
+
+          setCaptions(updatedCaptions);
+        }
+      } catch (error) {
+        console.error("AI caption generation failed:", error);
       }
-      
-      if (activeImage.notes && activeImage.notes.trim()) {
-        contextParts.push(`User Notes: ${activeImage.notes.trim()}`);
+    },
+    [uploadedImages, captions, setCaptions],
+  );
+
+  const remixCaption = useCallback(
+    async (captionId: string, prompt: string) => {
+      // Find the image associated with the current active image
+      const activeImage = uploadedImages.find(
+        (img) => img.id === activeImageId,
+      );
+      if (!activeImage) return;
+
+      try {
+        const existingCaptionTexts = captions.map((cap) => cap.text);
+
+        // Build comprehensive context from both AI analysis and user notes
+        const contextParts = [];
+
+        if (activeImage.aiAnalysis) {
+          contextParts.push(`AI Image Analysis: ${activeImage.aiAnalysis}`);
+        }
+
+        if (activeImage.notes && activeImage.notes.trim()) {
+          contextParts.push(`User Notes: ${activeImage.notes.trim()}`);
+        }
+
+        const aiContext =
+          contextParts.length > 0 ? contextParts.join("\n\n") + "\n\n" : "";
+
+        const result = await remixCaptionWithAI(
+          activeImage.file,
+          prompt,
+          existingCaptionTexts,
+          aiContext,
+        );
+
+        if (result.success && result.caption) {
+          // Update the existing caption instead of creating a new one
+          setCaptions((prev) =>
+            prev.map((cap) =>
+              cap.id === captionId ? { ...cap, text: result.caption! } : cap,
+            ),
+          );
+        }
+      } catch (error) {
+        console.error("AI caption remix failed:", error);
       }
-      
-      const aiContext = contextParts.length > 0 ? contextParts.join('\n\n') + '\n\n' : '';
-      
-      const result = await remixCaptionWithAI(activeImage.file, prompt, existingCaptionTexts, aiContext);
-      
-      if (result.success && result.caption) {
-        // Update the existing caption instead of creating a new one
-        setCaptions(prev => prev.map(cap => 
-          cap.id === captionId 
-            ? { ...cap, text: result.caption! }
-            : cap
-        ));
-      }
-    } catch (error) {
-      console.error('AI caption remix failed:', error);
-    }
-  }, [uploadedImages, captions, activeImageId, setCaptions]);
+    },
+    [uploadedImages, captions, activeImageId, setCaptions],
+  );
 
   const store: ContentStore = {
     uploadedImages,
@@ -369,7 +433,7 @@ function ContentStoreProvider({ children }: { children: React.ReactNode }) {
     selectCaption,
     analyzeImage,
     generateAICaptions,
-    remixCaption
+    remixCaption,
   };
 
   // Don't render children until hydration is complete to prevent hydration mismatch
@@ -395,12 +459,18 @@ export default function ProjectPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const { clientId, projectId } = resolvedParams;
 
-  const handleSendToScheduler = async (selectedCaption: string, uploadedImages: any[]) => {
-    console.log('🚀 Starting handleSendToScheduler with caption:', selectedCaption);
-    
+  const handleSendToScheduler = async (
+    selectedCaption: string,
+    uploadedImages: any[],
+  ) => {
+    console.log(
+      "🚀 Starting handleSendToScheduler with caption:",
+      selectedCaption,
+    );
+
     if (!selectedCaption || uploadedImages.length === 0) {
-      console.error('❌ Missing caption or images');
-      alert('Please select a caption and upload at least one image');
+      console.error("❌ Missing caption or images");
+      alert("Please select a caption and upload at least one image");
       return;
     }
 
@@ -409,53 +479,53 @@ export default function ProjectPage({ params }: PageProps) {
       const postsToSave = await Promise.all(
         uploadedImages.map(async (image) => {
           let base64Image = image.preview;
-          
+
           // Convert blob URL to base64
-          if (image.preview.startsWith('blob:')) {
+          if (image.preview.startsWith("blob:")) {
             const response = await fetch(image.preview);
             const blob = await response.blob();
             const reader = new FileReader();
-            
+
             base64Image = await new Promise((resolve) => {
               reader.onloadend = () => resolve(reader.result as string);
               reader.readAsDataURL(blob);
             });
           }
-          
+
           return {
             imageUrl: base64Image,
             caption: selectedCaption,
-            notes: ''
+            notes: "",
           };
-        })
+        }),
       );
 
-      console.log('📦 Saving posts to database:', postsToSave.length);
+      console.log("📦 Saving posts to database:", postsToSave.length);
 
       // Save to database
-      const response = await fetch('/api/posts/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/posts/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId: clientId,
-          projectId: projectId || 'complete',
-          posts: postsToSave
-        })
+          projectId: projectId || "complete",
+          posts: postsToSave,
+        }),
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to save posts');
+        throw new Error(result.error || "Failed to save posts");
       }
 
-      console.log('✅ Posts saved successfully:', result);
-      
+      console.log("✅ Posts saved successfully:", result);
+
       // Navigate to new scheduler
       window.location.href = `/dashboard/client/${clientId}/new-scheduler`;
     } catch (error) {
-      console.error('❌ Error in handleSendToScheduler:', error);
-      alert('Failed to save posts. Please try again.');
+      console.error("❌ Error in handleSendToScheduler:", error);
+      alert("Failed to save posts. Please try again.");
     }
   };
 
@@ -466,21 +536,21 @@ export default function ProjectPage({ params }: PageProps) {
           {/* Breadcrumb and Header */}
           <div className="mb-8">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-              <Link 
+              <Link
                 href="/dashboard"
                 className="hover:text-foreground transition-colors"
               >
                 Dashboard
               </Link>
               <span>&gt;</span>
-              <Link 
+              <Link
                 href={`/dashboard/client/${resolvedParams.clientId}`}
                 className="hover:text-foreground transition-colors"
               >
                 Client Dashboard
               </Link>
               <span>&gt;</span>
-              <Link 
+              <Link
                 href={`/dashboard/client/${resolvedParams.clientId}/project/${resolvedParams.projectId}`}
                 className="hover:text-foreground transition-colors"
               >
@@ -489,34 +559,39 @@ export default function ProjectPage({ params }: PageProps) {
               <span>&gt;</span>
               <span className="text-foreground font-medium">Content Suite</span>
             </div>
-            
+
             <div className="flex items-center gap-4">
-              <Link 
+              <Link
                 href={`/dashboard/client/${resolvedParams.clientId}`}
                 className="p-2 hover:bg-accent rounded-md transition-colors"
               >
                 <ArrowLeft className="h-5 w-5" />
               </Link>
               <div className="flex-1">
-                <h1 className="text-3xl font-bold text-foreground">Content Suite</h1>
+                <h1 className="text-3xl font-bold text-foreground">
+                  Content Suite
+                </h1>
                 <p className="text-muted-foreground mt-2">
-                  Upload images, add notes, and craft compelling captions for your social media content.
+                  Upload images, add notes, and craft compelling captions for
+                  your social media content.
                 </p>
               </div>
-              
-
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Column 1: Image Upload + Notes */}
             <ImageUploadColumn />
-            
+
             {/* Column 2: Editable Captions */}
             <CaptionColumn clientId={clientId} projectId={projectId} />
-            
+
             {/* Column 3: Social Preview */}
-            <SocialPreviewColumn clientId={clientId} projectId={projectId} handleSendToScheduler={handleSendToScheduler} />
+            <SocialPreviewColumn
+              clientId={clientId}
+              projectId={projectId}
+              handleSendToScheduler={handleSendToScheduler}
+            />
           </div>
         </div>
       </div>
@@ -526,14 +601,14 @@ export default function ProjectPage({ params }: PageProps) {
 
 // Column 1: Image Upload + Notes
 function ImageUploadColumn() {
-  const { 
-    uploadedImages, 
-    addImage, 
-    removeImage, 
+  const {
+    uploadedImages,
+    addImage,
+    removeImage,
     updateImageNotes,
     activeImageId,
     setActiveImageId,
-    analyzeImage
+    analyzeImage,
   } = useContentStore();
 
   const [analyzingImage, setAnalyzingImage] = useState<string | null>(null);
@@ -541,13 +616,15 @@ function ImageUploadColumn() {
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files) {
-      const newImages: UploadedImage[] = Array.from(files).map((file, index) => ({
-        id: `img-${Date.now()}-${index}`,
-        file,
-        preview: URL.createObjectURL(file),
-        notes: "",
-        aiAnalysis: undefined
-      }));
+      const newImages: UploadedImage[] = Array.from(files).map(
+        (file, index) => ({
+          id: `img-${Date.now()}-${index}`,
+          file,
+          preview: URL.createObjectURL(file),
+          notes: "",
+          aiAnalysis: undefined,
+        }),
+      );
       newImages.forEach(addImage);
     }
   };
@@ -559,8 +636,10 @@ function ImageUploadColumn() {
   return (
     <div className="space-y-6">
       <div className="bg-card rounded-lg border p-6">
-        <h2 className="text-xl font-semibold text-card-foreground mb-4">Image Upload</h2>
-        
+        <h2 className="text-xl font-semibold text-card-foreground mb-4">
+          Image Upload
+        </h2>
+
         <div className="space-y-4">
           <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
             <Input
@@ -571,13 +650,20 @@ function ImageUploadColumn() {
               className="hidden"
               id="image-upload"
             />
-            <label 
-              htmlFor="image-upload" 
-              className="cursor-pointer block"
-            >
+            <label htmlFor="image-upload" className="cursor-pointer block">
               <div className="text-muted-foreground mb-2">
-                <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                <svg
+                  className="mx-auto h-12 w-12"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
                 </svg>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -591,12 +677,16 @@ function ImageUploadColumn() {
 
           {uploadedImages.length > 0 && (
             <div className="space-y-4">
-              <h3 className="font-medium text-card-foreground">Uploaded Images</h3>
+              <h3 className="font-medium text-card-foreground">
+                Uploaded Images
+              </h3>
               {uploadedImages.map((image) => (
                 <div key={image.id} className="space-y-3">
-                  <div 
+                  <div
                     className={`relative group cursor-pointer rounded-lg border-2 transition-all ${
-                      image.id === activeImageId ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'
+                      image.id === activeImageId
+                        ? "border-primary ring-2 ring-primary/20"
+                        : "border-border hover:border-primary/50"
                     }`}
                     onClick={() => handleImageClick(image.id)}
                   >
@@ -629,7 +719,9 @@ function ImageUploadColumn() {
                         size="sm"
                         onClick={() => {
                           setAnalyzingImage(image.id);
-                          analyzeImage(image.id).finally(() => setAnalyzingImage(null));
+                          analyzeImage(image.id).finally(() =>
+                            setAnalyzingImage(null),
+                          );
                         }}
                         disabled={analyzingImage === image.id}
                         className="flex-1"
@@ -650,7 +742,9 @@ function ImageUploadColumn() {
                     <Textarea
                       placeholder="Add notes about this image or use AI analysis..."
                       value={image.notes}
-                      onChange={(e) => updateImageNotes(image.id, e.target.value)}
+                      onChange={(e) =>
+                        updateImageNotes(image.id, e.target.value)
+                      }
                       className="min-h-20"
                     />
                   </div>
@@ -665,36 +759,42 @@ function ImageUploadColumn() {
 }
 
 // Column 2: Editable Captions
-function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: string }) {
-  const { 
-    captions, 
-    selectedCaptions, 
-    updateCaption, 
-    selectCaption, 
+function CaptionColumn({
+  clientId,
+  projectId,
+}: {
+  clientId: string;
+  projectId: string;
+}) {
+  const {
+    captions,
+    selectedCaptions,
+    updateCaption,
+    selectCaption,
     generateAICaptions,
     remixCaption,
     uploadedImages,
-    activeImageId
+    activeImageId,
   } = useContentStore();
 
   const [generatingCaptions, setGeneratingCaptions] = useState(false);
   const [remixingCaption, setRemixingCaption] = useState<string | null>(null);
-  const [remixPrompt, setRemixPrompt] = useState('');
+  const [remixPrompt, setRemixPrompt] = useState("");
 
   const handleRemixThis = (captionId: string) => {
     setRemixingCaption(captionId);
-    setRemixPrompt('');
+    setRemixPrompt("");
   };
 
   const handleAIRemix = async (captionId: string) => {
     if (!remixPrompt.trim()) return;
-    
+
     try {
       await remixCaption(captionId, remixPrompt);
       setRemixingCaption(null);
-      setRemixPrompt('');
+      setRemixPrompt("");
     } catch (error) {
-      console.error('Failed to remix caption:', error);
+      console.error("Failed to remix caption:", error);
     }
   };
 
@@ -709,28 +809,31 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
         await generateAICaptions(uploadedImages[0].id);
       }
     } catch (error) {
-      console.error('Failed to generate AI captions:', error);
+      console.error("Failed to generate AI captions:", error);
     } finally {
       setGeneratingCaptions(false);
     }
   };
 
-
-
   return (
     <div className="space-y-6">
       <div className="bg-card rounded-lg border p-6">
-        <h2 className="text-xl font-semibold text-card-foreground mb-4">Captions</h2>
-        <p className="text-sm text-muted-foreground mb-4">Select one caption to display in the preview. Only one caption can be selected at a time.</p>
-        
+        <h2 className="text-xl font-semibold text-card-foreground mb-4">
+          Captions
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Select one caption to display in the preview. Only one caption can be
+          selected at a time.
+        </p>
+
         <div className="space-y-4">
           {captions.map((caption) => (
-            <div 
-              key={caption.id} 
+            <div
+              key={caption.id}
               className={`space-y-3 p-4 rounded-lg border-2 transition-all ${
-                selectedCaptions.includes(caption.id) 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-border hover:border-primary/30'
+                selectedCaptions.includes(caption.id)
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/30"
               }`}
             >
               <div className="flex items-center gap-2">
@@ -741,21 +844,23 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
                   onChange={() => selectCaption(caption.id)}
                   className="border-border"
                 />
-                <span className="text-sm text-muted-foreground">Caption {caption.id}</span>
+                <span className="text-sm text-muted-foreground">
+                  Caption {caption.id}
+                </span>
                 {selectedCaptions.includes(caption.id) && (
                   <span className="ml-auto text-xs bg-primary text-primary-foreground px-2 py-1 rounded-full">
                     Selected
                   </span>
                 )}
               </div>
-              
+
               <Textarea
                 value={caption.text}
                 onChange={(e) => updateCaption(caption.id, e.target.value)}
                 placeholder="Enter your caption..."
                 className="min-h-24"
               />
-              
+
               <div className="space-y-3">
                 {remixingCaption === caption.id && (
                   <div className="space-y-2">
@@ -786,7 +891,7 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
                     </div>
                   </div>
                 )}
-                
+
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -798,19 +903,23 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
                     Remix This
                   </Button>
                   <Button
-                    variant={selectedCaptions.includes(caption.id) ? "default" : "outline"}
+                    variant={
+                      selectedCaptions.includes(caption.id)
+                        ? "default"
+                        : "outline"
+                    }
                     size="sm"
                     onClick={() => selectCaption(caption.id)}
                   >
-                    {selectedCaptions.includes(caption.id) ? "Selected" : "Select This"}
+                    {selectedCaptions.includes(caption.id)
+                      ? "Selected"
+                      : "Select This"}
                   </Button>
-                  
-
                 </div>
               </div>
             </div>
           ))}
-          
+
           <div className="pt-4 border-t">
             <Button
               variant="default"
@@ -831,42 +940,44 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
                 </>
               )}
             </Button>
-            
 
-            
             {/* Test Store Button */}
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
                 const testPost = {
-                  id: 'manual-test-' + Date.now().toString(),
+                  id: "manual-test-" + Date.now().toString(),
                   clientId,
                   projectId,
-                  imageUrl: 'https://via.placeholder.com/300x200?text=Manual+Test',
-                  caption: 'Manual test post added directly to store',
-                  mediaType: 'image' as const,
-                  originalCaption: 'Manual test',
+                  imageUrl:
+                    "https://via.placeholder.com/300x200?text=Manual+Test",
+                  caption: "Manual test post added directly to store",
+                  mediaType: "image" as const,
+                  originalCaption: "Manual test",
                   createdAt: new Date().toISOString(),
-                  status: 'draft' as const,
-                  notes: 'Manual test post for debugging store',
+                  status: "draft" as const,
+                  notes: "Manual test post for debugging store",
                 };
-                
-                console.log('🧪 Manual test: Adding post directly to store:', testPost);
+
+                console.log(
+                  "🧪 Manual test: Adding post directly to store:",
+                  testPost,
+                );
                 const { addPost } = usePostStore.getState();
                 addPost(testPost);
-                
+
                 // Check store state
                 const storeState = usePostStore.getState();
                 const key = `${clientId}:${projectId}`;
-                console.log('🧪 Manual test: Store state after adding:', {
+                console.log("🧪 Manual test: Store state after adding:", {
                   key,
                   postsInStore: storeState.posts[key],
                   totalPosts: storeState.posts,
-                  storeKeys: Object.keys(storeState.posts)
+                  storeKeys: Object.keys(storeState.posts),
                 });
-                
-                alert('Test post added to store! Check console for details.');
+
+                alert("Test post added to store! Check console for details.");
               }}
               className="w-full mt-2"
             >
@@ -880,24 +991,30 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
 }
 
 // Column 3: Social Preview
-function SocialPreviewColumn({ 
-  clientId, 
-  projectId, 
-  handleSendToScheduler 
-}: { 
-  clientId: string; 
-  projectId: string; 
-  handleSendToScheduler: (selectedCaption: string, uploadedImages: any[]) => Promise<void>; 
+function SocialPreviewColumn({
+  clientId,
+  projectId,
+  handleSendToScheduler,
+}: {
+  clientId: string;
+  projectId: string;
+  handleSendToScheduler: (
+    selectedCaption: string,
+    uploadedImages: any[],
+  ) => Promise<void>;
 }) {
-  const { 
-    uploadedImages, 
-    captions, 
-    selectedCaptions, 
+  const {
+    uploadedImages,
+    captions,
+    selectedCaptions,
     activeImageId,
-    setActiveImageId
+    setActiveImageId,
   } = useContentStore();
 
-  const selectedCaption = selectedCaptions.length > 0 ? captions.find(cap => cap.id === selectedCaptions[0])?.text : undefined;
+  const selectedCaption =
+    selectedCaptions.length > 0
+      ? captions.find((cap) => cap.id === selectedCaptions[0])?.text
+      : undefined;
 
   const handleImageSelect = (imageId: string) => {
     setActiveImageId(imageId);
@@ -905,32 +1022,46 @@ function SocialPreviewColumn({
 
   return (
     <div className="space-y-6">
-      <SocialPreview 
+      <SocialPreview
         images={uploadedImages}
         activeImageId={activeImageId}
         onImageSelect={handleImageSelect}
         caption={selectedCaption}
         totalCaptionCount={captions.length}
       />
-      
+
       {/* Send to Scheduler Button */}
       {uploadedImages.length > 0 && selectedCaptions.length > 0 && (
         <div className="bg-card rounded-lg border p-6">
-          <h3 className="text-lg font-semibold text-card-foreground mb-3">Ready to Schedule?</h3>
+          <h3 className="text-lg font-semibold text-card-foreground mb-3">
+            Ready to Schedule?
+          </h3>
           <p className="text-sm text-muted-foreground mb-4">
             Your content is ready! Send it to the scheduler to plan your posts.
           </p>
           <Button
             onClick={() => {
-              const selectedCaption = captions.find(cap => cap.id === selectedCaptions[0])?.text;
+              const selectedCaption = captions.find(
+                (cap) => cap.id === selectedCaptions[0],
+              )?.text;
               if (selectedCaption) {
                 handleSendToScheduler(selectedCaption, uploadedImages);
               }
             }}
             className="w-full bg-green-600 hover:bg-green-700 text-white"
           >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2V7a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <svg
+              className="w-5 h-5 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2V7a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
             </svg>
             Send to Scheduler
           </Button>
