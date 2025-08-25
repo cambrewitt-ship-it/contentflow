@@ -722,7 +722,7 @@ function ImageUploadColumn() {
                   </div>
                   <div className="space-y-3">
                     <Textarea
-                      placeholder="Add notes about this image or use AI analysis..."
+                      placeholder="Add Post Notes - describe what you want in your caption..."
                       value={image.notes}
                       onChange={(e) =>
                         updateImageNotes(image.id, e.target.value)

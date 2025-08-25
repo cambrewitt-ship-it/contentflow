@@ -187,10 +187,10 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
         
         // Enhanced logging for user context
         if (aiContext) {
-          console.log('🎯 USER CONTEXT (MANDATORY PRIORITY):', aiContext);
-          console.log('📝 USER NOTES CONTENT BEING SENT TO AI:', aiContext);
+          console.log('🎯 POST NOTES CONTENT (MANDATORY PRIORITY):', aiContext);
+          console.log('📝 POST NOTES BEING SENT TO AI:', aiContext);
         } else {
-          console.log('⚠️ No user context provided - AI will generate generic captions');
+          console.log('⚠️ No Post Notes provided - AI will generate generic captions');
         }
     }
 
@@ -198,10 +198,10 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
     Generate exactly 3 engaging, diverse captions for the provided image.
     
     🚨 ABSOLUTE PRIORITY REQUIREMENT 🚨
-    - USER NOTES ARE MANDATORY: If user notes exist, they MUST be the central focus of EVERY caption
-    - User notes take COMPLETE PRIORITY over all other considerations
-    - Each caption MUST prominently feature and incorporate the user's specific notes
-    - The user's vision and requirements are the PRIMARY directive - everything else is secondary
+    - POST NOTES ARE MANDATORY: If Post Notes exist, they MUST be the central focus of EVERY caption
+    - Post Notes take COMPLETE PRIORITY over all other considerations
+    - Each caption MUST prominently feature and incorporate the Post Notes content
+    - The Post Notes content is the PRIMARY directive - everything else is secondary
     
     CAPTION REQUIREMENTS:
     - Each caption should be different in tone and approach
@@ -210,10 +210,17 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
     - Consider the visual elements and mood of the image
     - Make them suitable for platforms like Instagram, Facebook, or LinkedIn
     
-    ${aiContext ? `🎯 USER NOTES & CONTEXT (MANDATORY - incorporate this in EVERY caption):
+    ${aiContext ? `🎯 POST NOTES CONTENT (MANDATORY - weave this into EVERY caption):
 ${aiContext}
     
-    CRITICAL: The user notes above contain specific content that MUST be directly incorporated into your captions. Do not just reference them - weave this content naturally into your caption text.` : ''}
+    CRITICAL INSTRUCTIONS: The Post Notes above contain specific content that MUST be directly woven into your captions. 
+    
+    - Do NOT just reference or mention the notes
+    - DO weave the actual content naturally into your caption text
+    - Make the Post Notes content a central part of each caption
+    - If the notes mention specific details (like "$50", "available online", "from our store"), these exact elements must appear in your captions
+    
+    Example: If Post Notes say "this is $50 available online from our store", your captions should naturally include these specific details, not just reference them.` : ''}
     
     ${brandContext ? `🎨 BRAND GUIDING CONTEXT (use to inform style and tone, but NEVER override user notes):
     - Company: ${brandContext.company || 'Not specified'}
@@ -228,7 +235,7 @@ ${aiContext}
     
     ${existingCaptions.length > 0 ? `Avoid duplicating these existing captions: ${existingCaptions.join(', ')}` : ''}
     
-    FINAL REMINDER: User notes are MANDATORY. Every caption must prominently feature the user's specific requirements.
+    FINAL REMINDER: Post Notes are MANDATORY. Every caption must prominently feature the Post Notes content.
     
     IMPORTANT: Start directly with the first caption. Do not include any introductory text like "Here are three captions:" or similar. Just provide the 3 captions directly, each separated by a blank line.`;
 
@@ -335,10 +342,17 @@ async function remixCaption(imageData: string, prompt: string, existingCaptions:
     - Brand information serves as GUIDING CONTEXT to inform tone, style, and messaging
     - Maintain the core message while improving based on feedback
     
-    ${aiContext ? `🎯 USER NOTES & CONTEXT (MANDATORY - incorporate this prominently):
+    ${aiContext ? `🎯 POST NOTES CONTENT (MANDATORY - weave this into your caption):
 ${aiContext}
     
-    CRITICAL: The user notes above contain specific content that MUST be directly incorporated into your improved caption. Do not just reference them - weave this content naturally into your caption text.` : ''}
+    CRITICAL INSTRUCTIONS: The Post Notes above contain specific content that MUST be directly woven into your improved caption. 
+    
+    - Do NOT just reference or mention the notes
+    - DO weave the actual content naturally into your caption text
+    - Make the Post Notes content a central part of your caption
+    - If the notes mention specific details (like "$50", "available online", "from our store"), these exact elements must appear in your caption
+    
+    Example: If Post Notes say "this is $50 available online from our store", your caption should naturally include these specific details, not just reference them.` : ''}
     
     ${brandContext ? `🎨 BRAND GUIDING CONTEXT (use to inform style and tone, but NEVER override user notes):
     - Company: ${brandContext.company || 'Not specified'}
