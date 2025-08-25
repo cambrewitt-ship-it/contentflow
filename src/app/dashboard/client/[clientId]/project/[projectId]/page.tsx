@@ -258,6 +258,74 @@ export default function ProjectPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const { clientId, projectId } = resolvedParams;
 
+  const handleSendToScheduler = async (selectedCaption: string) => {
+    console.log('🚀 Starting handleSendToScheduler with caption:', selectedCaption);
+    
+    // Get uploadedImages from the store context
+    const store = useContentStore();
+    const { uploadedImages } = store;
+    
+    if (!selectedCaption || uploadedImages.length === 0) {
+      console.error('❌ Missing caption or images');
+      alert('Please select a caption and upload at least one image');
+      return;
+    }
+
+    try {
+      // Convert blob URLs to base64
+      const postsToSave = await Promise.all(
+        uploadedImages.map(async (image) => {
+          let base64Image = image.preview;
+          
+          // Convert blob URL to base64
+          if (image.preview.startsWith('blob:')) {
+            const response = await fetch(image.preview);
+            const blob = await response.blob();
+            const reader = new FileReader();
+            
+            base64Image = await new Promise((resolve) => {
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+          }
+          
+          return {
+            imageUrl: base64Image,
+            caption: selectedCaption,
+            notes: ''
+          };
+        })
+      );
+
+      console.log('📦 Saving posts to database:', postsToSave.length);
+
+      // Save to database
+      const response = await fetch('/api/posts/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: clientId,
+          projectId: projectId || 'complete',
+          posts: postsToSave
+        })
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save posts');
+      }
+
+      console.log('✅ Posts saved successfully:', result);
+      
+      // Navigate to new scheduler
+      window.location.href = `/dashboard/client/${clientId}/new-scheduler`;
+    } catch (error) {
+      console.error('❌ Error in handleSendToScheduler:', error);
+      alert('Failed to save posts. Please try again.');
+    }
+  };
+
   return (
     <ContentStoreProvider>
       <div className="min-h-screen bg-background p-6">
@@ -301,7 +369,7 @@ export default function ProjectPage({ params }: PageProps) {
             <CaptionColumn clientId={clientId} projectId={projectId} />
             
             {/* Column 3: Social Preview */}
-            <SocialPreviewColumn clientId={clientId} projectId={projectId} />
+            <SocialPreviewColumn clientId={clientId} projectId={projectId} handleSendToScheduler={handleSendToScheduler} />
           </div>
         </div>
       </div>
@@ -500,69 +568,7 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
     }
   };
 
-const handleSendToScheduler = async (selectedCaption: string) => {
-  console.log('🚀 Starting handleSendToScheduler with caption:', selectedCaption);
-  
-  if (!selectedCaption || uploadedImages.length === 0) {
-    console.error('❌ Missing caption or images');
-    alert('Please select a caption and upload at least one image');
-    return;
-  }
 
-  try {
-    // Convert blob URLs to base64
-    const postsToSave = await Promise.all(
-      uploadedImages.map(async (image) => {
-        let base64Image = image.preview;
-        
-        // Convert blob URL to base64
-        if (image.preview.startsWith('blob:')) {
-          const response = await fetch(image.preview);
-          const blob = await response.blob();
-          const reader = new FileReader();
-          
-          base64Image = await new Promise((resolve) => {
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(blob);
-          });
-        }
-        
-        return {
-          imageUrl: base64Image,
-          caption: selectedCaption,
-          notes: ''
-        };
-      })
-    );
-
-    console.log('📦 Saving posts to database:', postsToSave.length);
-
-    // Save to database
-    const response = await fetch('/api/posts/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        clientId: clientId,
-        projectId: projectId || 'complete',
-        posts: postsToSave
-      })
-    });
-
-    const result = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(result.error || 'Failed to save posts');
-    }
-
-    console.log('✅ Posts saved successfully:', result);
-    
-    // Navigate to new scheduler
-    window.location.href = `/dashboard/client/${clientId}/new-scheduler`;
-  } catch (error) {
-    console.error('❌ Error in handleSendToScheduler:', error);
-    alert('Failed to save posts. Please try again.');
-  }
-};
 
   return (
     <div className="space-y-6">
@@ -652,31 +658,7 @@ const handleSendToScheduler = async (selectedCaption: string) => {
                     {selectedCaptions.includes(caption.id) ? "Selected" : "Select This"}
                   </Button>
                   
-                  {/* Send to Scheduler Button */}
-                  {selectedCaptions.includes(caption.id) && uploadedImages.length > 0 && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => {
-                        console.log('🖱️ Send to Scheduler button clicked!');
-                        console.log('🔍 Button click context:', {
-                          captionId: caption.id,
-                          captionText: caption.text,
-                          activeImageId,
-                          clientId,
-                          projectId,
-                          uploadedImagesLength: uploadedImages.length
-                        });
-                        handleSendToScheduler(caption.text);
-                      }}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      Send to Scheduler
-                    </Button>
-                  )}
+
                 </div>
               </div>
             </div>
@@ -702,6 +684,34 @@ const handleSendToScheduler = async (selectedCaption: string) => {
                 </>
               )}
             </Button>
+            
+            {/* Send to Scheduler Button */}
+            {selectedCaptions.length > 0 && uploadedImages.length > 0 && (
+              <Button
+                variant="default"
+                size="lg"
+                onClick={() => {
+                  const selectedCaption = captions.find(cap => cap.id === selectedCaptions[0])?.text;
+                  if (selectedCaption) {
+                    console.log('🖱️ Send to Scheduler button clicked!');
+                    console.log('🔍 Button click context:', {
+                      captionId: selectedCaptions[0],
+                      captionText: selectedCaption,
+                      activeImageId,
+                      clientId,
+                      projectId,
+                      uploadedImagesLength: uploadedImages.length
+                    });
+                  }
+                }}
+                className="w-full mt-2 bg-green-600 hover:bg-green-700 text-white"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2V7a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Send to Scheduler
+              </Button>
+            )}
             
             {/* Test Store Button */}
             <Button
@@ -749,7 +759,15 @@ const handleSendToScheduler = async (selectedCaption: string) => {
 }
 
 // Column 3: Social Preview
-function SocialPreviewColumn({ clientId, projectId }: { clientId: string; projectId: string }) {
+function SocialPreviewColumn({ 
+  clientId, 
+  projectId, 
+  handleSendToScheduler 
+}: { 
+  clientId: string; 
+  projectId: string; 
+  handleSendToScheduler: (selectedCaption: string) => Promise<void>; 
+}) {
   const { 
     uploadedImages, 
     captions, 
@@ -774,19 +792,27 @@ function SocialPreviewColumn({ clientId, projectId }: { clientId: string; projec
         totalCaptionCount={captions.length}
       />
       
-      {/* Content Ready Message */}
+      {/* Send to Scheduler Button */}
       {uploadedImages.length > 0 && selectedCaptions.length > 0 && (
         <div className="bg-card rounded-lg border p-6">
-          <h3 className="text-lg font-semibold text-card-foreground mb-3">Content Ready! 🎉</h3>
+          <h3 className="text-lg font-semibold text-card-foreground mb-3">Ready to Schedule?</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            Your content is ready! Use the "Send to Scheduler" button above to schedule your posts.
+            Your content is ready! Send it to the scheduler to plan your posts.
           </p>
-          <div className="flex items-center gap-2 text-green-600">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <Button
+            onClick={() => {
+              const selectedCaption = captions.find(cap => cap.id === selectedCaptions[0])?.text;
+              if (selectedCaption) {
+                handleSendToScheduler(selectedCaption);
+              }
+            }}
+            className="w-full bg-green-600 hover:bg-green-700 text-white"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2V7a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <span className="text-sm font-medium">Ready to schedule</span>
-          </div>
+            Send to Scheduler
+          </Button>
         </div>
       )}
     </div>
