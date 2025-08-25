@@ -8,9 +8,11 @@ export async function GET(
 ) {
   try {
     const { clientId } = await params;
-    console.log('Fetching posts for client:', clientId);
+    console.log('🔍 Fetching posts for client:', clientId);
     
     const supabase = createRouteHandlerClient({ cookies: await cookies() });
+    
+    console.log('📊 About to query posts table...');
     
     const { data, error } = await supabase
       .from('posts')
@@ -20,15 +22,27 @@ export async function GET(
       .order('created_at', { ascending: false });
     
     if (error) {
-      console.error('Supabase error:', error);
+      console.error('❌ Supabase error:', error);
+      console.error('❌ Error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
       throw error;
     }
     
-    console.log('Posts fetched:', data?.length || 0);
+    console.log('✅ Posts fetched:', data?.length || 0, 'posts found');
+    if (data && data.length > 0) {
+      console.log('📝 Sample post:', data[0]);
+    }
     return NextResponse.json({ posts: data || [] });
   } catch (error) {
-    console.error('Error fetching posts:', error);
-    return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
+    console.error('💥 Error fetching posts:', error);
+    return NextResponse.json({ 
+      error: 'Failed to fetch posts',
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 });
   }
 }
 
