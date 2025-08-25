@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, createContext, useContext, useCallback } from "react";
+import { useState, createContext, useContext, useCallback, useEffect } from "react";
 import { use } from "react";
 import { Button } from "components/ui/button";
 import { Input } from "components/ui/input";
@@ -71,14 +71,74 @@ interface PageProps {
 
 // Store provider component
 function ContentStoreProvider({ children }: { children: React.ReactNode }) {
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
-  const [captions, setCaptions] = useState<Caption[]>([
-    { id: "1", text: "Ready to create amazing content? Let's make something special! ✨" },
-    { id: "2", text: "Your brand story deserves to be told. Let's craft the perfect message together. 🚀" },
-    { id: "3", text: "From concept to creation, we're here to bring your vision to life. 💫" }
-  ]);
-  const [selectedCaptions, setSelectedCaptions] = useState<string[]>([]);
-  const [activeImageId, setActiveImageId] = useState<string | null>(null);
+  // Helper function to get storage key
+  const getStorageKey = (key: string) => `contentflow_${key}`;
+  
+  // Load initial state from localStorage
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(getStorageKey('uploadedImages'));
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+  
+  const [captions, setCaptions] = useState<Caption[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(getStorageKey('captions'));
+      return saved ? JSON.parse(saved) : [
+        { id: "1", text: "Ready to create amazing content? Let's make something special! ✨" },
+        { id: "2", text: "Your brand story deserves to be told. Let's craft the perfect message together. 🚀" },
+        { id: "3", text: "From concept to creation, we're here to bring your vision to life. 💫" }
+      ];
+    }
+    return [
+      { id: "1", text: "Ready to create amazing content? Let's make something special! ✨" },
+      { id: "2", text: "Your brand story deserves to be told. Let's craft the perfect message together. 🚀" },
+      { id: "3", text: "From concept to creation, we're here to bring your vision to life. 💫" }
+    ];
+  });
+  
+  const [selectedCaptions, setSelectedCaptions] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(getStorageKey('selectedCaptions'));
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+  
+  const [activeImageId, setActiveImageId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(getStorageKey('activeImageId'));
+      return saved ? JSON.parse(saved) : null;
+    }
+    return null;
+  });
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(getStorageKey('uploadedImages'), JSON.stringify(uploadedImages));
+    }
+  }, [uploadedImages]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(getStorageKey('captions'), JSON.stringify(captions));
+    }
+  }, [captions]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(getStorageKey('selectedCaptions'), JSON.stringify(selectedCaptions));
+    }
+  }, [selectedCaptions]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(getStorageKey('activeImageId'), JSON.stringify(activeImageId));
+    }
+  }, [activeImageId]);
 
   const addImage = useCallback((image: UploadedImage) => {
     setUploadedImages(prev => [...prev, image]);
@@ -258,12 +318,8 @@ export default function ProjectPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const { clientId, projectId } = resolvedParams;
 
-  const handleSendToScheduler = async (selectedCaption: string) => {
+  const handleSendToScheduler = async (selectedCaption: string, uploadedImages: any[]) => {
     console.log('🚀 Starting handleSendToScheduler with caption:', selectedCaption);
-    
-    // Get uploadedImages from the store context
-    const store = useContentStore();
-    const { uploadedImages } = store;
     
     if (!selectedCaption || uploadedImages.length === 0) {
       console.error('❌ Missing caption or images');
@@ -334,10 +390,24 @@ export default function ProjectPage({ params }: PageProps) {
           <div className="mb-8">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
               <Link 
+                href="/dashboard"
+                className="hover:text-foreground transition-colors"
+              >
+                Dashboard
+              </Link>
+              <span>&gt;</span>
+              <Link 
                 href={`/dashboard/client/${resolvedParams.clientId}`}
                 className="hover:text-foreground transition-colors"
               >
                 Client Dashboard
+              </Link>
+              <span>&gt;</span>
+              <Link 
+                href={`/dashboard/client/${resolvedParams.clientId}/project/${resolvedParams.projectId}`}
+                className="hover:text-foreground transition-colors"
+              >
+                Project {resolvedParams.projectId}
               </Link>
               <span>&gt;</span>
               <span className="text-foreground font-medium">Content Suite</span>
@@ -685,33 +755,7 @@ function CaptionColumn({ clientId, projectId }: { clientId: string; projectId: s
               )}
             </Button>
             
-            {/* Send to Scheduler Button */}
-            {selectedCaptions.length > 0 && uploadedImages.length > 0 && (
-              <Button
-                variant="default"
-                size="lg"
-                onClick={() => {
-                  const selectedCaption = captions.find(cap => cap.id === selectedCaptions[0])?.text;
-                  if (selectedCaption) {
-                    console.log('🖱️ Send to Scheduler button clicked!');
-                    console.log('🔍 Button click context:', {
-                      captionId: selectedCaptions[0],
-                      captionText: selectedCaption,
-                      activeImageId,
-                      clientId,
-                      projectId,
-                      uploadedImagesLength: uploadedImages.length
-                    });
-                  }
-                }}
-                className="w-full mt-2 bg-green-600 hover:bg-green-700 text-white"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2V7a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Send to Scheduler
-              </Button>
-            )}
+
             
             {/* Test Store Button */}
             <Button
@@ -766,7 +810,7 @@ function SocialPreviewColumn({
 }: { 
   clientId: string; 
   projectId: string; 
-  handleSendToScheduler: (selectedCaption: string) => Promise<void>; 
+  handleSendToScheduler: (selectedCaption: string, uploadedImages: any[]) => Promise<void>; 
 }) {
   const { 
     uploadedImages, 
@@ -803,7 +847,7 @@ function SocialPreviewColumn({
             onClick={() => {
               const selectedCaption = captions.find(cap => cap.id === selectedCaptions[0])?.text;
               if (selectedCaption) {
-                handleSendToScheduler(selectedCaption);
+                handleSendToScheduler(selectedCaption, uploadedImages);
               }
             }}
             className="w-full bg-green-600 hover:bg-green-700 text-white"

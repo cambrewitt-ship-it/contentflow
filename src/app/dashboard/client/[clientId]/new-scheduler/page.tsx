@@ -201,6 +201,34 @@ export default function NewSchedulerPage() {
 
   return (
     <div className="container mx-auto p-6">
+      {/* Breadcrumb Navigation */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <a 
+            href="/dashboard"
+            className="hover:text-foreground transition-colors"
+          >
+            Dashboard
+          </a>
+          <span>&gt;</span>
+          <a 
+            href={`/dashboard/client/${clientId}`}
+            className="hover:text-foreground transition-colors"
+          >
+            Client Dashboard
+          </a>
+          <span>&gt;</span>
+          <a 
+            href={`/dashboard/client/${clientId}/project/default`}
+            className="hover:text-foreground transition-colors"
+          >
+            Project Default
+          </a>
+          <span>&gt;</span>
+          <span className="text-foreground font-medium">Scheduler</span>
+        </div>
+      </div>
+      
       <h1 className="text-3xl font-bold mb-6">Schedule Your Posts</h1>
       
       <div className="mb-8">
