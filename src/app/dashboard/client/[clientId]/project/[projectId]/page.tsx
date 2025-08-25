@@ -24,6 +24,7 @@ interface ContentStore {
   captions: Caption[];
   selectedCaptions: string[];
   activeImageId: string | null;
+  hasHydrated: boolean;
   setUploadedImages: (images: UploadedImage[]) => void;
   setCaptions: (captions: Caption[]) => void;
   setSelectedCaptions: (captions: string[]) => void;
@@ -74,71 +75,100 @@ function ContentStoreProvider({ children }: { children: React.ReactNode }) {
   // Helper function to get storage key
   const getStorageKey = (key: string) => `contentflow_${key}`;
   
-  // Load initial state from localStorage
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(getStorageKey('uploadedImages'));
-      return saved ? JSON.parse(saved) : [];
-    }
-    return [];
-  });
+  // Default values
+  const defaultCaptions: Caption[] = [
+    { id: "1", text: "Ready to create amazing content? Let's make something special! ✨" },
+    { id: "2", text: "Your brand story deserves to be told. Let's craft the perfect message together. 🚀" },
+    { id: "3", text: "From concept to creation, we're here to bring your vision to life. 💫" }
+  ];
   
-  const [captions, setCaptions] = useState<Caption[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(getStorageKey('captions'));
-      return saved ? JSON.parse(saved) : [
-        { id: "1", text: "Ready to create amazing content? Let's make something special! ✨" },
-        { id: "2", text: "Your brand story deserves to be told. Let's craft the perfect message together. 🚀" },
-        { id: "3", text: "From concept to creation, we're here to bring your vision to life. 💫" }
-      ];
-    }
-    return [
-      { id: "1", text: "Ready to create amazing content? Let's make something special! ✨" },
-      { id: "2", text: "Your brand story deserves to be told. Let's craft the perfect message together. 🚀" },
-      { id: "3", text: "From concept to creation, we're here to bring your vision to life. 💫" }
-    ];
-  });
+  // Initialize state with default values (same for server and client)
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const [captions, setCaptions] = useState<Caption[]>(defaultCaptions);
+  const [selectedCaptions, setSelectedCaptions] = useState<string[]>([]);
+  const [activeImageId, setActiveImageId] = useState<string | null>(null);
   
-  const [selectedCaptions, setSelectedCaptions] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(getStorageKey('selectedCaptions'));
-      return saved ? JSON.parse(saved) : [];
-    }
-    return [];
-  });
-  
-  const [activeImageId, setActiveImageId] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(getStorageKey('activeImageId'));
-      return saved ? JSON.parse(saved) : null;
-    }
-    return null;
-  });
+  // Track if we've hydrated from localStorage
+  const [hasHydrated, setHasHydrated] = useState(false);
 
-  // Save state to localStorage whenever it changes
+  // Hydrate from localStorage on mount (client-side only)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(getStorageKey('uploadedImages'), JSON.stringify(uploadedImages));
+    if (typeof window !== 'undefined' && !hasHydrated) {
+      try {
+        const savedImages = localStorage.getItem(getStorageKey('uploadedImages'));
+        const savedCaptions = localStorage.getItem(getStorageKey('captions'));
+        const savedSelectedCaptions = localStorage.getItem(getStorageKey('selectedCaptions'));
+        const savedActiveImageId = localStorage.getItem(getStorageKey('activeImageId'));
+        
+        if (savedImages) {
+          const parsedImages = JSON.parse(savedImages);
+          // Filter out invalid blob URLs that might have expired
+          const validImages = parsedImages.filter((img: any) => 
+            img.preview && (img.preview.startsWith('data:') || img.preview.startsWith('blob:'))
+          );
+          setUploadedImages(validImages);
+        }
+        
+        if (savedCaptions) {
+          setCaptions(JSON.parse(savedCaptions));
+        }
+        
+        if (savedSelectedCaptions) {
+          setSelectedCaptions(JSON.parse(savedSelectedCaptions));
+        }
+        
+        if (savedActiveImageId) {
+          setActiveImageId(JSON.parse(savedActiveImageId));
+        }
+        
+        setHasHydrated(true);
+      } catch (error) {
+        console.error('Error hydrating from localStorage:', error);
+        setHasHydrated(true);
+      }
     }
-  }, [uploadedImages]);
+  }, [hasHydrated, getStorageKey]);
+
+  // Save state to localStorage whenever it changes (only after hydration)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && hasHydrated) {
+      try {
+        localStorage.setItem(getStorageKey('uploadedImages'), JSON.stringify(uploadedImages));
+      } catch (error) {
+        console.error('Error saving images to localStorage:', error);
+      }
+    }
+  }, [uploadedImages, hasHydrated, getStorageKey]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(getStorageKey('captions'), JSON.stringify(captions));
+    if (typeof window !== 'undefined' && hasHydrated) {
+      try {
+        localStorage.setItem(getStorageKey('captions'), JSON.stringify(captions));
+      } catch (error) {
+        console.error('Error saving captions to localStorage:', error);
+      }
     }
-  }, [captions]);
+  }, [captions, hasHydrated, getStorageKey]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(getStorageKey('selectedCaptions'), JSON.stringify(selectedCaptions));
+    if (typeof window !== 'undefined' && hasHydrated) {
+      try {
+        localStorage.setItem(getStorageKey('selectedCaptions'), JSON.stringify(selectedCaptions));
+      } catch (error) {
+        console.error('Error saving selected captions to localStorage:', error);
+      }
     }
-  }, [selectedCaptions]);
+  }, [selectedCaptions, hasHydrated, getStorageKey]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(getStorageKey('activeImageId'), JSON.stringify(activeImageId));
+    if (typeof window !== 'undefined' && hasHydrated) {
+      try {
+        localStorage.setItem(getStorageKey('activeImageId'), JSON.stringify(activeImageId));
+      } catch (error) {
+        console.error('Error saving active image ID to localStorage:', error);
+      }
     }
-  }, [activeImageId]);
+  }, [activeImageId, hasHydrated, getStorageKey]);
 
   const addImage = useCallback((image: UploadedImage) => {
     setUploadedImages(prev => [...prev, image]);
@@ -292,6 +322,7 @@ function ContentStoreProvider({ children }: { children: React.ReactNode }) {
     captions,
     selectedCaptions,
     activeImageId,
+    hasHydrated,
     setUploadedImages,
     setCaptions,
     setSelectedCaptions,
@@ -306,6 +337,18 @@ function ContentStoreProvider({ children }: { children: React.ReactNode }) {
     generateAICaptions,
     remixCaption
   };
+
+  // Don't render children until hydration is complete to prevent hydration mismatch
+  if (!hasHydrated) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your content...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ContentStoreContext.Provider value={store}>
