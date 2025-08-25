@@ -15,10 +15,8 @@ import { ArrowLeft, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { SocialPreview } from "components/social-preview";
 import {
-  analyzeImageWithAI,
   generateCaptionsWithAI,
   remixCaptionWithAI,
-  type AIAnalysisResult,
   type AICaptionResult,
   type AIRemixResult,
 } from "lib/ai-utils";
@@ -39,10 +37,8 @@ interface ContentStore {
   addImage: (image: UploadedImage) => void;
   removeImage: (id: string) => void;
   updateImageNotes: (id: string, notes: string) => void;
-  updateImageAIAnalysis: (id: string, analysis: string) => void;
   updateCaption: (id: string, text: string) => void;
   selectCaption: (id: string) => void;
-  analyzeImage: (imageId: string, prompt?: string) => Promise<void>;
   generateAICaptions: (imageId: string) => Promise<void>;
   remixCaption: (captionId: string, prompt: string) => Promise<void>;
 }
@@ -67,7 +63,6 @@ interface UploadedImage {
   file: File;
   preview: string;
   notes: string;
-  aiAnalysis?: string; // Hidden AI analysis data for internal use
 }
 
 interface PageProps {
@@ -285,13 +280,7 @@ function ContentStoreProvider({ children, clientId }: { children: React.ReactNod
     );
   }, []);
 
-  const updateImageAIAnalysis = useCallback((id: string, analysis: string) => {
-    setUploadedImages((prev) =>
-      prev.map((img) =>
-        img.id === id ? { ...img, aiAnalysis: analysis } : img,
-      ),
-    );
-  }, []);
+
 
   const updateCaption = useCallback((id: string, text: string) => {
     setCaptions((prev) =>
@@ -308,40 +297,7 @@ function ContentStoreProvider({ children, clientId }: { children: React.ReactNod
     );
   }, []);
 
-  const analyzeImage = useCallback(
-    async (imageId: string, prompt?: string) => {
-      const image = uploadedImages.find((img) => img.id === imageId);
-      if (!image) return;
 
-      // Debug: Check file object
-      console.log("🔍 Analyze - Image file object:", {
-        id: image.id,
-        fileType: typeof image.file,
-        isFile: image.file instanceof File,
-        fileConstructor: image.file?.constructor?.name,
-        fileKeys: image.file ? Object.keys(image.file) : 'No file'
-      });
-
-      // Ensure we have a valid File object
-      if (!(image.file instanceof File)) {
-        console.error("❌ Invalid file object for AI analysis:", image.file);
-        alert("Error: Invalid image file. Please re-upload the image.");
-        return;
-      }
-
-      try {
-        const result = await analyzeImageWithAI(image.file, prompt);
-        if (result.success && result.analysis) {
-          // Store AI analysis separately for internal use (hidden from UI)
-          updateImageAIAnalysis(imageId, result.analysis);
-          // Don't update the notes field - keep AI analysis hidden
-        }
-      } catch (error) {
-        console.error("AI analysis failed:", error);
-      }
-    },
-    [uploadedImages, updateImageAIAnalysis, updateImageNotes],
-  );
 
   const generateAICaptions = useCallback(
     async (imageId: string) => {
@@ -367,12 +323,8 @@ function ContentStoreProvider({ children, clientId }: { children: React.ReactNod
       try {
         const existingCaptionTexts = captions.map((cap) => cap.text);
 
-        // Build comprehensive context from both AI analysis and user notes
+        // Build comprehensive context from user notes
         const contextParts = [];
-
-        if (image.aiAnalysis) {
-          contextParts.push(`AI Image Analysis: ${image.aiAnalysis}`);
-        }
 
         if (image.notes && image.notes.trim()) {
           contextParts.push(`User Notes: ${image.notes.trim()}`);
@@ -437,12 +389,8 @@ function ContentStoreProvider({ children, clientId }: { children: React.ReactNod
       try {
         const existingCaptionTexts = captions.map((cap) => cap.text);
 
-        // Build comprehensive context from both AI analysis and user notes
+        // Build comprehensive context from user notes
         const contextParts = [];
-
-        if (activeImage.aiAnalysis) {
-          contextParts.push(`AI Image Analysis: ${activeImage.aiAnalysis}`);
-        }
 
         if (activeImage.notes && activeImage.notes.trim()) {
           contextParts.push(`User Notes: ${activeImage.notes.trim()}`);
@@ -488,10 +436,8 @@ function ContentStoreProvider({ children, clientId }: { children: React.ReactNod
     addImage,
     removeImage,
     updateImageNotes,
-    updateImageAIAnalysis,
     updateCaption,
     selectCaption,
-    analyzeImage,
     generateAICaptions,
     remixCaption,
   };
@@ -674,10 +620,7 @@ function ImageUploadColumn() {
     updateImageNotes,
     activeImageId,
     setActiveImageId,
-    analyzeImage,
   } = useContentStore();
-
-  const [analyzingImage, setAnalyzingImage] = useState<string | null>(null);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -688,7 +631,6 @@ function ImageUploadColumn() {
           file,
           preview: URL.createObjectURL(file),
           notes: "",
-          aiAnalysis: undefined,
         }),
       );
       newImages.forEach(addImage);
@@ -779,32 +721,6 @@ function ImageUploadColumn() {
                     )}
                   </div>
                   <div className="space-y-3">
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setAnalyzingImage(image.id);
-                          analyzeImage(image.id).finally(() =>
-                            setAnalyzingImage(null),
-                          );
-                        }}
-                        disabled={analyzingImage === image.id}
-                        className="flex-1"
-                      >
-                        {analyzingImage === image.id ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Analyzing...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-4 w-4 mr-2" />
-                            AI Analyze
-                          </>
-                        )}
-                      </Button>
-                    </div>
                     <Textarea
                       placeholder="Add notes about this image or use AI analysis..."
                       value={image.notes}
