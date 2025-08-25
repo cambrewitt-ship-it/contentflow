@@ -232,6 +232,8 @@ function ContentStoreProvider({ children, clientId }: { children: React.ReactNod
           persistentImage = {
             ...image,
             preview: base64Url,
+            // Ensure file property is maintained as a proper File object
+            file: image.file instanceof File ? image.file : image.file,
           };
           // Revoke the original blob URL to free memory
           URL.revokeObjectURL(image.preview);
@@ -239,6 +241,12 @@ function ContentStoreProvider({ children, clientId }: { children: React.ReactNod
           console.error("Error converting image to base64:", error);
           // Continue with original image if conversion fails
         }
+      }
+
+      // Ensure the file property is a valid File object
+      if (!(persistentImage.file instanceof File)) {
+        console.error("Invalid file object:", persistentImage.file);
+        return; // Don't add invalid images
       }
 
       setUploadedImages((prev) => [...prev, persistentImage]);
@@ -305,6 +313,22 @@ function ContentStoreProvider({ children, clientId }: { children: React.ReactNod
       const image = uploadedImages.find((img) => img.id === imageId);
       if (!image) return;
 
+      // Debug: Check file object
+      console.log("🔍 Analyze - Image file object:", {
+        id: image.id,
+        fileType: typeof image.file,
+        isFile: image.file instanceof File,
+        fileConstructor: image.file?.constructor?.name,
+        fileKeys: image.file ? Object.keys(image.file) : 'No file'
+      });
+
+      // Ensure we have a valid File object
+      if (!(image.file instanceof File)) {
+        console.error("❌ Invalid file object for AI analysis:", image.file);
+        alert("Error: Invalid image file. Please re-upload the image.");
+        return;
+      }
+
       try {
         const result = await analyzeImageWithAI(image.file, prompt);
         if (result.success && result.analysis) {
@@ -323,6 +347,22 @@ function ContentStoreProvider({ children, clientId }: { children: React.ReactNod
     async (imageId: string) => {
       const image = uploadedImages.find((img) => img.id === imageId);
       if (!image) return;
+
+      // Debug: Check file object
+      console.log("🔍 Image file object:", {
+        id: image.id,
+        fileType: typeof image.file,
+        isFile: image.file instanceof File,
+        fileConstructor: image.file?.constructor?.name,
+        fileKeys: image.file ? Object.keys(image.file) : 'No file'
+      });
+
+      // Ensure we have a valid File object
+      if (!(image.file instanceof File)) {
+        console.error("❌ Invalid file object for AI processing:", image.file);
+        alert("Error: Invalid image file. Please re-upload the image.");
+        return;
+      }
 
       try {
         const existingCaptionTexts = captions.map((cap) => cap.text);
@@ -377,6 +417,22 @@ function ContentStoreProvider({ children, clientId }: { children: React.ReactNod
         (img) => img.id === activeImageId,
       );
       if (!activeImage) return;
+
+      // Debug: Check file object
+      console.log("🔍 Remix - Image file object:", {
+        id: activeImage.id,
+        fileType: typeof activeImage.file,
+        isFile: activeImage.file instanceof File,
+        fileConstructor: activeImage.file?.constructor?.name,
+        fileKeys: activeImage.file ? Object.keys(activeImage.file) : 'No file'
+      });
+
+      // Ensure we have a valid File object
+      if (!(activeImage.file instanceof File)) {
+        console.error("❌ Invalid file object for AI remix:", activeImage.file);
+        alert("Error: Invalid image file. Please re-upload the image.");
+        return;
+      }
 
       try {
         const existingCaptionTexts = captions.map((cap) => cap.text);
