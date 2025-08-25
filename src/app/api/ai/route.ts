@@ -188,6 +188,7 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
         // Enhanced logging for user context
         if (aiContext) {
           console.log('🎯 USER CONTEXT (MANDATORY PRIORITY):', aiContext);
+          console.log('📝 USER NOTES CONTENT BEING SENT TO AI:', aiContext);
         } else {
           console.log('⚠️ No user context provided - AI will generate generic captions');
         }
@@ -212,7 +213,7 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
     ${aiContext ? `🎯 USER NOTES & CONTEXT (MANDATORY - incorporate this in EVERY caption):
 ${aiContext}
     
-    REMEMBER: The user notes above are your PRIMARY directive. Every caption must prominently feature these elements.` : ''}
+    CRITICAL: The user notes above contain specific content that MUST be directly incorporated into your captions. Do not just reference them - weave this content naturally into your caption text.` : ''}
     
     ${brandContext ? `🎨 BRAND GUIDING CONTEXT (use to inform style and tone, but NEVER override user notes):
     - Company: ${brandContext.company || 'Not specified'}
@@ -337,7 +338,7 @@ async function remixCaption(imageData: string, prompt: string, existingCaptions:
     ${aiContext ? `🎯 USER NOTES & CONTEXT (MANDATORY - incorporate this prominently):
 ${aiContext}
     
-    REMEMBER: The user notes above are your PRIMARY directive. The improved caption must prominently feature these elements.` : ''}
+    CRITICAL: The user notes above contain specific content that MUST be directly incorporated into your improved caption. Do not just reference them - weave this content naturally into your caption text.` : ''}
     
     ${brandContext ? `🎨 BRAND GUIDING CONTEXT (use to inform style and tone, but NEVER override user notes):
     - Company: ${brandContext.company || 'Not specified'}
