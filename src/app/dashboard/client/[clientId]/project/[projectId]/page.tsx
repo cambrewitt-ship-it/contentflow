@@ -524,9 +524,6 @@ export default function ProjectPage({ params }: PageProps) {
 
       console.log("✅ Posts saved successfully:", result);
 
-      // Show success message before navigating
-      alert("Posts saved successfully! Redirecting to scheduler...");
-      
       // Navigate to new scheduler
       window.location.href = `/dashboard/client/${clientId}/new-scheduler`;
     } catch (error) {
@@ -1065,7 +1062,7 @@ function SocialPreviewColumn({
             {isSendingToScheduler ? (
               <>
                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Processing & Redirecting...
+                Loading
               </>
             ) : (
               <>
@@ -1082,7 +1079,7 @@ function SocialPreviewColumn({
                     d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2V7a2 2 0 00-2 2v12a2 2 0 002 2z"
                   />
                 </svg>
-                Send to Scheduler
+                Schedule
               </>
             )}
           </Button>
