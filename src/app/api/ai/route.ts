@@ -170,7 +170,20 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
     // Fetch brand context if clientId is provided
     let brandContext = null;
     if (clientId) {
+      console.log('🎯 Fetching brand context for client:', clientId);
       brandContext = await getBrandContext(clientId);
+      console.log('✅ Brand context fetched:', brandContext ? 'Available' : 'None');
+      if (brandContext) {
+        console.log('📊 Brand context details:', {
+          company: brandContext.company ? 'Set' : 'Not set',
+          tone: brandContext.tone || 'Not set',
+          audience: brandContext.audience || 'Not set',
+          industry: brandContext.industry || 'Not set',
+          keywords: brandContext.keywords?.length || 0,
+          documents: brandContext.documents?.length || 0,
+          website: brandContext.website ? 'Available' : 'None'
+        });
+      }
     }
 
     const systemPrompt = `You are a creative social media copywriter specializing in brand-aware content creation. 
