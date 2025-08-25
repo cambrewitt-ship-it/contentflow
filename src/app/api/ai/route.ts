@@ -170,37 +170,51 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
     // Fetch brand context if clientId is provided
     let brandContext = null;
     if (clientId) {
-      console.log('🎯 Fetching brand context for client:', clientId);
-      brandContext = await getBrandContext(clientId);
-      console.log('✅ Brand context fetched:', brandContext ? 'Available' : 'None');
-      if (brandContext) {
-        console.log('📊 Brand context details:', {
-          company: brandContext.company ? 'Set' : 'Not set',
-          tone: brandContext.tone || 'Not set',
-          audience: brandContext.audience || 'Not set',
-          industry: brandContext.industry || 'Not set',
-          keywords: brandContext.keywords?.length || 0,
-          documents: brandContext.documents?.length || 0,
-          website: brandContext.website ? 'Available' : 'None'
-        });
-      }
+              console.log('🎯 Fetching brand context for client:', clientId);
+        brandContext = await getBrandContext(clientId);
+        console.log('✅ Brand context fetched:', brandContext ? 'Available' : 'None');
+        if (brandContext) {
+          console.log('📊 Brand context details:', {
+            company: brandContext.company ? 'Set' : 'Not set',
+            tone: brandContext.tone || 'Not set',
+            audience: brandContext.audience || 'Not set',
+            industry: brandContext.industry || 'Not set',
+            keywords: brandContext.keywords?.length || 0,
+            documents: brandContext.documents?.length || 0,
+            website: brandContext.website ? 'Available' : 'None'
+          });
+        }
+        
+        // Enhanced logging for user context
+        if (aiContext) {
+          console.log('🎯 USER CONTEXT (MANDATORY PRIORITY):', aiContext);
+        } else {
+          console.log('⚠️ No user context provided - AI will generate generic captions');
+        }
     }
 
     const systemPrompt = `You are a creative social media copywriter specializing in brand-aware content creation. 
     Generate exactly 3 engaging, diverse captions for the provided image.
     
-    CRITICAL REQUIREMENTS:
-    - User notes and image analysis take HIGHEST PRIORITY - incorporate these first and foremost
-    - Brand information serves as GUIDING CONTEXT to inform tone, style, and messaging
+    🚨 ABSOLUTE PRIORITY REQUIREMENT 🚨
+    - USER NOTES ARE MANDATORY: If user notes exist, they MUST be the central focus of EVERY caption
+    - User notes take COMPLETE PRIORITY over all other considerations
+    - Each caption MUST prominently feature and incorporate the user's specific notes
+    - The user's vision and requirements are the PRIMARY directive - everything else is secondary
+    
+    CAPTION REQUIREMENTS:
     - Each caption should be different in tone and approach
     - Include relevant hashtags (3-5 per caption)
     - Keep captions engaging and shareable
     - Consider the visual elements and mood of the image
     - Make them suitable for platforms like Instagram, Facebook, or LinkedIn
     
-    ${aiContext ? `USER PRIORITY CONTEXT (incorporate this first): ${aiContext}` : ''}
+    ${aiContext ? `🎯 USER NOTES & CONTEXT (MANDATORY - incorporate this in EVERY caption):
+${aiContext}
     
-    ${brandContext ? `BRAND GUIDING CONTEXT (use to inform style and tone):
+    REMEMBER: The user notes above are your PRIMARY directive. Every caption must prominently feature these elements.` : ''}
+    
+    ${brandContext ? `🎨 BRAND GUIDING CONTEXT (use to inform style and tone, but NEVER override user notes):
     - Company: ${brandContext.company || 'Not specified'}
     - Brand Tone: ${brandContext.tone || 'Not specified'}
     - Target Audience: ${brandContext.audience || 'Not specified'}
@@ -212,6 +226,8 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
     Use this brand context to ensure your captions align with the company's voice, target the right audience, and incorporate relevant industry terminology and brand keywords naturally.` : ''}
     
     ${existingCaptions.length > 0 ? `Avoid duplicating these existing captions: ${existingCaptions.join(', ')}` : ''}
+    
+    FINAL REMINDER: User notes are MANDATORY. Every caption must prominently feature the user's specific requirements.
     
     IMPORTANT: Start directly with the first caption. Do not include any introductory text like "Here are three captions:" or similar. Just provide the 3 captions directly, each separated by a blank line.`;
 
@@ -309,16 +325,21 @@ async function remixCaption(imageData: string, prompt: string, existingCaptions:
     const systemPrompt = `You are a creative social media copywriter specializing in brand-aware content creation. 
     The user wants to remix/improve a caption based on their feedback.
     
-    User feedback: ${prompt}
+    🚨 USER FEEDBACK (MANDATORY - address this completely):
+    ${prompt}
     
     CRITICAL REQUIREMENTS:
-    - User feedback takes HIGHEST PRIORITY - address this directly and completely
+    - User feedback takes ABSOLUTE PRIORITY - address this directly and completely
+    - User notes and context are MANDATORY - incorporate these prominently
     - Brand information serves as GUIDING CONTEXT to inform tone, style, and messaging
     - Maintain the core message while improving based on feedback
     
-    ${aiContext ? `USER PRIORITY CONTEXT: ${aiContext}` : ''}
+    ${aiContext ? `🎯 USER NOTES & CONTEXT (MANDATORY - incorporate this prominently):
+${aiContext}
     
-    ${brandContext ? `BRAND GUIDING CONTEXT (use to inform style and tone):
+    REMEMBER: The user notes above are your PRIMARY directive. The improved caption must prominently feature these elements.` : ''}
+    
+    ${brandContext ? `🎨 BRAND GUIDING CONTEXT (use to inform style and tone, but NEVER override user notes):
     - Company: ${brandContext.company || 'Not specified'}
     - Brand Tone: ${brandContext.tone || 'Not specified'}
     - Target Audience: ${brandContext.audience || 'Not specified'}
@@ -328,6 +349,8 @@ async function remixCaption(imageData: string, prompt: string, existingCaptions:
     Use this brand context to ensure your improved caption aligns with the company's voice, targets the right audience, and incorporates relevant industry terminology and brand keywords naturally.` : ''}
     
     ${existingCaptions.length > 0 ? `Existing captions for reference: ${existingCaptions.join(', ')}` : ''}
+    
+    FINAL REMINDER: User feedback and notes are MANDATORY. The improved caption must prominently feature the user's specific requirements.
     
     Generate 1 improved caption that addresses the user's feedback while maintaining the core message and adding relevant hashtags.`;
 
