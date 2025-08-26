@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     
     console.log('🚀 Creating posts:', { clientId, projectId, postsCount: posts.length, status });
     
-    // Create Supabase client with service role for admin access (same pattern as other APIs)
+    // Create Supabase client with service role for admin access (exact same pattern as working APIs)
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     console.log('📊 About to insert posts into database...');

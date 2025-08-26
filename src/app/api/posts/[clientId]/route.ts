@@ -12,7 +12,7 @@ export async function GET(
     const { clientId } = await params;
     console.log('🔍 Fetching posts for client:', clientId);
     
-    // Create Supabase client with service role for admin access (same pattern as other APIs)
+    // Create Supabase client with service role for admin access (exact same pattern as working APIs)
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     console.log('📊 About to query posts table...');
