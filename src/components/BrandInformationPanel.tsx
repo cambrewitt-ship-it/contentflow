@@ -17,10 +17,9 @@ import {
   Trash2,
   Loader2,
   CheckCircle,
-  AlertCircle,
-  Brain
+  AlertCircle
 } from 'lucide-react';
-import { Client, BrandDocument, WebsiteScrape, WebsiteAnalysis } from 'types/api';
+import { Client, BrandDocument, WebsiteScrape } from 'types/api';
 
 interface BrandInformationPanelProps {
   clientId: string;
@@ -35,11 +34,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [scraping, setScraping] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<WebsiteAnalysis | null>(null);
-  const [selectedScrapeId, setSelectedScrapeId] = useState<string>('');
   
   const [formData, setFormData] = useState({
     company_description: client?.company_description || '',
@@ -49,6 +44,8 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
     industry: client?.industry || '',
     brand_keywords: client?.brand_keywords?.join(', ') || '',
     brand_guidelines_summary: client?.brand_guidelines_summary || '',
+    core_products_services: client?.core_products_services || '',
+    value_proposition: client?.value_proposition || '',
     caption_dos: client?.caption_dos || '',
     caption_donts: client?.caption_donts || ''
   });
@@ -132,70 +129,58 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
 
     setScraping(true);
     try {
-      const response = await fetch(`/api/clients/${clientId}/scrape-website`, {
+      // First, scrape the website
+      const scrapeResponse = await fetch(`/api/clients/${clientId}/scrape-website`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: formData.website_url })
       });
 
-      if (response.ok) {
-        // Website scrapes are now passed as props
-        setMessage({ type: 'success', text: 'Website scraped successfully!' });
-        setTimeout(() => setMessage(null), 3000);
-      } else {
+      if (!scrapeResponse.ok) {
         throw new Error('Failed to scrape website');
       }
+
+      const scrapeData = await scrapeResponse.json();
+      
+      if (scrapeData.scrape && scrapeData.scrape.id) {
+        // Now analyze the scraped content with AI
+        const analysisResponse = await fetch(`/api/clients/${clientId}/analyze-website`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scrapeId: scrapeData.scrape.id })
+        });
+
+        if (analysisResponse.ok) {
+          const analysisData = await analysisResponse.json();
+          
+          // Auto-fill the form fields with AI analysis results
+          setFormData(prev => ({
+            ...prev,
+            company_description: analysisData.analysis.business_description,
+            industry: analysisData.analysis.industry_category,
+            target_audience: analysisData.analysis.target_audience,
+            core_products_services: analysisData.analysis.core_products_services.join('\n'),
+            value_proposition: analysisData.analysis.value_proposition,
+            brand_tone: analysisData.analysis.brand_tone
+          }));
+
+          setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully!' });
+          setTimeout(() => setMessage(null), 3000);
+        } else {
+          throw new Error('Failed to analyze website content');
+        }
+      } else {
+        throw new Error('No scrape data received');
+      }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to scrape website' });
+      setMessage({ type: 'error', text: `Failed to process website: ${error instanceof Error ? error.message : 'Unknown error'}` });
       setTimeout(() => setMessage(null), 3000);
     } finally {
       setScraping(false);
     }
   };
 
-  const handleAIAnalysis = async (scrapeId: string) => {
-    setAnalyzing(true);
-    setSelectedScrapeId(scrapeId);
-    
-    try {
-      const response = await fetch(`/api/clients/${clientId}/analyze-website`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scrapeId })
-      });
 
-      if (response.ok) {
-        const data = await response.json();
-        setAnalysisResult(data.analysis);
-        setShowAnalysisModal(true);
-        setMessage({ type: 'success', text: 'AI analysis completed successfully!' });
-        setTimeout(() => setMessage(null), 3000);
-      } else {
-        throw new Error('Failed to analyze website');
-      }
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to analyze website' });
-      setTimeout(() => setMessage(null), 3000);
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
-  const handleApplyAnalysis = () => {
-    if (!analysisResult) return;
-
-    setFormData(prev => ({
-      ...prev,
-      company_description: analysisResult.business_description,
-      industry: analysisResult.industry_category,
-      target_audience: analysisResult.target_audience
-    }));
-
-    setShowAnalysisModal(false);
-    setAnalysisResult(null);
-    setMessage({ type: 'success', text: 'Analysis applied to form!' });
-    setTimeout(() => setMessage(null), 3000);
-  };
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -379,6 +364,44 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
             ) : (
               <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
                 {client?.industry || 'No industry specified'}
+              </p>
+            )}
+          </div>
+
+          {/* Core Products/Services */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Core Products/Services
+            </label>
+            {isEditing ? (
+              <Textarea
+                value={formData.core_products_services}
+                onChange={(e) => handleInputChange('core_products_services', e.target.value)}
+                placeholder="Main offerings (one per line or comma-separated)"
+                rows={3}
+              />
+            ) : (
+              <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
+                {client?.core_products_services || 'No products/services specified'}
+              </p>
+            )}
+          </div>
+
+          {/* Value Proposition */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Value Proposition
+            </label>
+            {isEditing ? (
+              <Textarea
+                value={formData.value_proposition}
+                onChange={(e) => handleInputChange('value_proposition', e.target.value)}
+                placeholder="Your unique selling point or main benefit"
+                rows={2}
+              />
+            ) : (
+              <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
+                {client?.value_proposition || 'No value proposition specified'}
               </p>
             )}
           </div>
@@ -628,27 +651,9 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                     </div>
                   )}
                   
-                  <div className="flex items-center justify-between mt-3">
-                    <p className="text-xs text-gray-500">
-                      Scraped: {scrape.scraped_at ? new Date(scrape.scraped_at).toLocaleDateString() : 'Unknown'}
-                    </p>
-                    {scrape.scrape_status === 'completed' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAIAnalysis(scrape.id)}
-                        disabled={analyzing}
-                        className="flex items-center gap-2"
-                      >
-                        {analyzing ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Brain className="w-4 h-4" />
-                        )}
-                        {analyzing ? 'Analyzing...' : 'Analyze & Auto-Fill'}
-                      </Button>
-                    )}
-                  </div>
+                  <p className="text-xs text-gray-500 mt-3">
+                    Scraped: {scrape.scraped_at ? new Date(scrape.scraped_at).toLocaleDateString() : 'Unknown'}
+                  </p>
                 </div>
               ))}
             </div>
@@ -656,99 +661,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
         </Card>
       )}
 
-      {/* AI Analysis Preview Modal */}
-      {showAnalysisModal && analysisResult && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">AI Analysis Results</h3>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowAnalysisModal(false)}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              {/* Business Description */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-semibold text-blue-900 mb-2">Business Description</h4>
-                <p className="text-sm text-blue-700 mb-1">What the company does in 2-3 sentences</p>
-                <div className="bg-white border border-blue-200 rounded-md p-3 mt-2">
-                  <p className="text-gray-900">{analysisResult.business_description}</p>
-                </div>
-              </div>
-              
-              {/* Industry/Category */}
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <h4 className="font-semibold text-green-900 mb-2">Industry/Category</h4>
-                <p className="text-sm text-green-700 mb-1">E.g., "B2B SaaS", "E-commerce Fashion", "Healthcare"</p>
-                <div className="bg-white border border-green-200 rounded-md p-3 mt-2">
-                  <p className="text-gray-900">{analysisResult.industry_category}</p>
-                </div>
-              </div>
-              
-              {/* Core Products/Services */}
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <h4 className="font-semibold text-purple-900 mb-2">Core Products/Services</h4>
-                <p className="text-sm text-purple-700 mb-1">Main offerings (bullet list)</p>
-                <div className="bg-white border border-purple-200 rounded-md p-3 mt-2">
-                  <ul className="text-gray-900 list-disc list-inside">
-                    {analysisResult.core_products_services.map((service, index) => (
-                      <li key={index}>{service}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-              
-              {/* Target Audience */}
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <h4 className="font-semibold text-orange-900 mb-2">Target Audience</h4>
-                <p className="text-sm text-orange-700 mb-1">Who they serve (e.g., "SMB owners", "Gen Z consumers")</p>
-                <div className="bg-white border border-orange-200 rounded-md p-3 mt-2">
-                  <p className="text-gray-900">{analysisResult.target_audience}</p>
-                </div>
-              </div>
-              
-              {/* Value Proposition */}
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <h4 className="font-semibold text-red-900 mb-2">Value Proposition</h4>
-                <p className="text-sm text-red-700 mb-1">Their unique selling point</p>
-                <div className="bg-white border border-red-200 rounded-md p-3 mt-2">
-                  <p className="text-gray-900">{analysisResult.value_proposition}</p>
-                </div>
-              </div>
-              
-              {/* Brand Tone */}
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                <h4 className="font-semibold text-indigo-900 mb-2">Brand Tone</h4>
-                <p className="text-sm text-indigo-700 mb-1">Detected writing style (professional, casual, playful, authoritative)</p>
-                <div className="bg-white border border-indigo-200 rounded-md p-3 mt-2">
-                  <p className="text-gray-900">{analysisResult.brand_tone}</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex gap-3 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => setShowAnalysisModal(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleApplyAnalysis}
-                className="flex items-center gap-2"
-              >
-                <CheckCircle className="w-4 h-4" />
-                Apply to Form
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }

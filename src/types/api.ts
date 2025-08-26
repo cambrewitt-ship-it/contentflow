@@ -32,6 +32,8 @@ export interface Client {
   industry?: string;
   brand_keywords?: string[];
   brand_guidelines_summary?: string;
+  core_products_services?: string;
+  value_proposition?: string;
   caption_dos?: string;
   caption_donts?: string;
   founded_date?: string;

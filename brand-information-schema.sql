@@ -14,6 +14,10 @@ ALTER TABLE clients ADD COLUMN IF NOT EXISTS brand_guidelines_summary TEXT;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS caption_dos TEXT;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS caption_donts TEXT;
 
+-- Add Core Products/Services and Value Proposition columns
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS core_products_services TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS value_proposition TEXT;
+
 -- Create posts table for storing content suite posts
 CREATE TABLE IF NOT EXISTS posts (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
