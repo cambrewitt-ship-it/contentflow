@@ -489,7 +489,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
                 />
               ) : (
                 <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
-                  {client?.caption_dos || 'No Do\'s specified'}
+                  {client?.caption_dos || 'No Do&apos;s specified'}
                 </p>
               )}
               <p className="text-green-600 text-sm mt-1">
@@ -512,7 +512,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
                 />
               ) : (
                 <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
-                  {client?.caption_donts || 'No Don\'ts specified'}
+                  {client?.caption_donts || 'No Don&apos;ts specified'}
                 </p>
               )}
               <p className="text-red-600 text-sm mt-1">

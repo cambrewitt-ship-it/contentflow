@@ -259,7 +259,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
           <UserX className="h-8 w-8 text-yellow-600" />
         </div>
         <h1 className="text-2xl font-bold text-yellow-600 mb-4">Client Not Found</h1>
-        <p className="text-gray-600 mb-4">The client with ID "{clientId}" could not be found.</p>
+        <p className="text-gray-600 mb-4">The client with ID &quot;{clientId}&quot; could not be found.</p>
         <Link href="/dashboard">
           <Button variant="outline">
             Back to Dashboard

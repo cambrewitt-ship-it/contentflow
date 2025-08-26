@@ -787,7 +787,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               <CardContent>
                 <div className="space-y-4">
                   <p className="text-gray-600">
-                    Select which project you'd like to create content for:
+                    Select which project you&apos;d like to create content for:
                   </p>
                   
                   <div className="grid gap-3">
