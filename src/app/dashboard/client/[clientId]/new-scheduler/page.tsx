@@ -106,23 +106,34 @@ export default function NewSchedulerPage() {
     }
 
     try {
-      console.log('Deleting post:', postId);
+      console.log('🗑️ Attempting to delete post:', postId);
       
       const response = await fetch(`/api/posts/${clientId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ postId }),
       });
+
+      console.log('Delete response status:', response.status);
       
-      if (!response.ok) {
-        const error = await response.text();
-        console.error('Delete failed:', error);
-        throw new Error('Failed to delete post');
+      const responseText = await response.text();
+      console.log('Delete response text:', responseText);
+      
+      let data;
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch (e) {
+        console.error('Failed to parse response:', e);
+        data = { error: responseText };
       }
-      
-      const result = await response.json();
-      console.log('Post deleted successfully:', result);
-      
+
+      if (!response.ok) {
+        console.error('Delete failed:', JSON.stringify(data));
+        throw new Error(data.error || 'Failed to delete post');
+      }
+
       // Remove the post from the local state
       setPosts(prev => prev.filter(p => p.id !== postId));
       
@@ -133,11 +144,12 @@ export default function NewSchedulerPage() {
         return map;
       });
       
+      console.log('✅ Post deleted successfully');
       alert('Post deleted successfully!');
       
     } catch (error) {
-      console.error('Error deleting post:', error);
-      alert('Failed to delete post. Please try again.');
+      console.error('Error in deletePost:', error);
+      alert(`Failed to delete post: ${error.message}`);
     }
   };
 
