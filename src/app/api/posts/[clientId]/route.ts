@@ -1,5 +1,4 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 export async function GET(
@@ -10,7 +9,11 @@ export async function GET(
     const { clientId } = await params;
     console.log('🔍 Fetching posts for client:', clientId);
     
-    const supabase = createRouteHandlerClient({ cookies: await cookies() });
+    // Use direct Supabase client instead of auth helper
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY!
+    );
     
     console.log('📊 About to query posts table...');
     

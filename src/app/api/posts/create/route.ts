@@ -1,5 +1,4 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
@@ -8,7 +7,11 @@ export async function POST(request: Request) {
     
     console.log('🚀 Creating posts:', { clientId, projectId, postsCount: posts.length, status });
     
-    const supabase = createRouteHandlerClient({ cookies: await cookies() });
+    // Use direct Supabase client instead of auth helper
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY!
+    );
     
     console.log('📊 About to insert posts into database...');
     
