@@ -77,10 +77,10 @@ export async function POST(
       // Perform the actual web scraping
       console.log('🔍 Fetching website content...');
       const response = await fetch(url, {
+        method: 'GET',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; ContentFlow-Bot/1.0; +https://contentflow.com)'
-        },
-        timeout: 10000 // 10 second timeout
+          'User-Agent': 'Mozilla/5.0 (compatible; ContentFlow/1.0)'
+        }
       });
 
       if (!response.ok) {

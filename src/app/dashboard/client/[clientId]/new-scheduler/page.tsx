@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Calendar, Clock, Check, Send, Trash2 } from 'lucide-react';
+import { use } from 'react';
 
 interface Post {
   id: string;
@@ -28,14 +29,14 @@ interface ScheduledPost {
   scheduledDateTime: string;
 }
 
-export default function NewSchedulerPage() {
-  const params = useParams();
-  const clientId = params.clientId as string;
-  const [posts, setPosts] = useState<Post[]>([]);
+export default function NewScheduler({ params }: { params: Promise<{ clientId: string }> }) {
+  const { clientId } = use(params);
+  const [readyPosts, setReadyPosts] = useState<Post[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [scheduledPosts, setScheduledPosts] = useState<Map<string, ScheduledPost>>(new Map());
   const [loadingPostId, setLoadingPostId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPosts();
@@ -48,7 +49,7 @@ export default function NewSchedulerPage() {
       const response = await fetch(`/api/posts/${clientId}`);
       const data = await response.json();
       console.log('Fetched posts:', data.posts);
-      setPosts(data.posts || []);
+      setReadyPosts(data.posts || []);
     } catch (error) {
       console.error('Error fetching posts:', error);
     } finally {
@@ -101,10 +102,6 @@ export default function NewSchedulerPage() {
   };
 
   const deletePost = async (postId: string) => {
-    if (!confirm('Are you sure you want to delete this post? This action cannot be undone and will remove the post from the database completely.')) {
-      return;
-    }
-
     try {
       console.log('🗑️ Attempting to delete post:', postId);
       
@@ -134,22 +131,13 @@ export default function NewSchedulerPage() {
         throw new Error(data.error || 'Failed to delete post');
       }
 
-      // Remove the post from the local state
-      setPosts(prev => prev.filter(p => p.id !== postId));
-      
-      // Remove from scheduled posts if it was there
-      setScheduledPosts(prev => {
-        const map = new Map(prev);
-        map.delete(postId);
-        return map;
-      });
-      
+      // Remove the post from state
+      setReadyPosts(prev => prev.filter(p => p.id !== postId));
       console.log('✅ Post deleted successfully');
-      alert('Post deleted successfully!');
       
     } catch (error) {
       console.error('Error in deletePost:', error);
-      alert(`Failed to delete post: ${error.message}`);
+      alert(`Failed to delete post: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -220,7 +208,7 @@ export default function NewSchedulerPage() {
       alert('Post scheduled successfully!');
       
       // Remove the post from the list
-      setPosts(prev => prev.filter(p => p.id !== post.id));
+      setReadyPosts(prev => prev.filter(p => p.id !== post.id));
       
       setLoadingPostId(null);
       
@@ -292,13 +280,13 @@ export default function NewSchedulerPage() {
       <h1 className="text-3xl font-bold mb-6">Schedule Your Posts</h1>
       
       <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Ready to Schedule ({posts.length})</h2>
+        <h2 className="text-xl font-semibold mb-4">Ready to Schedule ({readyPosts.length})</h2>
         
-        {posts.length === 0 ? (
+        {readyPosts.length === 0 ? (
           <p className="text-gray-500">No posts available. Create some in the Content Suite!</p>
         ) : (
           <div className="space-y-6">
-            {posts.map((post) => {
+            {readyPosts.map((post) => {
               const scheduled = scheduledPosts.get(post.id);
               return (
                 <div key={post.id} className="border rounded-lg p-6 shadow-sm bg-white">

@@ -120,7 +120,7 @@ function ContentStoreProvider({ children, clientId }: { children: React.ReactNod
           const parsedImages = JSON.parse(savedImages);
           // Only keep base64 data URLs (blob URLs expire)
           const validImages = parsedImages.filter(
-            (img: any) => img.preview && img.preview.startsWith("data:"),
+            (img: { preview: string; id: string; file?: File }) => img.preview && img.preview.startsWith("data:"),
           );
           setUploadedImages(validImages);
         }
@@ -468,7 +468,7 @@ export default function ProjectPage({ params }: PageProps) {
 
   const handleSendToScheduler = async (
     selectedCaption: string,
-    uploadedImages: any[],
+    uploadedImages: { preview: string; id: string; file?: File }[],
   ) => {
     console.log(
       "🚀 Starting handleSendToScheduler with caption:",
@@ -1000,7 +1000,7 @@ function SocialPreviewColumn({
   projectId: string;
   handleSendToScheduler: (
     selectedCaption: string,
-    uploadedImages: any[],
+    uploadedImages: { preview: string; id: string; file?: File }[],
   ) => Promise<void>;
   isSendingToScheduler: boolean;
 }) {

@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
           brand_tone: brand_tone?.trim() || null,
           target_audience: target_audience?.trim() || null,
           industry: industry?.trim() || null,
-          brand_keywords: brand_keywords?.trim() ? brand_keywords.split(',').map(k => k.trim()) : null,
+          brand_keywords: brand_keywords?.trim() ? brand_keywords.split(',').map((k: string) => k.trim()) : null,
           caption_dos: caption_dos?.trim() || null,
           caption_donts: caption_donts?.trim() || null,
           late_profile_id: profileId,

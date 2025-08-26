@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from('posts')
       .insert(
-        posts.map((post: any) => ({
+        posts.map((post: { caption: string; imageUrl: string; notes?: string }) => ({
           client_id: clientId,
           project_id: projectId || 'default',
           caption: post.caption,

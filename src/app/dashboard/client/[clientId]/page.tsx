@@ -17,7 +17,20 @@ interface Project {
 
 export default function ClientDashboard({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params)
-  const [client, setClient] = useState<any>(null)
+  const [client, setClient] = useState<{
+    id: string;
+    name: string;
+    website?: string;
+    description?: string;
+    company_description?: string;
+    brand_tone?: string;
+    target_audience?: string;
+    industry?: string;
+    brand_keywords?: string[];
+    caption_dos?: string;
+    caption_donts?: string;
+    founded_date?: string;
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [website, setWebsite] = useState("")
@@ -31,7 +44,12 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [newProjectDescription, setNewProjectDescription] = useState("")
   const [creatingProject, setCreatingProject] = useState(false)
   const [showProjectSelection, setShowProjectSelection] = useState(false)
-  const [debugInfo, setDebugInfo] = useState<any>(null)
+  const [debugInfo, setDebugInfo] = useState<{
+    message: string;
+    timestamp: string;
+    details?: string;
+    error?: string;
+  } | null>(null)
   const [debugLoading, setDebugLoading] = useState(false)
   const [projectsFailed, setProjectsFailed] = useState(false)
 
@@ -225,7 +243,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       }
     } catch (err) {
       console.error('❌ Error calling debug endpoint:', err);
-      setDebugInfo({ error: err instanceof Error ? err.message : String(err) });
+      setDebugInfo({ 
+        message: 'Debug endpoint error', 
+        timestamp: new Date().toISOString(),
+        error: err instanceof Error ? err.message : String(err) 
+      });
     } finally {
       setDebugLoading(false)
     }

@@ -44,7 +44,11 @@ export default function SchedulingModal({
     
     setIsScheduling(true);
     try {
-      await schedulePost(postId, scheduledDateTime, selectedPlatform, projectId, clientId);
+      // Convert platform to account IDs array - this is a placeholder
+      // In a real implementation, you'd need to get actual account IDs for the selected platform
+      const accountIds = selectedPlatform === 'both' ? ['facebook_account_id', 'instagram_account_id'] : ['platform_account_id'];
+      
+      await schedulePost(postId, scheduledDateTime, accountIds, projectId, clientId);
       onClose();
     } catch (error) {
       console.error('Failed to schedule post:', error);

@@ -4,7 +4,19 @@ import { createClient } from '@supabase/supabase-js'
 
 export default function TestClientPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params)
-  const [client, setClient] = useState<any>(null)
+  const [client, setClient] = useState<{
+    id: string;
+    name: string;
+    description?: string;
+    website?: string;
+    company_description?: string;
+    brand_tone?: string;
+    target_audience?: string;
+    industry?: string;
+    brand_keywords?: string[];
+    caption_dos?: string;
+    caption_donts?: string;
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   
   console.log('🎬 TestClientPage rendering for clientId:', clientId)

@@ -19,8 +19,30 @@ import {
 
 interface BrandInformationPanelProps {
   clientId: string;
-  client: any;
-  onUpdate: (updatedClient: any) => void;
+  client: {
+    id: string;
+    name: string;
+    company_description?: string;
+    website_url?: string;
+    brand_tone?: string;
+    target_audience?: string;
+    industry?: string;
+    brand_keywords?: string[];
+    caption_dos?: string;
+    caption_donts?: string;
+  };
+  onUpdate: (updatedClient: {
+    id: string;
+    name: string;
+    company_description?: string;
+    website_url?: string;
+    brand_tone?: string;
+    target_audience?: string;
+    industry?: string;
+    brand_keywords?: string[];
+    caption_dos?: string;
+    caption_donts?: string;
+  }) => void;
 }
 
 export default function BrandInformationPanel({ clientId, client, onUpdate }: BrandInformationPanelProps) {
@@ -41,8 +63,28 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
     caption_donts: client?.caption_donts || ''
   });
 
-  const [brandDocuments, setBrandDocuments] = useState<any[]>([]);
-  const [websiteScrapes, setWebsiteScrapes] = useState<any[]>([]);
+  const [brandDocuments, setBrandDocuments] = useState<{
+    id: string;
+    filename: string;
+    file_type: string;
+    file_size: number;
+    created_at: string;
+    processing_status?: string;
+    file_path?: string;
+  }[]>([]);
+  const [websiteScrapes, setWebsiteScrapes] = useState<{
+    id: string;
+    url: string;
+    title?: string;
+    meta_description?: string;
+    content?: string;
+    status: string;
+    created_at: string;
+    scrape_status?: string;
+    page_title?: string;
+    scraped_content?: string;
+    scraped_at?: string;
+  }[]>([]);
 
   // Fetch brand documents and website scrapes
   useEffect(() => {
@@ -522,7 +564,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
                     <div className="flex items-center space-x-3">
                       <FileText className="h-5 w-5 text-gray-400" />
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{doc.original_filename}</p>
+                        <p className="text-sm font-medium text-gray-900">{doc.filename}</p>
                         <p className="text-xs text-gray-500">
                           {formatFileSize(doc.file_size)} • {doc.file_type.toUpperCase()}
                         </p>
@@ -599,7 +641,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
                   )}
                   
                   <p className="text-xs text-gray-500 mt-3">
-                    Scraped: {new Date(scrape.scraped_at).toLocaleDateString()}
+                    Scraped: {scrape.scraped_at ? new Date(scrape.scraped_at).toLocaleDateString() : 'Unknown'}
                   </p>
                 </div>
               ))}

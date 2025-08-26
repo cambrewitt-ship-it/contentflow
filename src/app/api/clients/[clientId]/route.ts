@@ -63,7 +63,17 @@ export async function PUT(
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // Prepare update data (only include fields that are provided)
-    const updateData: any = {};
+    const updateData: {
+      company_description?: string;
+      website_url?: string;
+      brand_tone?: string;
+      target_audience?: string;
+      industry?: string;
+      brand_keywords?: string[];
+      caption_dos?: string;
+      caption_donts?: string;
+      updated_at?: string;
+    } = {};
     
     if (body.company_description !== undefined) updateData.company_description = body.company_description;
     if (body.website_url !== undefined) updateData.website_url = body.website_url;

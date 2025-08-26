@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     console.log('Scheduling post:', { postId, selectedAccounts, scheduledDateTime });
     
     // Build platforms array for LATE API
-    const platforms = selectedAccounts.map((account: any) => ({
+    const platforms = selectedAccounts.map((account: { platform: string; _id: string }) => ({
       platform: account.platform,
       accountId: account._id
     }));
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
         client_id: clientId,
         post_id: postId,
         scheduled_time: scheduledFor,
-        account_ids: selectedAccounts.map((a: any) => a._id),
+        account_ids: selectedAccounts.map((a: { _id: string }) => a._id),
         status: 'scheduled',
         late_post_id: lateData.id || lateData._id
       });
