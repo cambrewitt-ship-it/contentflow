@@ -439,7 +439,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
             {/* Do's */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                ✅ Do's
+                ✅ Do&apos;s
               </label>
               {isEditing ? (
                 <Textarea
@@ -462,7 +462,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
             {/* Don'ts */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                ❌ Don'ts
+                ❌ Don&apos;ts
               </label>
               {isEditing ? (
                 <Textarea
