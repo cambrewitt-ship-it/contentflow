@@ -607,59 +607,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
         </CardContent>
       </Card>
 
-      {/* Website Scrapes Card */}
-      {websiteScrapes.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Website Analysis</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {websiteScrapes.map((scrape) => (
-                <div key={scrape.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-gray-900">{scrape.url}</h4>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      scrape.scrape_status === 'completed' ? 'bg-green-100 text-green-800' :
-                      scrape.scrape_status === 'failed' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {scrape.scrape_status}
-                    </span>
-                  </div>
-                  
-                  {scrape.page_title && (
-                    <div className="mb-2">
-                      <p className="text-sm font-medium text-gray-700">Page Title:</p>
-                      <p className="text-sm text-gray-900">{scrape.page_title}</p>
-                    </div>
-                  )}
-                  
-                  {scrape.meta_description && (
-                    <div className="mb-2">
-                      <p className="text-sm font-medium text-gray-700">Meta Description:</p>
-                      <p className="text-sm text-gray-900">{scrape.meta_description}</p>
-                    </div>
-                  )}
-                  
-                  {scrape.scraped_content && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Content Preview:</p>
-                      <p className="text-sm text-gray-900 line-clamp-3">
-                        {scrape.scraped_content.substring(0, 200)}...
-                      </p>
-                    </div>
-                  )}
-                  
-                  <p className="text-xs text-gray-500 mt-3">
-                    Scraped: {scrape.scraped_at ? new Date(scrape.scraped_at).toLocaleDateString() : 'Unknown'}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
 
 
     </div>
