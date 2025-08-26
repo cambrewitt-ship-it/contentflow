@@ -27,6 +27,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null)
   const [debugLoading, setDebugLoading] = useState(false)
   const [projectsFailed, setProjectsFailed] = useState(false)
+  const [brandDocuments, setBrandDocuments] = useState<any[]>([])
+  const [websiteScrapes, setWebsiteScrapes] = useState<any[]>([])
 
   // Check for OAuth callback messages in URL
   useEffect(() => {
@@ -100,6 +102,29 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
     if (clientId) {
       fetchClient()
+      
+      // Fetch brand documents and website scrapes
+      const fetchBrandData = async () => {
+        try {
+          // Fetch brand documents
+          const docsResponse = await fetch(`/api/clients/${clientId}/brand-documents`)
+          if (docsResponse.ok) {
+            const docsData = await docsResponse.json()
+            setBrandDocuments(docsData.documents || [])
+          }
+
+          // Fetch website scrapes
+          const scrapesResponse = await fetch(`/api/clients/${clientId}/scrape-website`)
+          if (scrapesResponse.ok) {
+            const scrapesData = await scrapesResponse.json()
+            setWebsiteScrapes(scrapesData.scrapes || [])
+          }
+        } catch (error) {
+          console.error('Error fetching brand data:', error)
+        }
+      }
+      
+      fetchBrandData()
     }
   }, [clientId])
 
@@ -594,6 +619,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               clientId={clientId} 
               client={client} 
               onUpdate={(updatedClient) => setClient(updatedClient)}
+              brandDocuments={brandDocuments}
+              websiteScrapes={websiteScrapes}
             />
           </div>
         </div>

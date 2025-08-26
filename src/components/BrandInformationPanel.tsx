@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card';
 import { Button } from 'components/ui/button';
 import { Input } from 'components/ui/input';
@@ -17,22 +17,29 @@ import {
   Trash2,
   Loader2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Brain
 } from 'lucide-react';
-import { Client, BrandDocument, WebsiteScrape } from 'types/api';
+import { Client, BrandDocument, WebsiteScrape, WebsiteAnalysis } from 'types/api';
 
 interface BrandInformationPanelProps {
   clientId: string;
   client: Client;
   onUpdate: (updatedClient: Client) => void;
+  brandDocuments: BrandDocument[];
+  websiteScrapes: WebsiteScrape[];
 }
 
-export default function BrandInformationPanel({ clientId, client, onUpdate }: BrandInformationPanelProps) {
+export default function BrandInformationPanel({ clientId, client, onUpdate, brandDocuments, websiteScrapes }: BrandInformationPanelProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [scraping, setScraping] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<WebsiteAnalysis | null>(null);
+  const [selectedScrapeId, setSelectedScrapeId] = useState<string>('');
   
   const [formData, setFormData] = useState({
     company_description: client?.company_description || '',
@@ -41,42 +48,17 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
     target_audience: client?.target_audience || '',
     industry: client?.industry || '',
     brand_keywords: client?.brand_keywords?.join(', ') || '',
+    brand_guidelines_summary: client?.brand_guidelines_summary || '',
     caption_dos: client?.caption_dos || '',
     caption_donts: client?.caption_donts || ''
   });
 
-  const [brandDocuments, setBrandDocuments] = useState<BrandDocument[]>([]);
-  const [websiteScrapes, setWebsiteScrapes] = useState<WebsiteScrape[]>([]);
-
   // Fetch brand documents and website scrapes
   useEffect(() => {
-    fetchBrandDocuments();
-    fetchWebsiteScrapes();
+    // Data is now passed as props, no need to refetch
   }, [clientId]);
 
-  const fetchBrandDocuments = async () => {
-    try {
-      const response = await fetch(`/api/clients/${clientId}/brand-documents`);
-      if (response.ok) {
-        const data = await response.json();
-        setBrandDocuments(data.documents || []);
-      }
-    } catch (error) {
-      console.error('Error fetching brand documents:', error);
-    }
-  };
-
-  const fetchWebsiteScrapes = async () => {
-    try {
-      const response = await fetch(`/api/clients/${clientId}/scrape-website`);
-      if (response.ok) {
-        const data = await response.json();
-        setWebsiteScrapes(data.scrapes || []);
-      }
-    } catch (error) {
-      console.error('Error fetching website scrapes:', error);
-    }
-  };
+  // Brand documents and website scrapes are now passed as props
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -127,7 +109,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
       });
 
       if (response.ok) {
-        await fetchBrandDocuments();
+        // Brand documents are now passed as props
         setMessage({ type: 'success', text: 'Brand document uploaded successfully!' });
         setTimeout(() => setMessage(null), 3000);
       } else {
@@ -157,7 +139,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
       });
 
       if (response.ok) {
-        await fetchWebsiteScrapes();
+        // Website scrapes are now passed as props
         setMessage({ type: 'success', text: 'Website scraped successfully!' });
         setTimeout(() => setMessage(null), 3000);
       } else {
@@ -169,6 +151,50 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
     } finally {
       setScraping(false);
     }
+  };
+
+  const handleAIAnalysis = async (scrapeId: string) => {
+    setAnalyzing(true);
+    setSelectedScrapeId(scrapeId);
+    
+    try {
+      const response = await fetch(`/api/clients/${clientId}/analyze-website`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scrapeId })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAnalysisResult(data.analysis);
+        setShowAnalysisModal(true);
+        setMessage({ type: 'success', text: 'AI analysis completed successfully!' });
+        setTimeout(() => setMessage(null), 3000);
+      } else {
+        throw new Error('Failed to analyze website');
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to analyze website' });
+      setTimeout(() => setMessage(null), 3000);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleApplyAnalysis = () => {
+    if (!analysisResult) return;
+
+    setFormData(prev => ({
+      ...prev,
+      company_description: analysisResult.business_description,
+      industry: analysisResult.industry_category,
+      target_audience: analysisResult.target_audience
+    }));
+
+    setShowAnalysisModal(false);
+    setAnalysisResult(null);
+    setMessage({ type: 'success', text: 'Analysis applied to form!' });
+    setTimeout(() => setMessage(null), 3000);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -602,14 +628,115 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
                     </div>
                   )}
                   
-                  <p className="text-xs text-gray-500 mt-3">
-                    Scraped: {scrape.scraped_at ? new Date(scrape.scraped_at).toLocaleDateString() : 'Unknown'}
-                  </p>
+                  <div className="flex items-center justify-between mt-3">
+                    <p className="text-xs text-gray-500">
+                      Scraped: {scrape.scraped_at ? new Date(scrape.scraped_at).toLocaleDateString() : 'Unknown'}
+                    </p>
+                    {scrape.scrape_status === 'completed' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAIAnalysis(scrape.id)}
+                        disabled={analyzing}
+                        className="flex items-center gap-2"
+                      >
+                        {analyzing ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Brain className="w-4 h-4" />
+                        )}
+                        {analyzing ? 'Analyzing...' : 'Analyze & Auto-Fill'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* AI Analysis Preview Modal */}
+      {showAnalysisModal && analysisResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">AI Analysis Results</h3>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowAnalysisModal(false)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Business Description
+                </label>
+                <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
+                  {analysisResult.business_description}
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Industry/Category
+                </label>
+                <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
+                  {analysisResult.industry_category}
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Core Products/Services
+                </label>
+                <ul className="text-gray-900 bg-gray-50 p-3 rounded-md list-disc list-inside">
+                  {analysisResult.core_products_services.map((service, index) => (
+                    <li key={index}>{service}</li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Target Audience
+                </label>
+                <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
+                  {analysisResult.target_audience}
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Value Proposition
+                </label>
+                <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
+                  {analysisResult.value_proposition}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowAnalysisModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleApplyAnalysis}
+                className="flex items-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Apply to Form
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
