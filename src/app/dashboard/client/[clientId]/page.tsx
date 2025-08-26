@@ -6,37 +6,17 @@ import { Button } from 'components/ui/button'
 import { Plus, Edit3, Calendar, FileText, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import BrandInformationPanel from 'components/BrandInformationPanel'
-
-interface Project {
-  id: string;
-  name: string;
-  description: string;
-  status: string;
-  created_at: string;
-}
+import { Client, Project, OAuthMessage, DebugInfo } from 'types/api'
 
 export default function ClientDashboard({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params)
-  const [client, setClient] = useState<{
-    id: string;
-    name: string;
-    website?: string;
-    description?: string;
-    company_description?: string;
-    brand_tone?: string;
-    target_audience?: string;
-    industry?: string;
-    brand_keywords?: string[];
-    caption_dos?: string;
-    caption_donts?: string;
-    founded_date?: string;
-  } | null>(null)
+  const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [website, setWebsite] = useState("")
   const [about, setAbout] = useState("")
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null)
-  const [oauthMessage, setOauthMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null)
+  const [oauthMessage, setOauthMessage] = useState<OAuthMessage | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsLoading, setProjectsLoading] = useState(false)
   const [showNewProjectForm, setShowNewProjectForm] = useState(false)
@@ -44,12 +24,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [newProjectDescription, setNewProjectDescription] = useState("")
   const [creatingProject, setCreatingProject] = useState(false)
   const [showProjectSelection, setShowProjectSelection] = useState(false)
-  const [debugInfo, setDebugInfo] = useState<{
-    message: string;
-    timestamp: string;
-    details?: string;
-    error?: string;
-  } | null>(null)
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null)
   const [debugLoading, setDebugLoading] = useState(false)
   const [projectsFailed, setProjectsFailed] = useState(false)
 
@@ -618,7 +593,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             <BrandInformationPanel 
               clientId={clientId} 
               client={client} 
-              onUpdate={setClient}
+              onUpdate={(updatedClient) => setClient(updatedClient)}
             />
           </div>
         </div>

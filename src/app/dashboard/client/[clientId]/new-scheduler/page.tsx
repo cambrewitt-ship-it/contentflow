@@ -1,29 +1,21 @@
-'use client';
+'use client'
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { Calendar, Clock, Check, Send, Trash2 } from 'lucide-react';
-import { use } from 'react';
-
-interface Post {
-  id: string;
-  client_id: string;
-  project_id: string;
-  caption: string;
-  image_url: string;
-  status: string;
-  created_at: string;
-}
+import { use, useEffect, useState } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
+import { Button } from 'components/ui/button'
+import { Badge } from 'components/ui/badge'
+import { Calendar, Clock, Check, Send, Trash2 } from 'lucide-react'
+import { Post, LateAccount } from 'types/api'
 
 interface Account {
   _id: string;
   platform: string;
-  username: string;
-  displayName: string;
-  isActive: boolean;
+  username?: string;
+  accountId?: string;
+  status?: string;
 }
 
-interface ScheduledPost {
+interface LocalScheduledPost {
   postId: string;
   selectedAccounts: string[];
   scheduledDateTime: string;
@@ -34,7 +26,7 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
   const [readyPosts, setReadyPosts] = useState<Post[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
-  const [scheduledPosts, setScheduledPosts] = useState<Map<string, ScheduledPost>>(new Map());
+  const [scheduledPosts, setScheduledPosts] = useState<Map<string, LocalScheduledPost>>(new Map());
   const [loadingPostId, setLoadingPostId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 

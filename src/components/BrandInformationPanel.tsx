@@ -6,43 +6,25 @@ import { Button } from 'components/ui/button';
 import { Input } from 'components/ui/input';
 import { Textarea } from 'components/ui/textarea';
 import { 
-  Upload, 
-  Globe, 
-  FileText, 
   Edit3, 
   Save, 
   X, 
+  Upload, 
+  Globe, 
+  FileText, 
+  ExternalLink,
+  Download,
+  Trash2,
   Loader2,
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
+import { Client, BrandDocument, WebsiteScrape } from 'types/api';
 
 interface BrandInformationPanelProps {
   clientId: string;
-  client: {
-    id: string;
-    name: string;
-    company_description?: string;
-    website_url?: string;
-    brand_tone?: string;
-    target_audience?: string;
-    industry?: string;
-    brand_keywords?: string[];
-    caption_dos?: string;
-    caption_donts?: string;
-  };
-  onUpdate: (updatedClient: {
-    id: string;
-    name: string;
-    company_description?: string;
-    website_url?: string;
-    brand_tone?: string;
-    target_audience?: string;
-    industry?: string;
-    brand_keywords?: string[];
-    caption_dos?: string;
-    caption_donts?: string;
-  }) => void;
+  client: Client;
+  onUpdate: (updatedClient: Client) => void;
 }
 
 export default function BrandInformationPanel({ clientId, client, onUpdate }: BrandInformationPanelProps) {
@@ -63,28 +45,8 @@ export default function BrandInformationPanel({ clientId, client, onUpdate }: Br
     caption_donts: client?.caption_donts || ''
   });
 
-  const [brandDocuments, setBrandDocuments] = useState<{
-    id: string;
-    filename: string;
-    file_type: string;
-    file_size: number;
-    created_at: string;
-    processing_status?: string;
-    file_path?: string;
-  }[]>([]);
-  const [websiteScrapes, setWebsiteScrapes] = useState<{
-    id: string;
-    url: string;
-    title?: string;
-    meta_description?: string;
-    content?: string;
-    status: string;
-    created_at: string;
-    scrape_status?: string;
-    page_title?: string;
-    scraped_content?: string;
-    scraped_at?: string;
-  }[]>([]);
+  const [brandDocuments, setBrandDocuments] = useState<BrandDocument[]>([]);
+  const [websiteScrapes, setWebsiteScrapes] = useState<WebsiteScrape[]>([]);
 
   // Fetch brand documents and website scrapes
   useEffect(() => {

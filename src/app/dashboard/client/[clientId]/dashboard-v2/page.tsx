@@ -30,24 +30,12 @@ import {
   Archive
 } from "lucide-react";
 import Link from "next/link";
-
+import { Client, Project } from 'types/api';
 
 
 export default function ClientDashboardV2({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params);
-  const [client, setClient] = useState<{
-    id: string;
-    name: string;
-    website?: string;
-    description?: string;
-    company_description?: string;
-    brand_tone?: string;
-    target_audience?: string;
-    industry?: string;
-    brand_keywords?: string[];
-    caption_dos?: string;
-    caption_donts?: string;
-  } | null>(null);
+  const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -60,15 +48,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [projects, setProjects] = useState<{
-    id: string;
-    name: string;
-    description?: string;
-    status: string;
-    created_at: string;
-    postCount?: number;
-    lastUpdated?: string;
-  }[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
