@@ -481,6 +481,14 @@ export default function ProjectPage({ params }: PageProps) {
       return;
     }
 
+    if (!clientId) {
+      console.error("❌ Missing clientId");
+      alert("Client ID is missing. Please refresh the page and try again.");
+      return;
+    }
+
+    console.log("🔍 Validation passed:", { clientId, selectedCaption, imagesCount: uploadedImages.length });
+
     setIsSendingToScheduler(true);
 
     try {
@@ -512,6 +520,13 @@ export default function ProjectPage({ params }: PageProps) {
       console.log("📦 Saving posts to database:", postsToSave.length);
 
       // Save to database
+      console.log("📤 Sending posts to API:", {
+        clientId,
+        projectId: projectId || "complete",
+        postsCount: postsToSave.length,
+        status: "ready"
+      });
+
       const response = await fetch("/api/posts/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -526,7 +541,8 @@ export default function ProjectPage({ params }: PageProps) {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to save posts");
+        console.error("❌ API Error Response:", result);
+        throw new Error(result.error || result.details || "Failed to save posts");
       }
 
       console.log("✅ Posts saved successfully:", result);

@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     
     console.log('🚀 Creating posts:', { clientId, projectId, postsCount: posts.length, status });
     
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createRouteHandlerClient({ cookies: await cookies() });
     
     console.log('📊 About to insert posts into database...');
     
