@@ -146,3 +146,4 @@ This project can be deployed to any platform that supports Next.js:
 
 This project is created for demonstration purposes.
 # Force Vercel rebuild
+# Force Vercel deployment
