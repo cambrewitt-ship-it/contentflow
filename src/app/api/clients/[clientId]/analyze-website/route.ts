@@ -92,10 +92,11 @@ async function analyzeWebsiteContent(content: string) {
   "industry_category": "e.g., 'B2B SaaS', 'E-commerce Fashion', 'Healthcare', 'Digital Marketing Agency'",
   "core_products_services": ["Service 1", "Service 2", "Service 3"],
   "target_audience": "Who they serve (e.g., 'SMB owners', 'Gen Z consumers', 'Enterprise clients')",
-  "value_proposition": "Their unique selling point or main benefit"
+  "value_proposition": "Their unique selling point or main benefit",
+  "brand_tone": "Detected writing style (professional, casual, playful, authoritative, innovative, etc.)"
 }
 
-Be concise and accurate. If information is unclear, use reasonable inference based on the content.`
+Be concise and accurate. If information is unclear, use reasonable inference based on the content. Analyze the tone of the writing style used on the website.`
           },
           {
             role: 'user',
@@ -122,7 +123,7 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
     const analysis = JSON.parse(analysisText);
     
     // Validate the structure
-    const requiredFields = ['business_description', 'industry_category', 'core_products_services', 'target_audience', 'value_proposition'];
+    const requiredFields = ['business_description', 'industry_category', 'core_products_services', 'target_audience', 'value_proposition', 'brand_tone'];
     for (const field of requiredFields) {
       if (!analysis[field]) {
         throw new Error(`Missing required field: ${field}`);

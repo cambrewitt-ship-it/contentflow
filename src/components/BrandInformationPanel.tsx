@@ -671,52 +671,63 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
               </Button>
             </div>
             
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Business Description
-                </label>
-                <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
-                  {analysisResult.business_description}
-                </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {/* Business Description */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-900 mb-2">Business Description</h4>
+                <p className="text-sm text-blue-700 mb-1">What the company does in 2-3 sentences</p>
+                <div className="bg-white border border-blue-200 rounded-md p-3 mt-2">
+                  <p className="text-gray-900">{analysisResult.business_description}</p>
+                </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Industry/Category
-                </label>
-                <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
-                  {analysisResult.industry_category}
-                </p>
+              {/* Industry/Category */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h4 className="font-semibold text-green-900 mb-2">Industry/Category</h4>
+                <p className="text-sm text-green-700 mb-1">E.g., "B2B SaaS", "E-commerce Fashion", "Healthcare"</p>
+                <div className="bg-white border border-green-200 rounded-md p-3 mt-2">
+                  <p className="text-gray-900">{analysisResult.industry_category}</p>
+                </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Core Products/Services
-                </label>
-                <ul className="text-gray-900 bg-gray-50 p-3 rounded-md list-disc list-inside">
-                  {analysisResult.core_products_services.map((service, index) => (
-                    <li key={index}>{service}</li>
-                  ))}
-                </ul>
+              {/* Core Products/Services */}
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <h4 className="font-semibold text-purple-900 mb-2">Core Products/Services</h4>
+                <p className="text-sm text-purple-700 mb-1">Main offerings (bullet list)</p>
+                <div className="bg-white border border-purple-200 rounded-md p-3 mt-2">
+                  <ul className="text-gray-900 list-disc list-inside">
+                    {analysisResult.core_products_services.map((service, index) => (
+                      <li key={index}>{service}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Target Audience
-                </label>
-                <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
-                  {analysisResult.target_audience}
-                </p>
+              {/* Target Audience */}
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <h4 className="font-semibold text-orange-900 mb-2">Target Audience</h4>
+                <p className="text-sm text-orange-700 mb-1">Who they serve (e.g., "SMB owners", "Gen Z consumers")</p>
+                <div className="bg-white border border-orange-200 rounded-md p-3 mt-2">
+                  <p className="text-gray-900">{analysisResult.target_audience}</p>
+                </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Value Proposition
-                </label>
-                <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
-                  {analysisResult.value_proposition}
-                </p>
+              {/* Value Proposition */}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h4 className="font-semibold text-red-900 mb-2">Value Proposition</h4>
+                <p className="text-sm text-red-700 mb-1">Their unique selling point</p>
+                <div className="bg-white border border-red-200 rounded-md p-3 mt-2">
+                  <p className="text-gray-900">{analysisResult.value_proposition}</p>
+                </div>
+              </div>
+              
+              {/* Brand Tone */}
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                <h4 className="font-semibold text-indigo-900 mb-2">Brand Tone</h4>
+                <p className="text-sm text-indigo-700 mb-1">Detected writing style (professional, casual, playful, authoritative)</p>
+                <div className="bg-white border border-indigo-200 rounded-md p-3 mt-2">
+                  <p className="text-gray-900">{analysisResult.brand_tone}</p>
+                </div>
               </div>
             </div>
             

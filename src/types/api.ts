@@ -224,6 +224,7 @@ export interface WebsiteAnalysis {
   core_products_services: string[];
   target_audience: string;
   value_proposition: string;
+  brand_tone: string;
 }
 
 export interface WebsiteAnalysisResponse {
