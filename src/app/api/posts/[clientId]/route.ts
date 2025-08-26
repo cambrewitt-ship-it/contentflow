@@ -57,26 +57,51 @@ export async function DELETE(
     const { postId } = await request.json();
     const { clientId } = await params;
     
-    console.log('Deleting post:', postId, 'for client:', clientId);
+    console.log('🗑️ DELETE API called:', { clientId, postId });
     
-    const supabase = createRouteHandlerClient({ cookies: await cookies() });
+    if (!postId) {
+      console.error('❌ Missing postId in request body');
+      return NextResponse.json(
+        { error: 'Post ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Use the same Supabase client creation that works in other APIs
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
-    // Delete the post completely from the database
+    console.log('📊 About to delete post from database...');
+    
+    // Delete the post
     const { error } = await supabase
       .from('posts')
       .delete()
       .eq('id', postId)
-      .eq('client_id', clientId);
+      .eq('client_id', clientId); // Ensure user can only delete their client's posts
     
     if (error) {
-      console.error('Supabase delete error:', error);
-      throw error;
+      console.error('❌ Supabase delete error:', error);
+      console.error('❌ Error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+      return NextResponse.json(
+        { error: `Database error: ${error.message}` },
+        { status: 500 }
+      );
     }
     
-    console.log('Post deleted successfully:', postId);
+    console.log('✅ Post deleted successfully:', postId);
+    
     return NextResponse.json({ success: true, message: 'Post deleted successfully' });
+    
   } catch (error) {
-    console.error('Error deleting post:', error);
-    return NextResponse.json({ error: 'Failed to delete post' }, { status: 500 });
+    console.error('💥 Unexpected error in DELETE:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to delete post' },
+      { status: 500 }
+    );
   }
 }
