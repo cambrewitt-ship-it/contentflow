@@ -217,6 +217,25 @@ export interface WebsiteScrapeResponse {
   error?: string;
 }
 
+// Website Analysis Types
+export interface WebsiteAnalysis {
+  business_description: string;
+  industry_category: string;
+  core_products_services: string[];
+  target_audience: string;
+  value_proposition: string;
+}
+
+export interface WebsiteAnalysisResponse {
+  success: boolean;
+  analysis: WebsiteAnalysis;
+  source: {
+    url: string;
+    scrapeId: string;
+    analyzedAt: string;
+  };
+}
+
 // Generic API Response Types
 export interface ClientsResponse extends ApiResponse {
   clients?: Client[];
