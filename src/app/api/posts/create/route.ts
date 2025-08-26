@@ -1,17 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+
 export async function POST(request: Request) {
   try {
     const { clientId, projectId, posts, status = 'draft' } = await request.json();
     
     console.log('🚀 Creating posts:', { clientId, projectId, postsCount: posts.length, status });
     
-    // Use direct Supabase client instead of auth helper
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY!
-    );
+    // Create Supabase client with service role for admin access (same pattern as other APIs)
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     console.log('📊 About to insert posts into database...');
     
