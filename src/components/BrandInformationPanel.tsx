@@ -142,12 +142,12 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
 
       const scrapeData = await scrapeResponse.json();
       
-      if (scrapeData.scrape && scrapeData.scrape.id) {
+      if (scrapeData.success && scrapeData.data && scrapeData.data.id) {
         // Now analyze the scraped content with AI
         const analysisResponse = await fetch(`/api/clients/${clientId}/analyze-website`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scrapeId: scrapeData.scrape.id })
+          body: JSON.stringify({ scrapeId: scrapeData.data.id })
         });
 
         if (analysisResponse.ok) {
