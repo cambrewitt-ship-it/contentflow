@@ -1031,51 +1031,104 @@ function SocialPreviewColumn({
         totalCaptionCount={captions.length}
       />
 
-      {/* Send to Scheduler Button */}
+      {/* Action Buttons */}
       {uploadedImages.length > 0 && selectedCaptions.length > 0 && (
         <div className="bg-card rounded-lg border p-6">
           <h3 className="text-lg font-semibold text-card-foreground mb-3">
-            Ready to Schedule?
+            What would you like to do?
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
-            Your content is ready! Send it to the scheduler to plan your posts.
+            Your content is ready! Choose your next step.
           </p>
-          <Button
-            onClick={() => {
-              const selectedCaption = captions.find(
-                (cap) => cap.id === selectedCaptions[0],
-              )?.text;
-              if (selectedCaption) {
-                handleSendToScheduler(selectedCaption, uploadedImages);
-              }
-            }}
-            disabled={isSendingToScheduler}
-            className="w-full bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {isSendingToScheduler ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Loading
-              </>
-            ) : (
-              <>
-                <svg
-                  className="w-5 h-5 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2V7a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-                Schedule
-              </>
-            )}
-          </Button>
+          
+          <div className="space-y-3">
+            {/* Post Now Button */}
+            <Button
+              onClick={() => {
+                // TODO: Implement direct posting functionality
+                alert('Direct posting coming soon! This will post immediately to your connected social media accounts.');
+              }}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <svg
+                className="w-5 h-5 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                />
+              </svg>
+              Post Now
+            </Button>
+            
+            {/* Save to Projects Button */}
+            <Button
+              onClick={() => {
+                // TODO: Implement save to projects functionality
+                alert('Save to projects coming soon! This will save your content to a project for later use.');
+              }}
+              variant="outline"
+              className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+            >
+              <svg
+                className="w-5 h-5 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                />
+              </svg>
+              Save to Projects
+            </Button>
+            
+            {/* Schedule Button */}
+            <Button
+              onClick={() => {
+                const selectedCaption = captions.find(
+                  (cap) => cap.id === selectedCaptions[0],
+                )?.text;
+                if (selectedCaption) {
+                  handleSendToScheduler(selectedCaption, uploadedImages);
+                }
+              }}
+              disabled={isSendingToScheduler}
+              className="w-full bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {isSendingToScheduler ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Loading
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="w-5 h-5 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2V7a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  Schedule
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       )}
     </div>
