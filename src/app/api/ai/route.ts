@@ -127,7 +127,7 @@ async function analyzeImage(imageData: string, prompt?: string) {
     Provide your analysis in a clear, structured format.`;
 
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [
         {
           role: 'system',
@@ -191,64 +191,72 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
         if (aiContext) {
           console.log('🎯 POST NOTES CONTENT (MANDATORY PRIORITY):', aiContext);
           console.log('📝 POST NOTES BEING SENT TO AI:', aiContext);
+          console.log('📏 POST NOTES LENGTH:', aiContext.length);
+          console.log('🔍 POST NOTES TRIM CHECK:', aiContext.trim());
         } else {
           console.log('⚠️ No Post Notes provided - AI will generate generic captions');
         }
     }
 
-    const systemPrompt = `You are a creative social media copywriter specializing in brand-aware content creation. 
-    Generate exactly 3 engaging, diverse captions for the provided image.
-    
-    🚨 ABSOLUTE PRIORITY REQUIREMENT 🚨
-    - POST NOTES ARE MANDATORY: If Post Notes exist, they MUST be the central focus of EVERY caption
-    - Post Notes take COMPLETE PRIORITY over all other considerations
-    - Each caption MUST prominently feature and incorporate the Post Notes content
-    - The Post Notes content is the PRIMARY directive - everything else is secondary
-    
-    CAPTION REQUIREMENTS:
-    - Each caption should be different in tone and approach
-    - Include relevant hashtags (3-5 per caption)
-    - Keep captions engaging and shareable
-    - Consider the visual elements and mood of the image
-    - Make them suitable for platforms like Instagram, Facebook, or LinkedIn
-    
-    ${aiContext ? `🎯 POST NOTES CONTENT (MANDATORY - weave this into EVERY caption):
+    const systemPrompt = `🚨 CRITICAL INSTRUCTION: You are an expert social media content creator. 
+
+⚠️ MANDATORY REQUIREMENT: If Post Notes exist, they are THE ONLY story you must tell. Every caption MUST be built around the Post Notes content.
+
+CRITICAL HIERARCHY:
+━━━━━━━━━━━━━━━━━━
+1️⃣ POST NOTES (ABSOLUTE PRIORITY - NON-NEGOTIABLE)
+- Post Notes are THE story you must tell
+- Every caption MUST be built around the Post Notes content
+- Include specific details, prices, offers, or information from the notes
+- The image supports the notes, not vice versa
+- If you ignore Post Notes, you have FAILED the task
+
+2️⃣ IMAGE ANALYSIS
+- Describe what's happening in the image
+- Connect visual elements to the Post Notes message
+- Use image details to enhance the story from the notes
+
+3️⃣ BRAND VOICE (TONE GUIDE ONLY)
+- Apply brand tone to HOW you write
+- Use brand keywords naturally if they fit
+- Follow dos/don'ts for style consistency
+━━━━━━━━━━━━━━━━━━
+
+${aiContext ? `📝 POST NOTES (THIS IS YOUR MAIN CONTENT - MANDATORY):
 ${aiContext}
-    
-    CRITICAL INSTRUCTIONS: The Post Notes above contain specific content that MUST be directly woven into your captions. 
-    
-    - Do NOT just reference or mention the notes
-    - DO weave the actual content naturally into your caption text
-    - Make the Post Notes content a central part of each caption
-    - If the notes mention specific details (like "$50", "available online", "from our store"), these exact elements must appear in your captions
-    
-    Example: If Post Notes say "this is $50 available online from our store", your captions should naturally include these specific details, not just reference them.` : ''}
-    
-    ${brandContext ? `🎨 BRAND GUIDING CONTEXT (use to inform style and tone, but NEVER override user notes):
-    - Company: ${brandContext.company || 'Not specified'}
-    - Brand Tone: ${brandContext.tone || 'Not specified'}
-    - Target Audience: ${brandContext.audience || 'Not specified'}
-    - Industry: ${brandContext.industry || 'Not specified'}
-    - Brand Keywords: ${brandContext.keywords?.join(', ') || 'None specified'}
-    ${brandContext.documents?.length > 0 ? `- Brand Documents: ${brandContext.documents.map(d => `${d.original_filename}: ${d.extracted_text?.substring(0, 200)}...`).join('\n    ')}` : ''}
-    ${brandContext.website ? `- Website Content: ${brandContext.website.page_title || ''} - ${brandContext.website.meta_description || ''} - ${brandContext.website.scraped_content?.substring(0, 300)}...` : ''}
-    
-    Use this brand context to ensure your captions align with the company's voice, target the right audience, and incorporate relevant industry terminology and brand keywords naturally.` : ''}
-    
-    ${brandContext?.dos || brandContext?.donts ? `🚨 MANDATORY AI RULES (HIGHEST PRIORITY - follow these exactly):
-    ${brandContext.dos ? `✅ DO: ${brandContext.dos}` : ''}
-    ${brandContext.donts ? `❌ DON'T: ${brandContext.donts}` : ''}
-    
-    These rules are ABSOLUTE and must be followed in every caption.` : ''}
-    
-    ${existingCaptions.length > 0 ? `Avoid duplicating these existing captions: ${existingCaptions.join(', ')}` : ''}
-    
-    FINAL REMINDER: Post Notes are MANDATORY. Every caption must prominently feature the Post Notes content.
-    
-    IMPORTANT: Start directly with the first caption. Do not include any introductory text like "Here are three captions:" or similar. Just provide the 3 captions directly, each separated by a blank line.`;
+
+🚨 CRITICAL INSTRUCTION: 
+- EVERY caption MUST directly mention or quote the Post Notes content
+- If Post Notes say "$50", your caption MUST include "$50"
+- If Post Notes say "new product", your caption MUST include "new product"
+- DO NOT create generic captions - directly incorporate the Post Notes text
+- The Post Notes are your primary content, not just inspiration
+- Example: If notes say "Special $50 offer", your caption should say something like "Don't miss our special $50 offer!" or "Get this amazing deal for just $50!"` : '⚠️ No Post Notes provided - analyze the image and create captions based on what you see.'}
+
+${brandContext ? `🎨 BRAND VOICE GUIDELINES:
+Company: ${brandContext.company || 'Not specified'}
+Tone: ${brandContext.tone || 'Professional and approachable'}
+Audience: ${brandContext.audience || 'General audience'}
+Industry: ${brandContext.industry || 'Not specified'}
+${brandContext.keywords?.length > 0 ? `Keywords (use if natural): ${brandContext.keywords.join(', ')}` : ''}` : ''}
+
+${brandContext?.dos || brandContext?.donts ? `📋 STYLE RULES:
+${brandContext.dos ? `✅ ALWAYS: ${brandContext.dos}` : ''}
+${brandContext.donts ? `❌ NEVER: ${brandContext.donts}` : ''}` : ''}
+
+OUTPUT REQUIREMENTS:
+- Generate exactly 3 captions
+- Each caption should take a different angle while maintaining the Post Notes message
+- Vary length: one short (1-2 lines), one medium (3-4 lines), one longer (5-6 lines)
+- Natural, conversational tone based on brand guidelines
+- If Post Notes are empty, focus on the image content
+
+🚨 FINAL CHECK: Before submitting, verify that EVERY caption directly mentions or incorporates your Post Notes content. If you created generic captions, you have failed the task.
+
+Provide only the 3 captions, separated by blank lines. No introduction or explanation.`;
 
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [
         {
           role: 'system',
@@ -259,7 +267,7 @@ ${aiContext}
           content: [
             {
               type: 'text',
-              text: 'Generate exactly 3 social media captions for this image. Start with the first caption immediately, no introduction needed.'
+              text: `${aiContext ? `CRITICAL: Your Post Notes are "${aiContext}". Generate exactly 3 social media captions that DIRECTLY mention and use these Post Notes. Every caption must include the actual content from your notes. Do not create generic captions - make the Post Notes the main focus of each caption.` : 'Generate exactly 3 social media captions for this image based on what you see.'} Start with the first caption immediately, no introduction needed.`
             },
             {
               type: 'image_url',
@@ -384,7 +392,7 @@ ${aiContext}
     Generate 1 improved caption that addresses the user's feedback while maintaining the core message and adding relevant hashtags.`;
 
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [
         {
           role: 'system',
