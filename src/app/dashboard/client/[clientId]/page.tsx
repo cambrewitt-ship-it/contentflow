@@ -891,6 +891,18 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                               Scheduler
                             </Button>
                           </Link>
+                          <Link 
+                            href={`/dashboard/client/${clientId}/planner?projectId=${project.id}`}
+                            className="flex-1"
+                          >
+                            <Button 
+                              variant="outline" 
+                              className="w-full"
+                            >
+                              <Calendar className="w-4 h-4 mr-2" />
+                              Planner
+                            </Button>
+                          </Link>
                           <Button variant="outline" size="sm">
                             <Edit3 className="w-4 h-4" />
                           </Button>

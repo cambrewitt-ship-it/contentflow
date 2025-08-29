@@ -1,0 +1,424 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
+import { ChevronLeft, ChevronRight, Plus, Calendar, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  content_metadata?: {
+    posts?: Array<{
+      id: string;
+      images?: Array<{
+        id: string;
+        notes?: string;
+        preview: string;
+      }>;
+      captions?: Array<{
+        id: string;
+        text: string;
+        isSelected: boolean;
+      }>;
+      selectedCaption?: string;
+      postNotes?: string;
+      activeImageId?: string;
+      createdAt?: string;
+    }>;
+  };
+}
+
+interface Post {
+  id: string;
+  project_id: string;
+  caption: string;
+  image_url: string;
+  scheduled_time: string | null;
+  status: 'draft' | 'scheduled' | 'published';
+}
+
+export default function PlannerPage() {
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const clientId = params?.clientId as string;
+  const projectId = searchParams?.get('projectId');
+  
+  console.log('📍 PlannerPage render - clientId:', clientId, 'projectId:', projectId);
+  
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string | null>(projectId || null);
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = current week
+  const [loading, setLoading] = useState(true);
+  const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  
+  const [projectPosts, setProjectPosts] = useState<any[]>([]);
+  const [scheduledPosts, setScheduledPosts] = useState<{[key: string]: any}>({});
+  const [updatingTime, setUpdatingTime] = useState<string | null>(null);
+
+    const fetchUnscheduledPosts = async () => {
+      try {
+        console.log('Fetching unscheduled posts for project:', projectId);
+        const response = await fetch(`/api/planner/unscheduled?projectId=${projectId}`);
+        const data = await response.json();
+        console.log('Unscheduled posts response:', data);
+        setProjectPosts(data.posts || []);
+      } catch (error) {
+        console.error('Error fetching unscheduled posts:', error);
+      }
+    };
+
+  const fetchScheduledPosts = async () => {
+    try {
+      const response = await fetch(`/api/planner/scheduled?projectId=${projectId}`);
+      const data = await response.json();
+      
+      // Map posts by date
+      const mapped: {[key: string]: any[]} = {};
+      data.posts?.forEach((post: any) => {
+        const dateKey = post.scheduled_date;
+        if (!mapped[dateKey]) mapped[dateKey] = [];
+        mapped[dateKey].push(post);
+      });
+      
+      setScheduledPosts(mapped);
+      console.log('Scheduled posts loaded:', mapped);
+    } catch (error) {
+      console.error('Error fetching scheduled posts:', error);
+    }
+  };
+
+  // Get NZ timezone start of week (Monday)
+  const getStartOfWeek = (offset: number = 0) => {
+    const today = new Date();
+    const nzDate = new Date(today.toLocaleString("en-US", {timeZone: "Pacific/Auckland"}));
+    const monday = new Date(nzDate);
+    const dayOfWeek = monday.getDay();
+    const diff = monday.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    monday.setDate(diff + (offset * 7));
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  };
+
+  useEffect(() => {
+    if (projectId) {
+      fetchUnscheduledPosts();
+      fetchScheduledPosts();
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    console.log('🔄 useEffect triggered - projectId:', projectId, 'projects.length:', projects.length);
+    if (projectId && projects.length > 0) {
+      const project = projects.find(p => p.id === projectId);
+      console.log('🔍 Found project:', project);
+      if (project) {
+        setCurrentProject(project);
+        setSelectedProject(projectId);
+        // Fetch posts after project is loaded
+        fetchUnscheduledPosts();
+        fetchScheduledPosts();
+      }
+    }
+  }, [projectId, projects]);
+
+  const fetchProjects = async () => {
+    if (!clientId) return;
+    
+    try {
+      const response = await fetch(`/api/projects?clientId=${clientId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data.projects || []);
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPosts = async () => {
+    try {
+      // TODO: Implement posts API endpoint
+      console.log('Fetching posts for planner');
+      setPosts([]);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+    }
+  };
+
+  const getWeeksToDisplay = () => {
+    const weeks = [];
+    for (let i = 0; i < 4; i++) {
+      weeks.push(getStartOfWeek(weekOffset + i));
+    }
+    return weeks;
+  };
+
+  const handleProjectSelect = (projectId: string | null) => {
+    setSelectedProject(projectId);
+    if (projectId) {
+      const project = projects.find(p => p.id === projectId);
+      setCurrentProject(project || null);
+      fetchUnscheduledPosts();
+      fetchScheduledPosts();
+    } else {
+      setCurrentProject(null);
+      setProjectPosts([]);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, post: any) => {
+    e.dataTransfer.setData('post', JSON.stringify(post));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.currentTarget.classList.add('bg-blue-50', 'border-blue-500', 'ring-2', 'ring-blue-300');
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove('bg-blue-50', 'border-blue-500', 'ring-2', 'ring-blue-300');
+  };
+
+  const handleDrop = async (e: React.DragEvent, weekIndex: number, dayIndex: number) => {
+    e.preventDefault();
+    const postData = e.dataTransfer.getData('post');
+    if (!postData) return;
+    
+    const post = JSON.parse(postData);
+    const weekStart = getWeeksToDisplay()[weekIndex];
+    const targetDate = new Date(weekStart);
+    targetDate.setDate(weekStart.getDate() + dayIndex);
+    
+    const time = '12:00'; // Default to noon, will add proper time picker later
+    
+    try {
+      // Just move to scheduled table for planning
+      await fetch('/api/planner/scheduled', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          unscheduledId: post.id,
+          scheduledPost: {
+            project_id: projectId,
+            client_id: clientId,
+            caption: post.caption,
+            image_url: post.image_url,
+            post_notes: post.post_notes,
+            scheduled_date: targetDate.toISOString().split('T')[0],
+            scheduled_time: time + ':00'
+          }
+        })
+      });
+      
+      // Refresh both lists
+      fetchUnscheduledPosts();
+      fetchScheduledPosts();
+      
+      alert(`Post planned for ${targetDate.toDateString()} at ${time}`);
+    } catch (error) {
+      console.error('Error planning post:', error);
+      alert('Failed to plan post');
+    }
+  };
+
+
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-6 pb-8">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-200 px-6 py-4 mb-6 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Link
+                href={`/dashboard/client/${clientId}`}
+                className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Dashboard
+              </Link>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {currentProject ? `${currentProject.name} Planner` : 'Content Planner'}
+                </h1>
+                {currentProject && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    Planning content for {currentProject.name}
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <Link
+                href={`/dashboard/client/${clientId}/content-suite`}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Content
+              </Link>
+            </div>
+          </div>
+        </div>
+
+
+
+        {/* Posts Queue */}
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <h3 className="text-sm font-medium text-gray-700 mb-3">Posts in Project</h3>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {projectPosts.length === 0 ? (
+              <div className="text-gray-400 text-sm py-4">
+                No posts added yet. Add posts from Content Suite.
+              </div>
+            ) : (
+              projectPosts.map((post) => (
+                <div
+                  key={post.id}
+                  className="flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border-2 border-gray-200 cursor-move hover:border-blue-400"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, post)}
+                >
+                  <img
+                    src={post.image_url || '/api/placeholder/100/100'}
+                    alt="Post"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+        
+        {/* Calendar */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">
+                {currentProject ? `${currentProject.name} - 4 Week View` : 'All Projects - 4 Week View'}
+              </h2>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setWeekOffset(weekOffset - 1)}
+                  className="p-2 rounded-md border hover:bg-gray-50"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm text-gray-600">
+                  Week {weekOffset + 1} - {weekOffset + 4}
+                </span>
+                <button
+                  onClick={() => setWeekOffset(weekOffset + 1)}
+                  className="p-2 rounded-md border hover:bg-gray-50"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between mb-4 pb-2">
+              <button
+                onClick={() => setWeekOffset(weekOffset - 1)}
+                className="p-2 hover:bg-gray-100 rounded"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              
+              <div className="flex items-center gap-4">
+                <span className="font-medium">
+                  {getStartOfWeek(weekOffset).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long' })} - 
+                  {getStartOfWeek(weekOffset + 3).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </span>
+                <button
+                  onClick={() => setWeekOffset(0)}
+                  className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                >
+                  Current Week
+                </button>
+              </div>
+              
+              <button
+                onClick={() => setWeekOffset(weekOffset + 1)}
+                className="p-2 hover:bg-gray-100 rounded"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <div className="min-w-[1000px] p-4">
+              <div className="grid grid-cols-4 gap-4">
+                {getWeeksToDisplay().map((weekStart, weekIndex) => (
+                  <div key={weekIndex} className="flex flex-col border rounded-lg bg-white w-64">
+                    <div className="bg-gray-50 p-3 border-b">
+                      <h3 className="font-semibold text-sm">
+                        Week {weekOffset + weekIndex + 1}
+                        {weekOffset + weekIndex === 0 && ' (Current)'}
+                      </h3>
+                      <p className="text-xs text-gray-600">
+                        {weekStart.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} - 
+                        {new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
+                      </p>
+                    </div>
+                    
+                    <div className="p-2 space-y-1">
+                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, dayIndex) => {
+                        const dayDate = new Date(weekStart);
+                        dayDate.setDate(weekStart.getDate() + dayIndex);
+                        const isToday = dayDate.toDateString() === new Date().toDateString();
+                        
+                        return (
+                          <div
+                            key={day}
+                            className={`p-2 rounded min-h-[80px] border-2 border-transparent transition-all duration-200 ${
+                              isToday ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 hover:bg-gray-100'
+                            }`}
+                            onDragOver={handleDragOver}
+                            onDragEnter={handleDragEnter}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, weekIndex, dayIndex)}
+                          >
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="font-medium">{day}</span>
+                              <span className="text-gray-500">{dayDate.getDate()}</span>
+                            </div>
+                            
+                            {/* Display scheduled posts */}
+                            {scheduledPosts[dayDate.toISOString().split('T')[0]]?.map((post: any, idx: number) => (
+                              <div key={idx} className="mt-1">
+                                <div className="text-xs bg-blue-100 rounded p-1">
+                                  {post.scheduled_time?.slice(0, 5)}
+                                </div>
+                              </div>
+                            ))}
+
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

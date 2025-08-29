@@ -58,7 +58,7 @@ export function CaptionGenerationColumn() {
     }
 
     try {
-      await remixCaption(captionId, postNotes)
+      await remixCaption(captionId)
       // Success - caption will be updated automatically
     } catch (error) {
       console.error('Failed to remix caption:', error)

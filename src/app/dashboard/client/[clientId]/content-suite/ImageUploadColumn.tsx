@@ -23,13 +23,7 @@ export function ImageUploadColumn() {
     if (files) {
       Array.from(files).forEach((file) => {
         if (file.type.startsWith('image/')) {
-          const newImage: UploadedImage = {
-            id: `img-${Date.now()}-${Math.random()}`,
-            file,
-            preview: URL.createObjectURL(file),
-            notes: '',
-          };
-          addImage(newImage)
+          addImage(file)
         }
       })
     }
@@ -42,17 +36,11 @@ export function ImageUploadColumn() {
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault()
     const files = event.dataTransfer.files
-    Array.from(files).forEach((file) => {
-      if (file.type.startsWith('image/')) {
-        const newImage: UploadedImage = {
-          id: `img-${Date.now()}-${Math.random()}`,
-          file,
-          preview: URL.createObjectURL(file),
-          notes: '',
-        };
-        addImage(newImage)
-      }
-    })
+          Array.from(files).forEach((file) => {
+        if (file.type.startsWith('image/')) {
+          addImage(file)
+        }
+      })
   }
 
   return (

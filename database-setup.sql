@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS projects (
   name VARCHAR(255) NOT NULL,
   description TEXT,
   status VARCHAR(50) DEFAULT 'active' CHECK (status IN ('active', 'archived', 'completed')),
+  content_metadata JSONB DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -13,6 +14,7 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE INDEX IF NOT EXISTS idx_projects_client_id ON projects(client_id);
 CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 CREATE INDEX IF NOT EXISTS idx_projects_created_at ON projects(created_at);
+CREATE INDEX IF NOT EXISTS idx_projects_content_metadata ON projects USING GIN (content_metadata);
 
 -- Add RLS policies for projects table
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
