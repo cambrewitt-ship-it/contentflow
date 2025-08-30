@@ -62,8 +62,20 @@ export default function PlannerPage() {
   const [updatingTime, setUpdatingTime] = useState<string | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
+  const [connectedAccounts, setConnectedAccounts] = useState<any[]>([]);
 
-    const fetchUnscheduledPosts = async () => {
+  const fetchConnectedAccounts = async () => {
+    try {
+      const response = await fetch(`/api/late/get-accounts/${clientId}`);
+      const data = await response.json();
+      setConnectedAccounts(data.accounts || []);
+      console.log('Connected accounts:', data.accounts);
+    } catch (error) {
+      console.error('Error fetching accounts:', error);
+    }
+  };
+
+  const fetchUnscheduledPosts = async () => {
       try {
         console.log('Fetching unscheduled posts for project:', projectId);
         const response = await fetch(`/api/planner/unscheduled?projectId=${projectId}`);
@@ -108,11 +120,12 @@ export default function PlannerPage() {
   };
 
   useEffect(() => {
-    if (projectId) {
+    if (projectId && clientId) {
       fetchUnscheduledPosts();
       fetchScheduledPosts();
+      fetchConnectedAccounts();
     }
-  }, [projectId]);
+  }, [projectId, clientId]);
 
   useEffect(() => {
     console.log('🔄 useEffect triggered - projectId:', projectId, 'projects.length:', projects.length);
@@ -318,10 +331,52 @@ export default function PlannerPage() {
       const allScheduledPosts = Object.values(scheduledPosts).flat();
       const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
       
+      // Schedule each post using the same pattern as new-scheduler
       for (const post of postsToSchedule) {
-        // This would call your existing LATE scheduling API
-        // For now, just mark as scheduled
-        console.log('Scheduling post:', post);
+        console.log('Starting scheduling process for post:', post.id);
+        
+        // Step 1: Upload media to LATE (image is already base64)
+        console.log('Uploading media to LATE...');
+        const mediaResponse = await fetch('/api/late/upload-media', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            imageBlob: post.image_url
+          })
+        });
+        
+        if (!mediaResponse.ok) {
+          const error = await mediaResponse.text();
+          console.error('Media upload failed:', error);
+          throw new Error('Failed to upload media');
+        }
+        
+        const { lateMediaUrl } = await mediaResponse.json();
+        console.log('Media uploaded:', lateMediaUrl);
+        
+        // Step 2: Schedule the post (using default account for now)
+        console.log('Scheduling post on LATE...');
+        const scheduleResponse = await fetch('/api/late/schedule-post', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            postId: post.id,
+            caption: post.caption || '',
+            lateMediaUrl: lateMediaUrl,
+            scheduledDateTime: `${post.scheduled_date}T${post.scheduled_time}`,
+            selectedAccounts: [{ platform: 'instagram', _id: 'default' }], // TODO: Get from user settings
+            clientId: clientId
+          })
+        });
+        
+        if (!scheduleResponse.ok) {
+          const error = await scheduleResponse.text();
+          console.error('Schedule failed:', error);
+          throw new Error('Failed to schedule post');
+        }
+        
+        const result = await scheduleResponse.json();
+        console.log('Post scheduled successfully:', result);
       }
       
       alert(`${selectedPosts.size} posts scheduled successfully!`);
@@ -330,6 +385,56 @@ export default function PlannerPage() {
     } catch (error) {
       console.error('Error scheduling posts:', error);
       alert('Failed to schedule posts');
+    }
+  };
+
+  const handleScheduleToPlatform = async (account: any) => {
+    if (selectedPosts.size === 0) return;
+    
+    const confirmed = confirm(`Schedule ${selectedPosts.size} posts to ${account.platform}?`);
+    if (!confirmed) return;
+    
+    try {
+      // Get selected post details
+      const allScheduledPosts = Object.values(scheduledPosts).flat();
+      const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
+      
+      for (const post of postsToSchedule) {
+        // Step 1: Upload image to LATE
+        const mediaResponse = await fetch('/api/late/upload-media', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBlob: post.image_url })
+        });
+        
+        if (!mediaResponse.ok) throw new Error('Failed to upload media');
+        const { lateMediaUrl } = await mediaResponse.json();
+        
+        // Step 2: Schedule via LATE
+        const scheduledDateTime = `${post.scheduled_date}T${post.scheduled_time}`;
+        
+        const response = await fetch('/api/late/schedule-post', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            postId: post.id,
+            caption: post.caption,
+            lateMediaUrl: lateMediaUrl,
+            scheduledDateTime: scheduledDateTime,
+            selectedAccounts: [account], // Single platform
+            clientId: clientId
+          })
+        });
+        
+        if (!response.ok) throw new Error('Failed to schedule');
+      }
+      
+      alert(`${selectedPosts.size} posts scheduled to ${account.platform}!`);
+      setSelectedPosts(new Set());
+      
+    } catch (error) {
+      console.error('Error scheduling:', error);
+      alert(`Failed to schedule to ${account.platform}`);
     }
   };
 
@@ -401,19 +506,33 @@ export default function PlannerPage() {
           </div>
         </div>
         
-        {/* Schedule Button */}
+        {/* Schedule Buttons */}
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-4">
             {/* Navigation buttons can go here if needed */}
           </div>
           
-          {selectedPosts.size > 0 && (
-            <button
-              onClick={handleScheduleToLATE}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-            >
-              Schedule {selectedPosts.size} Posts to Social Media
-            </button>
+          {selectedPosts.size > 0 && connectedAccounts.length > 0 && (
+            <div className="flex gap-2">
+              <span className="text-sm text-gray-600 py-2">
+                {selectedPosts.size} selected:
+              </span>
+              {connectedAccounts.map((account) => (
+                <button
+                  key={account._id}
+                  onClick={() => handleScheduleToPlatform(account)}
+                  className={`px-3 py-1.5 text-white rounded text-sm ${
+                    account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
+                    account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
+                    account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
+                    account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
+                    'bg-gray-600 hover:bg-gray-700'
+                  }`}
+                >
+                  Schedule to {account.platform}
+                </button>
+              ))}
+            </div>
           )}
         </div>
         
