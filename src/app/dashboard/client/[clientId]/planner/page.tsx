@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Plus, Calendar, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { createClient } from '@supabase/supabase-js';
 
 interface Project {
   id: string;
@@ -47,6 +48,12 @@ export default function PlannerPage() {
   const searchParams = useSearchParams();
   const clientId = params?.clientId as string;
   const projectId = searchParams?.get('projectId');
+  
+  // Initialize Supabase client
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
   
   console.log('📍 PlannerPage render - clientId:', clientId, 'projectId:', projectId);
   
@@ -426,16 +433,35 @@ export default function PlannerPage() {
           })
         });
         
-        if (!response.ok) throw new Error('Failed to schedule');
+              if (!response.ok) throw new Error('Failed to schedule');
+      
+      const result = await response.json();
+      
+      // Step 3: Update our database with LATE status
+      const { error: updateError } = await supabase
+        .from('planner_scheduled_posts')
+        .update({
+          late_status: 'scheduled',
+          late_post_id: result.id || result._id,
+          platforms_scheduled: [account.platform]
+        })
+        .eq('id', post.id);
+      
+      if (updateError) {
+        console.error('Database update error:', updateError);
       }
-      
-      alert(`${selectedPosts.size} posts scheduled to ${account.platform}!`);
-      setSelectedPosts(new Set());
-      
-    } catch (error) {
-      console.error('Error scheduling:', error);
-      alert(`Failed to schedule to ${account.platform}`);
     }
+    
+    alert(`${selectedPosts.size} posts scheduled to ${account.platform}!`);
+    setSelectedPosts(new Set());
+    
+    // Refresh scheduled posts to show updated colors
+    fetchScheduledPosts();
+    
+  } catch (error) {
+    console.error('Error scheduling:', error);
+    alert(`Failed to schedule to ${account.platform}`);
+  }
   };
 
 
@@ -665,7 +691,11 @@ export default function PlannerPage() {
                                       e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
                                       e.dataTransfer.setData('originalDate', dayDate.toISOString().split('T')[0]);
                                     }}
-                                    className="flex items-center gap-1 bg-blue-100 rounded p-1 cursor-move hover:bg-blue-200"
+                                    className={`flex items-center gap-1 rounded p-1 cursor-move hover:opacity-80 ${
+                                      post.late_status === 'scheduled' 
+                                        ? 'bg-green-100 border border-green-300' 
+                                        : 'bg-blue-100 border border-blue-300'
+                                    }`}
                                     onClick={() => setEditingPostId(post.id)}
                                   >
                                     <input
@@ -684,6 +714,16 @@ export default function PlannerPage() {
                                       onClick={(e) => e.stopPropagation()}
                                       className="w-3 h-3"
                                     />
+                                    
+                                    {/* LATE Status Indicator */}
+                                    {post.late_status && (
+                                      <div className={`w-2 h-2 rounded-full ${
+                                        post.late_status === 'scheduled' ? 'bg-green-500' :
+                                        post.late_status === 'published' ? 'bg-green-600' :
+                                        post.late_status === 'failed' ? 'bg-red-500' :
+                                        'bg-gray-400'
+                                      }`} title={`LATE Status: ${post.late_status}`} />
+                                    )}
                                     <img 
                                       src={post.image_url || '/api/placeholder/100/100'} 
                                       alt="Post"
