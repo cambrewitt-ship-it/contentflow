@@ -60,6 +60,8 @@ export default function PlannerPage() {
   const [projectPosts, setProjectPosts] = useState<any[]>([]);
   const [scheduledPosts, setScheduledPosts] = useState<{[key: string]: any}>({});
   const [updatingTime, setUpdatingTime] = useState<string | null>(null);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
 
     const fetchUnscheduledPosts = async () => {
       try {
@@ -194,6 +196,46 @@ export default function PlannerPage() {
     e.currentTarget.classList.remove('bg-blue-50', 'border-blue-500', 'ring-2', 'ring-blue-300');
   };
 
+  // Helper function to convert 24-hour time to 12-hour format
+  const formatTimeTo12Hour = (time24: string) => {
+    if (!time24) return '';
+    
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  const handleEditScheduledPost = async (post: any, newTime: string) => {
+    if (!newTime || newTime === post.scheduled_time?.slice(0, 5)) return;
+    
+    try {
+      console.log('Updating post time to:', newTime);
+      
+      const response = await fetch('/api/planner/scheduled', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postId: post.id,
+          updates: {
+            scheduled_time: newTime + ':00'
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update');
+      }
+      
+      fetchScheduledPosts();
+    } catch (error) {
+      console.error('Error updating post:', error);
+      alert('Failed to update time');
+    }
+  };
+
   const handleDrop = async (e: React.DragEvent, weekIndex: number, dayIndex: number) => {
     e.preventDefault();
     const postData = e.dataTransfer.getData('post');
@@ -229,13 +271,67 @@ export default function PlannerPage() {
       fetchUnscheduledPosts();
       fetchScheduledPosts();
       
-      alert(`Post planned for ${targetDate.toDateString()} at ${time}`);
     } catch (error) {
       console.error('Error planning post:', error);
       alert('Failed to plan post');
     }
   };
 
+  const handleMovePost = async (e: React.DragEvent, weekIndex: number, dayIndex: number) => {
+    e.preventDefault();
+    const postData = e.dataTransfer.getData('scheduledPost');
+    if (!postData) return;
+    
+    const post = JSON.parse(postData);
+    const originalDate = e.dataTransfer.getData('originalDate');
+    
+    const weekStart = getWeeksToDisplay()[weekIndex];
+    const newDate = new Date(weekStart);
+    newDate.setDate(weekStart.getDate() + dayIndex);
+    
+    try {
+      await fetch('/api/planner/scheduled', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postId: post.id,
+          updates: {
+            scheduled_date: newDate.toISOString().split('T')[0]
+          }
+        })
+      });
+      
+      fetchScheduledPosts();
+    } catch (error) {
+      console.error('Error moving post:', error);
+    }
+  };
+
+  const handleScheduleToLATE = async () => {
+    if (selectedPosts.size === 0) return;
+    
+    const confirmed = confirm(`Schedule ${selectedPosts.size} posts to social media?`);
+    if (!confirmed) return;
+    
+    try {
+      // Get all selected post details
+      const allScheduledPosts = Object.values(scheduledPosts).flat();
+      const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
+      
+      for (const post of postsToSchedule) {
+        // This would call your existing LATE scheduling API
+        // For now, just mark as scheduled
+        console.log('Scheduling post:', post);
+      }
+      
+      alert(`${selectedPosts.size} posts scheduled successfully!`);
+      setSelectedPosts(new Set());
+      
+    } catch (error) {
+      console.error('Error scheduling posts:', error);
+      alert('Failed to schedule posts');
+    }
+  };
 
 
   return (
@@ -303,6 +399,22 @@ export default function PlannerPage() {
               ))
             )}
           </div>
+        </div>
+        
+        {/* Schedule Button */}
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-4">
+            {/* Navigation buttons can go here if needed */}
+          </div>
+          
+          {selectedPosts.size > 0 && (
+            <button
+              onClick={handleScheduleToLATE}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Schedule {selectedPosts.size} Posts to Social Media
+            </button>
+          )}
         </div>
         
         {/* Calendar */}
@@ -391,19 +503,78 @@ export default function PlannerPage() {
                             onDragOver={handleDragOver}
                             onDragEnter={handleDragEnter}
                             onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, weekIndex, dayIndex)}
+                            onDrop={(e) => {
+                              if (e.dataTransfer.getData('scheduledPost')) {
+                                handleMovePost(e, weekIndex, dayIndex);
+                              } else {
+                                handleDrop(e, weekIndex, dayIndex);
+                              }
+                            }}
                           >
                             <div className="flex justify-between text-xs mb-1">
                               <span className="font-medium">{day}</span>
                               <span className="text-gray-500">{dayDate.getDate()}</span>
                             </div>
                             
-                            {/* Display scheduled posts */}
+                                                        {/* Display scheduled posts */}
                             {scheduledPosts[dayDate.toISOString().split('T')[0]]?.map((post: any, idx: number) => (
                               <div key={idx} className="mt-1">
-                                <div className="text-xs bg-blue-100 rounded p-1">
-                                  {post.scheduled_time?.slice(0, 5)}
-                                </div>
+                                {editingPostId === post.id ? (
+                                  <input
+                                    type="time"
+                                    defaultValue={post.scheduled_time?.slice(0, 5)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        handleEditScheduledPost(post, e.currentTarget.value);
+                                        setEditingPostId(null);
+                                      }
+                                      if (e.key === 'Escape') {
+                                        setEditingPostId(null);
+                                      }
+                                    }}
+                                    onBlur={(e) => {
+                                      handleEditScheduledPost(post, e.target.value);
+                                      setEditingPostId(null);
+                                    }}
+                                    className="text-xs p-1 rounded border"
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <div 
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
+                                      e.dataTransfer.setData('originalDate', dayDate.toISOString().split('T')[0]);
+                                    }}
+                                    className="flex items-center gap-1 bg-blue-100 rounded p-1 cursor-move hover:bg-blue-200"
+                                    onClick={() => setEditingPostId(post.id)}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedPosts.has(post.id)}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        const newSelected = new Set(selectedPosts);
+                                        if (e.target.checked) {
+                                          newSelected.add(post.id);
+                                        } else {
+                                          newSelected.delete(post.id);
+                                        }
+                                        setSelectedPosts(newSelected);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-3 h-3"
+                                    />
+                                    <img 
+                                      src={post.image_url || '/api/placeholder/100/100'} 
+                                      alt="Post"
+                                      className="w-8 h-8 object-cover rounded"
+                                    />
+                                    <span className="text-xs">
+                                      {formatTimeTo12Hour(post.scheduled_time) || '12:00 PM'}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             ))}
 

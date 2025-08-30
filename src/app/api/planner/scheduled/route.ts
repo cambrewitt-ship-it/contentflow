@@ -53,3 +53,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to schedule post' }, { status: 500 });
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const { postId, updates } = await request.json();
+    
+    const { data, error } = await supabase
+      .from('planner_scheduled_posts')
+      .update(updates)
+      .eq('id', postId);
+    
+    if (error) throw error;
+    
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('PATCH error:', error);
+    return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
+  }
+}
