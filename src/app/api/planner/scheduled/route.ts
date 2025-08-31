@@ -71,3 +71,21 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { postId } = await request.json();
+    
+    const { error } = await supabase
+      .from('planner_scheduled_posts')
+      .delete()
+      .eq('id', postId);
+    
+    if (error) throw error;
+    
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting scheduled post:', error);
+    return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
+  }
+}

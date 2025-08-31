@@ -434,22 +434,39 @@ export default function PlannerPage() {
         });
         
               if (!response.ok) throw new Error('Failed to schedule');
-      
-      const result = await response.json();
-      
-      // Step 3: Update our database with LATE status
-      const { error: updateError } = await supabase
-        .from('planner_scheduled_posts')
-        .update({
-          late_status: 'scheduled',
-          late_post_id: result.id || result._id,
-          platforms_scheduled: [account.platform]
-        })
-        .eq('id', post.id);
-      
-      if (updateError) {
-        console.error('Database update error:', updateError);
-      }
+
+        const result = await response.json();
+        console.log('Full API response:', JSON.stringify(result, null, 2));
+
+        // Check all possible locations for the LATE post ID
+        const latePostId = result.latePostId || result.late_post_id || result.id || result.postId;
+        console.log('Checking for LATE ID in:', {
+          latePostId: result.latePostId,
+          late_post_id: result.late_post_id,
+          id: result.id,
+          postId: result.postId,
+          fullResult: result
+        });
+
+        if (latePostId) {
+          // Update database with LATE post ID
+          const { error: updateError } = await supabase
+            .from('planner_scheduled_posts')
+            .update({
+              late_status: 'scheduled',
+              late_post_id: latePostId,
+              platforms_scheduled: [account.platform]
+            })
+            .eq('id', post.id);
+          
+          if (updateError) {
+            console.error('Failed to update LATE post ID:', updateError);
+          } else {
+            console.log('Successfully saved LATE post ID to database');
+          }
+        } else {
+          console.error('No LATE post ID in response!');
+        }
     }
     
     alert(`${selectedPosts.size} posts scheduled to ${account.platform}!`);
@@ -462,6 +479,50 @@ export default function PlannerPage() {
     console.error('Error scheduling:', error);
     alert(`Failed to schedule to ${account.platform}`);
   }
+  };
+
+  const handleDeleteScheduledPost = async (post: any) => {
+    const confirmed = confirm(`Delete this scheduled post? This will remove it from both the planner and LATE.`);
+    if (!confirmed) return;
+    
+    try {
+      // Step 1: Delete from LATE API if it has a late_post_id
+      if (post.late_post_id) {
+        console.log('Deleting post from LATE:', post.late_post_id);
+        
+        const lateResponse = await fetch(`/api/late/delete-post?latePostId=${post.late_post_id}`, {
+          method: 'DELETE'
+        });
+        
+        if (!lateResponse.ok) {
+          const errorData = await lateResponse.json();
+          console.error('Failed to delete from LATE:', errorData);
+          // Continue with local deletion even if LATE deletion fails
+        } else {
+          console.log('Successfully deleted from LATE');
+        }
+      }
+      
+      // Step 2: Delete from our database
+      const { error: deleteError } = await supabase
+        .from('planner_scheduled_posts')
+        .delete()
+        .eq('id', post.id);
+      
+      if (deleteError) {
+        console.error('Database deletion error:', deleteError);
+        throw new Error('Failed to delete from database');
+      }
+      
+      // Step 3: Refresh the scheduled posts
+      fetchScheduledPosts();
+      
+      alert('Post deleted successfully!');
+      
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      alert('Failed to delete post. Please try again.');
+    }
   };
 
 
@@ -732,6 +793,54 @@ export default function PlannerPage() {
                                     <span className="text-xs">
                                       {formatTimeTo12Hour(post.scheduled_time) || '12:00 PM'}
                                     </span>
+                                    
+                                    {/* Delete Button - Only show for confirmed scheduled posts */}
+                                    {post.late_status === 'scheduled' && (
+                                      <button
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (!confirm('Delete this scheduled post?')) return;
+                                          
+                                          try {
+                                            // Only try to delete from LATE if we have a valid LATE post ID
+                                            if (post.late_post_id) {
+                                              console.log('Deleting from LATE:', post.late_post_id);
+                                              const lateResponse = await fetch(`/api/late/delete-post?latePostId=${post.late_post_id}`, {
+                                                method: 'DELETE'
+                                              });
+                                              
+                                              if (!lateResponse.ok) {
+                                                console.error('Failed to delete from LATE');
+                                              }
+                                            } else {
+                                              console.log('No LATE ID - this post was scheduled before LATE integration');
+                                            }
+                                            
+                                            // Delete from your local database
+                                            const dbResponse = await fetch('/api/planner/scheduled', {
+                                              method: 'DELETE',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ postId: post.id })
+                                            });
+                                            
+                                            if (!dbResponse.ok) {
+                                              throw new Error('Failed to delete from database');
+                                            }
+                                            
+                                            // Refresh the list
+                                            fetchScheduledPosts();
+                                            
+                                          } catch (error) {
+                                            console.error('Delete error:', error);
+                                            alert('Failed to delete post');
+                                          }
+                                        }}
+                                        className="ml-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold transition-colors"
+                                        title="Delete scheduled post"
+                                      >
+                                        ×
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </div>
