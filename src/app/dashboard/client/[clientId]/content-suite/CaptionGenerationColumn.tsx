@@ -1,6 +1,6 @@
 'use client'
 
-import { useContentStore } from './page'
+import { useContentStore } from 'lib/contentStore'
 import { Button } from 'components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
 import { Textarea } from 'components/ui/textarea'
@@ -120,7 +120,7 @@ export function CaptionGenerationColumn() {
           <CardHeader>
             <CardTitle className="text-lg">Generated Captions ({captions.length})</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Edit any caption text and click "Select" to choose your preferred option
+              Edit any caption text and click &quot;Select&quot; to choose your preferred option
             </p>
           </CardHeader>
           <CardContent>

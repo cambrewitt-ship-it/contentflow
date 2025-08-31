@@ -1,6 +1,6 @@
 'use client'
 
-import { useContentStore } from './page'
+import { useContentStore } from 'lib/contentStore'
 import { Button } from 'components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
 import { Loader2, Save, X, FolderOpen } from 'lucide-react'
@@ -31,16 +31,14 @@ export function SocialPreviewColumn({
     postNotes,
   } = useContentStore()
 
-  // Get projects from the store context
-  const { projects } = useContentStore() as any
+
 
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [projectDescription, setProjectDescription] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [saveMode, setSaveMode] = useState<'new' | 'existing'>('new')
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
+
 
   const selectedCaption =
     selectedCaptions.length > 0
@@ -48,13 +46,8 @@ export function SocialPreviewColumn({
       : undefined
 
   const handleSaveToProject = async () => {
-    if (saveMode === 'new' && !projectName.trim()) {
+    if (!projectName.trim()) {
       setSaveError('Project name is required')
-      return
-    }
-
-    if (saveMode === 'existing' && !selectedProjectId) {
-      setSaveError('Please select a project')
       return
     }
 
@@ -62,8 +55,7 @@ export function SocialPreviewColumn({
     setSaveError(null)
 
     try {
-      if (saveMode === 'new') {
-        // Create new project with content
+      // Create new project with content
         const projectData = {
           client_id: clientId,
           name: projectName.trim(),
@@ -107,53 +99,6 @@ export function SocialPreviewColumn({
         } else {
           setSaveError(result.error || 'Failed to create project')
         }
-      } else {
-        // Add to existing project
-        const newPost = {
-          id: `post-${Date.now()}`,
-          images: uploadedImages.map(img => ({
-            id: img.id,
-            notes: img.notes || '',
-            preview: img.preview
-          })),
-          captions: captions.map(cap => ({
-            id: cap.id,
-            text: cap.text,
-            isSelected: selectedCaptions.includes(cap.id)
-          })),
-          selectedCaption: selectedCaption,
-          postNotes: postNotes || '',
-          activeImageId: activeImageId,
-          createdAt: new Date().toISOString()
-        }
-
-        // Update existing project with new post
-        const updateData = {
-          content_metadata: {
-            posts: [
-              ...(projects.find((p: any) => p.id === selectedProjectId)?.content_metadata?.posts || []),
-              newPost
-            ]
-          }
-        }
-
-        const response = await fetch(`/api/projects/${selectedProjectId}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updateData),
-        })
-
-        const result = await response.json()
-
-        if (result.success) {
-          setShowSaveModal(false)
-          alert(`Content added to project successfully!`)
-        } else {
-          setSaveError(result.error || 'Failed to add content to project')
-        }
-      }
     } catch (error) {
       console.error('Error saving project:', error)
       setSaveError('Network error occurred while saving')
@@ -178,8 +123,6 @@ export function SocialPreviewColumn({
     setProjectName(`Content - ${dateStr} ${timeStr}`)
     setProjectDescription('')
     setSaveError(null)
-    setSaveMode('new')
-    setSelectedProjectId('')
     setShowSaveModal(true)
   }
 
@@ -339,108 +282,37 @@ export function SocialPreviewColumn({
           </DialogHeader>
           
           <div className="space-y-4">
-            {/* Save Mode Tabs */}
-            <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-              <button
-                onClick={() => setSaveMode('new')}
-                className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-                  saveMode === 'new'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                New Project
-              </button>
-              <button
-                onClick={() => setSaveMode('existing')}
-                className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-                  saveMode === 'existing'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Add to Existing
-              </button>
+            {/* Save Mode - New Project Only */}
+            <div className="text-center py-2">
+              <span className="text-sm text-gray-600">Create New Project</span>
             </div>
 
-            {saveMode === 'new' ? (
-              <>
-                <div>
-                  <label htmlFor="projectName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Project Name *
-                  </label>
-                  <Input
-                    id="projectName"
-                    value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
-                    placeholder="Enter project name"
-                    className="w-full"
-                  />
-                </div>
-                
-                <div>
-                  <label htmlFor="projectDescription" className="block text-sm font-medium text-gray-700 mb-1">
-                    Description (Optional)
-                  </label>
-                  <Textarea
-                    id="projectDescription"
-                    value={projectDescription}
-                    onChange={(e) => setProjectDescription(e.target.value)}
-                    placeholder="Describe this project..."
-                    className="w-full"
-                    rows={3}
-                  />
-                </div>
-              </>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Project *
-                </label>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {projects.length > 0 ? (
-                    projects.map((project: any) => (
-                      <div
-                        key={project.id}
-                        onClick={() => setSelectedProjectId(project.id)}
-                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                          selectedProjectId === project.id
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-gray-900">{project.name}</h4>
-                            {project.description && (
-                              <p className="text-sm text-gray-500 mt-1 line-clamp-1">
-                                {project.description}
-                              </p>
-                            )}
-                            <div className="text-xs text-gray-400 mt-1">
-                              Created {new Date(project.created_at).toLocaleDateString()}
-                            </div>
-                          </div>
-                          {selectedProjectId === project.id && (
-                            <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-4 text-gray-500">
-                      <FolderOpen className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">No projects available</p>
-                      <p className="text-xs text-gray-400">Create a project first</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            <div>
+              <label htmlFor="projectName" className="block text-sm font-medium text-gray-700 mb-1">
+                Project Name *
+              </label>
+              <Input
+                id="projectName"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="Enter project name"
+                className="w-full"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="projectDescription" className="block text-sm font-medium text-gray-700 mb-1">
+                Description (Optional)
+              </label>
+              <Textarea
+                id="projectDescription"
+                value={projectDescription}
+                onChange={(e) => setProjectDescription(e.target.value)}
+                placeholder="Describe this project..."
+                className="w-full"
+                rows={3}
+              />
+            </div>
 
             {saveError && (
               <div className="text-red-600 text-sm bg-red-50 p-2 rounded">
@@ -462,7 +334,7 @@ export function SocialPreviewColumn({
                 ) : (
                   <>
                     <Save className="w-4 h-4 mr-2" />
-                    {saveMode === 'new' ? 'Create Project' : 'Add to Project'}
+                    Create Project
                   </>
                 )}
               </Button>

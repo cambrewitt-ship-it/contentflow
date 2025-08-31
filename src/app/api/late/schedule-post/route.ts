@@ -8,6 +8,19 @@ const supabase = createClient(
 
 export async function POST(request: Request) {
   try {
+    const body = await request.json();
+    console.log('Received request body:', JSON.stringify(body, null, 2));
+    
+    // Check for required fields
+    if (!body.postId || !body.caption || !body.lateMediaUrl) {
+      console.error('Missing required fields:', {
+        postId: body.postId,
+        caption: !!body.caption,
+        lateMediaUrl: !!body.lateMediaUrl
+      });
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+    
     const { 
       postId, 
       caption, 
@@ -15,7 +28,7 @@ export async function POST(request: Request) {
       scheduledDateTime, 
       selectedAccounts,
       clientId 
-    } = await request.json();
+    } = body;
     
     console.log('Scheduling post:', { postId, selectedAccounts, scheduledDateTime });
     
@@ -92,7 +105,7 @@ export async function POST(request: Request) {
       .insert({
         client_id: clientId,
         post_id: postId,
-        scheduled_time: scheduledFor,
+        scheduled_time: lateScheduledFor,
         account_ids: selectedAccounts.map((a: { _id: string }) => a._id),
         status: 'scheduled',
         late_post_id: latePostId

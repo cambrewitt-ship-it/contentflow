@@ -63,7 +63,25 @@ interface Project {
   description: string
   status: string
   created_at: string
-  content_metadata?: any
+  content_metadata?: {
+    posts?: Array<{
+      id: string;
+      images?: Array<{
+        id: string;
+        notes?: string;
+        preview: string;
+      }>;
+      captions?: Array<{
+        id: string;
+        text: string;
+        isSelected: boolean;
+      }>;
+      selectedCaption?: string;
+      postNotes?: string;
+      activeImageId?: string;
+      createdAt?: string;
+    }>;
+  };
 }
 
 interface PageProps {
@@ -581,4 +599,4 @@ function ContentSuiteContent({
 }
 
 // Export the hook and types for use in other components
-export { useContentStore, type Caption, type UploadedImage }
+

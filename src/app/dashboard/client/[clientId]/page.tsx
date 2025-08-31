@@ -6,7 +6,7 @@ import { Button } from 'components/ui/button'
 import { Plus, Edit3, Calendar, FileText, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import BrandInformationPanel from 'components/BrandInformationPanel'
-import { Client, Project, OAuthMessage, DebugInfo } from 'types/api'
+import { Client, Project, OAuthMessage, DebugInfo, BrandDocument, WebsiteScrape } from 'types/api'
 
 export default function ClientDashboard({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params)
@@ -27,8 +27,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null)
   const [debugLoading, setDebugLoading] = useState(false)
   const [projectsFailed, setProjectsFailed] = useState(false)
-  const [brandDocuments, setBrandDocuments] = useState<any[]>([])
-  const [websiteScrapes, setWebsiteScrapes] = useState<any[]>([])
+  const [brandDocuments, setBrandDocuments] = useState<BrandDocument[]>([])
+  const [websiteScrapes, setWebsiteScrapes] = useState<WebsiteScrape[]>([])
 
   // Check for OAuth callback messages in URL
   useEffect(() => {

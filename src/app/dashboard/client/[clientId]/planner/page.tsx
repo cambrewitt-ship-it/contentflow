@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Plus, Calendar, ArrowLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 
@@ -40,7 +40,18 @@ interface Post {
   caption: string;
   image_url: string;
   scheduled_time: string | null;
+  scheduled_date?: string;
   status: 'draft' | 'scheduled' | 'published';
+  late_post_id?: string;
+  platforms_scheduled?: string[];
+  late_status?: string;
+}
+
+interface ConnectedAccount {
+  _id: string;
+  platform: string;
+  name: string;
+  accountId?: string;
 }
 
 export default function PlannerPage() {
@@ -58,18 +69,18 @@ export default function PlannerPage() {
   console.log('📍 PlannerPage render - clientId:', clientId, 'projectId:', projectId);
   
   const [projects, setProjects] = useState<Project[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId || null);
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week
   const [loading, setLoading] = useState(true);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
   
-  const [projectPosts, setProjectPosts] = useState<any[]>([]);
-  const [scheduledPosts, setScheduledPosts] = useState<{[key: string]: any}>({});
-  const [updatingTime, setUpdatingTime] = useState<string | null>(null);
+  const [projectPosts, setProjectPosts] = useState<Post[]>([]);
+  const [scheduledPosts, setScheduledPosts] = useState<{[key: string]: Post[]}>({});
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
-  const [connectedAccounts, setConnectedAccounts] = useState<any[]>([]);
+  const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
 
   const fetchConnectedAccounts = async () => {
     try {
@@ -100,11 +111,11 @@ export default function PlannerPage() {
       const data = await response.json();
       
       // Map posts by date
-      const mapped: {[key: string]: any[]} = {};
-      data.posts?.forEach((post: any) => {
+      const mapped: {[key: string]: Post[]} = {};
+      data.posts?.forEach((post: Post) => {
         const dateKey = post.scheduled_date;
-        if (!mapped[dateKey]) mapped[dateKey] = [];
-        mapped[dateKey].push(post);
+        if (dateKey && !mapped[dateKey]) mapped[dateKey] = [];
+        if (dateKey) mapped[dateKey].push(post);
       });
       
       setScheduledPosts(mapped);
@@ -165,16 +176,6 @@ export default function PlannerPage() {
     }
   };
 
-  const fetchPosts = async () => {
-    try {
-      // TODO: Implement posts API endpoint
-      console.log('Fetching posts for planner');
-      setPosts([]);
-    } catch (error) {
-      console.error('Error fetching posts:', error);
-    }
-  };
-
   const getWeeksToDisplay = () => {
     const weeks = [];
     for (let i = 0; i < 4; i++) {
@@ -183,20 +184,9 @@ export default function PlannerPage() {
     return weeks;
   };
 
-  const handleProjectSelect = (projectId: string | null) => {
-    setSelectedProject(projectId);
-    if (projectId) {
-      const project = projects.find(p => p.id === projectId);
-      setCurrentProject(project || null);
-      fetchUnscheduledPosts();
-      fetchScheduledPosts();
-    } else {
-      setCurrentProject(null);
-      setProjectPosts([]);
-    }
-  };
 
-  const handleDragStart = (e: React.DragEvent, post: any) => {
+
+  const handleDragStart = (e: React.DragEvent, post: Post) => {
     e.dataTransfer.setData('post', JSON.stringify(post));
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -228,7 +218,7 @@ export default function PlannerPage() {
     return `${hour12}:${minutes} ${ampm}`;
   };
 
-  const handleEditScheduledPost = async (post: any, newTime: string) => {
+  const handleEditScheduledPost = async (post: Post, newTime: string) => {
     if (!newTime || newTime === post.scheduled_time?.slice(0, 5)) return;
     
     try {
@@ -302,8 +292,7 @@ export default function PlannerPage() {
     const postData = e.dataTransfer.getData('scheduledPost');
     if (!postData) return;
     
-    const post = JSON.parse(postData);
-    const originalDate = e.dataTransfer.getData('originalDate');
+    const post: Post = JSON.parse(postData);
     
     const weekStart = getWeeksToDisplay()[weekIndex];
     const newDate = new Date(weekStart);
@@ -327,86 +316,79 @@ export default function PlannerPage() {
     }
   };
 
-  const handleScheduleToLATE = async () => {
-    if (selectedPosts.size === 0) return;
+
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Delete ${selectedForDelete.size} posts?`)) return;
     
-    const confirmed = confirm(`Schedule ${selectedPosts.size} posts to social media?`);
-    if (!confirmed) return;
+    const errors = [];
+    const toDelete = Array.from(selectedForDelete);
+    const allPosts = Object.values(scheduledPosts).flat();
     
-    try {
-      // Get all selected post details
-      const allScheduledPosts = Object.values(scheduledPosts).flat();
-      const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
-      
-      // Schedule each post using the same pattern as new-scheduler
-      for (const post of postsToSchedule) {
-        console.log('Starting scheduling process for post:', post.id);
+    // Process all deletions with Promise.all for better handling
+    const deletePromises = toDelete.map(async (postId) => {
+      try {
+        const post = allPosts.find(p => p.id === postId);
         
-        // Step 1: Upload media to LATE (image is already base64)
-        console.log('Uploading media to LATE...');
-        const mediaResponse = await fetch('/api/late/upload-media', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            imageBlob: post.image_url
-          })
-        });
-        
-        if (!mediaResponse.ok) {
-          const error = await mediaResponse.text();
-          console.error('Media upload failed:', error);
-          throw new Error('Failed to upload media');
+        // Delete from LATE if applicable
+        if (post?.late_post_id) {
+          await fetch(`/api/late/delete-post?latePostId=${post.late_post_id}`, {
+            method: 'DELETE'
+          });
         }
         
-        const { lateMediaUrl } = await mediaResponse.json();
-        console.log('Media uploaded:', lateMediaUrl);
-        
-        // Step 2: Schedule the post (using default account for now)
-        console.log('Scheduling post on LATE...');
-        const scheduleResponse = await fetch('/api/late/schedule-post', {
-          method: 'POST',
+        // Delete from database
+        const dbResponse = await fetch('/api/planner/scheduled', {
+          method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            postId: post.id,
-            caption: post.caption || '',
-            lateMediaUrl: lateMediaUrl,
-            scheduledDateTime: `${post.scheduled_date}T${post.scheduled_time}`,
-            selectedAccounts: [{ platform: 'instagram', _id: 'default' }], // TODO: Get from user settings
-            clientId: clientId
-          })
+          body: JSON.stringify({ postId: postId })
         });
         
-        if (!scheduleResponse.ok) {
-          const error = await scheduleResponse.text();
-          console.error('Schedule failed:', error);
-          throw new Error('Failed to schedule post');
+        if (!dbResponse.ok) {
+          throw new Error(`Failed to delete ${postId}`);
         }
         
-        const result = await scheduleResponse.json();
-        console.log('Post scheduled successfully:', result);
+        return { success: true, postId };
+      } catch (error) {
+        console.error(`Error deleting ${postId}:`, error);
+        return { success: false, postId, error: error instanceof Error ? error.message : 'Unknown error' };
       }
-      
-      alert(`${selectedPosts.size} posts scheduled successfully!`);
-      setSelectedPosts(new Set());
-      
-    } catch (error) {
-      console.error('Error scheduling posts:', error);
-      alert('Failed to schedule posts');
+    });
+    
+    // Wait for all deletions to complete
+    const results = await Promise.all(deletePromises);
+    
+    const failed = results.filter(r => !r.success);
+    const succeeded = results.filter(r => r.success);
+    
+    // Clear selection and refresh AFTER all deletions complete
+    setSelectedForDelete(new Set());
+    await fetchScheduledPosts();
+    
+    if (failed.length > 0) {
+      alert(`Deleted ${succeeded.length} posts. Failed to delete ${failed.length} posts.`);
+    } else {
+      alert(`Successfully deleted ${succeeded.length} posts`);
     }
   };
 
-  const handleScheduleToPlatform = async (account: any) => {
+  const handleScheduleToPlatform = async (account: ConnectedAccount) => {
     if (selectedPosts.size === 0) return;
     
     const confirmed = confirm(`Schedule ${selectedPosts.size} posts to ${account.platform}?`);
     if (!confirmed) return;
     
-    try {
-      // Get selected post details
-      const allScheduledPosts = Object.values(scheduledPosts).flat();
-      const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
-      
-      for (const post of postsToSchedule) {
+    const allScheduledPosts = Object.values(scheduledPosts).flat();
+    const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
+    
+    let successCount = 0;
+    let failCount = 0;
+    const errors = [];
+    
+    for (const post of postsToSchedule) {
+      try {
+        console.log(`Scheduling post ${successCount + failCount + 1} of ${postsToSchedule.length}`);
+        
         // Step 1: Upload image to LATE
         const mediaResponse = await fetch('/api/late/upload-media', {
           method: 'POST',
@@ -414,7 +396,10 @@ export default function PlannerPage() {
           body: JSON.stringify({ imageBlob: post.image_url })
         });
         
-        if (!mediaResponse.ok) throw new Error('Failed to upload media');
+        if (!mediaResponse.ok) {
+          throw new Error(`Media upload failed for post: ${post.caption.slice(0, 30)}...`);
+        }
+        
         const { lateMediaUrl } = await mediaResponse.json();
         
         // Step 2: Schedule via LATE
@@ -428,102 +413,58 @@ export default function PlannerPage() {
             caption: post.caption,
             lateMediaUrl: lateMediaUrl,
             scheduledDateTime: scheduledDateTime,
-            selectedAccounts: [account], // Single platform
+            selectedAccounts: [account],
             clientId: clientId
           })
         });
         
-              if (!response.ok) throw new Error('Failed to schedule');
-
+        if (!response.ok) {
+          throw new Error(`Schedule failed for post: ${post.caption.slice(0, 30)}...`);
+        }
+        
         const result = await response.json();
-        console.log('Full API response:', JSON.stringify(result, null, 2));
-
-        // Check all possible locations for the LATE post ID
-        const latePostId = result.latePostId || result.late_post_id || result.id || result.postId;
-        console.log('Checking for LATE ID in:', {
-          latePostId: result.latePostId,
-          late_post_id: result.late_post_id,
-          id: result.id,
-          postId: result.postId,
-          fullResult: result
-        });
-
+        const latePostId = result.latePostId || result.late_post_id || result.id;
+        
         if (latePostId) {
           // Update database with LATE post ID
-          const { error: updateError } = await supabase
+          await supabase
             .from('planner_scheduled_posts')
             .update({
               late_status: 'scheduled',
               late_post_id: latePostId,
-              platforms_scheduled: [account.platform]
+              platforms_scheduled: [...(post.platforms_scheduled || []), account.platform]
             })
             .eq('id', post.id);
-          
-          if (updateError) {
-            console.error('Failed to update LATE post ID:', updateError);
-          } else {
-            console.log('Successfully saved LATE post ID to database');
-          }
-        } else {
-          console.error('No LATE post ID in response!');
         }
+        
+        successCount++;
+        
+        // Small delay between posts to avoid rate limiting
+        if (postsToSchedule.length > 1 && successCount < postsToSchedule.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+      } catch (error) {
+        console.error(`Failed to schedule post:`, error);
+        errors.push(error instanceof Error ? error.message : 'Unknown error');
+        failCount++;
+      }
     }
     
-    alert(`${selectedPosts.size} posts scheduled to ${account.platform}!`);
+    // Clear selection and refresh
     setSelectedPosts(new Set());
-    
-    // Refresh scheduled posts to show updated colors
+    setSelectedForDelete(new Set());
     fetchScheduledPosts();
     
-  } catch (error) {
-    console.error('Error scheduling:', error);
-    alert(`Failed to schedule to ${account.platform}`);
-  }
-  };
-
-  const handleDeleteScheduledPost = async (post: any) => {
-    const confirmed = confirm(`Delete this scheduled post? This will remove it from both the planner and LATE.`);
-    if (!confirmed) return;
-    
-    try {
-      // Step 1: Delete from LATE API if it has a late_post_id
-      if (post.late_post_id) {
-        console.log('Deleting post from LATE:', post.late_post_id);
-        
-        const lateResponse = await fetch(`/api/late/delete-post?latePostId=${post.late_post_id}`, {
-          method: 'DELETE'
-        });
-        
-        if (!lateResponse.ok) {
-          const errorData = await lateResponse.json();
-          console.error('Failed to delete from LATE:', errorData);
-          // Continue with local deletion even if LATE deletion fails
-        } else {
-          console.log('Successfully deleted from LATE');
-        }
-      }
-      
-      // Step 2: Delete from our database
-      const { error: deleteError } = await supabase
-        .from('planner_scheduled_posts')
-        .delete()
-        .eq('id', post.id);
-      
-      if (deleteError) {
-        console.error('Database deletion error:', deleteError);
-        throw new Error('Failed to delete from database');
-      }
-      
-      // Step 3: Refresh the scheduled posts
-      fetchScheduledPosts();
-      
-      alert('Post deleted successfully!');
-      
-    } catch (error) {
-      console.error('Error deleting post:', error);
-      alert('Failed to delete post. Please try again.');
+    // Show results
+    if (failCount === 0) {
+      alert(`Successfully scheduled ${successCount} posts to ${account.platform}!`);
+    } else {
+      alert(`Scheduled ${successCount} posts to ${account.platform}.\n\nFailed: ${failCount}\nErrors:\n${errors.join('\n')}`);
     }
   };
+
+
 
 
   return (
@@ -623,6 +564,16 @@ export default function PlannerPage() {
           )}
         </div>
         
+        {/* Bulk Delete Button */}
+        {selectedForDelete.size > 0 && (
+          <button
+            onClick={handleBulkDelete}
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 mb-4"
+          >
+            Delete {selectedForDelete.size} Selected Posts
+          </button>
+        )}
+
         {/* Calendar */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="p-4">
@@ -723,7 +674,7 @@ export default function PlannerPage() {
                             </div>
                             
                                                         {/* Display scheduled posts */}
-                            {scheduledPosts[dayDate.toISOString().split('T')[0]]?.map((post: any, idx: number) => (
+                            {scheduledPosts[dayDate.toISOString().split('T')[0]]?.map((post: Post, idx: number) => (
                               <div key={idx} className="mt-1">
                                 {editingPostId === post.id ? (
                                   <input
@@ -761,18 +712,25 @@ export default function PlannerPage() {
                                   >
                                     <input
                                       type="checkbox"
-                                      checked={selectedPosts.has(post.id)}
+                                      checked={selectedPosts.has(post.id) || selectedForDelete.has(post.id)}
                                       onChange={(e) => {
                                         e.stopPropagation();
-                                        const newSelected = new Set(selectedPosts);
+                                        
+                                        // Update both selection sets
+                                        const newSelectedPosts = new Set(selectedPosts);
+                                        const newSelectedDelete = new Set(selectedForDelete);
+                                        
                                         if (e.target.checked) {
-                                          newSelected.add(post.id);
+                                          newSelectedPosts.add(post.id);
+                                          newSelectedDelete.add(post.id);
                                         } else {
-                                          newSelected.delete(post.id);
+                                          newSelectedPosts.delete(post.id);
+                                          newSelectedDelete.delete(post.id);
                                         }
-                                        setSelectedPosts(newSelected);
+                                        
+                                        setSelectedPosts(newSelectedPosts);
+                                        setSelectedForDelete(newSelectedDelete);
                                       }}
-                                      onClick={(e) => e.stopPropagation()}
                                       className="w-3 h-3"
                                     />
                                     
@@ -791,7 +749,7 @@ export default function PlannerPage() {
                                       className="w-8 h-8 object-cover rounded"
                                     />
                                     <span className="text-xs">
-                                      {formatTimeTo12Hour(post.scheduled_time) || '12:00 PM'}
+                                      {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
                                     </span>
                                     
                                     {/* Delete Button - Only show for confirmed scheduled posts */}
