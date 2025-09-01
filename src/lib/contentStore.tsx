@@ -167,24 +167,63 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
 
   const generateAICaptions = async (imageId: string, notes?: string) => {
     try {
+      // Find the image data
+      const image = uploadedImages.find(img => img.id === imageId)
+      if (!image) {
+        console.error('Image not found:', imageId)
+        return
+      }
+
+      // Convert blob URL to base64 if needed
+      let imageData = image.preview
+      if (image.preview.startsWith('blob:')) {
+        try {
+          console.log('Converting blob URL to base64...')
+          const response = await fetch(image.preview)
+          const blob = await response.blob()
+          const reader = new FileReader()
+          
+          imageData = await new Promise((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.onerror = reject
+            reader.readAsDataURL(blob)
+          })
+          
+          console.log('Successfully converted to base64, length:', imageData.length)
+        } catch (error) {
+          console.error('Failed to convert blob URL to base64:', error)
+          throw new Error('Failed to process image for AI')
+        }
+      }
+
       const response = await fetch('/api/ai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          imageId,
-          postNotes: notes || postNotes,
+          action: 'generate_captions',
+          imageData: imageData,
+          aiContext: notes || postNotes,
+          clientId: clientId,
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to generate captions')
+        const errorText = await response.text()
+        console.error('API response error:', response.status, errorText)
+        throw new Error(`Failed to generate captions: ${response.status}`)
       }
 
       const data = await response.json()
       if (data.captions && Array.isArray(data.captions)) {
-        setCaptions(data.captions)
+        // Convert the captions array to the expected format with IDs
+        const newCaptions = data.captions.map((text: string, index: number) => ({
+          id: `caption-${Date.now()}-${index}`,
+          text: text,
+          isSelected: false
+        }))
+        setCaptions(newCaptions)
       }
     } catch (error) {
       console.error('Error generating AI captions:', error)
@@ -196,24 +235,62 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       const caption = captions.find(cap => cap.id === captionId)
       if (!caption) return
 
+      // Find the active image for context
+      const activeImage = activeImageId ? uploadedImages.find(img => img.id === activeImageId) : null
+
+      // Convert blob URL to base64 if needed
+      let imageData = ''
+      if (activeImage?.preview) {
+        if (activeImage.preview.startsWith('blob:')) {
+          try {
+            console.log('Converting blob URL to base64 for remix...')
+            const response = await fetch(activeImage.preview)
+            const blob = await response.blob()
+            const reader = new FileReader()
+            
+            imageData = await new Promise((resolve, reject) => {
+              reader.onloadend = () => resolve(reader.result as string)
+              reader.onerror = reject
+              reader.readAsDataURL(blob)
+            })
+            
+            console.log('Successfully converted to base64 for remix, length:', imageData.length)
+          } catch (error) {
+            console.error('Failed to convert blob URL to base64 for remix:', error)
+            // Continue without image data rather than failing completely
+          }
+        } else {
+          imageData = activeImage.preview
+        }
+      }
+
       const response = await fetch('/api/ai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          caption: caption.text,
-          postNotes: postNotes,
+          action: 'remix_caption',
+          imageData: imageData,
+          prompt: `Please remix this caption: "${caption.text}"`,
+          existingCaptions: captions.map(cap => cap.text),
+          aiContext: postNotes,
+          clientId: clientId,
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to remix caption')
+        const errorText = await response.text()
+        console.error('API response error:', response.status, errorText)
+        throw new Error(`Failed to remix caption: ${response.status}`)
       }
 
       const data = await response.json()
-      if (data.captions && Array.isArray(data.captions)) {
-        setCaptions(data.captions)
+      if (data.caption) {
+        // Update the existing caption with the remixed version
+        setCaptions(prev => prev.map(cap => 
+          cap.id === captionId ? { ...cap, text: data.caption } : cap
+        ))
       }
     } catch (error) {
       console.error('Error remixing caption:', error)

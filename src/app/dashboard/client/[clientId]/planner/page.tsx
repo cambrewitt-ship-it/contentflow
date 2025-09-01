@@ -99,6 +99,19 @@ export default function PlannerPage() {
         const response = await fetch(`/api/planner/unscheduled?projectId=${projectId}`);
         const data = await response.json();
         console.log('Unscheduled posts response:', data);
+        
+        // Debug image data
+        if (data.posts && data.posts.length > 0) {
+          data.posts.forEach((post: Post, index: number) => {
+            console.log(`Post ${index} image_url:`, {
+              hasImage: !!post.image_url,
+              imageType: typeof post.image_url,
+              imageLength: post.image_url?.length || 0,
+              imagePreview: post.image_url?.substring(0, 50) || 'none'
+            });
+          });
+        }
+        
         setProjectPosts(data.posts || []);
       } catch (error) {
         console.error('Error fetching unscheduled posts:', error);
@@ -109,6 +122,18 @@ export default function PlannerPage() {
     try {
       const response = await fetch(`/api/planner/scheduled?projectId=${projectId}`);
       const data = await response.json();
+      
+      // Debug image data
+      if (data.posts && data.posts.length > 0) {
+        data.posts.forEach((post: Post, index: number) => {
+          console.log(`Scheduled Post ${index} image_url:`, {
+            hasImage: !!post.image_url,
+            imageType: typeof post.image_url,
+            imageLength: post.image_url?.length || 0,
+            imagePreview: post.image_url?.substring(0, 50) || 'none'
+          });
+        });
+      }
       
       // Map posts by date
       const mapped: {[key: string]: Post[]} = {};
@@ -556,9 +581,16 @@ export default function PlannerPage() {
                   onDragStart={(e) => handleDragStart(e, post)}
                 >
                   <img
-                    src={post.image_url || '/api/placeholder/100/100'}
+                    src={post.image_url && post.image_url.startsWith('data:image') && post.image_url.length > 100 ? post.image_url : '/api/placeholder/100/100'}
                     alt="Post"
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      console.log('Image failed to load, using placeholder for post:', post.id);
+                      e.currentTarget.src = '/api/placeholder/100/100';
+                    }}
+                    onLoad={() => {
+                      console.log('Image loaded successfully for post:', post.id);
+                    }}
                   />
                           </div>
               ))
@@ -726,7 +758,6 @@ export default function PlannerPage() {
                                       setEditingPostId(null);
                                     }}
                                     className="text-xs p-1 rounded border"
-                                    autoFocus
                                   />
                                 ) : (
                                   <div 
@@ -740,7 +771,6 @@ export default function PlannerPage() {
                                         ? 'bg-green-100 border border-green-300' 
                                         : 'bg-blue-100 border border-blue-300'
                                     }`}
-                                    onClick={() => setEditingPostId(post.id)}
                                   >
                                     <input
                                       type="checkbox"
@@ -776,61 +806,31 @@ export default function PlannerPage() {
                                       }`} title={`LATE Status: ${post.late_status}`} />
                                     )}
                                     <img 
-                                      src={post.image_url || '/api/placeholder/100/100'} 
+                                      src={post.image_url && post.image_url.startsWith('data:image') && post.image_url.length > 100 ? post.image_url : '/api/placeholder/100/100'} 
                                       alt="Post"
                                       className="w-8 h-8 object-cover rounded"
+                                      onError={(e) => {
+                                        console.log('Scheduled post image failed to load, using placeholder for post:', post.id);
+                                        e.currentTarget.src = '/api/placeholder/100/100';
+                                      }}
+                                      onLoad={() => {
+                                        console.log('Scheduled post image loaded successfully for post:', post.id);
+                                      }}
                                     />
-                                    <span className="text-xs">
+                                    
+                                    {/* Time Display - Clickable with more spacing */}
+                                    <span 
+                                      className="text-xs ml-4 px-2 py-1 bg-gray-50 rounded border cursor-pointer hover:bg-gray-100 transition-colors"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingPostId(post.id);
+                                      }}
+                                      title="Click to edit time"
+                                    >
                                       {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
                                     </span>
                                     
-                                    {/* Delete Button - Only show for confirmed scheduled posts */}
-                                    {post.late_status === 'scheduled' && (
-                                      <button
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
-                                          if (!confirm('Delete this scheduled post?')) return;
-                                          
-                                          try {
-                                            // Only try to delete from LATE if we have a valid LATE post ID
-                                            if (post.late_post_id) {
-                                              console.log('Deleting from LATE:', post.late_post_id);
-                                              const lateResponse = await fetch(`/api/late/delete-post?latePostId=${post.late_post_id}`, {
-                                                method: 'DELETE'
-                                              });
-                                              
-                                              if (!lateResponse.ok) {
-                                                console.error('Failed to delete from LATE');
-                                              }
-                                            } else {
-                                              console.log('No LATE ID - this post was scheduled before LATE integration');
-                                            }
-                                            
-                                            // Delete from your local database
-                                            const dbResponse = await fetch('/api/planner/scheduled', {
-                                              method: 'DELETE',
-                                              headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify({ postId: post.id })
-                                            });
-                                            
-                                            if (!dbResponse.ok) {
-                                              throw new Error('Failed to delete from database');
-                                            }
-                                            
-                                            // Refresh the list
-                                            fetchScheduledPosts();
-                                            
-                                          } catch (error) {
-                                            console.error('Delete error:', error);
-                                            alert('Failed to delete post');
-                                          }
-                                        }}
-                                        className="ml-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold transition-colors"
-                                        title="Delete scheduled post"
-                                      >
-                                        ×
-                                      </button>
-                                    )}
+
                                   </div>
                                 )}
                               </div>
