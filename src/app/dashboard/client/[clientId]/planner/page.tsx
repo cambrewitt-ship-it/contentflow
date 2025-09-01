@@ -389,14 +389,46 @@ export default function PlannerPage() {
       try {
         console.log(`Scheduling post ${successCount + failCount + 1} of ${postsToSchedule.length}`);
         
-        // Step 1: Upload image to LATE
+        // Step 1: Convert blob URL to base64
+        console.log('Converting blob URL to base64...');
+        let base64Image = post.image_url;
+
+        if (post.image_url.startsWith('blob:')) {
+          try {
+            const response = await fetch(post.image_url);
+            const blob = await response.blob();
+            const reader = new FileReader();
+            
+            base64Image = await new Promise((resolve, reject) => {
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            
+            console.log('Converted to base64, size:', base64Image.length);
+          } catch (error) {
+            console.error('Failed to convert blob URL:', error);
+            throw new Error('Failed to process image');
+          }
+        }
+
+        // Step 2: Upload image to LATE
+        console.log('Uploading image to LATE...');
+        console.log('Image URL type:', typeof base64Image);
+        console.log('Image URL preview:', base64Image?.substring(0, 100));
+        console.log('Image size in bytes:', base64Image?.length);
+
         const mediaResponse = await fetch('/api/late/upload-media', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBlob: post.image_url })
+          body: JSON.stringify({ imageBlob: base64Image })
         });
-        
+
+        console.log('Media upload response status:', mediaResponse.status);
+
         if (!mediaResponse.ok) {
+          const errorText = await mediaResponse.text();
+          console.error('Media upload error:', errorText);
           throw new Error(`Media upload failed for post: ${post.caption.slice(0, 30)}...`);
         }
         
@@ -470,51 +502,51 @@ export default function PlannerPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="p-6 pb-8">
-        {/* Header */}
+      {/* Header */}
         <div className="bg-white border-b border-gray-200 px-6 py-4 mb-6 rounded-lg shadow">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Link
-                href={`/dashboard/client/${clientId}`}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Dashboard
-              </Link>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  {currentProject ? `${currentProject.name} Planner` : 'Content Planner'}
-                </h1>
-                {currentProject && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Planning content for {currentProject.name}
-                  </p>
-                )}
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-3">
-              <Link
-                href={`/dashboard/client/${clientId}/content-suite`}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create Content
-              </Link>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Link
+              href={`/dashboard/client/${clientId}`}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {currentProject ? `${currentProject.name} Planner` : 'Content Planner'}
+              </h1>
+              {currentProject && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Planning content for {currentProject.name}
+                </p>
+              )}
             </div>
           </div>
+          
+          <div className="flex items-center space-x-3">
+            <Link
+              href={`/dashboard/client/${clientId}/content-suite`}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Content
+            </Link>
+          </div>
         </div>
+      </div>
 
 
 
         {/* Posts Queue */}
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
           <h3 className="text-sm font-medium text-gray-700 mb-3">Posts in Project</h3>
           <div className="flex gap-3 overflow-x-auto pb-2">
             {projectPosts.length === 0 ? (
               <div className="text-gray-400 text-sm py-4">
                 No posts added yet. Add posts from Content Suite.
-              </div>
+            </div>
             ) : (
               projectPosts.map((post) => (
                 <div
@@ -528,11 +560,11 @@ export default function PlannerPage() {
                     alt="Post"
                     className="w-full h-full object-cover"
                   />
-                </div>
+                          </div>
               ))
-            )}
-          </div>
-        </div>
+                    )}
+                  </div>
+                </div>
         
         {/* Schedule Buttons */}
         <div className="flex justify-between items-center mb-4">
@@ -563,7 +595,7 @@ export default function PlannerPage() {
             </div>
           )}
         </div>
-        
+      
         {/* Bulk Delete Button */}
         {selectedForDelete.size > 0 && (
           <button
@@ -577,29 +609,29 @@ export default function PlannerPage() {
         {/* Calendar */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">
-                {currentProject ? `${currentProject.name} - 4 Week View` : 'All Projects - 4 Week View'}
-              </h2>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setWeekOffset(weekOffset - 1)}
-                  className="p-2 rounded-md border hover:bg-gray-50"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="text-sm text-gray-600">
-                  Week {weekOffset + 1} - {weekOffset + 4}
-                </span>
-                <button
-                  onClick={() => setWeekOffset(weekOffset + 1)}
-                  className="p-2 rounded-md border hover:bg-gray-50"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">
+              {currentProject ? `${currentProject.name} - 4 Week View` : 'All Projects - 4 Week View'}
+            </h2>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setWeekOffset(weekOffset - 1)}
+                className="p-2 rounded-md border hover:bg-gray-50"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-sm text-gray-600">
+                Week {weekOffset + 1} - {weekOffset + 4}
+              </span>
+              <button
+                onClick={() => setWeekOffset(weekOffset + 1)}
+                className="p-2 rounded-md border hover:bg-gray-50"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-            
+          </div>
+          
             <div className="flex items-center justify-between mb-4 pb-2">
               <button
                 onClick={() => setWeekOffset(weekOffset - 1)}

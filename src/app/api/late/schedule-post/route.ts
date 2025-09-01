@@ -38,20 +38,38 @@ export async function POST(request: Request) {
       accountId: account._id
     }));
     
-    // Parse the scheduled date and time properly
-    const scheduledDate = new Date(scheduledDateTime);
-    console.log('Original scheduled date:', scheduledDate.toISOString());
-    console.log('NZ local string:', scheduledDate.toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' }));
+    // Parse and format the scheduled date/time
+    const [datePart, timePart] = scheduledDateTime.split('T');
+    
+    // Create a Date object and adjust for LATE's timezone interpretation
+    const localDateTime = `${datePart}T${timePart}`;
+    
+    // LATE is interpreting our local time as UTC, so we need to add 24 hours
+    // to compensate for the timezone difference (1 full day)
+    const adjustedDate = new Date(localDateTime);
+    adjustedDate.setHours(adjustedDate.getHours() + 24);
+    const adjustedDateTime = adjustedDate.toISOString().slice(0, 19);
+    
+    console.log('Input scheduledDateTime:', scheduledDateTime);
+    console.log('Local NZ time:', localDateTime);
+    console.log('Adjusted for LATE interpretation:', adjustedDateTime);
+    console.log('Added 24 hours (1 full day) to compensate for timezone');
+    
+    const lateScheduledFor = adjustedDateTime;
 
-    // Format for LATE API - use the local date/time without Z
-    const year = scheduledDate.getFullYear();
-    const month = String(scheduledDate.getMonth() + 1).padStart(2, '0');
-    const day = String(scheduledDate.getDate()).padStart(2, '0');
-    const hours = String(scheduledDate.getHours()).padStart(2, '0');
-    const minutes = String(scheduledDate.getMinutes()).padStart(2, '0');
+    // Log what we're sending to LATE
+    const requestBody = {
+      content: caption,
+      platforms: platforms,
+      scheduledFor: lateScheduledFor,
+      timezone: 'Pacific/Auckland',
+      mediaItems: [{
+        type: 'image',
+        url: lateMediaUrl
+      }]
+    };
 
-    const lateScheduledFor = `${year}-${month}-${day}T${hours}:${minutes}:00`;
-    console.log('Formatted for LATE:', lateScheduledFor);
+    console.log('Sending to LATE:', JSON.stringify(requestBody, null, 2));
 
     // Create post on LATE API
     const lateResponse = await fetch('https://getlate.dev/api/v1/posts', {
@@ -60,16 +78,7 @@ export async function POST(request: Request) {
         'Authorization': `Bearer ${process.env.LATE_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        content: caption,
-        platforms: platforms,
-        scheduledFor: lateScheduledFor,  // Use formatted local time
-        timezone: 'Pacific/Auckland',     // Explicitly set NZ timezone
-        mediaItems: [{
-          type: 'image',
-          url: lateMediaUrl
-        }]
-      })
+      body: JSON.stringify(requestBody)
     });
     
     if (!lateResponse.ok) {

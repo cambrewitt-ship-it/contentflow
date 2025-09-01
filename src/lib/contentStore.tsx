@@ -156,9 +156,11 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
   const selectCaption = (id: string) => {
     setSelectedCaptions(prev => {
       if (prev.includes(id)) {
-        return prev.filter(capId => capId !== id)
+        // If clicking the already selected caption, deselect it
+        return []
       } else {
-        return [...prev, id]
+        // Otherwise, select only this caption (single selection)
+        return [id]
       }
     })
   }

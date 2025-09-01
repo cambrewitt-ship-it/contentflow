@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useState,
-  createContext,
-  useContext,
-  useCallback,
-  useEffect,
-} from "react";
+import { useState, useCallback, useEffect } from "react";
 import { use } from "react";
 import { Button } from "components/ui/button";
 import { Input } from "components/ui/input";
@@ -21,37 +15,7 @@ import {
   type AIRemixResult,
 } from "lib/ai-utils";
 import { usePostStore } from "lib/store";
-
-// Global store context
-interface ContentStore {
-  clientId: string;
-  uploadedImages: UploadedImage[];
-  captions: Caption[];
-  selectedCaptions: string[];
-  activeImageId: string | null;
-  hasHydrated: boolean;
-  setUploadedImages: (images: UploadedImage[]) => void;
-  setCaptions: (captions: Caption[]) => void;
-  setSelectedCaptions: (captions: string[]) => void;
-  setActiveImageId: (id: string | null) => void;
-  addImage: (image: UploadedImage) => void;
-  removeImage: (id: string) => void;
-  updateImageNotes: (id: string, notes: string) => void;
-  updateCaption: (id: string, text: string) => void;
-  selectCaption: (id: string) => void;
-  generateAICaptions: (imageId: string) => Promise<void>;
-  remixCaption: (captionId: string, prompt: string) => Promise<void>;
-}
-
-const ContentStoreContext = createContext<ContentStore | null>(null);
-
-const useContentStore = () => {
-  const context = useContext(ContentStoreContext);
-  if (!context) {
-    throw new Error("useContentStore must be used within ContentStoreProvider");
-  }
-  return context;
-};
+import { ContentStoreProvider, useContentStore } from "lib/contentStore";
 
 interface Caption {
   id: string;
@@ -72,398 +36,33 @@ interface PageProps {
   }>;
 }
 
-const getStorageKey = (key: string) => `contentflow_${key}`;
+export default function ProjectPage({ params }: PageProps) {
+  const resolvedParams = use(params);
+  const { clientId, projectId } = resolvedParams;
 
-// Store provider component
-function ContentStoreProvider({ children, clientId }: { children: React.ReactNode; clientId: string }) {
-  // Default values
-  const defaultCaptions: Caption[] = [
-    {
-      id: "1",
-      text: "Ready to create amazing content? Let's make something special! ✨",
-    },
-    {
-      id: "2",
-      text: "Your brand story deserves to be told. Let's craft the perfect message together. 🚀",
-    },
-    {
-      id: "3",
-      text: "From concept to creation, we're here to bring your vision to life. 💫",
-    },
-  ];
-
-  // Initialize state with default values (same for server and client)
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
-  const [captions, setCaptions] = useState<Caption[]>(defaultCaptions);
-  const [selectedCaptions, setSelectedCaptions] = useState<string[]>([]);
-  const [activeImageId, setActiveImageId] = useState<string | null>(null);
-
-  // Track if we've hydrated from localStorage
-  const [hasHydrated, setHasHydrated] = useState(false);
-
-  // Hydrate from localStorage on mount (client-side only)
-  useEffect(() => {
-    if (typeof window !== "undefined" && !hasHydrated) {
-      try {
-        const savedImages = localStorage.getItem(
-          getStorageKey("uploadedImages"),
-        );
-        const savedCaptions = localStorage.getItem(getStorageKey("captions"));
-        const savedSelectedCaptions = localStorage.getItem(
-          getStorageKey("selectedCaptions"),
-        );
-        const savedActiveImageId = localStorage.getItem(
-          getStorageKey("activeImageId"),
-        );
-
-        if (savedImages) {
-          const parsedImages = JSON.parse(savedImages);
-          // Only keep base64 data URLs (blob URLs expire)
-          const validImages = parsedImages.filter(
-            (img: { preview: string; id: string; file?: File }) => img.preview && img.preview.startsWith("data:"),
-          );
-          setUploadedImages(validImages);
-        }
-
-        if (savedCaptions) {
-          setCaptions(JSON.parse(savedCaptions));
-        }
-
-        if (savedSelectedCaptions) {
-          setSelectedCaptions(JSON.parse(savedSelectedCaptions));
-        }
-
-        if (savedActiveImageId) {
-          setActiveImageId(JSON.parse(savedActiveImageId));
-        }
-
-        setHasHydrated(true);
-      } catch (error) {
-        console.error("Error hydrating from localStorage:", error);
-        setHasHydrated(true);
-      }
-    }
-  }, [hasHydrated]);
-
-  // Save state to localStorage whenever it changes (only after hydration)
-  useEffect(() => {
-    if (typeof window !== "undefined" && hasHydrated) {
-      try {
-        localStorage.setItem(
-          getStorageKey("uploadedImages"),
-          JSON.stringify(uploadedImages),
-        );
-      } catch (error) {
-        console.error("Error saving images to localStorage:", error);
-      }
-    }
-  }, [uploadedImages, hasHydrated]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && hasHydrated) {
-      try {
-        localStorage.setItem(
-          getStorageKey("captions"),
-          JSON.stringify(captions),
-        );
-      } catch (error) {
-        console.error("Error saving captions to localStorage:", error);
-      }
-    }
-  }, [captions, hasHydrated]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && hasHydrated) {
-      try {
-        localStorage.setItem(
-          getStorageKey("selectedCaptions"),
-          JSON.stringify(selectedCaptions),
-        );
-      } catch (error) {
-        console.error("Error saving selected captions to localStorage:", error);
-      }
-    }
-  }, [selectedCaptions, hasHydrated]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && hasHydrated) {
-      try {
-        localStorage.setItem(
-          getStorageKey("activeImageId"),
-          JSON.stringify(activeImageId),
-        );
-      } catch (error) {
-        console.error("Error saving active image ID to localStorage:", error);
-      }
-    }
-  }, [activeImageId, hasHydrated]);
-
-  // Helper function to convert blob URL to base64 data URL
-  const convertBlobToBase64 = useCallback(
-    async (blobUrl: string): Promise<string> => {
-      try {
-        const response = await fetch(blobUrl);
-        const blob = await response.blob();
-        return await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(blob);
-        });
-      } catch (error) {
-        console.error("Error converting blob to base64:", error);
-        return blobUrl;
-      }
-    },
-    [],
+  return (
+    <ContentStoreProvider clientId={clientId}>
+      <ProjectPageContent params={{ clientId, projectId }} />
+    </ContentStoreProvider>
   );
+}
 
-  const addImage = useCallback(
-    async (image: UploadedImage) => {
-      // Convert blob URL to base64 data URL for persistence
-      let persistentImage = image;
-      if (image.preview.startsWith("blob:")) {
-        try {
-          const base64Url = await convertBlobToBase64(image.preview);
-          persistentImage = {
-            ...image,
-            preview: base64Url,
-            // Ensure file property is maintained as a proper File object
-            file: image.file instanceof File ? image.file : image.file,
-          };
-          // Revoke the original blob URL to free memory
-          URL.revokeObjectURL(image.preview);
-        } catch (error) {
-          console.error("Error converting image to base64:", error);
-          // Continue with original image if conversion fails
-        }
-      }
-
-      // Ensure the file property is a valid File object
-      if (!(persistentImage.file instanceof File)) {
-        console.error("Invalid file object:", persistentImage.file);
-        return; // Don't add invalid images
-      }
-
-      setUploadedImages((prev) => [...prev, persistentImage]);
-      // Set as active image if it's the first one
-      if (uploadedImages.length === 0) {
-        setActiveImageId(persistentImage.id);
-      }
-    },
-    [uploadedImages.length, convertBlobToBase64],
-  );
-
-  const removeImage = useCallback(
-    (id: string) => {
-      setUploadedImages((prev) => {
-        const image = prev.find((img) => img.id === id);
-        if (image && image.preview.startsWith("blob:")) {
-          // Only revoke blob URLs, not base64 data URLs
-          URL.revokeObjectURL(image.preview);
-        }
-        const newImages = prev.filter((img) => img.id !== id);
-
-        // If we're removing the active image, set a new active one
-        if (activeImageId === id) {
-          setActiveImageId(newImages.length > 0 ? newImages[0].id : null);
-        }
-
-        return newImages;
-      });
-    },
-    [activeImageId],
-  );
-
-  const updateImageNotes = useCallback((id: string, notes: string) => {
-    setUploadedImages((prev) =>
-      prev.map((img) => (img.id === id ? { ...img, notes } : img)),
-    );
-  }, []);
-
-
-
-  const updateCaption = useCallback((id: string, text: string) => {
-    setCaptions((prev) =>
-      prev.map((cap) => (cap.id === id ? { ...cap, text } : cap)),
-    );
-  }, []);
-
-  const selectCaption = useCallback((id: string) => {
-    setSelectedCaptions(
-      (prev) =>
-        prev.includes(id)
-          ? [] // If clicking the already selected caption, deselect it
-          : [id], // Otherwise, select only this caption (single selection)
-    );
-  }, []);
-
-
-
-  const generateAICaptions = useCallback(
-    async (imageId: string) => {
-      const image = uploadedImages.find((img) => img.id === imageId);
-      if (!image) return;
-
-      // Debug: Check file object
-      console.log("🔍 Image file object:", {
-        id: image.id,
-        fileType: typeof image.file,
-        isFile: image.file instanceof File,
-        fileConstructor: image.file?.constructor?.name,
-        fileKeys: image.file ? Object.keys(image.file) : 'No file'
-      });
-
-      // Ensure we have a valid File object
-      if (!(image.file instanceof File)) {
-        console.error("❌ Invalid file object for AI processing:", image.file);
-        alert("Error: Invalid image file. Please re-upload the image.");
-        return;
-      }
-
-      try {
-        const existingCaptionTexts = captions.map((cap) => cap.text);
-
-        // Build comprehensive context from user notes
-        const contextParts = [];
-
-        if (image.notes && image.notes.trim()) {
-          contextParts.push(`User Notes: ${image.notes.trim()}`);
-        }
-
-        const aiContext =
-          contextParts.length > 0 ? contextParts.join("\n\n") + "\n\n" : "";
-
-        const result = await generateCaptionsWithAI(
-          image.file,
-          existingCaptionTexts,
-          aiContext,
-          clientId,
-        );
-
-        if (result.success && result.captions && result.captions.length > 0) {
-          // Replace the existing placeholder captions with AI-generated ones
-          // Keep the same IDs but update the text content
-          const updatedCaptions = captions.map((caption, index) => {
-            if (index < result.captions!.length) {
-              return {
-                ...caption,
-                text: result.captions![index],
-              };
-            }
-            return caption;
-          });
-
-          setCaptions(updatedCaptions);
-        }
-      } catch (error) {
-        console.error("AI caption generation failed:", error);
-      }
-    },
-    [uploadedImages, captions, setCaptions, clientId],
-  );
-
-  const remixCaption = useCallback(
-    async (captionId: string, prompt: string) => {
-      // Find the image associated with the current active image
-      const activeImage = uploadedImages.find(
-        (img) => img.id === activeImageId,
-      );
-      if (!activeImage) return;
-
-      // Debug: Check file object
-      console.log("🔍 Remix - Image file object:", {
-        id: activeImage.id,
-        fileType: typeof activeImage.file,
-        isFile: activeImage.file instanceof File,
-        fileConstructor: activeImage.file?.constructor?.name,
-        fileKeys: activeImage.file ? Object.keys(activeImage.file) : 'No file'
-      });
-
-      // Ensure we have a valid File object
-      if (!(activeImage.file instanceof File)) {
-        console.error("❌ Invalid file object for AI remix:", activeImage.file);
-        alert("Error: Invalid image file. Please re-upload the image.");
-        return;
-      }
-
-      try {
-        const existingCaptionTexts = captions.map((cap) => cap.text);
-
-        // Build comprehensive context from user notes
-        const contextParts = [];
-
-        if (activeImage.notes && activeImage.notes.trim()) {
-          contextParts.push(`User Notes: ${activeImage.notes.trim()}`);
-        }
-
-        const aiContext =
-          contextParts.length > 0 ? contextParts.join("\n\n") + "\n\n" : "";
-
-        const result = await remixCaptionWithAI(
-          activeImage.file,
-          prompt,
-          existingCaptionTexts,
-          aiContext,
-          clientId,
-        );
-
-        if (result.success && result.caption) {
-          // Update the existing caption instead of creating a new one
-          setCaptions((prev) =>
-            prev.map((cap) =>
-              cap.id === captionId ? { ...cap, text: result.caption! } : cap,
-            ),
-          );
-        }
-      } catch (error) {
-        console.error("AI caption remix failed:", error);
-      }
-    },
-    [uploadedImages, captions, activeImageId, setCaptions, clientId],
-  );
-
-  const store: ContentStore = {
-    clientId,
+function ProjectPageContent({ params }: { params: { clientId: string; projectId: string } }) {
+  const { clientId, projectId } = params;
+  const { 
     uploadedImages,
     captions,
     selectedCaptions,
     activeImageId,
-    hasHydrated,
-    setUploadedImages,
-    setCaptions,
-    setSelectedCaptions,
-    setActiveImageId,
     addImage,
     removeImage,
     updateImageNotes,
     updateCaption,
     selectCaption,
     generateAICaptions,
-    remixCaption,
-  };
-
-  // Don't render children until hydration is complete to prevent hydration mismatch
-  if (!hasHydrated) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading your content...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <ContentStoreContext.Provider value={store}>
-      {children}
-    </ContentStoreContext.Provider>
-  );
-}
-
-export default function ProjectPage({ params }: PageProps) {
-  const resolvedParams = use(params);
-  const { clientId, projectId } = resolvedParams;
+    remixCaption
+  } = useContentStore();
+  
   const [isSendingToScheduler, setIsSendingToScheduler] = useState(false);
 
   const handleSendToScheduler = async (
@@ -499,252 +98,178 @@ export default function ProjectPage({ params }: PageProps) {
 
           // Convert blob URL to base64
           if (image.preview.startsWith("blob:")) {
+            try {
             const response = await fetch(image.preview);
             const blob = await response.blob();
+              base64Image = await new Promise<string>((resolve) => {
             const reader = new FileReader();
-
-            base64Image = await new Promise((resolve) => {
               reader.onloadend = () => resolve(reader.result as string);
               reader.readAsDataURL(blob);
             });
+            } catch (error) {
+              console.error("Error converting blob to base64:", error);
+            }
           }
 
           return {
-            imageUrl: base64Image,
             caption: selectedCaption,
+            image_url: base64Image,
             notes: "",
           };
-        }),
+        })
       );
 
-      console.log("📦 Saving posts to database:", postsToSave.length);
+      console.log("📝 Posts to save:", postsToSave);
 
-      // Save to database
-      console.log("📤 Sending posts to API:", {
-        clientId,
-        projectId: projectId || "complete",
-        postsCount: postsToSave.length,
-        status: "ready"
-      });
-
+      // Save each post to the database
+      const savePromises = postsToSave.map(async (post) => {
       const response = await fetch("/api/posts/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
         body: JSON.stringify({
-          clientId: clientId,
-          projectId: projectId || "complete",
-          posts: postsToSave,
-          status: "ready", // Mark as ready for scheduling
+            client_id: clientId,
+            project_id: projectId,
+            ...post,
         }),
       });
 
-      const result = await response.json();
-
       if (!response.ok) {
-        console.error("❌ API Error Response:", result);
-        throw new Error(result.error || result.details || "Failed to save posts");
-      }
+          throw new Error(`Failed to save post: ${response.statusText}`);
+        }
 
-      console.log("✅ Posts saved successfully:", result);
+        return response.json();
+      });
 
-      // Navigate to new scheduler
-      window.location.href = `/dashboard/client/${clientId}/new-scheduler`;
+      const savedPosts = await Promise.all(savePromises);
+      console.log("✅ All posts saved successfully:", savedPosts);
+
+      // Clear the form
+      alert("Content saved successfully! Redirecting to scheduler...");
+
+      // Redirect to scheduler
+      window.location.href = `/dashboard/client/${clientId}/new-scheduler?projectId=${projectId}`;
+
     } catch (error) {
-      console.error("❌ Error in handleSendToScheduler:", error);
-      alert("Failed to save posts. Please try again.");
+      console.error("❌ Error saving posts:", error);
+      alert("Failed to save content. Please try again.");
     } finally {
       setIsSendingToScheduler(false);
     }
   };
 
   return (
-    <ContentStoreProvider clientId={clientId}>
-      <div className="min-h-screen bg-background p-6">
-        <div className="mx-auto max-w-7xl">
-          {/* Breadcrumb and Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-14 items-center">
+          <div className="mr-4 flex">
               <Link
-                href="/dashboard"
-                className="hover:text-foreground transition-colors"
-              >
-                Dashboard
+              href={`/dashboard/client/${clientId}`}
+              className="mr-6 flex items-center space-x-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="font-bold">Back to Dashboard</span>
               </Link>
-              <span>&gt;</span>
-              <Link
-                href={`/dashboard/client/${resolvedParams.clientId}`}
-                className="hover:text-foreground transition-colors"
-              >
-                Client Dashboard
-              </Link>
-              <span>&gt;</span>
-              <Link
-                href={`/dashboard/client/${resolvedParams.clientId}/project/${resolvedParams.projectId}`}
-                className="hover:text-foreground transition-colors"
-              >
-                Project {resolvedParams.projectId}
-              </Link>
-              <span>&gt;</span>
-              <span className="text-foreground font-medium">Content Suite</span>
             </div>
-
-            <div className="flex items-center gap-4">
-              <Link
-                href={`/dashboard/client/${resolvedParams.clientId}`}
-                className="p-2 hover:bg-accent rounded-md transition-colors"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-              <div className="flex-1">
-                <h1 className="text-3xl font-bold text-foreground">
-                  Content Suite
-                </h1>
-                <p className="text-muted-foreground mt-2">
-                  Upload images, add notes, and craft compelling captions for
-                  your social media content.
-                </p>
-              </div>
+          <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+            <div className="w-full flex-1 md:w-auto md:flex-none">
+              <h1 className="text-lg font-semibold">Project: {projectId}</h1>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Column 1: Image Upload + Notes */}
-            <ImageUploadColumn />
-
-            {/* Column 2: Editable Captions */}
-            <CaptionColumn clientId={clientId} projectId={projectId} />
-
-            {/* Column 3: Social Preview */}
-            <SocialPreviewColumn
-              clientId={clientId}
-              projectId={projectId}
-              handleSendToScheduler={handleSendToScheduler}
-              isSendingToScheduler={isSendingToScheduler}
-            />
           </div>
         </div>
       </div>
-    </ContentStoreProvider>
-  );
-}
 
-// Column 1: Image Upload + Notes
-function ImageUploadColumn() {
-  const {
-    uploadedImages,
-    addImage,
-    removeImage,
-    updateImageNotes,
-    activeImageId,
-    setActiveImageId,
-  } = useContentStore();
-
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files) {
-      const newImages: UploadedImage[] = Array.from(files).map(
-        (file, index) => ({
-          id: `img-${Date.now()}-${index}`,
-          file,
-          preview: URL.createObjectURL(file),
-          notes: "",
-        }),
-      );
-      newImages.forEach(addImage);
-    }
-  };
-
-  const handleImageClick = (imageId: string) => {
-    setActiveImageId(imageId);
-  };
-
-  return (
+      {/* Main Content */}
+      <div className="container mx-auto py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left Column - Image Upload and Caption Generation */}
     <div className="space-y-6">
+            {/* Image Upload Section */}
       <div className="bg-card rounded-lg border p-6">
-        <h2 className="text-xl font-semibold text-card-foreground mb-4">
-          Image Upload
-        </h2>
-
+              <h2 className="text-lg font-semibold mb-4">Upload Images</h2>
         <div className="space-y-4">
-          <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
-            <Input
+                                 <input
               type="file"
               accept="image/*"
               multiple
-              onChange={handleImageUpload}
-              className="hidden"
-              id="image-upload"
-            />
-            <label htmlFor="image-upload" className="cursor-pointer block">
-              <div className="text-muted-foreground mb-2">
-                <svg
-                  className="mx-auto h-12 w-12"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                  />
-                </svg>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Click to upload images or drag and drop
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                PNG, JPG, GIF up to 10MB
-              </p>
-            </label>
-          </div>
+                   onChange={(e) => {
+                     const files = Array.from(e.target.files || []);
+                     files.forEach(file => {
+                       addImage(file);
+                     });
+                   }}
+                   className="w-full p-2 border rounded"
+                 />
 
           {uploadedImages.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="font-medium text-card-foreground">
-                Uploaded Images
-              </h3>
+                  <div className="grid grid-cols-2 gap-4">
               {uploadedImages.map((image) => (
-                <div key={image.id} className="space-y-3">
-                  <div
-                    className={`relative group cursor-pointer rounded-lg border-2 transition-all ${
-                      image.id === activeImageId
-                        ? "border-primary ring-2 ring-primary/20"
-                        : "border-border hover:border-primary/50"
-                    }`}
-                    onClick={() => handleImageClick(image.id)}
-                  >
+                      <div key={image.id} className="relative">
                     <img
                       src={image.preview}
-                      alt="Uploaded content"
-                      className="w-full h-32 object-cover rounded-lg"
-                    />
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeImage(image.id);
-                      }}
-                    >
-                      ×
-                    </Button>
-                    {image.id === activeImageId && (
-                      <div className="absolute top-2 left-2 bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs font-medium">
-                        ✓
+                          alt="Uploaded"
+                          className="w-full h-32 object-cover rounded"
+                        />
+                        <button
+                          onClick={() => removeImage(image.id)}
+                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center"
+                        >
+                          ×
+                        </button>
+                        <textarea
+                          placeholder="Add notes..."
+                          value={image.notes}
+                          onChange={(e) => updateImageNotes(image.id, e.target.value)}
+                          className="w-full mt-2 p-2 text-sm border rounded"
+                          rows={2}
+                        />
                       </div>
-                    )}
+                    ))}
                   </div>
-                  <div className="space-y-3">
-                    <Textarea
-                      placeholder="Add Post Notes - describe what you want in your caption..."
-                      value={image.notes}
-                      onChange={(e) =>
-                        updateImageNotes(image.id, e.target.value)
-                      }
-                      className="min-h-20"
+                )}
+              </div>
+            </div>
+
+            {/* Caption Generation Section */}
+            {activeImageId && (
+              <div className="bg-card rounded-lg border p-6">
+                <h2 className="text-lg font-semibold mb-4">Generate Captions</h2>
+                <div className="space-y-4">
+                                     <Button
+                     onClick={() => {
+                       if (activeImageId) {
+                         const activeImage = uploadedImages.find(img => img.id === activeImageId);
+                         generateAICaptions(activeImageId, activeImage?.notes);
+                       }
+                     }}
+                     className="w-full"
+                     disabled={isSendingToScheduler}
+                   >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate AI Captions
+                  </Button>
+                  
+                  {captions.length > 0 && (
+                    <div className="space-y-2">
+                      {captions.map((caption) => (
+                        <div
+                          key={caption.id}
+                          className={`p-3 border rounded cursor-pointer transition-colors ${
+                            selectedCaptions.includes(caption.id)
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-gray-200 hover:border-gray-300"
+                          }`}
+                          onClick={() => selectCaption(caption.id)}
+                        >
+                          <p className="text-sm">{caption.text}</p>
+                          <div className="mt-2">
+                            <Input
+                              value={caption.text}
+                              onChange={(e) => updateCaption(caption.id, e.target.value)}
+                              className="text-sm"
+                              placeholder="Edit caption..."
                     />
                   </div>
                 </div>
@@ -753,288 +278,34 @@ function ImageUploadColumn() {
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-// Column 2: Editable Captions
-function CaptionColumn({
-  clientId,
-  projectId,
-}: {
-  clientId: string;
-  projectId: string;
-}) {
-  const {
-    captions,
-    selectedCaptions,
-    updateCaption,
-    selectCaption,
-    generateAICaptions,
-    remixCaption,
-    uploadedImages,
-    activeImageId,
-  } = useContentStore();
-
-  const [generatingCaptions, setGeneratingCaptions] = useState(false);
-  const [remixingCaption, setRemixingCaption] = useState<string | null>(null);
-  const [remixPrompt, setRemixPrompt] = useState("");
-
-  const handleRemixThis = (captionId: string) => {
-    setRemixingCaption(captionId);
-    setRemixPrompt("");
-  };
-
-  const handleAIRemix = async (captionId: string) => {
-    if (!remixPrompt.trim()) return;
-
-    try {
-      await remixCaption(captionId, remixPrompt);
-      setRemixingCaption(null);
-      setRemixPrompt("");
-    } catch (error) {
-      console.error("Failed to remix caption:", error);
-    }
-  };
-
-  const handleAIGenerateCaptions = async () => {
-    setGeneratingCaptions(true);
-    try {
-      // Use the currently active/selected image for AI caption generation
-      if (activeImageId) {
-        await generateAICaptions(activeImageId);
-      } else if (uploadedImages.length > 0) {
-        // Fallback to first image if no active image is selected
-        await generateAICaptions(uploadedImages[0].id);
-      }
-    } catch (error) {
-      console.error("Failed to generate AI captions:", error);
-    } finally {
-      setGeneratingCaptions(false);
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-card rounded-lg border p-6">
-        <h2 className="text-xl font-semibold text-card-foreground mb-4">
-          Captions
-        </h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Select one caption to display in the preview. Only one caption can be
-          selected at a time.
-        </p>
-
-        <div className="space-y-4">
-          {captions.map((caption) => (
-            <div
-              key={caption.id}
-              className={`space-y-3 p-4 rounded-lg border-2 transition-all ${
-                selectedCaptions.includes(caption.id)
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-primary/30"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="caption-selection"
-                  checked={selectedCaptions.includes(caption.id)}
-                  onChange={() => selectCaption(caption.id)}
-                  className="border-border"
-                />
-                <span className="text-sm text-muted-foreground">
-                  Caption {caption.id}
-                </span>
-                {selectedCaptions.includes(caption.id) && (
-                  <span className="ml-auto text-xs bg-primary text-primary-foreground px-2 py-1 rounded-full">
-                    Selected
-                  </span>
                 )}
               </div>
 
-              <Textarea
-                value={caption.text}
-                onChange={(e) => updateCaption(caption.id, e.target.value)}
-                placeholder="Enter your caption..."
-                className="min-h-24"
-              />
-
-              <div className="space-y-3">
-                {remixingCaption === caption.id && (
-                  <div className="space-y-2">
-                    <Textarea
-                      placeholder="Describe how you want to remix this caption..."
-                      value={remixPrompt}
-                      onChange={(e) => setRemixPrompt(e.target.value)}
-                      className="min-h-16 text-sm"
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => handleAIRemix(caption.id)}
-                        disabled={!remixPrompt.trim()}
-                        className="flex-1"
-                      >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        AI Remix
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setRemixingCaption(null)}
-                      >
-                        Cancel
-                      </Button>
+                     {/* Right Column - Social Preview */}
+           <div className="bg-card rounded-lg border p-6">
+             <h2 className="text-lg font-semibold mb-4">Social Preview</h2>
+             {uploadedImages.length > 0 && selectedCaptions.length > 0 ? (
+               <div className="space-y-4">
+                 <SocialPreview
+                   caption={captions.find(c => c.id === selectedCaptions[0])?.text || ""}
+                   images={uploadedImages.map(img => ({ preview: img.preview, id: img.id, notes: img.notes || "" }))}
+                   clientId={clientId}
+                   projectId={projectId}
+                   activeImageId={activeImageId}
+                 />
                     </div>
+             ) : (
+               <div className="text-center py-8 text-muted-foreground">
+                 <p>Upload images and select a caption to see the preview</p>
                   </div>
                 )}
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRemixThis(caption.id)}
-                    className="flex-1"
-                  >
-                    <RefreshCw className="h-4 h-4 mr-2" />
-                    Remix This
-                  </Button>
-                  <Button
-                    variant={
-                      selectedCaptions.includes(caption.id)
-                        ? "default"
-                        : "outline"
-                    }
-                    size="sm"
-                    onClick={() => selectCaption(caption.id)}
-                  >
-                    {selectedCaptions.includes(caption.id)
-                      ? "Selected"
-                      : "Select This"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          <div className="pt-4 border-t">
-            <Button
-              variant="default"
-              size="lg"
-              onClick={handleAIGenerateCaptions}
-              disabled={generatingCaptions || uploadedImages.length === 0}
-              className="w-full"
-            >
-              {generatingCaptions ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Generating AI Captions...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-5 w-5 mr-2" />
-                  Generate AI Captions
-                </>
-              )}
-            </Button>
-
-            {/* Test Store Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const testPost = {
-                  id: "manual-test-" + Date.now().toString(),
-                  clientId,
-                  projectId,
-                  imageUrl:
-                    "https://via.placeholder.com/300x200?text=Manual+Test",
-                  caption: "Manual test post added directly to store",
-                  mediaType: "image" as const,
-                  originalCaption: "Manual test",
-                  createdAt: new Date().toISOString(),
-                  status: "draft" as const,
-                  notes: "Manual test post for debugging store",
-                };
-
-                console.log(
-                  "🧪 Manual test: Adding post directly to store:",
-                  testPost,
-                );
-                const { addPost } = usePostStore.getState();
-                addPost(testPost);
-
-                // Check store state
-                const storeState = usePostStore.getState();
-                const key = `${clientId}:${projectId}`;
-                console.log("🧪 Manual test: Store state after adding:", {
-                  key,
-                  postsInStore: storeState.posts[key],
-                  totalPosts: storeState.posts,
-                  storeKeys: Object.keys(storeState.posts),
-                });
-
-                alert("Test post added to store! Check console for details.");
-              }}
-              className="w-full mt-2"
-            >
-              🧪 Test Store (Add Test Post)
-            </Button>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// Column 3: Social Preview
-function SocialPreviewColumn({
-  clientId,
-  projectId,
-  handleSendToScheduler,
-  isSendingToScheduler,
-}: {
-  clientId: string;
-  projectId: string;
-  handleSendToScheduler: (
-    selectedCaption: string,
-    uploadedImages: { preview: string; id: string; file?: File }[],
-  ) => Promise<void>;
-  isSendingToScheduler: boolean;
-}) {
-  const {
-    uploadedImages,
-    captions,
-    selectedCaptions,
-    activeImageId,
-    setActiveImageId,
-  } = useContentStore();
-
-  const selectedCaption =
-    selectedCaptions.length > 0
-      ? captions.find((cap) => cap.id === selectedCaptions[0])?.text
-      : undefined;
-
-  const handleImageSelect = (imageId: string) => {
-    setActiveImageId(imageId);
-  };
-
-  return (
-    <div className="space-y-6">
-      <SocialPreview
-        images={uploadedImages}
-        activeImageId={activeImageId}
-        onImageSelect={handleImageSelect}
-        caption={selectedCaption}
-        totalCaptionCount={captions.length}
-      />
 
       {/* Action Buttons */}
       {uploadedImages.length > 0 && selectedCaptions.length > 0 && (
-        <div className="bg-card rounded-lg border p-6">
-          <h3 className="text-lg font-semibold text-card-foreground mb-3">
+          <div className="mt-8 bg-card rounded-lg border p-6">
+            <h3 className="text-lg font-semibold mb-4">
             What would you like to do?
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
@@ -1131,6 +402,7 @@ function SocialPreviewColumn({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
