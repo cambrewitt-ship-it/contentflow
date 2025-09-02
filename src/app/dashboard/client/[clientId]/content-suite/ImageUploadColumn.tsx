@@ -3,7 +3,6 @@
 import { useContentStore, UploadedImage } from 'lib/contentStore'
 import { Button } from 'components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
-import { Textarea } from 'components/ui/textarea'
 import { Upload, X, Image as ImageIcon } from 'lucide-react'
 
 export function ImageUploadColumn() {
@@ -14,8 +13,6 @@ export function ImageUploadColumn() {
     addImage,
     removeImage,
     updateImageNotes,
-    postNotes,
-    setPostNotes,
   } = useContentStore()
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -129,23 +126,7 @@ export function ImageUploadColumn() {
         </Card>
       )}
 
-      {/* Post Notes */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Post Notes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            value={postNotes}
-            onChange={(e) => setPostNotes(e.target.value)}
-            placeholder="Add specific notes, context, or instructions for your post..."
-            className="min-h-[120px] resize-none"
-          />
-          <p className="text-xs text-muted-foreground mt-2">
-            These notes will be used to generate AI captions that match your requirements.
-          </p>
-        </CardContent>
-      </Card>
+
     </div>
   )
 }

@@ -36,6 +36,7 @@ export interface ContentStore {
   selectCaption: (id: string) => void
   generateAICaptions: (imageId: string, notes?: string) => Promise<void>
   remixCaption: (captionId: string) => Promise<void>
+  clearAll: () => void
 }
 
 const ContentStoreContext = createContext<ContentStore | null>(null)
@@ -297,6 +298,23 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     }
   }
 
+  const clearAll = () => {
+    // Clear all uploaded images
+    setUploadedImages([])
+    
+    // Clear captions to empty array
+    setCaptions([])
+    
+    // Clear selected captions
+    setSelectedCaptions([])
+    
+    // Clear active image
+    setActiveImageId(null)
+    
+    // Clear post notes
+    setPostNotes('')
+  }
+
   const value: ContentStore = {
     clientId,
     uploadedImages,
@@ -317,6 +335,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     selectCaption,
     generateAICaptions,
     remixCaption,
+    clearAll,
   }
 
   return (

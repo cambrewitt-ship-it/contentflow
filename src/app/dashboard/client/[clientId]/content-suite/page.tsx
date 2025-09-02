@@ -51,6 +51,7 @@ export default function ContentSuitePage({ params }: PageProps) {
   const [isSendingToScheduler, setIsSendingToScheduler] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsLoading, setProjectsLoading] = useState(false)
+  const [addingToProject, setAddingToProject] = useState<string | null>(null)
 
   // Fetch projects for the client
   useEffect(() => {
@@ -108,6 +109,8 @@ export default function ContentSuitePage({ params }: PageProps) {
         setProjects={setProjects}
         handleSendToScheduler={handleSendToScheduler}
         isSendingToScheduler={isSendingToScheduler}
+        addingToProject={addingToProject}
+        setAddingToProject={setAddingToProject}
       />
     </ContentStoreProvider>
   )
@@ -120,7 +123,9 @@ function ContentSuiteContent({
   projectsLoading, 
   setProjects,
   handleSendToScheduler,
-  isSendingToScheduler 
+  isSendingToScheduler,
+  addingToProject,
+  setAddingToProject
 }: {
   clientId: string
   projects: Project[]
@@ -128,8 +133,15 @@ function ContentSuiteContent({
   setProjects: (projects: Project[]) => void
   handleSendToScheduler: (selectedCaption: string, uploadedImages: { preview: string; id: string; file?: File }[]) => Promise<void>
   isSendingToScheduler: boolean
+  addingToProject: string | null
+  setAddingToProject: (projectId: string | null) => void
 }) {
-  const { uploadedImages, captions, selectedCaptions, postNotes, activeImageId } = useContentStore()
+  const { uploadedImages, captions, selectedCaptions, postNotes, activeImageId, clearAll } = useContentStore()
+
+  // Clear all content when component mounts (reload)
+  useEffect(() => {
+    clearAll();
+  }, []);
 
   const handleAddToProject = async (post: any, projectId: string) => {
     console.log('handleAddToProject called with post ID:', post?.id, 'project ID:', projectId);
@@ -139,6 +151,9 @@ function ContentSuiteContent({
       alert('Please select a project first');
       return;
     }
+    
+    // Set loading state for this specific project
+    setAddingToProject(projectId);
     
     try {
       let imageData = post.generatedImage;
@@ -178,6 +193,8 @@ function ContentSuiteContent({
       
       if (response.ok) {
         alert('Post added to project successfully!');
+        // Clear all content after successful add
+        clearAll();
       } else {
         const error = await response.text();
         alert('Failed to add post: ' + error);
@@ -187,6 +204,9 @@ function ContentSuiteContent({
       console.error('Failed to add to project:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       alert(`Error adding post to project: ${errorMessage}`);
+    } finally {
+      // Clear loading state
+      setAddingToProject(null);
     }
   };
 
@@ -273,27 +293,36 @@ function ContentSuiteContent({
                           <Calendar className="w-3 h-3 mr-1.5" />
                           Planner
                         </Link>
-                                                   <button
-                             onClick={(e) => {
-                               e.stopPropagation();
-                               
-                               // Create post object from current content store state
-                               const selectedCaptionText = captions.find(c => c.id === selectedCaptions[0])?.text || '';
-                               const currentImage = uploadedImages.find(img => img.id === activeImageId) || uploadedImages[0];
-                               
-                               const post = {
-                                 clientId: clientId,
-                                 caption: selectedCaptionText,
-                                 generatedImage: currentImage?.preview || '',
-                                 notes: postNotes || ''
-                               };
-                               
-                               handleAddToProject(post, project.id);
-                             }}
-                             className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors"
-                             title="Add current content to this project"
-                           >
-                          <Plus className="w-4 h-4" />
+                                                                             <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              
+                              // Create post object from current content store state
+                              const selectedCaptionText = captions.find(c => c.id === selectedCaptions[0])?.text || '';
+                              const currentImage = uploadedImages.find(img => img.id === activeImageId) || uploadedImages[0];
+                              
+                              const post = {
+                                clientId: clientId,
+                                caption: selectedCaptionText,
+                                generatedImage: currentImage?.preview || '',
+                                notes: postNotes || ''
+                              };
+                              
+                              handleAddToProject(post, project.id);
+                            }}
+                            disabled={addingToProject === project.id}
+                            className={`p-1.5 rounded transition-colors flex items-center justify-center ${
+                              addingToProject === project.id 
+                                ? 'opacity-50 cursor-not-allowed text-gray-300' 
+                                : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'
+                            }`}
+                            title="Add current content to this project"
+                          >
+                          {addingToProject === project.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Plus className="w-4 h-4" />
+                          )}
                         </button>
                       </div>
                     </div>

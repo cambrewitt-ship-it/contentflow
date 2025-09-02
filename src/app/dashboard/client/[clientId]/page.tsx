@@ -354,44 +354,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               )}
             </div>
             
-            {/* Main Create Content Button - Always Visible */}
-            <div className="flex gap-3">
-              <Button 
-                onClick={() => window.location.href = `/dashboard/client/${clientId}/content-suite`}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-4 text-xl font-bold shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
-              >
-                <Plus className="w-7 h-7 mr-3" />
-                Go to Content Suite
-                <ArrowRight className="w-6 h-6 ml-3" />
-              </Button>
-              
-              {/* Additional Quick Actions */}
-              {!projectsFailed && projects.length > 0 && (
-                <div className="flex gap-3">
-                  {projects.length === 1 ? (
-                    <Button 
-                      onClick={() => navigateToContentSuite(projects[0].id)}
-                      variant="outline"
-                      className="px-6 py-3"
-                    >
-                      <FileText className="w-5 h-5 mr-2" />
-                      Use Existing Project
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </Button>
-                  ) : (
-                    <Button 
-                      onClick={() => setShowProjectSelection(true)}
-                      variant="outline"
-                      className="px-6 py-3"
-                    >
-                      <FileText className="w-5 h-5 mr-2" />
-                      Choose Project
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
+
             
             {/* Quick Actions when Projects Failed */}
             {projectsFailed && (
@@ -413,8 +376,10 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             )}
           </div>
           
+          {/* Client Details Card and Create Content Button */}
+          <div className="flex items-center gap-6">
           {/* Client Details Card */}
-          <Card>
+            <Card className="flex-1">
             <CardContent className="p-6">
               <div className="flex items-center space-x-6">
                 <div className="w-20 h-20 bg-gray-300 rounded-full flex items-center justify-center">
@@ -444,184 +409,15 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               </div>
             </CardContent>
           </Card>
-        </div>
-
-        {/* Two-Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-          
-          {/* Social Media Platforms Bar */}
-          <div className="col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Social Media Platforms</h3>
             
-            {/* OAuth Success/Error Messages */}
-            {oauthMessage && (
-              <div className={`mb-4 border rounded-lg p-4 ${
-                oauthMessage.type === 'success' 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-red-50 border-red-200'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <p className={`text-sm ${
-                    oauthMessage.type === 'success' ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {oauthMessage.message}
-                  </p>
-                  <button 
-                    onClick={() => setOauthMessage(null)}
-                    className={`text-xs hover:opacity-70 ${
-                      oauthMessage.type === 'success' ? 'text-green-500' : 'text-red-500'
-                    }`}
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {/* Error Message */}
-            {error && (
-              <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-600 text-sm">{error}</p>
-                <button 
-                  onClick={() => setError(null)}
-                  className="text-red-500 text-xs mt-2 hover:text-red-700"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
-            
-            <div className="flex justify-between items-center">
-              <button 
-                onClick={() => handlePlatformConnect('facebook')}
-                disabled={connectingPlatform === 'facebook'}
-                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'facebook' ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <span className="text-white text-xs font-bold">f</span>
-                  )}
-                </div>
-                <span className="text-xs text-gray-600">
-                  {connectingPlatform === 'facebook' ? 'Connecting...' : 'Facebook'}
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => handlePlatformConnect('instagram')}
-                disabled={connectingPlatform === 'instagram'}
-                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'instagram' ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <span className="text-white text-xs font-bold">IG</span>
-                  )}
-                </div>
-                <span className="text-xs text-gray-600">
-                  {connectingPlatform === 'instagram' ? 'Connecting...' : 'Instagram'}
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => handlePlatformConnect('twitter')}
-                disabled={connectingPlatform === 'twitter'}
-                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'twitter' ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <span className="text-white text-xs font-bold">X</span>
-                  )}
-                </div>
-                <span className="text-xs text-gray-600">
-                  {connectingPlatform === 'twitter' ? 'Connecting...' : 'X'}
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => handlePlatformConnect('linkedin')}
-                disabled={connectingPlatform === 'linkedin'}
-                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'linkedin' ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <span className="text-white text-xs font-bold">in</span>
-                  )}
-                </div>
-                <span className="text-xs text-gray-600">
-                  {connectingPlatform === 'linkedin' ? 'Connecting...' : 'LinkedIn'}
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => handlePlatformConnect('tiktok')}
-                disabled={connectingPlatform === 'tiktok'}
-                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'tiktok' ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <span className="text-white text-xs font-bold">TT</span>
-                  )}
-                </div>
-                <span className="text-xs text-gray-600">
-                  {connectingPlatform === 'tiktok' ? 'Connecting...' : 'TikTok'}
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => handlePlatformConnect('youtube')}
-                disabled={connectingPlatform === 'youtube'}
-                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'youtube' ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <span className="text-white text-xs font-bold">YT</span>
-                  )}
-                </div>
-                <span className="text-xs text-gray-600">
-                  {connectingPlatform === 'youtube' ? 'Connecting...' : 'YouTube'}
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => handlePlatformConnect('threads')}
-                disabled={connectingPlatform === 'threads'}
-                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'threads' ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <span className="text-white text-xs font-bold">T</span>
-                  )}
-                </div>
-                <span className="text-xs text-gray-600">
-                  {connectingPlatform === 'threads' ? 'Connecting...' : 'Threads'}
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* Brand Information Panel */}
-          <div className="col-span-2">
-            <BrandInformationPanel 
-              clientId={clientId} 
-              client={client} 
-              onUpdate={(updatedClient) => setClient(updatedClient)}
-              brandDocuments={brandDocuments}
-              websiteScrapes={websiteScrapes}
-            />
+            {/* Create Content Button */}
+            <Button 
+              onClick={() => window.location.href = `/dashboard/client/${clientId}/content-suite`}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white w-64 h-full rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
+            >
+              <Plus className="w-16 h-16 mb-4" />
+              <span className="text-2xl font-bold">Create Content</span>
+            </Button>
           </div>
         </div>
 
@@ -630,24 +426,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Projects</h2>
             <div className="flex gap-2">
-              {/* Main Create Content Button in Projects Section */}
-              <Button 
-                onClick={() => navigateToContentSuite('default')}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 font-semibold shadow-md hover:shadow-lg transition-all duration-200"
-              >
-                <Plus className="w-5 h-5 mr-2" />
-                Create Content
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-              
-              <Button 
-                onClick={handleDebugDatabase}
-                disabled={debugLoading}
-                variant="outline"
-                className="text-sm"
-              >
-                {debugLoading ? '🔍 Debugging...' : '🔍 Debug DB'}
-              </Button>
               {!projectsFailed && (
                 <Button 
                   onClick={() => setShowNewProjectForm(true)}
@@ -940,6 +718,185 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               )}
             </>
           )}
+        </div>
+
+        {/* Two-Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+          
+          {/* Social Media Platforms Bar */}
+          <div className="col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Social Media Platforms</h3>
+            
+            {/* OAuth Success/Error Messages */}
+            {oauthMessage && (
+              <div className={`mb-4 border rounded-lg p-4 ${
+                oauthMessage.type === 'success' 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <p className={`text-sm ${
+                    oauthMessage.type === 'success' ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {oauthMessage.message}
+                  </p>
+                  <button 
+                    onClick={() => setOauthMessage(null)}
+                    className={`text-xs hover:opacity-70 ${
+                      oauthMessage.type === 'success' ? 'text-green-500' : 'text-red-500'
+                    }`}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Error Message */}
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-600 text-sm">{error}</p>
+                <button 
+                  onClick={() => setError(null)}
+                  className="text-red-500 text-xs mt-2 hover:text-red-700"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+            
+            <div className="flex justify-between items-center">
+              <button 
+                onClick={() => handlePlatformConnect('facebook')}
+                disabled={connectingPlatform === 'facebook'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'facebook' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">f</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'facebook' ? 'Connecting...' : 'Facebook'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={() => handlePlatformConnect('instagram')}
+                disabled={connectingPlatform === 'instagram'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'instagram' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">IG</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'instagram' ? 'Connecting...' : 'Instagram'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={() => handlePlatformConnect('twitter')}
+                disabled={connectingPlatform === 'twitter'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'twitter' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">X</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'twitter' ? 'Connecting...' : 'X'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={() => handlePlatformConnect('linkedin')}
+                disabled={connectingPlatform === 'linkedin'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'linkedin' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">in</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'linkedin' ? 'Connecting...' : 'LinkedIn'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={() => handlePlatformConnect('tiktok')}
+                disabled={connectingPlatform === 'tiktok'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'tiktok' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">TT</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'tiktok' ? 'Connecting...' : 'TikTok'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={() => handlePlatformConnect('youtube')}
+                disabled={connectingPlatform === 'youtube'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'youtube' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">YT</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'youtube' ? 'Connecting...' : 'YouTube'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={() => handlePlatformConnect('threads')}
+                disabled={connectingPlatform === 'threads'}
+                className="flex flex-col items-center space-y-2 p-3 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+                  {connectingPlatform === 'threads' ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <span className="text-white text-xs font-bold">T</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {connectingPlatform === 'threads' ? 'Connecting...' : 'Threads'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Brand Information Panel */}
+          <div className="col-span-2">
+            <BrandInformationPanel 
+              clientId={clientId} 
+              client={client} 
+              onUpdate={(updatedClient) => setClient(updatedClient)}
+              brandDocuments={brandDocuments}
+              websiteScrapes={websiteScrapes}
+            />
+          </div>
         </div>
       </div>
     </div>
