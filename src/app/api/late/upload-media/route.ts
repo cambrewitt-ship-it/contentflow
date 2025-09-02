@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     }
     
     const data = await response.json();
-    console.log('LATE response:', data);
+    console.log('LATE response - success:', !data.error, 'mediaId:', data.mediaId);
     
     return NextResponse.json({ lateMediaUrl: data.files[0].url });
     

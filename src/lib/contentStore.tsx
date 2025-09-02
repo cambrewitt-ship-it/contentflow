@@ -272,7 +272,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         body: JSON.stringify({
           action: 'remix_caption',
           imageData: imageData,
-          prompt: `Please remix this caption: "${caption.text}"`,
+          prompt: `Create a fresh variation of this caption while maintaining the same style, tone, and message. Keep the core meaning but rephrase it differently. Original caption: "${caption.text}"`,
           existingCaptions: captions.map(cap => cap.text),
           aiContext: postNotes,
           clientId: clientId,

@@ -67,6 +67,21 @@ export default function PlannerPage() {
   );
   
   console.log('📍 PlannerPage render - clientId:', clientId, 'projectId:', projectId);
+
+  // Log user's actual timezone
+  useEffect(() => {
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const now = new Date();
+    const localTime = now.toLocaleString();
+    const utcTime = now.toUTCString();
+    
+    console.log('🌍 USER TIMEZONE DETECTION:');
+    console.log('  - Browser timezone:', userTimezone);
+    console.log('  - Local time:', localTime);
+    console.log('  - UTC time:', utcTime);
+    console.log('  - Timezone offset (minutes):', now.getTimezoneOffset());
+    console.log('  - Timezone offset (hours):', now.getTimezoneOffset() / 60);
+  }, []);
   
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId || null);
@@ -81,33 +96,46 @@ export default function PlannerPage() {
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
 
   const fetchConnectedAccounts = async () => {
     try {
       const response = await fetch(`/api/late/get-accounts/${clientId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch accounts: ${response.status}`);
+      }
       const data = await response.json();
       setConnectedAccounts(data.accounts || []);
-      console.log('Connected accounts:', data.accounts);
+      console.log('Connected accounts count:', data.accounts?.length || 0);
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load connected accounts');
     }
   };
 
   const fetchUnscheduledPosts = async () => {
       try {
+        setIsLoadingPosts(true);
+        setError(null);
         console.log('Fetching unscheduled posts for project:', projectId);
         const response = await fetch(`/api/planner/unscheduled?projectId=${projectId}`);
-        const data = await response.json();
-        console.log('Unscheduled posts response:', data);
         
-        // Debug image data
+        if (!response.ok) {
+          throw new Error(`Failed to fetch unscheduled posts: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Unscheduled posts response - count:', data.posts?.length || 0);
+        
+        // Debug image data (safe logging)
         if (data.posts && data.posts.length > 0) {
+          console.log(`Found ${data.posts.length} unscheduled posts`);
           data.posts.forEach((post: Post, index: number) => {
-            console.log(`Post ${index} image_url:`, {
+            console.log(`Post ${index}:`, {
               hasImage: !!post.image_url,
               imageType: typeof post.image_url,
-              imageLength: post.image_url?.length || 0,
-              imagePreview: post.image_url?.substring(0, 50) || 'none'
+              imageLength: post.image_url?.length || 0
             });
           });
         }
@@ -115,38 +143,139 @@ export default function PlannerPage() {
         setProjectPosts(data.posts || []);
       } catch (error) {
         console.error('Error fetching unscheduled posts:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load unscheduled posts');
+      } finally {
+        setIsLoadingPosts(false);
       }
     };
 
-  const fetchScheduledPosts = async () => {
+  const fetchScheduledPosts = async (retryCount = 0) => {
+    if (!projectId) return;
+    
+    const maxRetries = 2;
+    const baseLimit = 50;
+    const retryLimit = Math.max(20, baseLimit - (retryCount * 15)); // Reduce limit on retries
+    
     try {
-      const response = await fetch(`/api/planner/scheduled?projectId=${projectId}`);
+      if (retryCount === 0) {
+        setIsLoadingPosts(true);
+        setError(null);
+      }
+      console.log(`🔍 OPTIMIZED FETCH - Scheduled posts for project: ${projectId} (attempt ${retryCount + 1}, limit: ${retryLimit})`);
+      
+      // Use optimized query with conditional image data loading
+      const includeImageData = retryCount === 0; // Only load images on first attempt
+      const response = await fetch(
+        `/api/planner/scheduled?projectId=${projectId}&limit=${retryLimit}&includeImageData=${includeImageData}`
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        
+        if (response.status === 408) {
+          // Handle timeout error with retry logic
+          console.error('⏰ Query timeout:', errorData);
+          
+          if (retryCount < maxRetries) {
+            console.log(`🔄 Retrying with reduced limit (${retryLimit})...`);
+            return fetchScheduledPosts(retryCount + 1);
+          } else {
+            alert('Query timeout - the database is taking too long to respond. Please try again later or contact support.');
+            return;
+          }
+        }
+        
+        if (response.status === 404) {
+          console.log('📭 No scheduled posts found for this project');
+          setScheduledPosts({});
+          return;
+        }
+        
+        throw new Error(`HTTP ${response.status}: ${errorData.error || response.statusText}`);
+      }
+      
       const data = await response.json();
       
-      // Debug image data
-      if (data.posts && data.posts.length > 0) {
-        data.posts.forEach((post: Post, index: number) => {
-          console.log(`Scheduled Post ${index} image_url:`, {
+      // Handle optimized response format
+      const posts = data.posts || [];
+      const pagination = data.pagination;
+      const performance = data.performance;
+      
+      console.log(`✅ Retrieved ${posts.length} scheduled posts`, pagination ? `(total: ${pagination.total})` : '');
+      
+      if (performance) {
+        console.log(`⏱️ Query performance: ${performance.queryDuration} (optimized: ${performance.optimized})`);
+        
+        if (!performance.optimized) {
+          console.warn('⚠️ Query took longer than expected - consider database optimization');
+        }
+      }
+      
+      // Debug image data (safe logging)
+      if (posts.length > 0 && includeImageData) {
+        console.log(`Found ${posts.length} scheduled posts with image data`);
+        posts.forEach((post: Post, index: number) => {
+          console.log(`Scheduled Post ${index}:`, {
             hasImage: !!post.image_url,
             imageType: typeof post.image_url,
-            imageLength: post.image_url?.length || 0,
-            imagePreview: post.image_url?.substring(0, 50) || 'none'
+            imageLength: post.image_url?.length || 0
           });
         });
       }
       
       // Map posts by date
       const mapped: {[key: string]: Post[]} = {};
-      data.posts?.forEach((post: Post) => {
+      posts.forEach((post: Post) => {
         const dateKey = post.scheduled_date;
         if (dateKey && !mapped[dateKey]) mapped[dateKey] = [];
         if (dateKey) mapped[dateKey].push(post);
       });
       
       setScheduledPosts(mapped);
-      console.log('Scheduled posts loaded:', mapped);
+      console.log('Scheduled posts loaded - dates:', Object.keys(mapped).length);
+      
+      // Handle pagination warnings
+      if (pagination && pagination.hasMore) {
+        console.warn(`⚠️ Only showing first ${pagination.limit} posts. There are ${pagination.total} total posts.`);
+        
+        // Show user notification for large datasets
+        if (pagination.total > 100) {
+          console.info(`💡 Consider implementing pagination for better performance with ${pagination.total} total posts`);
+        }
+      }
+      
+      // Success metrics
+      if (retryCount > 0) {
+        console.log(`🎉 Successfully loaded posts after ${retryCount + 1} attempts`);
+      }
+      
     } catch (error) {
-      console.error('Error fetching scheduled posts:', error);
+      if (retryCount === 0) {
+        setIsLoadingPosts(false);
+      }
+      console.error('❌ Error fetching scheduled posts:', error);
+      
+      // Retry logic for network errors
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (retryCount < maxRetries && (
+        errorMessage.includes('fetch') || 
+        errorMessage.includes('network') ||
+        errorMessage.includes('ECONNREFUSED')
+      )) {
+        console.log(`🔄 Network error, retrying... (attempt ${retryCount + 1})`);
+        setTimeout(() => fetchScheduledPosts(retryCount + 1), 1000 * (retryCount + 1));
+        return;
+      }
+      
+      // Show user-friendly error message
+      if (errorMessage.includes('timeout') || errorMessage.includes('TIMEOUT')) {
+        setError('Database query timeout. Please try again or contact support if the issue persists.');
+      } else if (errorMessage.includes('404')) {
+        console.log('No scheduled posts found - this is normal for new projects');
+        setScheduledPosts({});
+      } else {
+        setError(`Failed to load scheduled posts: ${errorMessage}`);
+      }
     }
   };
 
@@ -189,13 +318,16 @@ export default function PlannerPage() {
     if (!clientId) return;
     
     try {
+      setError(null);
       const response = await fetch(`/api/projects?clientId=${clientId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data.projects || []);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch projects: ${response.status}`);
       }
+      const data = await response.json();
+      setProjects(data.projects || []);
     } catch (error) {
       console.error('Error fetching projects:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load projects');
     } finally {
       setLoading(false);
     }
@@ -267,7 +399,8 @@ export default function PlannerPage() {
       fetchScheduledPosts();
     } catch (error) {
       console.error('Error updating post:', error);
-      alert('Failed to update time');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Failed to update time: ${errorMessage}`);
     }
   };
 
@@ -283,32 +416,81 @@ export default function PlannerPage() {
     
     const time = '12:00'; // Default to noon, will add proper time picker later
     
+    // STEP 1: Log what the user actually selected
+    console.log('📅 STEP 1 - USER SELECTION:');
+    console.log('  - Week index:', weekIndex);
+    console.log('  - Day index:', dayIndex);
+    console.log('  - Week start:', weekStart);
+    console.log('  - Target date object:', targetDate);
+    console.log('  - Target date ISO:', targetDate.toISOString());
+    console.log('  - Target date local string:', targetDate.toLocaleString());
+    console.log('  - Target date local date string:', targetDate.toLocaleDateString());
+    console.log('  - Target date local time string:', targetDate.toLocaleTimeString());
+    console.log('  - Default time:', time);
+    
+    const scheduledDate = targetDate.toLocaleDateString('en-CA'); // Keeps local timezone
+    const scheduledTime = time + ':00';
+    
+    console.log('📅 STEP 2 - FORMATTED VALUES:');
+    console.log('  - scheduled_date:', scheduledDate);
+    console.log('  - scheduled_time:', scheduledTime);
+    console.log('  - Combined datetime:', `${scheduledDate}T${scheduledTime}`);
+    
     try {
       // Just move to scheduled table for planning
-      await fetch('/api/planner/scheduled', {
+      const requestBody = {
+        unscheduledId: post.id,
+        scheduledPost: {
+          project_id: projectId,
+          client_id: clientId,
+          caption: post.caption,
+          image_url: post.image_url,
+          post_notes: post.post_notes,
+          scheduled_date: scheduledDate,
+          scheduled_time: scheduledTime
+        }
+      };
+      
+      console.log('📅 STEP 3 - API REQUEST BODY:');
+      console.log('  - Request body keys:', Object.keys(requestBody));
+      
+      console.log('📅 STEP 4 - SENDING REQUEST TO /api/planner/scheduled:');
+      const response = await fetch('/api/planner/scheduled', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          unscheduledId: post.id,
-          scheduledPost: {
-            project_id: projectId,
-            client_id: clientId,
-            caption: post.caption,
-            image_url: post.image_url,
-            post_notes: post.post_notes,
-            scheduled_date: targetDate.toISOString().split('T')[0],
-            scheduled_time: time + ':00'
-          }
-        })
+        body: JSON.stringify(requestBody)
       });
       
+      console.log('📅 STEP 5 - API RESPONSE:');
+      console.log('  - Response status:', response.status);
+      console.log('  - Response ok:', response.ok);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error Response:', errorText);
+        throw new Error(`API Error: ${response.status} - ${errorText}`);
+      }
+      
+      const responseData = await response.json();
+      console.log('✅ STEP 6 - SUCCESSFUL RESPONSE:');
+      console.log('  - Response keys:', Object.keys(responseData));
+      
       // Refresh both lists
+      console.log('📅 STEP 7 - REFRESHING POST LISTS:');
       fetchUnscheduledPosts();
       fetchScheduledPosts();
       
     } catch (error) {
-      console.error('Error planning post:', error);
-      alert('Failed to plan post');
+      console.error('❌ DRAG & DROP ERROR:');
+      console.error('  - Error type:', typeof error);
+      
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+      
+      console.error('  - Error message:', errorMessage);
+      console.error('  - Error stack:', errorStack);
+      
+      setError(`Failed to plan post: ${errorMessage}`);
     }
   };
 
@@ -330,7 +512,7 @@ export default function PlannerPage() {
         body: JSON.stringify({
           postId: post.id,
           updates: {
-            scheduled_date: newDate.toISOString().split('T')[0]
+            scheduled_date: newDate.toLocaleDateString('en-CA') // Keeps local timezone
           }
         })
       });
@@ -338,6 +520,8 @@ export default function PlannerPage() {
       fetchScheduledPosts();
     } catch (error) {
       console.error('Error moving post:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Failed to move post: ${errorMessage}`);
     }
   };
 
@@ -414,34 +598,36 @@ export default function PlannerPage() {
       try {
         console.log(`Scheduling post ${successCount + failCount + 1} of ${postsToSchedule.length}`);
         
-        // Step 1: Convert blob URL to base64
-        console.log('Converting blob URL to base64...');
-        let base64Image = post.image_url;
-
-        if (post.image_url.startsWith('blob:')) {
-          try {
-            const response = await fetch(post.image_url);
-            const blob = await response.blob();
-            const reader = new FileReader();
-            
-            base64Image = await new Promise((resolve, reject) => {
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-            
-            console.log('Converted to base64, size:', base64Image.length);
-          } catch (error) {
-            console.error('Failed to convert blob URL:', error);
-            throw new Error('Failed to process image');
-          }
+        // Debug the image_url field (safe logging)
+        console.log('🔍 DEBUG - Post image_url details:', {
+          postId: post.id,
+          hasImageUrl: !!post.image_url,
+          imageUrlType: typeof post.image_url,
+          imageUrlLength: post.image_url?.length || 0,
+          isBase64: post.image_url?.startsWith('data:image'),
+          isBlob: post.image_url?.startsWith('blob:'),
+          isUrl: post.image_url?.startsWith('http')
+        });
+        
+        // Use image_url directly from database - no need for blob URL conversion
+        console.log('Using image from database...');
+        const base64Image = post.image_url;
+        
+        if (!base64Image) {
+          throw new Error('No image found for post');
         }
 
-        // Step 2: Upload image to LATE
+        // Check if we still have a blob URL (this shouldn't happen with the updated system)
+        if (base64Image.startsWith('blob:')) {
+          console.error('❌ ERROR: Found blob URL in database image_url field!');
+          console.error('This suggests the post was created before the image_url fix was implemented.');
+          throw new Error('Post contains invalid blob URL. Please recreate this post from Content Suite.');
+        }
+
+        // Step 1: Upload image to LATE
         console.log('Uploading image to LATE...');
         console.log('Image URL type:', typeof base64Image);
-        console.log('Image URL preview:', base64Image?.substring(0, 100));
-        console.log('Image size in bytes:', base64Image?.length);
+        console.log('Image size in bytes:', base64Image?.length || 0);
 
         const mediaResponse = await fetch('/api/late/upload-media', {
           method: 'POST',
@@ -462,17 +648,31 @@ export default function PlannerPage() {
         // Step 2: Schedule via LATE
         const scheduledDateTime = `${post.scheduled_date}T${post.scheduled_time}`;
         
+        console.log('🚀 STEP 4 - LATE API SCHEDULING:');
+        console.log('  - Post from database:');
+        console.log('    - scheduled_date:', post.scheduled_date);
+        console.log('    - scheduled_time:', post.scheduled_time);
+        console.log('  - Combined scheduledDateTime:', scheduledDateTime);
+        console.log('  - Post ID:', post.id);
+        console.log('  - Account platform:', account.platform);
+        console.log('  - Client ID:', clientId);
+        
+        const lateRequestBody = {
+          postId: post.id,
+          caption: post.caption,
+          lateMediaUrl: lateMediaUrl,
+          scheduledDateTime: scheduledDateTime,
+          selectedAccounts: [account],
+          clientId: clientId
+        };
+        
+        console.log('🚀 STEP 5 - LATE API REQUEST BODY:');
+        console.log('  - Request body keys:', Object.keys(lateRequestBody));
+        
         const response = await fetch('/api/late/schedule-post', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            postId: post.id,
-            caption: post.caption,
-            lateMediaUrl: lateMediaUrl,
-            scheduledDateTime: scheduledDateTime,
-            selectedAccounts: [account],
-            clientId: clientId
-          })
+          body: JSON.stringify(lateRequestBody)
         });
         
         if (!response.ok) {
@@ -527,6 +727,42 @@ export default function PlannerPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="p-6 pb-8">
+      {/* Error Display */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="text-red-600">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-400 hover:text-red-600"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {isLoadingPosts && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+            <p className="text-sm text-blue-800">Loading posts...</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
         <div className="bg-white border-b border-gray-200 px-6 py-4 mb-6 rounded-lg shadow">
         <div className="flex items-center justify-between">
@@ -581,15 +817,12 @@ export default function PlannerPage() {
                   onDragStart={(e) => handleDragStart(e, post)}
                 >
                   <img
-                    src={post.image_url && post.image_url.startsWith('data:image') && post.image_url.length > 100 ? post.image_url : '/api/placeholder/100/100'}
+                    src={post.image_url || '/api/placeholder/100/100'}
                     alt="Post"
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       console.log('Image failed to load, using placeholder for post:', post.id);
                       e.currentTarget.src = '/api/placeholder/100/100';
-                    }}
-                    onLoad={() => {
-                      console.log('Image loaded successfully for post:', post.id);
                     }}
                   />
                           </div>
@@ -738,7 +971,7 @@ export default function PlannerPage() {
                             </div>
                             
                                                         {/* Display scheduled posts */}
-                            {scheduledPosts[dayDate.toISOString().split('T')[0]]?.map((post: Post, idx: number) => (
+                            {scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => (
                               <div key={idx} className="mt-1">
                                 {editingPostId === post.id ? (
                                   <input
@@ -764,7 +997,7 @@ export default function PlannerPage() {
                                     draggable
                                     onDragStart={(e) => {
                                       e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
-                                      e.dataTransfer.setData('originalDate', dayDate.toISOString().split('T')[0]);
+                                      e.dataTransfer.setData('originalDate', dayDate.toLocaleDateString('en-CA')); // Keeps local timezone
                                     }}
                                     className={`flex items-center gap-1 rounded p-1 cursor-move hover:opacity-80 ${
                                       post.late_status === 'scheduled' 
@@ -806,15 +1039,12 @@ export default function PlannerPage() {
                                       }`} title={`LATE Status: ${post.late_status}`} />
                                     )}
                                     <img 
-                                      src={post.image_url && post.image_url.startsWith('data:image') && post.image_url.length > 100 ? post.image_url : '/api/placeholder/100/100'} 
+                                      src={post.image_url || '/api/placeholder/100/100'} 
                                       alt="Post"
                                       className="w-8 h-8 object-cover rounded"
                                       onError={(e) => {
                                         console.log('Scheduled post image failed to load, using placeholder for post:', post.id);
                                         e.currentTarget.src = '/api/placeholder/100/100';
-                                      }}
-                                      onLoad={() => {
-                                        console.log('Scheduled post image loaded successfully for post:', post.id);
                                       }}
                                     />
                                     

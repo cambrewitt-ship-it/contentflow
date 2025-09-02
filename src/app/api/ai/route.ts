@@ -347,49 +347,60 @@ async function remixCaption(imageData: string, prompt: string, existingCaptions:
     }
 
     const systemPrompt = `You are a creative social media copywriter specializing in brand-aware content creation. 
-    The user wants to remix/improve a caption based on their feedback.
+    The user wants you to create a fresh variation of an existing caption.
     
-    🚨 USER FEEDBACK (MANDATORY - address this completely):
-    ${prompt}
+    🎯 YOUR TASK:
+    Create a NEW version of the original caption that:
+    - Maintains the EXACT same meaning and message
+    - Uses DIFFERENT words and phrasing
+    - Keeps the SAME style, tone, and structure
+    - Incorporates the user's post notes naturally
     
-    CRITICAL REQUIREMENTS:
-    - User feedback takes ABSOLUTE PRIORITY - address this directly and completely
-    - User notes and context are MANDATORY - incorporate these prominently
-    - Brand information serves as GUIDING CONTEXT to inform tone, style, and messaging
-    - Maintain the core message while improving based on feedback
+    🚨 CRITICAL REQUIREMENTS:
+    - DO NOT change the core message or meaning
+    - DO create a fresh variation with different wording
+    - DO maintain the same emotional tone and style
+    - DO include the post notes content naturally
+    - DO NOT add any explanations, introductions, or commentary
+    - DO NOT mention the image or try to analyze it
     
-    ${aiContext ? `🎯 POST NOTES CONTENT (MANDATORY - weave this into your caption):
+    🎭 TONE MATCHING (HIGHEST PRIORITY):
+    - Study the original caption's tone, style, and personality
+    - Match the exact emotional feel and writing style
+    - If the original is casual and friendly, keep it casual and friendly
+    - If the original is professional and formal, keep it professional and formal
+    - Copy the same level of enthusiasm, humor, or seriousness
+    
+    ${aiContext ? `📝 POST NOTES (MANDATORY - include this content):
 ${aiContext}
     
-    CRITICAL INSTRUCTIONS: The Post Notes above contain specific content that MUST be directly woven into your improved caption. 
+    IMPORTANT: Weave the post notes content naturally into your variation. If the notes mention specific details (like "$50", "available online"), these must appear in your caption.` : ''}
     
-    - Do NOT just reference or mention the notes
-    - DO weave the actual content naturally into your caption text
-    - Make the Post Notes content a central part of your caption
-    - If the notes mention specific details (like "$50", "available online", "from our store"), these exact elements must appear in your caption
-    
-    Example: If Post Notes say "this is $50 available online from our store", your caption should naturally include these specific details, not just reference them.` : ''}
-    
-    ${brandContext ? `🎨 BRAND GUIDING CONTEXT (use to inform style and tone, but NEVER override user notes):
+    ${brandContext ? `🎨 BRAND CONTEXT (use for tone and style):
     - Company: ${brandContext.company || 'Not specified'}
     - Brand Tone: ${brandContext.tone || 'Not specified'}
     - Target Audience: ${brandContext.audience || 'Not specified'}
     - Industry: ${brandContext.industry || 'Not specified'}
     - Brand Keywords: ${brandContext.keywords?.join(', ') || 'None specified'}
     
-    Use this brand context to ensure your improved caption aligns with the company's voice, targets the right audience, and incorporates relevant industry terminology and brand keywords naturally.` : ''}
+    Use this brand context to ensure your variation matches the company's voice and style.` : ''}
     
-    ${brandContext?.dos || brandContext?.donts ? `🚨 MANDATORY AI RULES (HIGHEST PRIORITY - follow these exactly):
+    ${brandContext?.dos || brandContext?.donts ? `📋 STYLE RULES:
     ${brandContext.dos ? `✅ DO: ${brandContext.dos}` : ''}
-    ${brandContext.donts ? `❌ DON'T: ${brandContext.donts}` : ''}
+    ${brandContext.donts ? `❌ DON'T: ${brandContext.donts}` : ''}` : ''}
     
-    These rules are ABSOLUTE and must be followed in your improved caption.` : ''}
+    ${existingCaptions.length > 0 ? `📚 EXISTING CAPTIONS FOR REFERENCE: ${existingCaptions.join(', ')}` : ''}
     
-    ${existingCaptions.length > 0 ? `Existing captions for reference: ${existingCaptions.join(', ')}` : ''}
+    🎯 FINAL INSTRUCTION: 
+    Generate exactly 1 caption variation that rephrases the original while keeping the same meaning, style, and tone. 
+    Make it fresh and different, but maintain the core message completely.
     
-    FINAL REMINDER: User feedback and notes are MANDATORY. The improved caption must prominently feature the user's specific requirements.
-    
-    Generate 1 improved caption that addresses the user's feedback while maintaining the core message and adding relevant hashtags.`;
+    🚨 OUTPUT FORMAT:
+    - Provide ONLY the new caption text
+    - NO explanations, introductions, or commentary
+    - NO "I'm unable to comment on the image" or similar text
+    - NO "here's a caption remix:" or similar phrases
+    - Just the pure caption text, nothing else`;
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
@@ -400,19 +411,7 @@ ${aiContext}
         },
         {
           role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'Please remix this caption based on my feedback:'
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: imageData,
-                detail: 'high'
-              }
-            }
-          ]
+          content: `Create a fresh variation of this caption: "${prompt.split('Original caption: "')[1]?.replace('"', '') || 'Unknown caption'}"`
         }
       ],
       max_tokens: 400,

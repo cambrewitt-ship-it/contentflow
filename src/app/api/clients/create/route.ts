@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     console.log('📤 LATE API Request Details:');
     console.log('   URL: https://getlate.dev/api/v1/profiles');
-    console.log('   Body:', JSON.stringify(lateProfileData, null, 2));
+    console.log('   Body keys:', Object.keys(lateProfileData));
 
     console.log('🚀 About to create LATE profile...');
     const lateProfileRes = await fetch('https://getlate.dev/api/v1/profiles', {
@@ -116,12 +116,12 @@ export async function POST(req: NextRequest) {
     // Log the raw response body as text before parsing
     console.log('✅ LATE API returned success status, reading response body...');
     const responseText = await lateProfileRes.text();
-    console.log('📄 LATE API Raw Response Body (Text):', responseText);
+    console.log('📄 LATE API Raw Response Body length:', responseText.length);
     
     let lateProfile;
     try {
       lateProfile = JSON.parse(responseText);
-      console.log('✅ LATE API Response Parsed Successfully (JSON):', lateProfile);
+      console.log('✅ LATE API Response Parsed Successfully - keys:', Object.keys(lateProfile));
       console.log('🔍 Available fields:', Object.keys(lateProfile || {}));
     } catch (parseError) {
       console.log('❌ JSON Parse Error:', parseError);
@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
     console.log('🔍 Looking for profile object:', lateProfile.profile);
     console.log('🔍 Profile object keys:', lateProfile.profile ? Object.keys(lateProfile.profile) : 'No profile object');
     console.log('🔍 Looking for profile._id field:', lateProfile.profile?._id);
-    console.log('🔍 Full response structure:', JSON.stringify(lateProfile, null, 2));
+    console.log('🔍 Response structure keys:', Object.keys(lateProfile));
 
     // Extract profile ID from the nested response.profile._id structure
     if (!lateProfile.profile) {
@@ -201,7 +201,7 @@ export async function POST(req: NextRequest) {
     console.log('✅ Profile ID value:', profileId);
     console.log('✅ Profile ID length:', profileId.length);
 
-    console.log('✅ LATE profile created successfully:', { profileId, profile: lateProfile.profile });
+    console.log('✅ LATE profile created successfully - profileId:', profileId);
 
     // Step 2: Create client record in Supabase with LATE profileId
     console.log('🗄️ Step 2: Creating Client Record in Supabase');

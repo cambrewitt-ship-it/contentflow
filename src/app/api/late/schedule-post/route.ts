@@ -9,7 +9,8 @@ const supabase = createClient(
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    console.log('Received request body:', JSON.stringify(body, null, 2));
+    console.log('🔧 STEP 6 - LATE API ROUTE RECEIVED:');
+    console.log('  - Request body keys:', Object.keys(body));
     
     // Check for required fields
     if (!body.postId || !body.caption || !body.lateMediaUrl) {
@@ -30,7 +31,13 @@ export async function POST(request: Request) {
       clientId 
     } = body;
     
-    console.log('Scheduling post:', { postId, selectedAccounts, scheduledDateTime });
+    console.log('🔧 STEP 7 - EXTRACTED VALUES:');
+    console.log('  - postId:', postId);
+    console.log('  - caption:', caption?.substring(0, 50) + '...');
+    console.log('  - lateMediaUrl:', lateMediaUrl);
+    console.log('  - scheduledDateTime:', scheduledDateTime);
+    console.log('  - selectedAccounts:', selectedAccounts);
+    console.log('  - clientId:', clientId);
     
     // Build platforms array for LATE API
     const platforms = selectedAccounts.map((account: { platform: string; _id: string }) => ({
@@ -41,27 +48,21 @@ export async function POST(request: Request) {
     // Parse and format the scheduled date/time
     const [datePart, timePart] = scheduledDateTime.split('T');
     
-    // Create a Date object and adjust for LATE's timezone interpretation
+    // Use the user's actual local time directly
     const localDateTime = `${datePart}T${timePart}`;
     
-    // LATE is interpreting our local time as UTC, so we need to add 24 hours
-    // to compensate for the timezone difference (1 full day)
-    const adjustedDate = new Date(localDateTime);
-    adjustedDate.setHours(adjustedDate.getHours() + 24);
-    const adjustedDateTime = adjustedDate.toISOString().slice(0, 19);
-    
-    console.log('Input scheduledDateTime:', scheduledDateTime);
-    console.log('Local NZ time:', localDateTime);
-    console.log('Adjusted for LATE interpretation:', adjustedDateTime);
-    console.log('Added 24 hours (1 full day) to compensate for timezone');
-    
-    const lateScheduledFor = adjustedDateTime;
+    console.log('🔧 STEP 8 - DATETIME PARSING:');
+    console.log('  - Input scheduledDateTime:', scheduledDateTime);
+    console.log('  - Split datePart:', datePart);
+    console.log('  - Split timePart:', timePart);
+    console.log('  - Reconstructed localDateTime:', localDateTime);
+    console.log('  - Using Pacific/Auckland timezone as specified');
 
     // Log what we're sending to LATE
     const requestBody = {
       content: caption,
       platforms: platforms,
-      scheduledFor: lateScheduledFor,
+      scheduledFor: localDateTime, // Send user's actual time: "2024-09-16T18:00:00"
       timezone: 'Pacific/Auckland',
       mediaItems: [{
         type: 'image',
@@ -69,7 +70,11 @@ export async function POST(request: Request) {
       }]
     };
 
-    console.log('Sending to LATE:', JSON.stringify(requestBody, null, 2));
+    console.log('🔧 STEP 9 - FINAL LATE API PAYLOAD:');
+    console.log('  - Payload keys:', Object.keys(requestBody));
+    console.log('  - scheduledFor value:', requestBody.scheduledFor);
+    console.log('  - timezone value:', requestBody.timezone);
+    console.log('  - About to send to: https://getlate.dev/api/v1/posts');
 
     // Create post on LATE API
     const lateResponse = await fetch('https://getlate.dev/api/v1/posts', {
@@ -88,7 +93,9 @@ export async function POST(request: Request) {
     }
     
     const lateData = await lateResponse.json();
-    console.log('LATE API response data:', lateData);
+    console.log('🔧 STEP 10 - LATE API RESPONSE:');
+    console.log('  - Response status:', lateResponse.status);
+    console.log('  - Response keys:', Object.keys(lateData));
     
     // Extract the LATE post ID from the nested post object
     const latePostId = lateData.post?._id || lateData.post?.id || lateData._id || lateData.id;
@@ -108,16 +115,28 @@ export async function POST(request: Request) {
       console.error('Database update error:', updateError);
     }
     
+    // Get the post data from planner_scheduled_posts to preserve image_url
+    const { data: plannerPost, error: fetchError } = await supabase
+      .from('planner_scheduled_posts')
+      .select('image_url')
+      .eq('id', postId)
+      .single();
+    
+    if (fetchError) {
+      console.error('Error fetching planner post:', fetchError);
+    }
+    
     // Also save to scheduled_posts table with LATE post ID
     const { error: scheduleError } = await supabase
       .from('scheduled_posts')
       .insert({
         client_id: clientId,
         post_id: postId,
-        scheduled_time: lateScheduledFor,
+        scheduled_time: localDateTime,
         account_ids: selectedAccounts.map((a: { _id: string }) => a._id),
         status: 'scheduled',
-        late_post_id: latePostId
+        late_post_id: latePostId,
+        image_url: plannerPost?.image_url || null // Preserve image_url from planner post
       });
     
     if (scheduleError) {

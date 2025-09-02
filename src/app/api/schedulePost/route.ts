@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   try {
     console.log("Received body:", req.body);
     const body = await req.json();
-    const { client_id, project_id, post_id, scheduled_time, account_ids } = body ?? {};
+    const { client_id, project_id, post_id, scheduled_time, account_ids, image_url } = body ?? {};
 
     if (!client_id || !project_id || !post_id || !scheduled_time || !account_ids) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
@@ -47,7 +47,8 @@ export async function POST(req: Request) {
         post_id,
         scheduled_time,
         account_ids, // Store as JSONB array
-        status: 'scheduled'
+        status: 'scheduled',
+        image_url: image_url || null // Include image_url field
       }])
       .select('*')
       .single();

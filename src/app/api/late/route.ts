@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     console.log('🚀 /api/late - LATE API proxy request received');
     
     const body = await req.json();
-    console.log('📥 Incoming request body:', JSON.stringify(body, null, 2));
+    console.log('📥 Incoming request body keys:', Object.keys(body));
     
     const LATE_KEY = process.env.LATE_API_KEY;
     console.log('🔑 LATE_API_KEY check:', {
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     }
 
     console.log('🌐 Calling LATE API at: https://getlate.dev/api/v1/posts');
-    console.log('📤 Sending payload to LATE API:', JSON.stringify(body, null, 2));
+    console.log('📤 Sending payload keys to LATE API:', Object.keys(body));
     
     const lateResp = await fetch("https://getlate.dev/api/v1/posts", {
       method: "POST",
@@ -34,20 +34,15 @@ export async function POST(req: Request) {
       body: JSON.stringify(body),
     });
 
-    console.log('📡 LATE API response received:', {
-      status: lateResp.status,
-      statusText: lateResp.statusText,
-      ok: lateResp.ok,
-      headers: Object.fromEntries(lateResp.headers.entries())
-    });
+    console.log('📡 LATE API response received - status:', lateResp.status, 'ok:', lateResp.ok);
 
     const responseText = await lateResp.text();
-    console.log('📄 LATE API response body (raw):', responseText);
+    console.log('📄 LATE API response body length:', responseText.length);
     
     let data;
     try {
       data = JSON.parse(responseText);
-      console.log('✅ LATE API response parsed as JSON:', data);
+      console.log('✅ LATE API response parsed as JSON - keys:', Object.keys(data));
     } catch (parseError) {
       console.warn('⚠️ LATE API response is not valid JSON, using raw text');
       data = { rawResponse: responseText };

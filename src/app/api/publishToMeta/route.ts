@@ -91,7 +91,7 @@ export async function POST(req: Request) {
   }
 }
 
-async function scheduleInstagramPost(caption: string, imageUrl: string, scheduledTime: string): Promise<SchedulingResult> {
+async function scheduleInstagramPost(caption: string, image_url: string, scheduledTime: string): Promise<SchedulingResult> {
   try {
     console.log('📸 Scheduling Instagram post:', { scheduledTime });
     
@@ -102,7 +102,7 @@ async function scheduleInstagramPost(caption: string, imageUrl: string, schedule
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        image_url: imageUrl,
+        image_url: image_url,  // ✅ Fixed: now uses consistent 'image_url' parameter
         caption: caption,
         access_token: META_ACCESS_TOKEN,
       }),
@@ -145,7 +145,7 @@ async function scheduleInstagramPost(caption: string, imageUrl: string, schedule
   }
 }
 
-async function scheduleFacebookPost(caption: string, imageUrl: string, scheduledTime: string): Promise<SchedulingResult> {
+async function scheduleFacebookPost(caption: string, image_url: string, scheduledTime: string): Promise<SchedulingResult> {
   try {
     console.log('📘 Scheduling Facebook post:', { scheduledTime });
     
@@ -157,7 +157,7 @@ async function scheduleFacebookPost(caption: string, imageUrl: string, scheduled
       },
       body: JSON.stringify({
         message: caption,
-        link: imageUrl,
+        link: image_url,  // ✅ Fixed: now uses consistent 'image_url' parameter
         scheduled_publish_time: Math.floor(new Date(scheduledTime).getTime() / 1000),
         access_token: META_ACCESS_TOKEN,
       }),
@@ -171,7 +171,6 @@ async function scheduleFacebookPost(caption: string, imageUrl: string, scheduled
 
     console.log('✅ Facebook post scheduled successfully:', data.id);
     return { success: true, postId: data.id, platform: 'facebook' };
-
   } catch (error: unknown) {
     console.error('❌ Facebook scheduling error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

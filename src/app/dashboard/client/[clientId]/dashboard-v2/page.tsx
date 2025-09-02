@@ -76,7 +76,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
       .select('*')
       .eq('id', clientId)
     
-    console.log('📊 Supabase response:', { data, error })
+    console.log('📊 Supabase response - success:', !error, 'count:', data?.length || 0)
     
     if (data && data.length > 0) {
       console.log('✅ Client found:', data[0])
@@ -98,7 +98,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
     
     try {
       setSaving(true);
-      console.log('💾 Saving client data to Supabase:', { website, description });
+      console.log('💾 Saving client data to Supabase - website length:', website?.length || 0, 'description length:', description?.length || 0);
       
       // Create Supabase client with environment variables
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;

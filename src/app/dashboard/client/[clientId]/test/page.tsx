@@ -63,8 +63,7 @@ export default function TestClientPage({ params }: { params: Promise<{ clientId:
       .select('*')
       .eq('id', clientId)
     
-    console.log('📊 Supabase response:', { data, error, dataLength: data?.length, firstItem: data?.[0] })
-    console.log('📊 Raw data array:', data)
+    console.log('📊 Supabase response - success:', !error, 'count:', data?.length || 0)
     console.log('📊 Error details:', error)
     
     // Enhanced error logging for RLS debugging

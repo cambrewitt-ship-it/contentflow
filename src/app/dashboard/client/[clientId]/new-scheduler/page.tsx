@@ -155,7 +155,7 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          imageBlob: post.image_url
+          imageBlob: post.image_url  // ✅ This parameter name matches the API expectation
         })
       });
       

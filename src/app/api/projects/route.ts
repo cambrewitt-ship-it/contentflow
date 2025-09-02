@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     console.log('=== INSERT QUERY RESULTS ===');
-    console.log('Raw database response:', { data: project, error });
+    console.log('Database response - success:', !error, 'project ID:', project?.id);
 
     if (error) {
       console.error('=== INSERT QUERY FAILED ===');
@@ -406,7 +406,8 @@ export async function GET(req: NextRequest) {
       .select('*')
       .eq('client_id', clientId)
       .eq('status', 'active')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(20); // Limit to 20 most recent projects
     
     console.log('Supabase query object:', {
       table: 'projects',
@@ -419,11 +420,7 @@ export async function GET(req: NextRequest) {
     const { data: projects, error } = await query;
 
     console.log('=== QUERY EXECUTION RESULTS ===');
-    console.log('Raw database response:', { data: projects, error });
-    console.log('Query result summary:', { 
-      projects: projects ? `Array with ${projects.length} items` : 'null', 
-      error: error ? { code: error.code, message: error.message } : 'none' 
-    });
+    console.log('Database response - success:', !error, 'projects count:', projects?.length || 0);
 
     if (error) {
       console.error('=== QUERY EXECUTION FAILED ===');

@@ -17,13 +17,12 @@ export async function PATCH(
     
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
-    // Update the post with new date and position
+    // Update the post with new date
+    // Note: week_index and day_index columns don't exist in the actual table schema
     const { data, error } = await supabase
       .from('planner_scheduled_posts')
       .update({
         scheduled_date: body.newScheduledDate,
-        week_index: body.newWeekIndex,
-        day_index: body.newDayIndex,
         updated_at: new Date().toISOString()
       })
       .eq('id', postId)
@@ -36,7 +35,7 @@ export async function PATCH(
       throw error;
     }
     
-    console.log('Post moved successfully:', data);
+    console.log('Post moved successfully - ID:', data?.id);
     return NextResponse.json({ post: data });
   } catch (error) {
     console.error('Error moving scheduled post:', error);

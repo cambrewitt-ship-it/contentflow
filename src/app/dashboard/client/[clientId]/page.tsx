@@ -155,11 +155,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         }
         
         const data = await response.json()
-        console.log('📄 Projects API response data:', data);
+        console.log('📄 Projects API response - success:', data.success, 'count:', data.projects?.length || 0);
         
         if (data.success) {
           setProjects(data.projects)
-          console.log('✅ Projects fetched successfully:', data.projects)
+          console.log('✅ Projects fetched successfully - count:', data.projects.length)
         } else {
           console.error('❌ Projects API returned success: false:', data.error);
           throw new Error(data.error || 'Failed to fetch projects');
@@ -233,7 +233,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       const response = await fetch('/api/projects/debug')
       const data = await response.json()
       
-      console.log('📊 Debug endpoint response:', data);
+      console.log('📊 Debug endpoint response - success:', data.success);
       setDebugInfo(data)
       
       if (data.success) {
@@ -285,7 +285,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       }
       
       const data = await response.json()
-      console.log(`✅ ${platform} connection URL generated:`, data.connectUrl)
+      console.log(`✅ ${platform} connection URL generated - length:`, data.connectUrl?.length || 0)
       
       // Redirect to the connect URL from our API (which calls LATE API)
       window.location.assign(data.connectUrl)

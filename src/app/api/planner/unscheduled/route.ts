@@ -30,9 +30,15 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     
+    // Ensure image_url field is included in the post data
+    const postData = {
+      ...body,
+      image_url: body.image_url || null // Ensure image_url field is present
+    };
+    
     const { data, error } = await supabase
       .from('planner_unscheduled_posts')
-      .insert(body)
+      .insert(postData)
       .select()
       .single();
     

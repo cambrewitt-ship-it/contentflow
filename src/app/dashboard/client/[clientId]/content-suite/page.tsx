@@ -61,14 +61,19 @@ export default function ContentSuitePage({ params }: PageProps) {
         setProjectsLoading(true)
         const response = await fetch(`/api/projects?clientId=${clientId}`)
         
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success) {
-            setProjects(data.projects)
-          }
+        if (!response.ok) {
+          throw new Error(`Failed to fetch projects: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        if (data.success) {
+          setProjects(data.projects)
+        } else {
+          throw new Error(data.error || 'Failed to load projects')
         }
       } catch (error) {
         console.error('Error fetching projects:', error)
+        // Could add error state here if needed
       } finally {
         setProjectsLoading(false)
       }
@@ -84,7 +89,7 @@ export default function ContentSuitePage({ params }: PageProps) {
     uploadedImages: { preview: string; id: string; file?: File }[]
   ) => {
     // TODO: Implement scheduler functionality
-    console.log('Sending to scheduler:', { selectedCaption, uploadedImages })
+    console.log('Sending to scheduler - caption length:', selectedCaption?.length || 0, 'images count:', uploadedImages.length)
     setIsSendingToScheduler(true)
     
     // Simulate API call
@@ -126,39 +131,62 @@ function ContentSuiteContent({
 }) {
   const { uploadedImages, captions, selectedCaptions, postNotes, activeImageId } = useContentStore()
 
-  const handleAddToProject = async (projectId: string, projectName: string) => {
+  const handleAddToProject = async (post: any, projectId: string) => {
+    console.log('handleAddToProject called with post ID:', post?.id, 'project ID:', projectId);
+    
+    if (!projectId) {
+      console.error('No project selected');
+      alert('Please select a project first');
+      return;
+    }
+    
     try {
-      const selectedCaptionText = captions.find(c => c.id === selectedCaptions[0])?.text || '';
+      let imageData = post.generatedImage;
       
-      console.log('Sending to API:', {
-        project_id: projectId,
-        client_id: clientId,
-        caption: selectedCaptionText,
-        image_url: uploadedImages[0]?.preview ? 'Has image' : 'No image',
-        post_notes: uploadedImages[0]?.notes || ''
-      });
+      // Only convert blob URLs, not base64 strings
+      if (imageData && imageData.startsWith('blob:')) {
+        try {
+          const response = await fetch(imageData);
+          const blob = await response.blob();
+          const reader = new FileReader();
+          
+          imageData = await new Promise((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch (error) {
+          console.error('Blob conversion failed, using existing data:', error);
+          // If blob conversion fails, continue without image
+          imageData = null;
+        }
+      }
       
-      const response = await fetch('/api/planner/unscheduled', {
+      // Add to project with converted or existing image
+      const response = await fetch('/api/projects/add-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project_id: projectId,
-          client_id: clientId,
-          caption: selectedCaptionText,
-          image_url: uploadedImages[0]?.preview || '',
-          post_notes: uploadedImages[0]?.notes || ''
+          projectId,
+          post: {
+            ...post,
+            clientId: clientId, // Make sure clientId is included
+            generatedImage: imageData
+          }
         })
       });
-
-      const text = await response.text();
-      console.log('API Response:', response.status, text);
       
-      if (!response.ok) throw new Error(`API failed: ${text}`);
+      if (response.ok) {
+        alert('Post added to project successfully!');
+      } else {
+        const error = await response.text();
+        alert('Failed to add post: ' + error);
+      }
       
-      alert(`Added to ${projectName}!`);
     } catch (error) {
-      console.error('Full error:', error);
-      alert('Failed to add to project - check console');
+      console.error('Failed to add to project:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Error adding post to project: ${errorMessage}`);
     }
   };
 
@@ -248,7 +276,19 @@ function ContentSuiteContent({
                                                    <button
                              onClick={(e) => {
                                e.stopPropagation();
-                               handleAddToProject(project.id, project.name);
+                               
+                               // Create post object from current content store state
+                               const selectedCaptionText = captions.find(c => c.id === selectedCaptions[0])?.text || '';
+                               const currentImage = uploadedImages.find(img => img.id === activeImageId) || uploadedImages[0];
+                               
+                               const post = {
+                                 clientId: clientId,
+                                 caption: selectedCaptionText,
+                                 generatedImage: currentImage?.preview || '',
+                                 notes: postNotes || ''
+                               };
+                               
+                               handleAddToProject(post, project.id);
                              }}
                              className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-colors"
                              title="Add current content to this project"

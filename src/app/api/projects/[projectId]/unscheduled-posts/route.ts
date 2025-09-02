@@ -47,12 +47,16 @@ export async function POST(
     
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
+    // Ensure image_url field is included in the post data
+    const postData = {
+      project_id: projectId,
+      post_data: body.postData,
+      image_url: body.postData?.image_url || null // Extract image_url from postData
+    };
+    
     const { data, error } = await supabase
       .from('planner_unscheduled_posts')
-      .insert({
-        project_id: projectId,
-        post_data: body.postData
-      })
+      .insert(postData)
       .select()
       .single();
     

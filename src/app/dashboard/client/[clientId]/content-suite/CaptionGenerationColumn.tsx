@@ -23,6 +23,7 @@ export function CaptionGenerationColumn() {
   } = useContentStore()
 
   const [generatingCaptions, setGeneratingCaptions] = useState(false)
+  const [remixingCaption, setRemixingCaption] = useState<string | null>(null)
 
   const activeImage = uploadedImages.find((img) => img.id === activeImageId)
 
@@ -57,12 +58,20 @@ export function CaptionGenerationColumn() {
       return
     }
 
+    console.log('🔄 Starting remix for caption:', captionId)
+    console.log('📝 Post notes being used:', postNotes)
+    console.log('🖼️ Active image:', activeImage.id)
+
+    setRemixingCaption(captionId)
     try {
       await remixCaption(captionId)
+      console.log('✅ Remix completed successfully')
       // Success - caption will be updated automatically
     } catch (error) {
-      console.error('Failed to remix caption:', error)
+      console.error('❌ Failed to remix caption:', error)
       alert(`Failed to remix caption: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setRemixingCaption(null)
     }
   }
 
@@ -154,10 +163,11 @@ export function CaptionGenerationColumn() {
                             e.stopPropagation()
                             handleRemixCaption(caption.id)
                           }}
+                          disabled={remixingCaption === caption.id}
                           className="text-xs"
                         >
-                          <RefreshCw className="w-3 h-3 mr-1" />
-                          Remix
+                          <RefreshCw className={`w-3 h-3 mr-1 ${remixingCaption === caption.id ? 'animate-spin' : ''}`} />
+                          {remixingCaption === caption.id ? 'Remixing...' : 'Remix'}
                         </Button>
                       </div>
                       
