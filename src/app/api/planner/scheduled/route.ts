@@ -9,114 +9,31 @@ const supabase = createClient(
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get('projectId');
-  const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100); // Default 50, max 100
-  const offset = parseInt(searchParams.get('offset') || '0');
-  const includeImageData = searchParams.get('includeImageData') === 'true';
   
   // Validate projectId
   if (!projectId) {
     return NextResponse.json({ error: 'projectId is required' }, { status: 400 });
   }
   
-  // Validate limit (prevent excessive queries)
-  if (limit > 100) {
-    return NextResponse.json({ error: 'Limit cannot exceed 100' }, { status: 400 });
-  }
-  
   try {
-    console.log(`🔍 OPTIMIZED QUERY - Fetching scheduled posts for project ${projectId} (limit: ${limit}, offset: ${offset})`);
+    console.log(`🔍 SIMPLIFIED QUERY - Fetching scheduled posts for project ${projectId}`);
     
-    // Optimized column selection - only include image_url if specifically requested
-    // Note: Only select columns that actually exist in the table schema
-    const selectColumns = includeImageData 
-      ? `id, project_id, client_id, caption, image_url, post_notes, scheduled_date, scheduled_time, late_status, late_post_id, platforms_scheduled, created_at`
-      : `id, project_id, client_id, caption, post_notes, scheduled_date, scheduled_time, late_status, late_post_id, platforms_scheduled, created_at`;
-    
-    // Set query timeout (30 seconds)
-    const queryStartTime = Date.now();
-    
-    // Optimized query with proper indexing and efficient WHERE clause
-    const { data, error, count } = await supabase
+    // SIMPLIFIED QUERY - Same structure as unscheduled posts (which works fast)
+    const { data, error } = await supabase
       .from('planner_scheduled_posts')
-      .select(selectColumns, { count: 'exact' })
-      .eq('project_id', projectId) // Uses idx_planner_scheduled_posts_project_date_time
-      .order('scheduled_date', { ascending: true })
-      .order('scheduled_time', { ascending: true })
-      .range(offset, offset + limit - 1);
+      .select('*') // Simple: select all columns (like unscheduled)
+      .eq('project_id', projectId) // Simple: single WHERE clause (like unscheduled)
+      .order('created_at', { ascending: false }); // Simple: single ORDER BY (like unscheduled)
     
-    const queryDuration = Date.now() - queryStartTime;
-    console.log(`⏱️ Query executed in ${queryDuration}ms`);
+    if (error) throw error;
     
-    if (error) {
-      console.error('❌ Database query error:', error);
-      
-      // Handle specific timeout errors
-      if (error.code === '57014') {
-        console.error('⏰ Query timeout detected - consider reducing limit or adding more indexes');
-        return NextResponse.json({ 
-          error: 'Query timeout - the database is taking too long to respond',
-          code: 'TIMEOUT',
-          suggestion: 'Try reducing the limit parameter or contact support'
-        }, { status: 408 });
-      }
-      
-      // Handle other database errors
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ 
-          error: 'No posts found for this project',
-          code: 'NOT_FOUND'
-        }, { status: 404 });
-      }
-      
-      throw error;
-    }
+    console.log(`✅ Retrieved ${data?.length || 0} scheduled posts`);
     
-    console.log(`✅ Retrieved ${data?.length || 0} scheduled posts (total: ${count}) in ${queryDuration}ms`);
-    
-    // Performance warning for slow queries
-    if (queryDuration > 5000) {
-      console.warn(`⚠️ Slow query detected: ${queryDuration}ms - consider optimizing indexes`);
-    }
-    
-    return NextResponse.json({ 
-      posts: data || [],
-      pagination: {
-        total: count || 0,
-        limit,
-        offset,
-        hasMore: (count || 0) > offset + limit
-      },
-      performance: {
-        queryDuration: `${queryDuration}ms`,
-        optimized: queryDuration < 1000
-      }
-    });
+    return NextResponse.json({ posts: data || [] });
     
   } catch (error) {
     console.error('❌ Error fetching scheduled posts:', error);
-    
-    // Handle timeout errors specifically
-    if (error.code === '57014') {
-      return NextResponse.json({ 
-        error: 'Database query timeout - the query took too long to execute',
-        code: 'TIMEOUT',
-        suggestion: 'Try reducing the limit parameter or contact support'
-      }, { status: 408 });
-    }
-    
-    // Handle network/connection errors
-    if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-      return NextResponse.json({ 
-        error: 'Database connection failed',
-        code: 'CONNECTION_ERROR'
-      }, { status: 503 });
-    }
-    
-    return NextResponse.json({ 
-      error: 'Failed to fetch scheduled posts',
-      details: error.message,
-      code: 'UNKNOWN_ERROR'
-    }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch scheduled posts' }, { status: 500 });
   }
 }
 

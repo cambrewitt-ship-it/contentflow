@@ -98,6 +98,9 @@ export default function PlannerPage() {
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [isLoadingScheduledPosts, setIsLoadingScheduledPosts] = useState(false);
+  const [schedulingPlatform, setSchedulingPlatform] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchConnectedAccounts = async () => {
     try {
@@ -153,12 +156,12 @@ export default function PlannerPage() {
     if (!projectId) return;
     
     const maxRetries = 2;
-    const baseLimit = 50;
-    const retryLimit = Math.max(20, baseLimit - (retryCount * 15)); // Reduce limit on retries
+    const baseLimit = 20; // Optimized for faster loading
+    const retryLimit = Math.max(10, baseLimit - (retryCount * 5)); // Reduce limit on retries
     
     try {
       if (retryCount === 0) {
-        setIsLoadingPosts(true);
+        setIsLoadingScheduledPosts(true);
         setError(null);
       }
       console.log(`🔍 OPTIMIZED FETCH - Scheduled posts for project: ${projectId} (attempt ${retryCount + 1}, limit: ${retryLimit})`);
@@ -188,6 +191,7 @@ export default function PlannerPage() {
         if (response.status === 404) {
           console.log('📭 No scheduled posts found for this project');
           setScheduledPosts({});
+          setIsLoadingScheduledPosts(false);
           return;
         }
         
@@ -232,6 +236,7 @@ export default function PlannerPage() {
       });
       
       setScheduledPosts(mapped);
+      setIsLoadingScheduledPosts(false);
       console.log('Scheduled posts loaded - dates:', Object.keys(mapped).length);
       
       // Handle pagination warnings
@@ -251,7 +256,7 @@ export default function PlannerPage() {
       
     } catch (error) {
       if (retryCount === 0) {
-        setIsLoadingPosts(false);
+        setIsLoadingScheduledPosts(false);
       }
       console.error('❌ Error fetching scheduled posts:', error);
       
@@ -273,8 +278,10 @@ export default function PlannerPage() {
       } else if (errorMessage.includes('404')) {
         console.log('No scheduled posts found - this is normal for new projects');
         setScheduledPosts({});
+        setIsLoadingScheduledPosts(false);
       } else {
         setError(`Failed to load scheduled posts: ${errorMessage}`);
+        setIsLoadingScheduledPosts(false);
       }
     }
   };
@@ -530,6 +537,9 @@ export default function PlannerPage() {
   const handleBulkDelete = async () => {
     if (!confirm(`Delete ${selectedForDelete.size} posts?`)) return;
     
+    // Set loading state for delete operation
+    setIsDeleting(true);
+    
     const errors = [];
     const toDelete = Array.from(selectedForDelete);
     const allPosts = Object.values(scheduledPosts).flat();
@@ -570,6 +580,9 @@ export default function PlannerPage() {
     const failed = results.filter(r => !r.success);
     const succeeded = results.filter(r => r.success);
     
+    // Clear loading state
+    setIsDeleting(false);
+    
     // Clear selection and refresh AFTER all deletions complete
     setSelectedForDelete(new Set());
     await fetchScheduledPosts();
@@ -586,6 +599,9 @@ export default function PlannerPage() {
     
     const confirmed = confirm(`Schedule ${selectedPosts.size} posts to ${account.platform}?`);
     if (!confirmed) return;
+    
+    // Set loading state for this specific platform
+    setSchedulingPlatform(account.platform);
     
     const allScheduledPosts = Object.values(scheduledPosts).flat();
     const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
@@ -708,10 +724,12 @@ export default function PlannerPage() {
       }
     }
     
-    // Clear selection and refresh
+    // Clear loading state (even if there were errors)
+    setSchedulingPlatform(null);
+    
+    // Clear selection (no need to refresh - posts are already visible)
     setSelectedPosts(new Set());
     setSelectedForDelete(new Set());
-    fetchScheduledPosts();
     
     // Show results
     if (failCount === 0) {
@@ -842,21 +860,30 @@ export default function PlannerPage() {
               <span className="text-sm text-gray-600 py-2">
                 {selectedPosts.size} selected:
               </span>
-              {connectedAccounts.map((account) => (
-                <button
-                  key={account._id}
-                  onClick={() => handleScheduleToPlatform(account)}
-                  className={`px-3 py-1.5 text-white rounded text-sm ${
-                    account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
-                    account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
-                    account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
-                    account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
-                    'bg-gray-600 hover:bg-gray-700'
-                  }`}
-                >
-                  Schedule to {account.platform}
-                </button>
-              ))}
+              {connectedAccounts.map((account) => {
+                const isScheduling = schedulingPlatform === account.platform;
+                return (
+                  <button
+                    key={account._id}
+                    onClick={() => handleScheduleToPlatform(account)}
+                    disabled={isScheduling}
+                    className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 ${
+                      isScheduling ? 'opacity-50 cursor-not-allowed' : ''
+                    } ${
+                      account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
+                      account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
+                      account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
+                      account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
+                      'bg-gray-600 hover:bg-gray-700'
+                    }`}
+                  >
+                    {isScheduling && (
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                    )}
+                    {isScheduling ? 'Scheduling...' : `Schedule to ${account.platform}`}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -865,9 +892,15 @@ export default function PlannerPage() {
         {selectedForDelete.size > 0 && (
           <button
             onClick={handleBulkDelete}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 mb-4"
+            disabled={isDeleting}
+            className={`px-4 py-2 text-white rounded mb-4 flex items-center gap-2 ${
+              isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' : 'bg-red-600 hover:bg-red-700'
+            }`}
           >
-            Delete {selectedForDelete.size} Selected Posts
+            {isDeleting && (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            )}
+            {isDeleting ? 'Deleting...' : `Delete ${selectedForDelete.size} Selected Posts`}
           </button>
         )}
 
@@ -970,8 +1003,16 @@ export default function PlannerPage() {
                               <span className="text-gray-500">{dayDate.getDate()}</span>
                             </div>
                             
-                                                        {/* Display scheduled posts */}
-                            {scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => (
+                            {/* Loading state for scheduled posts */}
+                            {isLoadingScheduledPosts && (
+                              <div className="flex items-center justify-center py-2">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                <span className="ml-2 text-xs text-gray-500">Loading...</span>
+                              </div>
+                            )}
+                            
+                            {/* Display scheduled posts */}
+                            {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => (
                               <div key={idx} className="mt-1">
                                 {editingPostId === post.id ? (
                                   <input

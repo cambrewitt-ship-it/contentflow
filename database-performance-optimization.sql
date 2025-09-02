@@ -32,9 +32,10 @@ ON planner_scheduled_posts(late_status);
 CREATE INDEX IF NOT EXISTS idx_planner_scheduled_posts_created_at 
 ON planner_scheduled_posts(created_at DESC);
 
--- Index for updated posts tracking
-CREATE INDEX IF NOT EXISTS idx_planner_scheduled_posts_updated_at 
-ON planner_scheduled_posts(updated_at DESC);
+-- Note: updated_at column doesn't exist in the actual table schema
+-- Index for updated posts tracking (removed - column doesn't exist)
+-- CREATE INDEX IF NOT EXISTS idx_planner_scheduled_posts_updated_at 
+-- ON planner_scheduled_posts(updated_at DESC);
 
 -- ==============================================
 -- 2. PLANNER_UNSCHEDULED_POSTS TABLE OPTIMIZATION
