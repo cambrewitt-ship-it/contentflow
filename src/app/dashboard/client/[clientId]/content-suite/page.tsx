@@ -143,6 +143,7 @@ function ContentSuiteContent({
     clearAll();
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleAddToProject = async (post: any, projectId: string) => {
     console.log('handleAddToProject called with post ID:', post?.id, 'project ID:', projectId);
     

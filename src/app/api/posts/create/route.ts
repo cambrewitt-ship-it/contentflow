@@ -46,6 +46,7 @@ export async function POST(request: Request) {
     
     // CRITICAL STEP: Also create entries in planner_unscheduled_posts table to ensure they appear in the planner
     if (postsData && postsData.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const plannerPosts = postsData.map((post: any) => ({
         project_id: projectId || 'default',
         client_id: clientId,
