@@ -313,6 +313,15 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     
     // Clear post notes
     setPostNotes('')
+    
+    // Also clear localStorage to prevent hydration from restoring old data
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(getStorageKey("uploadedImages"))
+      localStorage.removeItem(getStorageKey("captions"))
+      localStorage.removeItem(getStorageKey("selectedCaptions"))
+      localStorage.removeItem(getStorageKey("activeImageId"))
+      localStorage.removeItem(getStorageKey("postNotes"))
+    }
   }
 
   const value: ContentStore = {

@@ -77,3 +77,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const postId = searchParams.get('postId');
+    
+    if (!postId) {
+      return NextResponse.json({ error: 'postId is required' }, { status: 400 });
+    }
+    
+    console.log(`🗑️ Deleting unscheduled post: ${postId}`);
+    
+    const { error } = await supabase
+      .from('planner_unscheduled_posts')
+      .delete()
+      .eq('id', postId);
+    
+    if (error) throw error;
+    
+    console.log(`✅ Successfully deleted unscheduled post: ${postId}`);
+    
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error deleting unscheduled post:', error);
+    return NextResponse.json({ 
+      error: 'Failed to delete post',
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 });
+  }
+}

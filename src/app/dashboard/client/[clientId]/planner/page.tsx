@@ -101,6 +101,12 @@ export default function PlannerPage() {
   const [isLoadingScheduledPosts, setIsLoadingScheduledPosts] = useState(false);
   const [schedulingPlatform, setSchedulingPlatform] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [movingPostId, setMovingPostId] = useState<string | null>(null);
+  const [deletingPostIds, setDeletingPostIds] = useState<Set<string>>(new Set());
+  const [deletingUnscheduledPostIds, setDeletingUnscheduledPostIds] = useState<Set<string>>(new Set());
+  const [schedulingPostIds, setSchedulingPostIds] = useState<Set<string>>(new Set());
+  const [editingTimePostIds, setEditingTimePostIds] = useState<Set<string>>(new Set());
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   const fetchConnectedAccounts = async () => {
     try {
@@ -353,6 +359,35 @@ export default function PlannerPage() {
   const handleDragStart = (e: React.DragEvent, post: Post) => {
     e.dataTransfer.setData('post', JSON.stringify(post));
     e.dataTransfer.effectAllowed = 'move';
+    
+    // Set custom drag image for consistent thumbnail
+    try {
+      if (post.image_url) {
+        // Create a temporary image element to use as drag image
+        const dragImage = new Image();
+        dragImage.src = post.image_url;
+        dragImage.style.width = '60px';
+        dragImage.style.height = '60px';
+        dragImage.style.objectFit = 'cover';
+        dragImage.style.borderRadius = '8px';
+        dragImage.style.border = '2px solid #3B82F6';
+        
+        // Wait for image to load, then set as drag image
+        dragImage.onload = () => {
+          e.dataTransfer.setDragImage(dragImage, 30, 30); // Center the image
+        };
+        
+        // Fallback: if image doesn't load quickly, use the original element
+        setTimeout(() => {
+          if (dragImage.complete) {
+            e.dataTransfer.setDragImage(dragImage, 30, 30);
+          }
+        }, 50);
+      }
+    } catch (error) {
+      console.log('Could not set custom drag image:', error);
+      // Continue with default drag behavior if custom image fails
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -360,14 +395,23 @@ export default function PlannerPage() {
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDragEnter = (e: React.DragEvent) => {
+  const handleDragEnter = (e: React.DragEvent, dateKey: string) => {
     e.preventDefault();
-    e.currentTarget.classList.add('bg-blue-50', 'border-blue-500', 'ring-2', 'ring-blue-300');
+    e.stopPropagation();
+    setDragOverDate(dateKey);
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleDragLeave = (e: React.DragEvent, dateKey: string) => {
     e.preventDefault();
-    e.currentTarget.classList.remove('bg-blue-50', 'border-blue-500', 'ring-2', 'ring-blue-300');
+    e.stopPropagation();
+    // Only clear if we're actually leaving the date cell (not just moving to a child element)
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setDragOverDate(null);
+    }
   };
 
   // Helper function to convert 24-hour time to 12-hour format
@@ -386,6 +430,9 @@ export default function PlannerPage() {
     if (!newTime || newTime === post.scheduled_time?.slice(0, 5)) return;
     
     try {
+      // Add to editing time state
+      setEditingTimePostIds(prev => new Set([...prev, post.id]));
+      
       console.log('Updating post time to:', newTime);
       
       const response = await fetch('/api/planner/scheduled', {
@@ -403,11 +450,30 @@ export default function PlannerPage() {
         throw new Error('Failed to update');
       }
       
-      fetchScheduledPosts();
+      // Update local state instead of refreshing entire calendar
+      setScheduledPosts(prevScheduled => {
+        const updated = { ...prevScheduled };
+        Object.keys(updated).forEach(date => {
+          updated[date] = updated[date].map(p => 
+            p.id === post.id 
+              ? { ...p, scheduled_time: newTime + ':00' }
+              : p
+          );
+        });
+        return updated;
+      });
+      
     } catch (error) {
       console.error('Error updating post:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setError(`Failed to update time: ${errorMessage}`);
+    } finally {
+      // Remove from editing time state
+      setEditingTimePostIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(post.id);
+        return newSet;
+      });
     }
   };
 
@@ -422,6 +488,9 @@ export default function PlannerPage() {
     targetDate.setDate(weekStart.getDate() + dayIndex);
     
     const time = '12:00'; // Default to noon, will add proper time picker later
+    
+    // Set loading state for this specific post
+    setMovingPostId(post.id);
     
     // STEP 1: Log what the user actually selected
     console.log('📅 STEP 1 - USER SELECTION:');
@@ -482,10 +551,24 @@ export default function PlannerPage() {
       console.log('✅ STEP 6 - SUCCESSFUL RESPONSE:');
       console.log('  - Response keys:', Object.keys(responseData));
       
-      // Refresh both lists
-      console.log('📅 STEP 7 - REFRESHING POST LISTS:');
-      fetchUnscheduledPosts();
-      fetchScheduledPosts();
+      // Update posts locally instead of refreshing entire calendar
+      console.log('📅 STEP 7 - UPDATING POSTS LOCALLY:');
+      
+      // Remove from unscheduled posts (projectPosts contains the unscheduled posts)
+      setProjectPosts(prevPosts => prevPosts.filter(p => p.id !== post.id));
+      
+      // Add to scheduled posts for the target date
+      const newScheduledPost = {
+        ...post,
+        id: responseData.post.id,
+        scheduled_date: scheduledDate,
+        scheduled_time: scheduledTime
+      };
+      
+      setScheduledPosts(prevScheduled => ({
+        ...prevScheduled,
+        [scheduledDate]: [...(prevScheduled[scheduledDate] || []), newScheduledPost]
+      }));
       
     } catch (error) {
       console.error('❌ DRAG & DROP ERROR:');
@@ -498,6 +581,9 @@ export default function PlannerPage() {
       console.error('  - Error stack:', errorStack);
       
       setError(`Failed to plan post: ${errorMessage}`);
+    } finally {
+      // Clear loading state for this post
+      setMovingPostId(null);
     }
   };
 
@@ -544,6 +630,9 @@ export default function PlannerPage() {
     const toDelete = Array.from(selectedForDelete);
     const allPosts = Object.values(scheduledPosts).flat();
     
+    // Set individual loading states for posts being deleted
+    setDeletingPostIds(new Set(toDelete));
+    
     // Process all deletions with Promise.all for better handling
     const deletePromises = toDelete.map(async (postId) => {
       try {
@@ -580,17 +669,59 @@ export default function PlannerPage() {
     const failed = results.filter(r => !r.success);
     const succeeded = results.filter(r => r.success);
     
-    // Clear loading state
-    setIsDeleting(false);
+    // Update scheduled posts locally instead of refreshing entire calendar
+    setScheduledPosts(prevScheduled => {
+      const updated = { ...prevScheduled };
+      Object.keys(updated).forEach(date => {
+        updated[date] = updated[date].filter(post => !succeeded.some(s => s.postId === post.id));
+      });
+      return updated;
+    });
     
-    // Clear selection and refresh AFTER all deletions complete
+    // Clear loading states
+    setIsDeleting(false);
+    setDeletingPostIds(new Set());
+    
+    // Clear selection
     setSelectedForDelete(new Set());
-    await fetchScheduledPosts();
     
     if (failed.length > 0) {
       alert(`Deleted ${succeeded.length} posts. Failed to delete ${failed.length} posts.`);
     } else {
       alert(`Successfully deleted ${succeeded.length} posts`);
+    }
+  };
+
+  const handleDeleteUnscheduledPost = async (postId: string) => {
+    try {
+      // Add to deleting state
+      setDeletingUnscheduledPostIds(prev => new Set([...prev, postId]));
+      
+      console.log(`🗑️ Deleting unscheduled post: ${postId}`);
+      
+      const response = await fetch(`/api/planner/unscheduled?postId=${postId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete post: ${response.status}`);
+      }
+      
+      // Remove from local state
+      setProjectPosts(prevPosts => prevPosts.filter(p => p.id !== postId));
+      
+      console.log(`✅ Successfully deleted unscheduled post: ${postId}`);
+      
+    } catch (error) {
+      console.error(`❌ Error deleting unscheduled post ${postId}:`, error);
+      alert(`Failed to delete post: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      // Remove from deleting state
+      setDeletingUnscheduledPostIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(postId);
+        return newSet;
+      });
     }
   };
 
@@ -605,6 +736,9 @@ export default function PlannerPage() {
     
     const allScheduledPosts = Object.values(scheduledPosts).flat();
     const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
+    
+    // Add all posts to scheduling state
+    setSchedulingPostIds(new Set(postsToSchedule.map(p => p.id)));
     
     let successCount = 0;
     let failCount = 0;
@@ -708,9 +842,29 @@ export default function PlannerPage() {
               platforms_scheduled: [...(post.platforms_scheduled || []), account.platform]
             })
             .eq('id', post.id);
+          
+          // Update local state to show post as scheduled (green)
+          setScheduledPosts(prevScheduled => {
+            const updated = { ...prevScheduled };
+            Object.keys(updated).forEach(date => {
+              updated[date] = updated[date].map(p => 
+                p.id === post.id 
+                  ? { ...p, late_status: 'scheduled', late_post_id: latePostId, platforms_scheduled: [...(p.platforms_scheduled || []), account.platform] }
+                  : p
+              );
+            });
+            return updated;
+          });
         }
         
         successCount++;
+        
+        // Remove this post from scheduling state
+        setSchedulingPostIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(post.id);
+          return newSet;
+        });
         
         // Small delay between posts to avoid rate limiting
         if (postsToSchedule.length > 1 && successCount < postsToSchedule.length) {
@@ -721,11 +875,19 @@ export default function PlannerPage() {
         console.error(`Failed to schedule post:`, error);
         errors.push(error instanceof Error ? error.message : 'Unknown error');
         failCount++;
+        
+        // Remove this post from scheduling state even on error
+        setSchedulingPostIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(post.id);
+          return newSet;
+        });
       }
     }
     
     // Clear loading state (even if there were errors)
     setSchedulingPlatform(null);
+    setSchedulingPostIds(new Set()); // Clear any remaining scheduling states
     
     // Clear selection (no need to refresh - posts are already visible)
     setSelectedPosts(new Set());
@@ -827,24 +989,58 @@ export default function PlannerPage() {
                 No posts added yet. Add posts from Content Suite.
             </div>
             ) : (
-              projectPosts.map((post) => (
-                <div
-                  key={post.id}
-                  className="flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border-2 border-gray-200 cursor-move hover:border-blue-400"
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, post)}
-                >
-                  <img
-                    src={post.image_url || '/api/placeholder/100/100'}
-                    alt="Post"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      console.log('Image failed to load, using placeholder for post:', post.id);
-                      e.currentTarget.src = '/api/placeholder/100/100';
-                    }}
-                  />
-                          </div>
-              ))
+              projectPosts.map((post) => {
+                const isMoving = movingPostId === post.id;
+                const isDeleting = deletingUnscheduledPostIds.has(post.id);
+                return (
+                  <div
+                    key={post.id}
+                    className={`flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border-2 relative ${
+                      isMoving || isDeleting
+                        ? 'border-blue-500 bg-blue-50 cursor-not-allowed opacity-50' 
+                        : 'border-gray-200 cursor-move hover:border-blue-400'
+                    }`}
+                    draggable={!isMoving && !isDeleting}
+                    onDragStart={(e) => !isMoving && !isDeleting && handleDragStart(e, post)}
+                  >
+                    {isMoving ? (
+                      <div className="w-full h-full flex items-center justify-center bg-blue-50">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                      </div>
+                    ) : isDeleting ? (
+                      <div className="w-full h-full flex items-center justify-center bg-red-50">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
+                      </div>
+                    ) : (
+                      <>
+                        <img
+                          src={post.image_url || '/api/placeholder/100/100'}
+                          alt="Post"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            console.log('Image failed to load, using placeholder for post:', post.id);
+                            e.currentTarget.src = '/api/placeholder/100/100';
+                          }}
+                        />
+                        {/* Delete button - positioned to not interfere with drag */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            if (confirm('Are you sure you want to delete this post?')) {
+                              handleDeleteUnscheduledPost(post.id);
+                            }
+                          }}
+                          className="absolute top-1 right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
+                          title="Delete post"
+                        >
+                          ×
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })
                     )}
                   </div>
                 </div>
@@ -981,16 +1177,24 @@ export default function PlannerPage() {
                         dayDate.setDate(weekStart.getDate() + dayIndex);
                         const isToday = dayDate.toDateString() === new Date().toDateString();
                         
+                        const dateKey = dayDate.toLocaleDateString('en-CA');
+                        const isDragOver = dragOverDate === dateKey;
+                        
                         return (
                           <div
                             key={day}
                             className={`p-2 rounded min-h-[80px] border-2 border-transparent transition-all duration-200 ${
-                              isToday ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 hover:bg-gray-100'
+                              isDragOver 
+                                ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300' 
+                                : isToday 
+                                  ? 'bg-blue-50 border-blue-300' 
+                                  : 'bg-gray-50 hover:bg-gray-100'
                             }`}
                             onDragOver={handleDragOver}
-                            onDragEnter={handleDragEnter}
-                            onDragLeave={handleDragLeave}
+                            onDragEnter={(e) => handleDragEnter(e, dateKey)}
+                            onDragLeave={(e) => handleDragLeave(e, dateKey)}
                             onDrop={(e) => {
+                              setDragOverDate(null); // Clear drag over state
                               if (e.dataTransfer.getData('scheduledPost')) {
                                 handleMovePost(e, weekIndex, dayIndex);
                               } else {
@@ -1012,100 +1216,130 @@ export default function PlannerPage() {
                             )}
                             
                             {/* Display scheduled posts */}
-                            {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => (
-                              <div key={idx} className="mt-1">
-                                {editingPostId === post.id ? (
-                                  <input
-                                    type="time"
-                                    defaultValue={post.scheduled_time?.slice(0, 5)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        handleEditScheduledPost(post, e.currentTarget.value);
-                                        setEditingPostId(null);
-                                      }
-                                      if (e.key === 'Escape') {
-                                        setEditingPostId(null);
-                                      }
-                                    }}
-                                    onBlur={(e) => {
-                                      handleEditScheduledPost(post, e.target.value);
-                                      setEditingPostId(null);
-                                    }}
-                                    className="text-xs p-1 rounded border"
-                                  />
-                                ) : (
-                                  <div 
-                                    draggable
-                                    onDragStart={(e) => {
-                                      e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
-                                      e.dataTransfer.setData('originalDate', dayDate.toLocaleDateString('en-CA')); // Keeps local timezone
-                                    }}
-                                    className={`flex items-center gap-1 rounded p-1 cursor-move hover:opacity-80 ${
-                                      post.late_status === 'scheduled' 
-                                        ? 'bg-green-100 border border-green-300' 
-                                        : 'bg-blue-100 border border-blue-300'
-                                    }`}
-                                  >
+                            {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => {
+                              const isDeleting = deletingPostIds.has(post.id);
+                              const isScheduling = schedulingPostIds.has(post.id);
+                              const isEditingTime = editingTimePostIds.has(post.id);
+                              return (
+                                <div key={idx} className="mt-1">
+                                  {editingPostId === post.id ? (
                                     <input
-                                      type="checkbox"
-                                      checked={selectedPosts.has(post.id) || selectedForDelete.has(post.id)}
-                                      onChange={(e) => {
-                                        e.stopPropagation();
-                                        
-                                        // Update both selection sets
-                                        const newSelectedPosts = new Set(selectedPosts);
-                                        const newSelectedDelete = new Set(selectedForDelete);
-                                        
-                                        if (e.target.checked) {
-                                          newSelectedPosts.add(post.id);
-                                          newSelectedDelete.add(post.id);
-                                        } else {
-                                          newSelectedPosts.delete(post.id);
-                                          newSelectedDelete.delete(post.id);
+                                      type="time"
+                                      defaultValue={post.scheduled_time?.slice(0, 5)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          handleEditScheduledPost(post, e.currentTarget.value);
+                                          setEditingPostId(null);
                                         }
-                                        
-                                        setSelectedPosts(newSelectedPosts);
-                                        setSelectedForDelete(newSelectedDelete);
+                                        if (e.key === 'Escape') {
+                                          setEditingPostId(null);
+                                        }
                                       }}
-                                      className="w-3 h-3"
+                                      onBlur={(e) => {
+                                        handleEditScheduledPost(post, e.target.value);
+                                        setEditingPostId(null);
+                                      }}
+                                      className="text-xs p-1 rounded border"
                                     />
-                                    
-                                    {/* LATE Status Indicator */}
-                                    {post.late_status && (
-                                      <div className={`w-2 h-2 rounded-full ${
-                                        post.late_status === 'scheduled' ? 'bg-green-500' :
-                                        post.late_status === 'published' ? 'bg-green-600' :
-                                        post.late_status === 'failed' ? 'bg-red-500' :
-                                        'bg-gray-400'
-                                      }`} title={`LATE Status: ${post.late_status}`} />
-                                    )}
-                                    <img 
-                                      src={post.image_url || '/api/placeholder/100/100'} 
-                                      alt="Post"
-                                      className="w-8 h-8 object-cover rounded"
-                                      onError={(e) => {
-                                        console.log('Scheduled post image failed to load, using placeholder for post:', post.id);
-                                        e.currentTarget.src = '/api/placeholder/100/100';
-                                      }}
-                                    />
-                                    
-                                    {/* Time Display - Clickable with more spacing */}
-                                    <span 
-                                      className="text-xs ml-4 px-2 py-1 bg-gray-50 rounded border cursor-pointer hover:bg-gray-100 transition-colors"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingPostId(post.id);
-                                      }}
-                                      title="Click to edit time"
+                                  ) : (
+                                    <div 
+                                      draggable={!isDeleting && !isScheduling && !isEditingTime}
+                                      onDragStart={(e) => !isDeleting && !isScheduling && !isEditingTime && (() => {
+                                        e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
+                                        e.dataTransfer.setData('originalDate', dayDate.toLocaleDateString('en-CA')); // Keeps local timezone
+                                      })()}
+                                      className={`flex items-center gap-1 rounded p-1 ${
+                                        isDeleting 
+                                          ? 'cursor-not-allowed opacity-50 bg-red-50 border border-red-300' 
+                                          : isScheduling
+                                            ? 'cursor-not-allowed opacity-50 bg-yellow-50 border border-yellow-300'
+                                            : isEditingTime
+                                              ? 'cursor-not-allowed opacity-50 bg-purple-50 border border-purple-300'
+                                              : `cursor-move hover:opacity-80 ${
+                                                  post.late_status === 'scheduled' 
+                                                    ? 'bg-green-100 border border-green-300' 
+                                                    : 'bg-blue-100 border border-blue-300'
+                                                }`
+                                      }`}
                                     >
-                                      {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                    </span>
-                                    
-
+                                    {isDeleting ? (
+                                      <div className="flex items-center gap-2">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                                        <span className="text-xs text-red-600">Deleting...</span>
+                                      </div>
+                                    ) : isScheduling ? (
+                                      <div className="flex items-center gap-2">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
+                                        <span className="text-xs text-yellow-600">Scheduling...</span>
+                                      </div>
+                                    ) : isEditingTime ? (
+                                      <div className="flex items-center gap-2">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                                        <span className="text-xs text-purple-600">Updating time...</span>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedPosts.has(post.id) || selectedForDelete.has(post.id)}
+                                          onChange={(e) => {
+                                            e.stopPropagation();
+                                            
+                                            // Update both selection sets
+                                            const newSelectedPosts = new Set(selectedPosts);
+                                            const newSelectedDelete = new Set(selectedForDelete);
+                                            
+                                            if (e.target.checked) {
+                                              newSelectedPosts.add(post.id);
+                                              newSelectedDelete.add(post.id);
+                                            } else {
+                                              newSelectedPosts.delete(post.id);
+                                              newSelectedDelete.delete(post.id);
+                                            }
+                                            
+                                            setSelectedPosts(newSelectedPosts);
+                                            setSelectedForDelete(newSelectedDelete);
+                                          }}
+                                          className="w-3 h-3"
+                                        />
+                                        
+                                        {/* LATE Status Indicator */}
+                                        {post.late_status && (
+                                          <div className={`w-2 h-2 rounded-full ${
+                                            post.late_status === 'scheduled' ? 'bg-green-500' :
+                                            post.late_status === 'published' ? 'bg-green-600' :
+                                            post.late_status === 'failed' ? 'bg-red-500' :
+                                            'bg-gray-400'
+                                          }`} title={`LATE Status: ${post.late_status}`} />
+                                        )}
+                                        <img 
+                                          src={post.image_url || '/api/placeholder/100/100'} 
+                                          alt="Post"
+                                          className="w-8 h-8 object-cover rounded"
+                                          onError={(e) => {
+                                            console.log('Scheduled post image failed to load, using placeholder for post:', post.id);
+                                            e.currentTarget.src = '/api/placeholder/100/100';
+                                          }}
+                                        />
+                                        
+                                        {/* Time Display - Clickable with more spacing */}
+                                        <span 
+                                          className="text-xs ml-4 px-2 py-1 bg-gray-50 rounded border cursor-pointer hover:bg-gray-100 transition-colors"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingPostId(post.id);
+                                          }}
+                                          title="Click to edit time"
+                                        >
+                                          {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                        </span>
+                                      </>
+                                    )}
                                   </div>
                                 )}
                               </div>
-                            ))}
+                              );
+                            })}
 
                           </div>
                         );
