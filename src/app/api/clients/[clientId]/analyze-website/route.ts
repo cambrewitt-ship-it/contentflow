@@ -131,7 +131,7 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
     } catch (parseError) {
       console.error('❌ JSON parsing failed:', parseError);
       console.error('Raw AI response:', analysisText);
-      throw new Error(`Failed to parse AI response as JSON: ${parseError.message}`);
+      throw new Error(`Failed to parse AI response as JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
     }
     
     // Validate the structure
