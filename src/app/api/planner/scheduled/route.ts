@@ -115,13 +115,13 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('❌ POST /api/planner/scheduled - CRITICAL ERROR:');
     console.error('  - Error type:', typeof error);
-    console.error('  - Error message:', error.message);
-    console.error('  - Error stack:', error.stack);
+    console.error('  - Error message:', error instanceof Error ? error.message : String(error));
+    console.error('  - Error stack:', error instanceof Error ? error.stack : 'No stack trace available');
     console.error('  - Full error object:', JSON.stringify(error, null, 2));
     
     return NextResponse.json({ 
       error: 'Failed to schedule post',
-      details: error.message,
+      details: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString()
     }, { status: 500 });
   }
