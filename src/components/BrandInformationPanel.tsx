@@ -251,25 +251,6 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Company Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Company Description
-            </label>
-            {isEditing ? (
-              <Textarea
-                value={formData.company_description}
-                onChange={(e) => handleInputChange('company_description', e.target.value)}
-                placeholder="Detailed description of the company, mission, and values"
-                rows={3}
-              />
-            ) : (
-              <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
-                {client?.company_description || 'No company description provided'}
-              </p>
-            )}
-          </div>
-
           {/* Website URL */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -299,6 +280,25 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
             ) : (
               <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
                 {client?.website_url || 'No website URL provided'}
+              </p>
+            )}
+          </div>
+
+          {/* Company Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Company Description
+            </label>
+            {isEditing ? (
+              <Textarea
+                value={formData.company_description}
+                onChange={(e) => handleInputChange('company_description', e.target.value)}
+                placeholder="Detailed description of the company, mission, and values"
+                rows={3}
+              />
+            ) : (
+              <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
+                {client?.company_description || 'No company description provided'}
               </p>
             )}
           </div>

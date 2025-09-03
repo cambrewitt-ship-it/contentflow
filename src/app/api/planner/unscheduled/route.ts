@@ -10,19 +10,46 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get('projectId');
   
+  // Validate projectId
+  if (!projectId) {
+    return NextResponse.json({ error: 'projectId is required' }, { status: 400 });
+  }
+  
   try {
+    console.log(`🔍 OPTIMIZED QUERY - Fetching unscheduled posts for project ${projectId}`);
+    
+    // OPTIMIZED QUERY - Same structure as scheduled posts with LIMIT
     const { data, error } = await supabase
       .from('planner_unscheduled_posts')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false });
+      .select('*') // Simple: select all columns
+      .eq('project_id', projectId) // Simple: single WHERE clause
+      .order('created_at', { ascending: false }) // Simple: single ORDER BY
+      .limit(20); // CRITICAL: Limit to prevent timeout
     
     if (error) throw error;
     
+    console.log(`✅ Retrieved ${data?.length || 0} unscheduled posts`);
+    
     return NextResponse.json({ posts: data || [] });
-  } catch (error) {
-    console.error('Error:', error);
-    return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
+    
+  } catch (error: unknown) {
+    console.error('❌ Error fetching unscheduled posts:', error);
+    
+    // Enhanced error handling for timeouts
+    if (error && typeof error === 'object' && 'code' in error && error.code === '57014') {
+      console.error('❌ Database timeout error detected');
+      return NextResponse.json({ 
+        error: 'Database query timeout - too many posts to load',
+        code: 'TIMEOUT',
+        suggestion: 'Try reducing the number of posts or contact support'
+      }, { status: 408 });
+    }
+    
+    return NextResponse.json({ 
+      error: 'Failed to fetch unscheduled posts',
+      details: error instanceof Error ? error.message : String(error),
+      code: error && typeof error === 'object' && 'code' in error ? String(error.code) : 'UNKNOWN'
+    }, { status: 500 });
   }
 }
 

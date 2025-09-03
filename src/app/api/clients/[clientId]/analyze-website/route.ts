@@ -119,8 +119,20 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
       throw new Error('No analysis content received from OpenAI');
     }
 
-    // Parse the JSON response
-    const analysis = JSON.parse(analysisText);
+    // Parse the JSON response - handle both raw JSON and markdown-formatted JSON
+    let analysis;
+    try {
+      // First try to extract JSON from markdown code blocks
+      const jsonMatch = analysisText.match(/```json\s*([\s\S]*?)\s*```/);
+      const jsonText = jsonMatch ? jsonMatch[1] : analysisText;
+      
+      // Parse the extracted JSON
+      analysis = JSON.parse(jsonText.trim());
+    } catch (parseError) {
+      console.error('❌ JSON parsing failed:', parseError);
+      console.error('Raw AI response:', analysisText);
+      throw new Error(`Failed to parse AI response as JSON: ${parseError.message}`);
+    }
     
     // Validate the structure
     const requiredFields = ['business_description', 'industry_category', 'core_products_services', 'target_audience', 'value_proposition', 'brand_tone'];

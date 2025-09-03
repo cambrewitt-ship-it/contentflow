@@ -173,7 +173,6 @@ export async function POST(req: NextRequest) {
       name,
       description: description || '',
       status: 'active',
-      color: body.color || '#3B82F6', // Add color field support
       created_at: new Date().toISOString()
     };
     

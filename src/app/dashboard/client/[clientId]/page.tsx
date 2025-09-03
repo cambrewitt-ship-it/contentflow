@@ -89,8 +89,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         console.log('✅ Client data fetched:', data)
         
         setClient(data.client)
-        setWebsite(data.client.website || "")
-        setAbout(data.client.description || "")
+        setWebsite(data.client.website_url || "")
+        setAbout(data.client.company_description || "")
         
       } catch (err) {
         console.error('❌ Error fetching client:', err)
@@ -219,10 +219,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
   }
 
-  // Navigate to Content Suite
-  const navigateToContentSuite = (projectId: string) => {
-    window.location.href = `/dashboard/client/${clientId}/project/${projectId}`
-  }
+
 
   // Debug database issues
   const handleDebugDatabase = async () => {
@@ -342,20 +339,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header with Client Info and Quick Actions */}
+        {/* Header with Quick Actions */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                {client?.name || 'Client Dashboard'}
-              </h1>
-              {client?.description && (
-                <p className="text-gray-600 mt-2">{client.description}</p>
-              )}
-            </div>
-            
-
-            
             {/* Quick Actions when Projects Failed */}
             {projectsFailed && (
               <div className="flex gap-3">
@@ -388,7 +374,10 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   </span>
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center space-x-4 text-gray-600 mb-2">
+                  <h1 className="text-2xl font-bold text-gray-900 mb-3">
+                    {client?.name || 'Client Dashboard'}
+                  </h1>
+                  <div className="flex items-center space-x-4 text-gray-600">
                     <div className="flex items-center space-x-2">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
@@ -398,13 +387,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     <span className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">
                       {client?.industry || 'Technology'}
                     </span>
-                    <span className="text-sm">
-                      Founded: {client?.founded_date || 'Not specified'}
-                    </span>
                   </div>
-                  <p className="text-gray-600 text-lg">
-                    {about || 'No company description available. Add a description to provide more context about your business.'}
-                  </p>
                 </div>
               </div>
             </CardContent>
@@ -413,7 +396,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             {/* Create Content Button */}
             <Button 
               onClick={() => window.location.href = `/dashboard/client/${clientId}/content-suite`}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white w-64 h-full rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white w-64 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
+              style={{ height: '190px' }}
             >
               <Plus className="w-16 h-16 mb-4" />
               <span className="text-2xl font-bold">Create Content</span>
@@ -430,6 +414,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                 <Button 
                   onClick={() => setShowNewProjectForm(true)}
                   className="bg-black hover:bg-gray-800 text-white"
+                  style={{ width: '255px' }}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   New Project
@@ -576,7 +561,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         key={project.id}
                         className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer"
                         onClick={() => {
-                          navigateToContentSuite(project.id)
                           setShowProjectSelection(false)
                         }}
                       >
@@ -646,29 +630,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         </div>
                         
                         <div className="flex gap-2">
-                          <Button 
-                            onClick={() => navigateToContentSuite(project.id)}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                          >
-                            <FileText className="w-4 h-4 mr-2" />
-                            Content Suite
-                            <ArrowRight className="w-4 h-4 ml-2" />
-                          </Button>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          <Link 
-                            href={`/dashboard/client/${clientId}/project/${project.id}/scheduler`}
-                            className="flex-1"
-                          >
-                            <Button 
-                              variant="outline" 
-                              className="w-full"
-                            >
-                              <Calendar className="w-4 h-4 mr-2" />
-                              Scheduler
-                            </Button>
-                          </Link>
                           <Link 
                             href={`/dashboard/client/${clientId}/planner?projectId=${project.id}`}
                             className="flex-1"
@@ -681,9 +642,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                               Planner
                             </Button>
                           </Link>
-                          <Button variant="outline" size="sm">
-                            <Edit3 className="w-4 h-4" />
-                          </Button>
                         </div>
                       </CardContent>
                     </Card>
