@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isValidImageData } from '../../../../lib/blobUpload';
 
 export async function POST(request: Request) {
   try {
@@ -16,6 +17,19 @@ export async function POST(request: Request) {
     
     const body = await request.json();
     const { projectId, post } = body;
+    
+    // Validate image URL if present
+    if (post.generatedImage) {
+      const validation = isValidImageData(post.generatedImage);
+      if (!validation.isValid) {
+        console.error('❌ Invalid image URL in post:', post.generatedImage);
+        return NextResponse.json(
+          { error: `Invalid image URL: ${post.generatedImage}` },
+          { status: 400 }
+        );
+      }
+      console.log('✅ Valid image URL detected:', validation.type);
+    }
     
     // Insert into planner_unscheduled_posts (not planner_posts)
     const { data, error } = await supabase

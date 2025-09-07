@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { isValidImageData } from '../../../../lib/blobUpload';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -9,6 +10,21 @@ export async function POST(request: Request) {
     const { clientId, projectId, posts, status = 'draft' } = await request.json();
     
     console.log('🚀 Creating posts:', { clientId, projectId, postsCount: posts.length, status });
+    
+    // Validate image URLs in posts
+    for (const post of posts) {
+      if (post.image_url) {
+        const validation = isValidImageData(post.image_url);
+        if (!validation.isValid) {
+          console.error('❌ Invalid image URL in post:', post.image_url);
+          return NextResponse.json(
+            { error: `Invalid image URL: ${post.image_url}` },
+            { status: 400 }
+          );
+        }
+        console.log('✅ Valid image URL detected:', validation.type);
+      }
+    }
     
     // Create Supabase client with service role for admin access (exact same pattern as working APIs)
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);

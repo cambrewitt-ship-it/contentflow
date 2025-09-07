@@ -15,14 +15,14 @@ export function ImageUploadColumn() {
     updateImageNotes,
   } = useContentStore()
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (files) {
-      Array.from(files).forEach((file) => {
+      for (const file of Array.from(files)) {
         if (file.type.startsWith('image/')) {
-          addImage(file)
+          await addImage(file)
         }
-      })
+      }
     }
   }
 
@@ -30,14 +30,14 @@ export function ImageUploadColumn() {
     event.preventDefault()
   }
 
-  const handleDrop = (event: React.DragEvent) => {
+  const handleDrop = async (event: React.DragEvent) => {
     event.preventDefault()
     const files = event.dataTransfer.files
-          Array.from(files).forEach((file) => {
-        if (file.type.startsWith('image/')) {
-          addImage(file)
-        }
-      })
+    for (const file of Array.from(files)) {
+      if (file.type.startsWith('image/')) {
+        await addImage(file)
+      }
+    }
   }
 
   return (

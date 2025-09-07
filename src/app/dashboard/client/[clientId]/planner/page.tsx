@@ -1,10 +1,53 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Plus, ArrowLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Share2, Loader2, RefreshCw } from 'lucide-react';
+import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
+import { Button } from 'components/ui/button';
+
+// Lazy loading image component
+const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (imgRef.current) {
+      observer.observe(imgRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={imgRef} className={`relative ${className}`}>
+      {isInView && (
+        <img
+          src={src}
+          alt={alt}
+          onLoad={() => setIsLoaded(true)}
+          className={`transition-opacity duration-200 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+        />
+      )}
+      {!isLoaded && isInView && (
+        <div className="absolute inset-0 bg-gray-200 animate-pulse rounded" />
+      )}
+    </div>
+  );
+};
 
 interface Project {
   id: string;
@@ -41,10 +84,12 @@ interface Post {
   image_url: string;
   scheduled_time: string | null;
   scheduled_date?: string;
-  status: 'draft' | 'scheduled' | 'published';
   late_post_id?: string;
   platforms_scheduled?: string[];
   late_status?: string;
+  approval_status?: 'pending' | 'approved' | 'rejected' | 'needs_attention';
+  needs_attention?: boolean;
+  client_feedback?: string;
 }
 
 interface ConnectedAccount {
@@ -93,6 +138,8 @@ export default function PlannerPage() {
   const [projectPosts, setProjectPosts] = useState<Post[]>([]);
   const [scheduledPosts, setScheduledPosts] = useState<{[key: string]: Post[]}>({});
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+  const [cacheExpiry, setCacheExpiry] = useState<number>(30000); // 30 seconds cache
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
@@ -107,6 +154,8 @@ export default function PlannerPage() {
   const [schedulingPostIds, setSchedulingPostIds] = useState<Set<string>>(new Set());
   const [editingTimePostIds, setEditingTimePostIds] = useState<Set<string>>(new Set());
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [postApprovals, setPostApprovals] = useState<{[key: string]: any}>({});
 
   const fetchConnectedAccounts = async () => {
     try {
@@ -120,6 +169,37 @@ export default function PlannerPage() {
     } catch (error) {
       console.error('Error fetching accounts:', error);
       setError(error instanceof Error ? error.message : 'Failed to load connected accounts');
+    }
+  };
+
+  const fetchPostApprovals = async () => {
+    if (!selectedProject) return;
+    
+    try {
+      // Get all approval sessions for this project
+      const sessionsResponse = await fetch(`/api/approval-sessions?project_id=${selectedProject}`);
+      if (!sessionsResponse.ok) return;
+      
+      const { sessions } = await sessionsResponse.json();
+      if (!sessions || sessions.length === 0) return;
+      
+      // Get approvals for the latest session
+      const latestSession = sessions[0];
+      const approvalsResponse = await fetch(`/api/post-approvals?session_id=${latestSession.id}`);
+      if (!approvalsResponse.ok) return;
+      
+      const { approvals } = await approvalsResponse.json();
+      
+      // Create a lookup map by post_id and post_type
+      const approvalMap: {[key: string]: any} = {};
+      approvals.forEach((approval: any) => {
+        const key = `${approval.post_type}-${approval.post_id}`;
+        approvalMap[key] = approval;
+      });
+      
+      setPostApprovals(approvalMap);
+    } catch (error) {
+      console.error('Error fetching post approvals:', error);
     }
   };
 
@@ -158,12 +238,19 @@ export default function PlannerPage() {
       }
     };
 
-  const fetchScheduledPosts = async (retryCount = 0) => {
+  const fetchScheduledPosts = async (retryCount = 0, forceRefresh = false) => {
     if (!projectId) return;
     
+    // Check cache first (unless force refresh)
+    const now = Date.now();
+    if (!forceRefresh && now - lastFetchTime < cacheExpiry && Object.keys(scheduledPosts).length > 0) {
+      console.log('📦 Using cached scheduled posts data');
+      return;
+    }
+    
     const maxRetries = 2;
-    const baseLimit = 20; // Optimized for faster loading
-    const retryLimit = Math.max(10, baseLimit - (retryCount * 5)); // Reduce limit on retries
+    const baseLimit = 30; // Increased for better UX
+    const retryLimit = Math.max(15, baseLimit - (retryCount * 5)); // Reduce limit on retries
     
     try {
       if (retryCount === 0) {
@@ -206,6 +293,15 @@ export default function PlannerPage() {
       
       const data = await response.json();
       
+      // Debug: Log the fetched data for approval status
+      console.log('🔄 fetchScheduledPosts - Raw API response:', data);
+      if (data.posts && data.posts.length > 0) {
+        console.log('📊 First few posts approval status:');
+        data.posts.slice(0, 3).forEach((post: any, index: number) => {
+          console.log(`  ${index + 1}. Post ${post.id?.substring(0, 8)}... - Status: ${post.approval_status || 'NO STATUS'} - Feedback: ${post.client_feedback || 'NO FEEDBACK'}`);
+        });
+      }
+      
       // Handle optimized response format
       const posts = data.posts || [];
       const pagination = data.pagination;
@@ -242,8 +338,20 @@ export default function PlannerPage() {
       });
       
       setScheduledPosts(mapped);
+      setLastFetchTime(Date.now()); // Update cache timestamp
       setIsLoadingScheduledPosts(false);
       console.log('Scheduled posts loaded - dates:', Object.keys(mapped).length);
+      
+      // Debug: Log the final mapped data
+      console.log('🗂️ Final mapped scheduled posts:');
+      Object.entries(mapped).forEach(([date, posts]) => {
+        console.log(`  ${date}: ${posts.length} posts`);
+        posts.forEach((post, index) => {
+          if (index < 2) { // Only log first 2 posts per date
+            console.log(`    ${post.id?.substring(0, 8)}... - Status: ${post.approval_status || 'NO STATUS'}`);
+          }
+        });
+      });
       
       // Handle pagination warnings
       if (pagination && pagination.hasMore) {
@@ -309,6 +417,7 @@ export default function PlannerPage() {
       fetchUnscheduledPosts();
       fetchScheduledPosts();
       fetchConnectedAccounts();
+      fetchPostApprovals();
     }
   }, [projectId, clientId]);
 
@@ -416,12 +525,20 @@ export default function PlannerPage() {
 
   // Helper function to convert 24-hour time to 12-hour format
   const formatTimeTo12Hour = (time24: string) => {
-    if (!time24) return '';
+    if (!time24) return '12:00 PM';
     
-    const [hours, minutes] = time24.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour % 12 || 12;
+    // Check if time already has AM/PM
+    if (time24.includes('AM') || time24.includes('PM')) {
+      return time24;
+    }
+    
+    // Handle different time formats (with or without seconds)
+    const timeParts = time24.split(':');
+    const hours = parseInt(timeParts[0]);
+    const minutes = timeParts[1] || '00';
+    
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
     
     return `${hour12}:${minutes} ${ampm}`;
   };
@@ -435,13 +552,31 @@ export default function PlannerPage() {
       
       console.log('Updating post time to:', newTime);
       
+      // Convert 12-hour format back to 24-hour format for database storage
+      let timeToSave = newTime;
+      if (newTime.includes('AM') || newTime.includes('PM')) {
+        const [timePart, ampm] = newTime.split(' ');
+        const [hours, minutes] = timePart.split(':');
+        let hour24 = parseInt(hours);
+        
+        if (ampm === 'AM' && hour24 === 12) {
+          hour24 = 0;
+        } else if (ampm === 'PM' && hour24 !== 12) {
+          hour24 += 12;
+        }
+        
+        timeToSave = `${hour24.toString().padStart(2, '0')}:${minutes}:00`;
+      } else {
+        timeToSave = newTime + ':00';
+      }
+      
       const response = await fetch('/api/planner/scheduled', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           postId: post.id,
           updates: {
-            scheduled_time: newTime + ':00'
+            scheduled_time: timeToSave
           }
         })
       });
@@ -456,7 +591,7 @@ export default function PlannerPage() {
         Object.keys(updated).forEach(date => {
           updated[date] = updated[date].map(p => 
             p.id === post.id 
-              ? { ...p, scheduled_time: newTime + ':00' }
+              ? { ...p, scheduled_time: timeToSave }
               : p
           );
         });
@@ -598,6 +733,9 @@ export default function PlannerPage() {
     const newDate = new Date(weekStart);
     newDate.setDate(weekStart.getDate() + dayIndex);
     
+    // Set loading state for this specific post
+    setMovingPostId(post.id);
+    
     try {
       await fetch('/api/planner/scheduled', {
         method: 'PATCH',
@@ -610,11 +748,40 @@ export default function PlannerPage() {
         })
       });
       
-      fetchScheduledPosts();
+      // Update the post in local state instead of refetching all posts
+      const oldDateKey = post.scheduled_date;
+      const newDateKey = newDate.toLocaleDateString('en-CA');
+      
+      setScheduledPosts(prev => {
+        const updated = { ...prev };
+        
+        // Remove from old date
+        if (oldDateKey && updated[oldDateKey]) {
+          updated[oldDateKey] = updated[oldDateKey].filter(p => p.id !== post.id);
+          if (updated[oldDateKey].length === 0) {
+            delete updated[oldDateKey];
+          }
+        }
+        
+        // Add to new date
+        if (!updated[newDateKey]) {
+          updated[newDateKey] = [];
+        }
+        updated[newDateKey].push({
+          ...post,
+          scheduled_date: newDateKey
+        });
+        
+        return updated;
+      });
+      
     } catch (error) {
       console.error('Error moving post:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setError(`Failed to move post: ${errorMessage}`);
+    } finally {
+      // Clear loading state for this post
+      setMovingPostId(null);
     }
   };
 
@@ -722,6 +889,41 @@ export default function PlannerPage() {
         newSet.delete(postId);
         return newSet;
       });
+    }
+  };
+
+  const handleCreateShareLink = async () => {
+    if (!selectedProject) {
+      alert('Please select a project first');
+      return;
+    }
+
+    setIsCreatingSession(true);
+    try {
+      const response = await fetch('/api/approval-sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: selectedProject,
+          client_id: clientId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create share link');
+      }
+
+      const { session, share_url } = await response.json();
+      
+      // For now, just copy to clipboard and show alert
+      await navigator.clipboard.writeText(share_url);
+      alert(`Share link copied to clipboard!\n\nLink: ${share_url}\nExpires: ${new Date(session.expires_at).toLocaleDateString()}`);
+      
+    } catch (error) {
+      console.error('❌ Error creating share link:', error);
+      alert('Failed to create share link. Please try again.');
+    } finally {
+      setIsCreatingSession(false);
     }
   };
 
@@ -967,6 +1169,34 @@ export default function PlannerPage() {
           </div>
           
           <div className="flex items-center space-x-3">
+            {/* Share Button */}
+            <button
+              onClick={handleCreateShareLink}
+              disabled={!selectedProject || isCreatingSession}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            >
+              {isCreatingSession ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Share
+                </>
+              )}
+            </button>
+            
+            {/* Refresh Approvals Button */}
+            <button
+              onClick={fetchPostApprovals}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
+              title="Refresh approval status"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh Approvals
+            </button>
             <Link
               href={`/dashboard/client/${clientId}/content-suite`}
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -1220,6 +1450,7 @@ export default function PlannerPage() {
                               const isDeleting = deletingPostIds.has(post.id);
                               const isScheduling = schedulingPostIds.has(post.id);
                               const isEditingTime = editingTimePostIds.has(post.id);
+                              const isMoving = movingPostId === post.id;
                               return (
                                 <div key={idx} className="mt-1">
                                   {editingPostId === post.id ? (
@@ -1243,8 +1474,8 @@ export default function PlannerPage() {
                                     />
                                   ) : (
                                     <div 
-                                      draggable={!isDeleting && !isScheduling && !isEditingTime}
-                                      onDragStart={(e) => !isDeleting && !isScheduling && !isEditingTime && (() => {
+                                      draggable={!isDeleting && !isScheduling && !isEditingTime && !isMoving}
+                                      onDragStart={(e) => !isDeleting && !isScheduling && !isEditingTime && !isMoving && (() => {
                                         e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
                                         e.dataTransfer.setData('originalDate', dayDate.toLocaleDateString('en-CA')); // Keeps local timezone
                                       })()}
@@ -1255,6 +1486,8 @@ export default function PlannerPage() {
                                             ? 'cursor-not-allowed opacity-50 bg-yellow-50 border border-yellow-300'
                                             : isEditingTime
                                               ? 'cursor-not-allowed opacity-50 bg-purple-50 border border-purple-300'
+                                              : isMoving
+                                                ? 'cursor-not-allowed opacity-50 bg-orange-50 border border-orange-300'
                                               : `cursor-move hover:opacity-80 ${
                                                   post.late_status === 'scheduled' 
                                                     ? 'bg-green-100 border border-green-300' 
@@ -1276,6 +1509,11 @@ export default function PlannerPage() {
                                       <div className="flex items-center gap-2">
                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
                                         <span className="text-xs text-purple-600">Updating time...</span>
+                                      </div>
+                                    ) : isMoving ? (
+                                      <div className="flex items-center gap-2">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
+                                        <span className="text-xs text-orange-600">Moving...</span>
                                       </div>
                                     ) : (
                                       <>
@@ -1312,6 +1550,7 @@ export default function PlannerPage() {
                                             'bg-gray-400'
                                           }`} title={`LATE Status: ${post.late_status}`} />
                                         )}
+                                        
                                         <img 
                                           src={post.image_url || '/api/placeholder/100/100'} 
                                           alt="Post"
@@ -1322,17 +1561,46 @@ export default function PlannerPage() {
                                           }}
                                         />
                                         
-                                        {/* Time Display - Clickable with more spacing */}
+                                        {/* Enhanced Status Indicator - Fixed Icon Position */}
+                                        <div className="relative flex items-center pr-12">
+                                          {/* Time display */}
+                                          <div className="flex items-center justify-start">
                                         <span 
-                                          className="text-xs ml-4 px-2 py-1 bg-gray-50 rounded border cursor-pointer hover:bg-gray-100 transition-colors"
+                                              className="text-xs text-gray-600 cursor-pointer hover:text-gray-800 whitespace-nowrap"
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             setEditingPostId(post.id);
                                           }}
                                           title="Click to edit time"
                                         >
-                                          {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                          {post.scheduled_time ? `${formatTimeTo12Hour(post.scheduled_time)}` : '12:00 PM'}
                                         </span>
+                                          </div>
+                                          
+                                          {/* Approval Status Icons - 50px from right edge */}
+                                          <div className="absolute right-12 top-1/2 transform -translate-y-1/2">
+                                            {post.approval_status === 'approved' && (
+                                              <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center" title="Approved">
+                                                <Check className="w-3 h-3 text-green-700" />
+                                              </div>
+                                            )}
+                                            {post.approval_status === 'rejected' && (
+                                              <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center" title="Rejected">
+                                                <X className="w-3 h-3 text-red-700" />
+                                              </div>
+                                            )}
+                                            {post.approval_status === 'needs_attention' && (
+                                              <div className="w-5 h-5 bg-orange-100 rounded-full flex items-center justify-center" title="Needs Attention">
+                                                <AlertTriangle className="w-3 h-3 text-orange-700" />
+                                              </div>
+                                            )}
+                                            {(!post.approval_status || post.approval_status === 'pending') && (
+                                              <div className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center" title="Pending Approval">
+                                                <Minus className="w-3 h-3 text-gray-700" />
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
                                       </>
                                     )}
                                   </div>
@@ -1350,6 +1618,194 @@ export default function PlannerPage() {
               </div>
             </div>
           </div>
+          
+          {/* Scheduled Posts Section - Approval Board */}
+          <div className="mt-8 border-t border-gray-200 pt-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Scheduled Posts - Approval Board</h2>
+                <p className="text-sm text-gray-600 mt-1">Review approval status and client feedback for all scheduled posts</p>
+        </div>
+              <Button
+                onClick={() => fetchScheduledPosts(0, true)}
+                variant="outline"
+                size="sm"
+                className="text-sm"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh Status
+              </Button>
+      </div>
+            
+            {/* Approval Summary */}
+            <div className="mb-6 grid grid-cols-4 gap-4">
+              {(() => {
+                const allPosts = Object.values(scheduledPosts).flat();
+                const approved = allPosts.filter(p => p.approval_status === 'approved').length;
+                const rejected = allPosts.filter(p => p.approval_status === 'rejected').length;
+                const needsAttention = allPosts.filter(p => p.approval_status === 'needs_attention').length;
+                const pending = allPosts.filter(p => p.approval_status === 'pending' || !p.approval_status).length;
+                
+                return (
+                  <>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex items-center">
+                        <Check className="w-4 h-4 text-green-600 mr-2" />
+                        <span className="text-sm font-medium text-green-800">Approved</span>
+    </div>
+                      <div className="text-lg font-bold text-green-900 mt-1">{approved}</div>
+                    </div>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <div className="flex items-center">
+                        <X className="w-4 h-4 text-red-600 mr-2" />
+                        <span className="text-sm font-medium text-red-800">Rejected</span>
+                      </div>
+                      <div className="text-lg font-bold text-red-900 mt-1">{rejected}</div>
+                    </div>
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                      <div className="flex items-center">
+                        <AlertTriangle className="w-4 h-4 text-orange-600 mr-2" />
+                        <span className="text-sm font-medium text-orange-800">Needs Attention</span>
+                      </div>
+                      <div className="text-lg font-bold text-orange-900 mt-1">{needsAttention}</div>
+                    </div>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center">
+                        <div className="w-4 h-4 bg-gray-400 rounded-full mr-2"></div>
+                        <span className="text-sm font-medium text-gray-800">Pending</span>
+                      </div>
+                      <div className="text-lg font-bold text-gray-900 mt-1">{pending}</div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            
+            {/* Posts organized by week columns */}
+            <div className="overflow-x-auto">
+              <div className="min-w-[1000px]">
+                <div className="grid grid-cols-4 gap-4">
+                  {getWeeksToDisplay().map((weekStart, weekIndex) => {
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekStart.getDate() + 6);
+                    
+                    // Get all posts for this week
+                    const weekPosts = Object.entries(scheduledPosts)
+                      .flatMap(([date, posts]) => 
+                        posts.filter(post => {
+                          const postDate = new Date(date);
+                          return postDate >= weekStart && postDate <= weekEnd;
+                        })
+                      )
+                      .sort((a, b) => {
+                        // Sort by date, then by time
+                        const dateA = new Date(a.scheduled_date || '');
+                        const dateB = new Date(b.scheduled_date || '');
+                        if (dateA.getTime() !== dateB.getTime()) {
+                          return dateA.getTime() - dateB.getTime();
+                        }
+                        return (a.scheduled_time || '').localeCompare(b.scheduled_time || '');
+                      });
+                    
+                    return (
+                      <div key={weekIndex} className="flex flex-col border rounded-lg bg-white w-64">
+                        <div className="bg-gray-50 p-3 border-b">
+                          <h3 className="font-semibold text-sm">
+                            Week {weekOffset + weekIndex + 1}
+                            {weekOffset + weekIndex === 0 && ' (Current)'}
+                          </h3>
+                          <p className="text-xs text-gray-600">
+                            {weekStart.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} - 
+                            {new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
+                          </p>
+                        </div>
+                        
+                        <div className="p-2 space-y-3 max-h-96 overflow-y-auto">
+                          {weekPosts.length === 0 ? (
+                            <div className="text-center text-gray-500 text-sm py-4">
+                              No posts scheduled
+                            </div>
+                          ) : (
+                            weekPosts.map((post) => (
+                              <div
+                                key={post.id}
+                                className={`border rounded-lg p-3 hover:shadow-sm transition-shadow ${
+                                  post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
+                                  post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
+                                  post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
+                                  'border-gray-200 bg-white'
+                                }`}
+                              >
+                                {/* Approval Status Badge */}
+                                <div className="flex items-center justify-end mb-2 mr-2">
+                                  <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                    post.approval_status === 'approved' ? 'bg-green-100 text-green-800' :
+                                    post.approval_status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                    post.approval_status === 'needs_attention' ? 'bg-orange-100 text-orange-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {post.approval_status === 'approved' && <Check className="w-3 h-3 mr-1" />}
+                                    {post.approval_status === 'rejected' && <X className="w-3 h-3 mr-1" />}
+                                    {post.approval_status === 'needs_attention' && <AlertTriangle className="w-3 h-3 mr-1" />}
+                                    {(!post.approval_status || post.approval_status === 'pending') && <Minus className="w-3 h-3 mr-1" />}
+                                    {post.approval_status === 'approved' ? 'Approved' :
+                                     post.approval_status === 'rejected' ? 'Rejected' :
+                                     post.approval_status === 'needs_attention' ? 'Needs Attention' : 'Pending'}
+                                  </div>
+                                  
+                                  {/* Client Feedback Indicator */}
+                                  {post.client_feedback && (
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full ml-2" title="Has client feedback" />
+                                  )}
+                                </div>
+
+                                {/* Post Image */}
+                                {post.image_url && (
+                                  <div className="w-full mb-2 rounded overflow-hidden">
+                                    <LazyImage
+                                      src={post.image_url}
+                                      alt="Post"
+                                      className="w-full h-auto object-contain"
+                                    />
+                                  </div>
+                                )}
+                                
+                                {/* Date and Time */}
+                                <div className="text-xs text-gray-600 mb-2">
+                                  {post.scheduled_date && new Date(post.scheduled_date).toLocaleDateString('en-GB', {
+                                    weekday: 'short',
+                                    day: 'numeric',
+                                    month: 'short'
+                                  })}
+                                  {post.scheduled_time && (
+                                    <span> at {formatTimeTo12Hour(post.scheduled_time)}</span>
+                                  )}
+                                </div>
+                                
+                                {/* Caption */}
+                                <p className="text-sm text-gray-900 mb-2 line-clamp-3">
+                                  {post.caption}
+                                </p>
+                                
+                                {/* Client Feedback */}
+                                {post.client_feedback && (
+                                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                                    <span className="font-medium text-gray-700">Client feedback:</span>
+                                    <p className="mt-1 text-gray-600">{post.client_feedback}</p>
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+          
         </div>
       </div>
     </div>

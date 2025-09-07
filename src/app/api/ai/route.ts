@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import { isValidImageData } from '../../../lib/blobUpload';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -112,6 +113,14 @@ export async function POST(request: NextRequest) {
 
 async function analyzeImage(imageData: string, prompt?: string) {
   try {
+    // Validate image data
+    const validation = isValidImageData(imageData);
+    if (!validation.isValid) {
+      throw new Error('Invalid image data - must be blob URL or base64');
+    }
+    
+    console.log('AI analyzing image, type:', validation.type);
+    
     const systemPrompt = `You are an expert content creator and social media strategist. 
     Analyze the provided image and provide insights that would be valuable for creating engaging social media content.
     
@@ -169,6 +178,14 @@ async function analyzeImage(imageData: string, prompt?: string) {
 
 async function generateCaptions(imageData: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string) {
   try {
+    // Validate image data
+    const validation = isValidImageData(imageData);
+    if (!validation.isValid) {
+      throw new Error('Invalid image data - must be blob URL or base64');
+    }
+    
+    console.log('AI generating captions, image type:', validation.type);
+    
     // Fetch brand context if clientId is provided
     let brandContext = null;
     if (clientId) {
@@ -340,6 +357,14 @@ Provide only the 3 captions, separated by blank lines. No introduction or explan
 
 async function remixCaption(imageData: string, prompt: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string) {
   try {
+    // Validate image data
+    const validation = isValidImageData(imageData);
+    if (!validation.isValid) {
+      throw new Error('Invalid image data - must be blob URL or base64');
+    }
+    
+    console.log('AI remixing caption, image type:', validation.type);
+    
     // Fetch brand context if clientId is provided
     let brandContext = null;
     if (clientId) {

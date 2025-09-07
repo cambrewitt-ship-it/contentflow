@@ -1,19 +1,38 @@
 import { NextResponse } from 'next/server';
+import { isValidImageData, base64ToBlob } from '../../../../lib/blobUpload';
 
 export async function POST(request: Request) {
   try {
     const { imageBlob } = await request.json();
-    console.log('Image blob size:', imageBlob?.length);
-    console.log('Image blob type:', imageBlob?.substring(0, 50));
+    console.log('Image data type:', typeof imageBlob);
+    console.log('Image data preview:', imageBlob?.substring(0, 50));
     
-    // Check if it's base64
-    if (!imageBlob || !imageBlob.startsWith('data:image')) {
-      throw new Error('Invalid image data');
+    // Validate image data (supports both blob URLs and base64)
+    const validation = isValidImageData(imageBlob);
+    if (!validation.isValid) {
+      throw new Error('Invalid image data - must be blob URL or base64');
     }
     
-    // Extract base64 and convert to buffer
-    const base64Data = imageBlob.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
+    console.log('Image data type detected:', validation.type);
+    
+    let buffer: Buffer;
+    
+    if (validation.type === 'blob') {
+      // Fetch image from blob URL
+      console.log('Fetching image from blob URL...');
+      const response = await fetch(imageBlob);
+      if (!response.ok) {
+        throw new Error('Failed to fetch image from blob URL');
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+    } else {
+      // Handle base64 (backward compatibility)
+      console.log('Processing base64 image...');
+      const base64Data = imageBlob.replace(/^data:image\/\w+;base64,/, '');
+      buffer = Buffer.from(base64Data, 'base64');
+    }
+    
     console.log('Buffer size:', buffer.length);
     
     // If buffer is over 4MB, it might be too large

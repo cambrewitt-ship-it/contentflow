@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { createContext, useContext, useState, useEffect } from 'react'
+import { uploadImageToBlob } from './blobUpload'
 
 export interface Caption {
   id: string
@@ -12,7 +13,19 @@ export interface UploadedImage {
   id: string
   file: File
   preview: string
+  blobUrl?: string
   notes?: string
+}
+
+// Serializable version for localStorage
+export interface SerializableUploadedImage {
+  id: string
+  filename: string
+  preview: string
+  blobUrl?: string
+  notes?: string
+  size: number
+  type: string
 }
 
 // Global store context
@@ -29,7 +42,7 @@ export interface ContentStore {
   setSelectedCaptions: (captions: string[]) => void
   setActiveImageId: (id: string | null) => void
   setPostNotes: (notes: string) => void
-  addImage: (file: File) => void
+  addImage: (file: File) => Promise<void>
   removeImage: (id: string) => void
   updateImageNotes: (id: string, notes: string) => void
   updateCaption: (id: string, text: string) => void
@@ -50,6 +63,33 @@ export const useContentStore = () => {
 }
 
 const getStorageKey = (key: string) => `contentflow_${key}`
+
+// Helper functions to convert between UploadedImage and SerializableUploadedImage
+const toSerializable = (image: UploadedImage): SerializableUploadedImage => ({
+  id: image.id,
+  filename: image.file.name,
+  preview: image.preview,
+  blobUrl: image.blobUrl,
+  notes: image.notes,
+  size: image.file.size,
+  type: image.file.type
+})
+
+const fromSerializable = (serializable: SerializableUploadedImage): UploadedImage => {
+  // Create a mock File object for compatibility (we'll use blobUrl for actual data)
+  const mockFile = new File([], serializable.filename, {
+    type: serializable.type,
+    lastModified: Date.now()
+  })
+  
+  return {
+    id: serializable.id,
+    file: mockFile,
+    preview: serializable.preview,
+    blobUrl: serializable.blobUrl,
+    notes: serializable.notes
+  }
+}
 
 // Store provider component
 export function ContentStoreProvider({ children, clientId }: { children: React.ReactNode; clientId: string }) {
@@ -90,8 +130,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         const savedPostNotes = localStorage.getItem(getStorageKey("postNotes"))
 
         if (savedImages) {
-          const parsedImages = JSON.parse(savedImages)
-          setUploadedImages(parsedImages)
+          const parsedImages: SerializableUploadedImage[] = JSON.parse(savedImages)
+          const restoredImages = parsedImages.map(fromSerializable)
+          setUploadedImages(restoredImages)
         }
         if (savedCaptions) {
           const parsedCaptions = JSON.parse(savedCaptions)
@@ -119,7 +160,8 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
   // Save to localStorage whenever state changes
   useEffect(() => {
     if (hasHydrated) {
-      localStorage.setItem(getStorageKey("uploadedImages"), JSON.stringify(uploadedImages))
+      const serializableImages = uploadedImages.map(toSerializable)
+      localStorage.setItem(getStorageKey("uploadedImages"), JSON.stringify(serializableImages))
       localStorage.setItem(getStorageKey("captions"), JSON.stringify(captions))
       localStorage.setItem(getStorageKey("selectedCaptions"), JSON.stringify(selectedCaptions))
       localStorage.setItem(getStorageKey("activeImageId"), activeImageId || "")
@@ -127,15 +169,44 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     }
   }, [hasHydrated, uploadedImages, captions, selectedCaptions, activeImageId, postNotes])
 
-  const addImage = (file: File) => {
+  const addImage = async (file: File) => {
     const id = `img-${Date.now()}`
-    const preview = URL.createObjectURL(file)
+    const preview = URL.createObjectURL(file) // Temporary preview while uploading
+    
+    // Create initial image entry with temporary preview
     const newImage: UploadedImage = { id, file, preview }
     setUploadedImages(prev => [...prev, newImage])
     setActiveImageId(id)
+    
+    try {
+      // Upload to blob storage
+      // uploadImageToBlob is now imported at the top of the file
+      const filename = `content-${Date.now()}-${file.name}`
+      const blobUrl = await uploadImageToBlob(file, filename)
+      
+      // Update the image with the blob URL
+      setUploadedImages(prev => 
+        prev.map(img => 
+          img.id === id 
+            ? { ...img, preview: blobUrl, blobUrl } 
+            : img
+        )
+      )
+      
+      console.log('✅ Image uploaded to blob storage:', blobUrl)
+    } catch (error) {
+      console.error('❌ Failed to upload image to blob storage:', error)
+      // Keep the temporary preview if upload fails
+    }
   }
 
   const removeImage = (id: string) => {
+    // Find the image to clean up its blob URL
+    const imageToRemove = uploadedImages.find(img => img.id === id)
+    if (imageToRemove && imageToRemove.preview.startsWith('blob:')) {
+      URL.revokeObjectURL(imageToRemove.preview)
+    }
+    
     setUploadedImages(prev => prev.filter(img => img.id !== id))
     if (activeImageId === id) {
       setActiveImageId(null)
@@ -175,27 +246,19 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         return
       }
 
-      // Convert blob URL to base64 if needed
-      let imageData = image.preview
-      if (image.preview.startsWith('blob:')) {
-        try {
-          console.log('Converting blob URL to base64...')
-          const response = await fetch(image.preview)
-          const blob = await response.blob()
-          const reader = new FileReader()
-          
-          imageData = await new Promise((resolve, reject) => {
-            reader.onloadend = () => resolve(reader.result as string)
-            reader.onerror = reject
-            reader.readAsDataURL(blob)
-          })
-          
-          console.log('Successfully converted to base64, length:', imageData.length)
-        } catch (error) {
-          console.error('Failed to convert blob URL to base64:', error)
-          throw new Error('Failed to process image for AI')
-        }
+      // Use blob URL directly (no need to convert to base64)
+      let imageData = image.blobUrl || image.preview
+      if (!imageData) {
+        throw new Error('No image data available for AI processing')
       }
+      
+      console.log('Using image data for AI:', imageData)
+      console.log('Image details:', {
+        id: image.id,
+        filename: image.file.name,
+        hasBlobUrl: !!image.blobUrl,
+        previewType: image.preview.startsWith('blob:') ? 'temporary' : 'permanent'
+      })
 
       const response = await fetch('/api/ai', {
         method: 'POST',
@@ -239,30 +302,11 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       // Find the active image for context
       const activeImage = activeImageId ? uploadedImages.find(img => img.id === activeImageId) : null
 
-      // Convert blob URL to base64 if needed
+      // Use blob URL directly (no need to convert to base64)
       let imageData = ''
-      if (activeImage?.preview) {
-        if (activeImage.preview.startsWith('blob:')) {
-          try {
-            console.log('Converting blob URL to base64 for remix...')
-            const response = await fetch(activeImage.preview)
-            const blob = await response.blob()
-            const reader = new FileReader()
-            
-            imageData = await new Promise((resolve, reject) => {
-              reader.onloadend = () => resolve(reader.result as string)
-              reader.onerror = reject
-              reader.readAsDataURL(blob)
-            })
-            
-            console.log('Successfully converted to base64 for remix, length:', imageData.length)
-          } catch (error) {
-            console.error('Failed to convert blob URL to base64 for remix:', error)
-            // Continue without image data rather than failing completely
-          }
-        } else {
-          imageData = activeImage.preview
-        }
+      if (activeImage?.blobUrl || activeImage?.preview) {
+        imageData = activeImage.blobUrl || activeImage.preview
+        console.log('Using image data for remix:', imageData)
       }
 
       const response = await fetch('/api/ai', {
@@ -299,6 +343,13 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
   }
 
   const clearAll = () => {
+    // Clean up blob URLs before clearing
+    uploadedImages.forEach(image => {
+      if (image.preview.startsWith('blob:')) {
+        URL.revokeObjectURL(image.preview)
+      }
+    })
+    
     // Clear all uploaded images
     setUploadedImages([])
     

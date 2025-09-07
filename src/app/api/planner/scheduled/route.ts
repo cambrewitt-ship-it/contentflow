@@ -9,6 +9,8 @@ const supabase = createClient(
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get('projectId');
+  const limit = parseInt(searchParams.get('limit') || '50');
+  const includeImageData = searchParams.get('includeImageData') === 'true';
   
   // Validate projectId
   if (!projectId) {
@@ -16,24 +18,57 @@ export async function GET(request: Request) {
   }
   
   try {
-    console.log(`🔍 SIMPLIFIED QUERY - Fetching scheduled posts for project ${projectId}`);
+    const startTime = Date.now();
+    console.log(`🔍 OPTIMIZED FETCH - Scheduled posts for project ${projectId} (limit: ${limit}, images: ${includeImageData})`);
     
-    // SIMPLIFIED QUERY - Same structure as unscheduled posts (which works fast)
+    // Optimized query - only select fields needed for approval board
+    const selectFields = includeImageData 
+      ? 'id, project_id, caption, image_url, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, created_at, updated_at'
+      : 'id, project_id, caption, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, created_at, updated_at';
+    
     const { data, error } = await supabase
       .from('planner_scheduled_posts')
-      .select('*') // Simple: select all columns (like unscheduled)
-      .eq('project_id', projectId) // Simple: single WHERE clause (like unscheduled)
-      .order('created_at', { ascending: false }); // Simple: single ORDER BY (like unscheduled)
+      .select(selectFields)
+      .eq('project_id', projectId)
+      .order('scheduled_date', { ascending: true })
+      .limit(limit);
     
-    if (error) throw error;
+    const queryDuration = Date.now() - startTime;
     
-    console.log(`✅ Retrieved ${data?.length || 0} scheduled posts`);
+    if (error) {
+      console.error('❌ Database error:', error);
+      return NextResponse.json({ 
+        error: 'Failed to fetch scheduled posts', 
+        details: error.message 
+      }, { status: 500 });
+    }
     
-    return NextResponse.json({ posts: data || [] });
+    console.log(`✅ Retrieved ${data?.length || 0} scheduled posts in ${queryDuration}ms`);
+    
+    // Debug: Log approval status of posts (only first few)
+    if (data && data.length > 0) {
+      console.log('📊 Approval status debug:');
+      data.slice(0, 3).forEach((post: any, index: number) => {
+        console.log(`  Post ${post.id?.substring(0, 8)}... - Status: ${post.approval_status || 'NO STATUS'} - Feedback: ${post.client_feedback || 'NO FEEDBACK'}`);
+      });
+    }
+    
+    return NextResponse.json({ 
+      posts: data || [],
+      performance: {
+        queryDuration,
+        optimized: queryDuration < 1000, // Consider optimized if under 1 second
+        limit,
+        includeImageData
+      }
+    });
     
   } catch (error) {
-    console.error('❌ Error fetching scheduled posts:', error);
-    return NextResponse.json({ error: 'Failed to fetch scheduled posts' }, { status: 500 });
+    console.error('❌ Unexpected error:', error);
+    return NextResponse.json({ 
+      error: 'Failed to fetch scheduled posts', 
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
 
