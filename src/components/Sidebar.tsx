@@ -9,9 +9,6 @@ import {
   Users, 
   Plus, 
   Home, 
-  Calendar, 
-  FileText, 
-  Settings,
   Loader2,
   AlertCircle
 } from "lucide-react";
@@ -90,18 +87,6 @@ export default function Sidebar() {
       href: '/dashboard',
       icon: Home,
       active: isOnMainDashboard
-    },
-    {
-      name: 'Scheduler',
-      href: isOnClientPage ? `/dashboard/client/${currentClientId}/project/1/scheduler` : '/dashboard',
-      icon: Calendar,
-      active: pathname?.includes('/scheduler')
-    },
-    {
-      name: 'Content Suite',
-      href: isOnClientPage ? `/dashboard/client/${currentClientId}/project/1` : '/dashboard',
-      icon: FileText,
-      active: pathname?.includes('/project/') && !pathname?.includes('/scheduler')
     }
   ];
 
