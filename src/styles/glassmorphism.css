@@ -1,0 +1,534 @@
+/* Light Mode Deep Blue Glassmorphism Design System */
+
+/* CSS Custom Properties */
+:root {
+  --glass-light: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(59, 130, 246, 0.15);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --blue-primary: #3b82f6;
+  --blue-deep: #1e40af;
+  --blue-light: #dbeafe;
+  --blue-medium: #bfdbfe;
+  --blue-accent: #93c5fd;
+  --shadow-light: 0 4px 24px rgba(30, 64, 175, 0.08);
+  --shadow-hover: 0 6px 32px rgba(30, 64, 175, 0.12);
+  --glass-blur: 20px;
+  --glass-radius: 16px;
+}
+
+/* Apply glassmorphism theme to body - Static blue gradient */
+.glassmorphism-theme {
+  background: linear-gradient(135deg, 
+    #3b82f6 0%, 
+    #1e40af 50%, 
+    #1d4ed8 100%) !important;
+  min-height: 100vh !important;
+  height: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Force background on html and body when theme is active */
+html.glassmorphism-theme,
+body.glassmorphism-theme {
+  background: linear-gradient(135deg, 
+    #3b82f6 0%, 
+    #1e40af 50%, 
+    #1d4ed8 100%) !important;
+  min-height: 100vh !important;
+  height: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Apply blue background to all pages and containers */
+.glassmorphism-theme .min-h-screen,
+.glassmorphism-theme main,
+.glassmorphism-theme .main-content,
+.glassmorphism-theme .page-container {
+  background: transparent !important; /* Ensure content areas don't hide the body gradient */
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Force blue background on all pages */
+.glassmorphism-theme body,
+.glassmorphism-theme html {
+  background: linear-gradient(135deg, 
+    #3b82f6 0%, 
+    #1e40af 50%, 
+    #1d4ed8 100%) !important;
+  min-height: 100vh !important;
+}
+
+/* Ensure sidebar has white background, not blue */
+.glassmorphism-theme .glass-sidebar {
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Ensure all main containers have blue background */
+.glassmorphism-theme .min-h-screen,
+.glassmorphism-theme main,
+.glassmorphism-theme .main-content,
+.glassmorphism-theme .page-container,
+.glassmorphism-theme .flex-1,
+.glassmorphism-theme .flex {
+  background: transparent !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Ensure proper scrolling on all elements */
+.glassmorphism-theme * {
+  box-sizing: border-box;
+}
+
+.glassmorphism-theme html,
+.glassmorphism-theme body {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+/* Tempered Glass Card Base Style - Transparent Glass */
+.glass-card {
+  backdrop-filter: blur(30px);
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--glass-radius);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.1),
+    inset 0 2px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(255, 255, 255, 0.4) 50%, 
+    transparent 100%);
+}
+
+.glass-card:hover {
+  backdrop-filter: blur(35px);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 16px 50px rgba(0, 0, 0, 0.15),
+    inset 0 2px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  transform: scale(1.01); /* Very minimal scale only */
+}
+
+/* Glass Button Styles */
+.glass-button {
+  backdrop-filter: blur(var(--glass-blur));
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 12px;
+  color: var(--blue-deep);
+  font-weight: 500;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-button:hover {
+  backdrop-filter: blur(25px);
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
+  transform: scale(1.01);
+  box-shadow: var(--shadow-hover);
+}
+
+.glass-button:active {
+  transform: scale(0.99);
+}
+
+.glass-button-primary {
+  background: linear-gradient(135deg, var(--blue-primary), var(--blue-deep));
+  color: #ffffff;
+  border: 1px solid rgba(30, 64, 175, 0.3);
+}
+
+.glass-button-primary:hover {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border-color: rgba(30, 64, 175, 0.4);
+  box-shadow: var(--shadow-hover);
+}
+
+/* Glass Input Styles */
+.glass-input {
+  backdrop-filter: blur(15px);
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 12px;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.glass-input:focus {
+  border-color: var(--blue-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  outline: none;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.glass-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Glass Navigation */
+.glass-nav {
+  backdrop-filter: blur(var(--glass-blur));
+  background: var(--glass-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-light);
+  transition: all 0.2s ease;
+}
+
+/* Glass Sidebar - Pure White Tempered Glass */
+.glass-sidebar {
+  backdrop-filter: blur(25px);
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.2);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.glass-sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%);
+  z-index: 1;
+}
+
+/* Glass Modal */
+.glass-modal {
+  backdrop-filter: blur(var(--glass-blur));
+  background: var(--glass-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(30, 64, 175, 0.15);
+}
+
+/* Typography for glass theme */
+.glass-text-primary {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.glass-text-secondary {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.glass-text-muted {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Floating animation - very subtle */
+.glass-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-2px); }
+}
+
+/* Form Elements */
+.glassmorphism-theme input,
+.glassmorphism-theme textarea,
+.glassmorphism-theme select {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  color: var(--text-primary);
+  backdrop-filter: blur(15px);
+}
+
+.glassmorphism-theme input:focus,
+.glassmorphism-theme textarea:focus,
+.glassmorphism-theme select:focus {
+  border-color: var(--blue-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* Button variants */
+.glassmorphism-theme .btn-primary {
+  background: linear-gradient(135deg, var(--blue-primary), var(--blue-deep));
+  color: #ffffff;
+  border: 1px solid rgba(30, 64, 175, 0.3);
+}
+
+.glassmorphism-theme .btn-secondary {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--blue-deep);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.glassmorphism-theme .btn-ghost {
+  background: transparent;
+  color: var(--blue-deep);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .glass-card {
+    backdrop-filter: blur(15px);
+  }
+  
+  .glass-button {
+    backdrop-filter: blur(15px);
+  }
+  
+  .glass-input {
+    backdrop-filter: blur(15px);
+  }
+  
+  .glass-sidebar {
+    backdrop-filter: blur(15px);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .glass-float {
+    animation: none;
+  }
+  
+  .glass-card:hover {
+    transform: none;
+  }
+  
+  .glass-button:hover {
+    transform: none;
+  }
+  
+  .glassmorphism-theme * {
+    transition: none !important;
+  }
+}
+
+/* Global tempered glass effect for all cards in alternative theme - Transparent Glass */
+.glassmorphism-theme .card,
+.glassmorphism-theme [class*="card"],
+.glassmorphism-theme .bg-white,
+.glassmorphism-theme .bg-gray-50,
+.glassmorphism-theme .bg-gray-100 {
+  backdrop-filter: blur(30px) !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 16px !important;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.1),
+    inset 0 2px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.glassmorphism-theme .card::before,
+.glassmorphism-theme [class*="card"]::before,
+.glassmorphism-theme .bg-white::before,
+.glassmorphism-theme .bg-gray-50::before,
+.glassmorphism-theme .bg-gray-100::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(255, 255, 255, 0.4) 50%, 
+    transparent 100%);
+  z-index: 1;
+}
+
+/* Ensure all text is black on blue background (except buttons) */
+.glassmorphism-theme .text-gray-900,
+.glassmorphism-theme .text-gray-800,
+.glassmorphism-theme .text-gray-700,
+.glassmorphism-theme .text-gray-600,
+.glassmorphism-theme .text-gray-500,
+.glassmorphism-theme .text-black,
+.glassmorphism-theme h1,
+.glassmorphism-theme h2,
+.glassmorphism-theme h3,
+.glassmorphism-theme h4,
+.glassmorphism-theme h5,
+.glassmorphism-theme h6,
+.glassmorphism-theme p,
+.glassmorphism-theme span,
+.glassmorphism-theme div {
+  color: rgba(0, 0, 0, 0.9) !important;
+}
+
+/* Sidebar text should be black for contrast */
+.glassmorphism-theme .glass-sidebar .text-gray-900,
+.glassmorphism-theme .glass-sidebar .text-gray-800,
+.glassmorphism-theme .glass-sidebar .text-gray-700,
+.glassmorphism-theme .glass-sidebar .text-gray-600,
+.glassmorphism-theme .glass-sidebar .text-gray-500,
+.glassmorphism-theme .glass-sidebar .text-black,
+.glassmorphism-theme .glass-sidebar h1,
+.glassmorphism-theme .glass-sidebar h2,
+.glassmorphism-theme .glass-sidebar h3,
+.glassmorphism-theme .glass-sidebar h4,
+.glassmorphism-theme .glass-sidebar h5,
+.glassmorphism-theme .glass-sidebar h6,
+.glassmorphism-theme .glass-sidebar p,
+.glassmorphism-theme .glass-sidebar span,
+.glassmorphism-theme .glass-sidebar div {
+  color: rgba(0, 0, 0, 0.9) !important;
+}
+
+.glassmorphism-theme .text-gray-400,
+.glassmorphism-theme .text-gray-300 {
+  color: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Force black text on all elements (except buttons) */
+.glassmorphism-theme * {
+  color: rgba(0, 0, 0, 0.9) !important;
+}
+
+/* Override specific text colors */
+.glassmorphism-theme .text-muted-foreground {
+  color: rgba(0, 0, 0, 0.6) !important;
+}
+
+.glassmorphism-theme .text-foreground {
+  color: rgba(0, 0, 0, 0.9) !important;
+}
+
+/* Keep button text white */
+.glassmorphism-theme button,
+.glassmorphism-theme .button,
+.glassmorphism-theme [role="button"],
+.glassmorphism-theme input[type="button"],
+.glassmorphism-theme input[type="submit"] {
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Remove background bars behind card titles */
+.glassmorphism-theme .card-title,
+.glassmorphism-theme .card-header,
+.glassmorphism-theme h1,
+.glassmorphism-theme h2,
+.glassmorphism-theme h3,
+.glassmorphism-theme h4,
+.glassmorphism-theme h5,
+.glassmorphism-theme h6 {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Planner specific text styling */
+.glassmorphism-theme .planner-text,
+.glassmorphism-theme [class*="planner"] {
+  color: rgba(0, 0, 0, 0.9) !important;
+}
+
+/* Ensure all planner content is black */
+.glassmorphism-theme .planner-text *,
+.glassmorphism-theme [class*="planner"] * {
+  color: rgba(0, 0, 0, 0.9) !important;
+}
+
+/* Improved main screen typography and buttons */
+.glassmorphism-theme .main-content h1,
+.glassmorphism-theme .main-content h2,
+.glassmorphism-theme .main-content h3 {
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.glassmorphism-theme .main-content .text-2xl,
+.glassmorphism-theme .main-content .text-xl,
+.glassmorphism-theme .main-content .text-lg {
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* Improved button styles for main content */
+.glassmorphism-theme .main-content button {
+  font-weight: 600 !important;
+  letter-spacing: 0.01em !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+  transition: all 0.2s ease !important;
+}
+
+.glassmorphism-theme .main-content button:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Better card titles - transparent background */
+.glassmorphism-theme .main-content .card-title {
+  font-weight: 700 !important;
+  font-size: 1.125rem !important;
+  letter-spacing: -0.025em !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Make all card headers transparent */
+.glassmorphism-theme .main-content .card-header {
+  background: transparent !important;
+  border: none !important;
+  padding: 1rem 1.5rem 0.5rem 1.5rem !important;
+}
+
+/* Improved social media button text */
+.glassmorphism-theme .main-content .text-xs {
+  font-weight: 600 !important;
+  letter-spacing: 0.025em !important;
+  text-transform: uppercase !important;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .glass-card {
+    background: rgba(255, 255, 255, 0.95);
+    border: 2px solid var(--blue-deep);
+  }
+  
+  .glass-text-primary {
+    color: #000000;
+  }
+  
+  .glass-text-secondary {
+    color: #1a1a1a;
+  }
+}

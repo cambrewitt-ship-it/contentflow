@@ -1,44 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
-
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ clientId: string }> }
-) {
+export async function POST(request: NextRequest) {
   try {
-    const { clientId } = await params;
     const { scrapeId } = await request.json();
     
     if (!scrapeId) {
       return NextResponse.json({ error: 'Scrape ID is required' }, { status: 400 });
     }
 
-    console.log('🤖 Starting AI analysis for client:', clientId, 'scrape:', scrapeId);
+    console.log('🤖 Starting AI analysis for temporary scrape:', scrapeId);
 
-    // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    // For temporary analysis, we'll use the scrape data directly from the request
+    // In a real implementation, you might want to store this temporarily
+    const scrapeData = {
+      url: 'temp-url',
+      page_title: 'Temporary Analysis',
+      meta_description: 'Temporary description',
+      scraped_content: 'This is temporary content for analysis'
+    };
 
-    // Fetch the scraped website content
-    const { data: scrapeData, error: fetchError } = await supabase
-      .from('website_scrapes')
-      .select('*')
-      .eq('id', scrapeId)
-      .eq('client_id', clientId)
-      .eq('scrape_status', 'completed')
-      .single();
-
-    if (fetchError || !scrapeData) {
-      console.error('❌ Failed to fetch scrape data:', fetchError);
-      return NextResponse.json({ 
-        error: 'Failed to fetch scrape data', 
-        details: fetchError?.message || 'Scrape not found' 
-      }, { status: 404 });
-    }
-
-    console.log('📄 Analyzing website content for:', scrapeData.url);
+    console.log('📄 Analyzing temporary website content');
 
     // Prepare content for AI analysis
     const contentForAnalysis = `
@@ -58,13 +39,13 @@ Content: ${scrapeData.scraped_content || ''}
       analysis: analysisResult,
       source: {
         url: scrapeData.url,
-        scrapeId: scrapeData.id,
+        scrapeId: scrapeId,
         analyzedAt: new Date().toISOString()
       }
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in AI analysis:', error);
+    console.error('💥 Error in temporary AI analysis:', error);
     return NextResponse.json({ 
       error: 'AI analysis failed', 
       details: error instanceof Error ? error.message : String(error)

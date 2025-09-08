@@ -41,10 +41,6 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
     website_url: client?.website_url || '',
     brand_tone: client?.brand_tone || '',
     target_audience: client?.target_audience || '',
-    industry: client?.industry || '',
-    brand_keywords: client?.brand_keywords?.join(', ') || '',
-    brand_guidelines_summary: client?.brand_guidelines_summary || '',
-    core_products_services: client?.core_products_services || '',
     value_proposition: client?.value_proposition || '',
     caption_dos: client?.caption_dos || '',
     caption_donts: client?.caption_donts || ''
@@ -67,10 +63,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
       const response = await fetch(`/api/clients/${clientId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          brand_keywords: formData.brand_keywords.split(',').map(k => k.trim()).filter(k => k)
-        })
+        body: JSON.stringify(formData)
       });
 
       if (response.ok) {
@@ -153,13 +146,11 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
         if (analysisResponse.ok) {
           const analysisData = await analysisResponse.json();
           
-          // Auto-fill the form fields with AI analysis results
+          // Auto-fill the form fields with AI analysis results (only the 4 essential fields)
           setFormData(prev => ({
             ...prev,
-            company_description: analysisData.analysis.business_description,
-            industry: analysisData.analysis.industry_category,
+            company_description: analysisData.analysis.company_description,
             target_audience: analysisData.analysis.target_audience,
-            core_products_services: analysisData.analysis.core_products_services.join('\n'),
             value_proposition: analysisData.analysis.value_proposition,
             brand_tone: analysisData.analysis.brand_tone
           }));
@@ -350,42 +341,6 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
             )}
           </div>
 
-          {/* Industry */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Industry
-            </label>
-            {isEditing ? (
-              <Input
-                value={formData.industry}
-                onChange={(e) => handleInputChange('industry', e.target.value)}
-                placeholder="e.g., Technology, Healthcare, Finance"
-              />
-            ) : (
-              <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
-                {client?.industry || 'No industry specified'}
-              </p>
-            )}
-          </div>
-
-          {/* Core Products/Services */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Core Products/Services
-            </label>
-            {isEditing ? (
-              <Textarea
-                value={formData.core_products_services}
-                onChange={(e) => handleInputChange('core_products_services', e.target.value)}
-                placeholder="Main offerings (one per line or comma-separated)"
-                rows={3}
-              />
-            ) : (
-              <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
-                {client?.core_products_services || 'No products/services specified'}
-              </p>
-            )}
-          </div>
 
           {/* Value Proposition */}
           <div>
@@ -406,36 +361,6 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
             )}
           </div>
 
-          {/* Brand Keywords */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Brand Keywords
-            </label>
-            {isEditing ? (
-              <Input
-                value={formData.brand_keywords}
-                onChange={(e) => handleInputChange('brand_keywords', e.target.value)}
-                placeholder="innovation, quality, customer-focused (comma-separated)"
-              />
-            ) : (
-              <div className="text-gray-900 bg-gray-50 p-3 rounded-md">
-                {client?.brand_keywords && client.brand_keywords.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {client.brand_keywords.map((keyword: string, index: number) => (
-                      <span
-                        key={index}
-                        className="inline-block bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded-full"
-                      >
-                        {keyword}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  'No brand keywords specified'
-                )}
-              </div>
-            )}
-          </div>
         </CardContent>
       </Card>
 

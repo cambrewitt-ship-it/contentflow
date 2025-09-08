@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useUIThemeStyles } from "hooks/useUITheme";
 import { Card, CardContent } from "components/ui/card";
 import { Button } from "components/ui/button";
 import { Badge } from "components/ui/badge";
@@ -27,6 +28,7 @@ export default function Sidebar() {
   const [error, setError] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
+  const { getThemeClasses } = useUIThemeStyles();
 
   // Fetch all clients from Supabase
   useEffect(() => {
@@ -130,18 +132,33 @@ export default function Sidebar() {
   }
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col">
+    <div className={getThemeClasses(
+      "w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col",
+      "w-64 glass-sidebar min-h-screen flex flex-col"
+    )}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className={getThemeClasses(
+        "p-4 border-b border-gray-200",
+        "p-4 border-b border-white/20"
+      )}>
         <div className="flex items-center gap-2 mb-4">
-          <Users className="w-6 h-6 text-blue-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Clients</h2>
+          <Users className={getThemeClasses(
+            "w-6 h-6 text-blue-600",
+            "w-6 h-6 glass-text-primary"
+          )} />
+          <h2 className={getThemeClasses(
+            "text-lg font-semibold text-gray-900",
+            "text-lg font-semibold glass-text-primary"
+          )}>Clients</h2>
         </div>
         
         {/* Create New Client Button */}
         <div className="flex gap-2">
           <Link href="/dashboard/clients/new" className="flex-1">
-            <Button size="sm" className="w-full">
+            <Button size="sm" className={getThemeClasses(
+              "w-full",
+              "w-full glass-button glass-button-primary"
+            )}>
               <Plus className="w-4 h-4 mr-2" />
               New Client
             </Button>
@@ -151,6 +168,10 @@ export default function Sidebar() {
             variant="outline" 
             onClick={refreshClients}
             title="Refresh clients list"
+            className={getThemeClasses(
+              "",
+              "glass-button"
+            )}
           >
             <Loader2 className="w-4 h-4" />
           </Button>
@@ -158,8 +179,14 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <div className="p-4 border-b border-gray-200">
-        <h3 className="text-sm font-medium text-gray-500 mb-3">Navigation</h3>
+      <div className={getThemeClasses(
+        "p-4 border-b border-gray-200",
+        "p-4 border-b border-white/20"
+      )}>
+        <h3 className={getThemeClasses(
+          "text-sm font-medium text-gray-500 mb-3",
+          "text-sm font-medium glass-text-muted mb-3"
+        )}>Navigation</h3>
         <nav className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -167,9 +194,14 @@ export default function Sidebar() {
               <Link key={item.name} href={item.href}>
                 <Button
                   variant={item.active ? "secondary" : "ghost"}
-                  className={`w-full justify-start ${
-                    item.active ? "bg-blue-50 text-blue-700 border-blue-200" : "text-gray-700 hover:bg-gray-50"
-                  }`}
+                  className={getThemeClasses(
+                    `w-full justify-start ${
+                      item.active ? "bg-blue-50 text-blue-700 border-blue-200" : "text-gray-700 hover:bg-gray-50"
+                    }`,
+                    `w-full justify-start glass-button ${
+                      item.active ? "glass-text-primary" : "glass-text-secondary hover:glass-text-primary"
+                    }`
+                  )}
                 >
                   <Icon className="w-4 h-4 mr-2" />
                   {item.name}
@@ -182,13 +214,25 @@ export default function Sidebar() {
 
       {/* Clients List */}
       <div className="flex-1 p-4 overflow-y-auto">
-        <h3 className="text-sm font-medium text-gray-500 mb-3">All Clients</h3>
+        <h3 className={getThemeClasses(
+          "text-sm font-medium text-gray-500 mb-3",
+          "text-sm font-medium glass-text-muted mb-3"
+        )}>All Clients</h3>
         
         {clients.length === 0 ? (
           <div className="text-center py-8">
-            <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">No clients yet</p>
-            <p className="text-xs text-gray-400">Create your first client to get started</p>
+            <Users className={getThemeClasses(
+              "w-8 h-8 text-gray-400 mx-auto mb-2",
+              "w-8 h-8 glass-text-muted mx-auto mb-2"
+            )} />
+            <p className={getThemeClasses(
+              "text-sm text-gray-500",
+              "text-sm glass-text-muted"
+            )}>No clients yet</p>
+            <p className={getThemeClasses(
+              "text-xs text-gray-400",
+              "text-xs glass-text-muted"
+            )}>Create your first client to get started</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -199,26 +243,42 @@ export default function Sidebar() {
               return (
                 <Card 
                   key={client.id} 
-                  className={`cursor-pointer transition-all hover:shadow-md ${
-                    isActiveClient ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'
-                  }`}
+                  className={getThemeClasses(
+                    `cursor-pointer transition-all hover:shadow-md ${
+                      isActiveClient ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+                    }`,
+                    `cursor-pointer transition-all glass-card ${
+                      isActiveClient ? 'ring-2 ring-white/50' : 'hover:bg-white/5'
+                    }`
+                  )}
                   onClick={() => router.push(`/dashboard/client/${client.id}`)}
                 >
                   <CardContent className="p-3">
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-700">
+                          <div className={getThemeClasses(
+                            "w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-700",
+                            "w-6 h-6 rounded-full glass-card flex items-center justify-center text-xs font-medium glass-text-primary"
+                          )}>
                             {client.name.charAt(0).toUpperCase()}
                           </div>
-                          <span className={`font-medium truncate ${
-                            isActiveClient ? 'text-blue-700' : 'text-gray-900'
-                          }`}>
+                          <span className={getThemeClasses(
+                            `font-medium truncate ${
+                              isActiveClient ? 'text-blue-700' : 'text-gray-900'
+                            }`,
+                            `font-medium truncate ${
+                              isActiveClient ? 'glass-text-primary' : 'glass-text-secondary'
+                            }`
+                          )}>
                             {client.name}
                           </span>
                         </div>
                         {client.description && (
-                          <p className="text-xs text-gray-500 truncate mt-1">
+                          <p className={getThemeClasses(
+                            "text-xs text-gray-500 truncate mt-1",
+                            "text-xs glass-text-muted truncate mt-1"
+                          )}>
                             {client.description}
                           </p>
                         )}
@@ -226,7 +286,10 @@ export default function Sidebar() {
                       
                       {/* Active indicator */}
                       {isActiveClient && (
-                        <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                        <Badge variant="secondary" className={getThemeClasses(
+                          "text-xs bg-blue-100 text-blue-700",
+                          "text-xs glass-card glass-text-primary"
+                        )}>
                           Active
                         </Badge>
                       )}
@@ -240,9 +303,15 @@ export default function Sidebar() {
       </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-gray-200">
+      <div className={getThemeClasses(
+        "p-4 border-t border-gray-200",
+        "p-4 border-t border-white/20"
+      )}>
         <div className="text-center">
-          <p className="text-xs text-gray-400">
+          <p className={getThemeClasses(
+            "text-xs text-gray-400",
+            "text-xs glass-text-muted"
+          )}>
             {clients.length} client{clients.length !== 1 ? 's' : ''}
           </p>
         </div>

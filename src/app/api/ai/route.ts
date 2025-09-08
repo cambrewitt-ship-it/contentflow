@@ -20,7 +20,7 @@ async function getBrandContext(clientId: string) {
     // Get client brand information
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('company_description, website_url, brand_tone, target_audience, industry, brand_keywords, caption_dos, caption_donts')
+      .select('company_description, website_url, brand_tone, target_audience, value_proposition, caption_dos, caption_donts')
       .eq('id', clientId)
       .single();
     
@@ -60,8 +60,7 @@ async function getBrandContext(clientId: string) {
       company: client.company_description,
       tone: client.brand_tone,
       audience: client.target_audience,
-      industry: client.industry,
-      keywords: client.brand_keywords || [],
+      value_proposition: client.value_proposition,
       dos: client.caption_dos,
       donts: client.caption_donts,
       documents: documents || [],
@@ -197,8 +196,7 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
             company: brandContext.company ? 'Set' : 'Not set',
             tone: brandContext.tone || 'Not set',
             audience: brandContext.audience || 'Not set',
-            industry: brandContext.industry || 'Not set',
-            keywords: brandContext.keywords?.length || 0,
+            value_proposition: brandContext.value_proposition ? 'Set' : 'Not set',
             documents: brandContext.documents?.length || 0,
             website: brandContext.website ? 'Available' : 'None'
           });
@@ -254,8 +252,7 @@ ${brandContext ? `🎨 BRAND VOICE GUIDELINES:
 Company: ${brandContext.company || 'Not specified'}
 Tone: ${brandContext.tone || 'Professional and approachable'}
 Audience: ${brandContext.audience || 'General audience'}
-Industry: ${brandContext.industry || 'Not specified'}
-${brandContext.keywords?.length > 0 ? `Keywords (use if natural): ${brandContext.keywords.join(', ')}` : ''}` : ''}
+Value Proposition: ${brandContext.value_proposition || 'Not specified'}` : ''}
 
 ${brandContext?.dos || brandContext?.donts ? `📋 STYLE RULES:
 ${brandContext.dos ? `✅ ALWAYS: ${brandContext.dos}` : ''}
@@ -405,8 +402,7 @@ ${aiContext}
     - Company: ${brandContext.company || 'Not specified'}
     - Brand Tone: ${brandContext.tone || 'Not specified'}
     - Target Audience: ${brandContext.audience || 'Not specified'}
-    - Industry: ${brandContext.industry || 'Not specified'}
-    - Brand Keywords: ${brandContext.keywords?.join(', ') || 'None specified'}
+    - Value Proposition: ${brandContext.value_proposition || 'Not specified'}
     
     Use this brand context to ensure your variation matches the company's voice and style.` : ''}
     

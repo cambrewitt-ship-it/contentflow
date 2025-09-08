@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "components/ui/card";
 import { Button } from "components/ui/button";
 import { Input } from "components/ui/input";
 import { Textarea } from "components/ui/textarea";
-import { Loader2, Plus, ArrowLeft } from "lucide-react";
+import { Loader2, Plus, ArrowLeft, Globe, CheckCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
 export default function NewClientPage() {
@@ -17,12 +17,13 @@ export default function NewClientPage() {
     website_url: "",
     brand_tone: "",
     target_audience: "",
-    industry: "",
-    brand_keywords: "",
+    value_proposition: "",
     caption_dos: "",
     caption_donts: ""
   });
   const [loading, setLoading] = useState(false);
+  const [scraping, setScraping] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const router = useRouter();
 
@@ -88,6 +89,64 @@ export default function NewClientPage() {
     }
   };
 
+  const handleWebsiteScrape = async () => {
+    if (!formData.website_url) {
+      setMessage({ type: 'error', text: 'Please enter a website URL first' });
+      setTimeout(() => setMessage(null), 3000);
+      return;
+    }
+
+    setScraping(true);
+    try {
+      // First, scrape the website
+      const scrapeResponse = await fetch(`/api/clients/temp/scrape-website`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: formData.website_url })
+      });
+
+      if (!scrapeResponse.ok) {
+        throw new Error('Failed to scrape website');
+      }
+
+      const scrapeData = await scrapeResponse.json();
+      
+      if (scrapeData.success && scrapeData.data && scrapeData.data.id) {
+        // Now analyze the scraped content with AI
+        const analysisResponse = await fetch(`/api/clients/temp/analyze-website`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scrapeId: scrapeData.data.id })
+        });
+
+        if (analysisResponse.ok) {
+          const analysisData = await analysisResponse.json();
+          
+          // Auto-fill the form fields with AI analysis results (only the 4 essential fields)
+          setFormData(prev => ({
+            ...prev,
+            company_description: analysisData.analysis.company_description,
+            target_audience: analysisData.analysis.target_audience,
+            value_proposition: analysisData.analysis.value_proposition,
+            brand_tone: analysisData.analysis.brand_tone
+          }));
+
+          setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully!' });
+          setTimeout(() => setMessage(null), 3000);
+        } else {
+          throw new Error('Failed to analyze website content');
+        }
+      } else {
+        throw new Error('No scrape data received');
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: `Failed to process website: ${error instanceof Error ? error.message : 'Unknown error'}` });
+      setTimeout(() => setMessage(null), 3000);
+    } finally {
+      setScraping(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-2xl mx-auto">
@@ -106,6 +165,24 @@ export default function NewClientPage() {
           </p>
         </div>
 
+        {/* Message Display */}
+        {message && (
+          <div className={`mb-6 p-4 rounded-md ${
+            message.type === 'success' 
+              ? 'bg-green-50 border border-green-200 text-green-800' 
+              : 'bg-red-50 border border-red-200 text-red-800'
+          }`}>
+            <div className="flex items-center">
+              {message.type === 'success' ? (
+                <CheckCircle className="w-5 h-5 mr-2" />
+              ) : (
+                <AlertCircle className="w-5 h-5 mr-2" />
+              )}
+              {message.text}
+            </div>
+          </div>
+        )}
+
         {/* Form Card */}
         <Card>
           <CardHeader>
@@ -116,6 +193,52 @@ export default function NewClientPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Website Scraping Section - Moved to Top */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h3 className="text-lg font-medium text-blue-900 mb-4 flex items-center">
+                  <Globe className="w-5 h-5 mr-2" />
+                  Quick Setup with Website Analysis
+                </h3>
+                <p className="text-blue-700 text-sm mb-4">
+                  Enter a website URL below and let AI automatically analyze and fill in the brand information for you.
+                </p>
+                
+                {/* Website URL */}
+                <div className="mb-4">
+                  <label htmlFor="website_url" className="block text-sm font-medium text-blue-900 mb-2">
+                    Website URL
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="website_url"
+                      type="url"
+                      value={formData.website_url}
+                      onChange={(e) => handleInputChange("website_url", e.target.value)}
+                      placeholder="https://example.com"
+                      disabled={loading || scraping}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleWebsiteScrape}
+                      disabled={scraping || !formData.website_url || loading}
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      {scraping ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Globe className="w-4 h-4 mr-2" />
+                      )}
+                      {scraping ? 'Analyzing...' : 'Analyze Website'}
+                    </Button>
+                  </div>
+                  <p className="text-blue-600 text-sm mt-1">
+                    AI will analyze this website and auto-fill the brand information below
+                  </p>
+                </div>
+              </div>
+
               {/* Client Name Field */}
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
@@ -156,6 +279,9 @@ export default function NewClientPage() {
               {/* Brand Information Section */}
               <div className="border-t pt-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Brand Information</h3>
+                <p className="text-gray-600 text-sm mb-4">
+                  These fields will be auto-filled when you use the website analysis above, or you can fill them manually.
+                </p>
                 
                 {/* Company Description */}
                 <div className="mb-4">
@@ -168,28 +294,10 @@ export default function NewClientPage() {
                     onChange={(e) => handleInputChange("company_description", e.target.value)}
                     placeholder="Detailed description of the company, mission, and values"
                     rows={3}
-                    disabled={loading}
+                    disabled={loading || scraping}
                   />
                   <p className="text-gray-500 text-sm mt-1">
                     This helps AI generate more contextual and on-brand content
-                  </p>
-                </div>
-
-                {/* Website URL */}
-                <div className="mb-4">
-                  <label htmlFor="website_url" className="block text-sm font-medium text-gray-700 mb-2">
-                    Website URL
-                  </label>
-                  <Input
-                    id="website_url"
-                    type="url"
-                    value={formData.website_url}
-                    onChange={(e) => handleInputChange("website_url", e.target.value)}
-                    placeholder="https://example.com"
-                    disabled={loading}
-                  />
-                  <p className="text-gray-500 text-sm mt-1">
-                    AI will analyze this website for brand insights
                   </p>
                 </div>
 
@@ -238,36 +346,21 @@ export default function NewClientPage() {
                   </p>
                 </div>
 
-                {/* Industry */}
+                {/* Value Proposition */}
                 <div className="mb-4">
-                  <label htmlFor="industry" className="block text-sm font-medium text-gray-700 mb-2">
-                    Industry
+                  <label htmlFor="value_proposition" className="block text-sm font-medium text-gray-700 mb-2">
+                    Value Proposition
                   </label>
-                  <Input
-                    id="industry"
-                    type="text"
-                    value={formData.industry}
-                    onChange={(e) => handleInputChange("industry", e.target.value)}
-                    placeholder="e.g., Technology, Healthcare, Finance"
-                    disabled={loading}
-                  />
-                </div>
-
-                {/* Brand Keywords */}
-                <div className="mb-4">
-                  <label htmlFor="brand_keywords" className="block text-sm font-medium text-gray-700 mb-2">
-                    Brand Keywords
-                  </label>
-                  <Input
-                    id="brand_keywords"
-                    type="text"
-                    value={formData.brand_keywords}
-                    onChange={(e) => handleInputChange("brand_keywords", e.target.value)}
-                    placeholder="innovation, quality, customer-focused (comma-separated)"
-                    disabled={loading}
+                  <Textarea
+                    id="value_proposition"
+                    value={formData.value_proposition}
+                    onChange={(e) => handleInputChange("value_proposition", e.target.value)}
+                    placeholder="Your unique selling point or main benefit"
+                    rows={2}
+                    disabled={loading || scraping}
                   />
                   <p className="text-gray-500 text-sm mt-1">
-                    Key terms and concepts associated with your brand
+                    The core message/angle to emphasize in content
                   </p>
                 </div>
 
