@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
 import { Button } from 'components/ui/button'
-import { Plus, Edit3, Calendar, FileText, ArrowRight } from 'lucide-react'
+import { Plus, Edit3, Calendar, FileText, ArrowRight, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import BrandInformationPanel from 'components/BrandInformationPanel'
 import { Client, Project, DebugInfo, BrandDocument, WebsiteScrape } from 'types/api'
@@ -27,6 +27,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [projectsFailed, setProjectsFailed] = useState(false)
   const [brandDocuments, setBrandDocuments] = useState<BrandDocument[]>([])
   const [websiteScrapes, setWebsiteScrapes] = useState<WebsiteScrape[]>([])
+  const [deletingClient, setDeletingClient] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
 
   // Fetch client data via API
@@ -212,6 +214,40 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
   }
 
+  // Delete client function
+  const handleDeleteClient = async () => {
+    if (!client) return;
+    
+    try {
+      setDeletingClient(true);
+      setError(null);
+      
+      console.log('🗑️ Deleting client:', clientId);
+      
+      const response = await fetch(`/api/clients?clientId=${clientId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete client: ${response.statusText}`);
+      }
+      
+      console.log('✅ Client deleted successfully');
+      
+      // Redirect to main dashboard after successful deletion
+      window.location.href = '/dashboard';
+      
+    } catch (err) {
+      console.error('❌ Error deleting client:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete client');
+    } finally {
+      setDeletingClient(false);
+      setShowDeleteConfirm(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -605,6 +641,58 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             brandDocuments={brandDocuments}
             websiteScrapes={websiteScrapes}
           />
+        </div>
+
+        {/* Delete Client Section */}
+        <div className="mt-8 p-6 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-red-900">Danger Zone</h3>
+              <p className="text-sm text-red-700 mt-1">
+                Permanently delete this client and all associated data. This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              {!showDeleteConfirm ? (
+                <Button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  variant="destructive"
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Client
+                </Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleDeleteClient}
+                    disabled={deletingClient}
+                    variant="destructive"
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    {deletingClient ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Confirm Delete
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    variant="outline"
+                    disabled={deletingClient}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
