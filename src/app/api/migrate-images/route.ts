@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { uploadImageToBlob, base64ToBlob } from '../../../../lib/blobUpload';
+import { uploadImageToBlob, base64ToBlob } from '../../../lib/blobUpload';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

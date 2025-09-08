@@ -156,6 +156,7 @@ export default function PlannerPage() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [postApprovals, setPostApprovals] = useState<{[key: string]: any}>({});
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const fetchConnectedAccounts = async () => {
     try {
@@ -340,6 +341,7 @@ export default function PlannerPage() {
       setScheduledPosts(mapped);
       setLastFetchTime(Date.now()); // Update cache timestamp
       setIsLoadingScheduledPosts(false);
+      setRefreshKey(prev => prev + 1); // Force re-render
       console.log('Scheduled posts loaded - dates:', Object.keys(mapped).length);
       
       // Debug: Log the final mapped data
@@ -1197,6 +1199,7 @@ export default function PlannerPage() {
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh Approvals
             </button>
+            
             <Link
               href={`/dashboard/client/${clientId}/content-suite`}
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -1331,7 +1334,7 @@ export default function PlannerPage() {
         )}
 
         {/* Calendar */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
           <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">
@@ -1562,23 +1565,24 @@ export default function PlannerPage() {
                                         />
                                         
                                         {/* Enhanced Status Indicator - Fixed Icon Position */}
-                                        <div className="relative flex items-center pr-12">
+                                        <div className="relative flex items-center justify-between w-full">
                                           {/* Time display */}
-                                          <div className="flex items-center justify-start">
+                                          <div className="flex items-center justify-start flex-1">
                                         <span 
-                                              className="text-xs text-gray-600 cursor-pointer hover:text-gray-800 whitespace-nowrap"
+                                              className="text-xs text-gray-600 cursor-pointer hover:text-gray-800"
+                                              style={{ minWidth: '60px', display: 'inline-block' }}
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             setEditingPostId(post.id);
                                           }}
                                           title="Click to edit time"
                                         >
-                                          {post.scheduled_time ? `${formatTimeTo12Hour(post.scheduled_time)}` : '12:00 PM'}
+                                          {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
                                         </span>
                                           </div>
                                           
-                                          {/* Approval Status Icons - 50px from right edge */}
-                                          <div className="absolute right-12 top-1/2 transform -translate-y-1/2">
+                                          {/* Approval Status Icons - Right aligned with proper spacing */}
+                                          <div className="flex items-center ml-2">
                                             {post.approval_status === 'approved' && (
                                               <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center" title="Approved">
                                                 <Check className="w-3 h-3 text-green-700" />

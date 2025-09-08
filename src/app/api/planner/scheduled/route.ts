@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     // Debug: Log approval status of posts (only first few)
     if (data && data.length > 0) {
       console.log('📊 Approval status debug:');
-      data.slice(0, 3).forEach((post: any, index: number) => {
+      data.slice(0, 3).forEach((post: Record<string, any>, index: number) => {
         console.log(`  Post ${post.id?.substring(0, 8)}... - Status: ${post.approval_status || 'NO STATUS'} - Feedback: ${post.client_feedback || 'NO FEEDBACK'}`);
       });
     }

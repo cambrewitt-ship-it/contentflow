@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { ApprovalBoardPost, WeekData } from '@/types/approval';
+import { ApprovalBoardPost, WeekData } from '../../../types/approval';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,11 +10,11 @@ const supabase = createClient(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
     const startTime = Date.now();
-    const sessionId = params.sessionId;
+    const { sessionId } = await params;
     const { searchParams } = new URL(request.url);
     const share_token = searchParams.get('token'); // For public access
     const limit = parseInt(searchParams.get('limit') || '50');
