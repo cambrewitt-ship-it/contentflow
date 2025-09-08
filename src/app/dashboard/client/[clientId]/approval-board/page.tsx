@@ -5,7 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from 'components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card';
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
-import { WeekData } from '../../../../types/approval.js';
+// Temporary inline types to resolve import issue
+interface WeekData {
+  weekStart: Date;
+  weekLabel: string;
+  posts: any[];
+}
 
 export default function ApprovalBoardPage() {
   const params = useParams();

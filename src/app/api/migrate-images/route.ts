@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         
       } catch (error) {
         console.error(`❌ Failed to migrate post ${post.id}:`, error);
-        results.push({ id: post.id, success: false, error: error.message });
+        results.push({ id: post.id, success: false, error: error instanceof Error ? error.message : String(error) });
       }
     }
 

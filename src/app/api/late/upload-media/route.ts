@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     
     // Create FormData
     const formData = new FormData();
-    const blob = new Blob([buffer], { type: 'image/jpeg' });
+    const blob = new Blob([new Uint8Array(buffer)], { type: 'image/jpeg' });
     formData.append('files', blob, 'image.jpg');
     
     // Upload to LATE

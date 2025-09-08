@@ -1,6 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { ApprovalBoardPost, WeekData } from '../../../types/approval.js';
+// Temporary inline types to resolve import issue
+interface ApprovalBoardPost {
+  id: string;
+  caption: string;
+  image_url: string;
+  scheduled_time: string;
+  scheduled_date: string;
+  post_type: 'scheduled' | 'planner_scheduled';
+  project_id?: string;
+  client_id?: string;
+  approval?: {
+    post_id: string;
+    post_type: string;
+    approval_status: string;
+    client_comments?: string;
+    created_at: string;
+  };
+}
+
+interface WeekData {
+  weekStart: Date;
+  weekLabel: string;
+  posts: ApprovalBoardPost[];
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

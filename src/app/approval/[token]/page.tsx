@@ -5,7 +5,12 @@ import { useParams } from 'next/navigation';
 import { Button } from 'components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card';
 import { Loader2, AlertCircle, CheckCircle, XCircle, AlertTriangle, Minus } from 'lucide-react';
-import { WeekData } from '../../types/approval.js';
+// Temporary inline types to resolve import issue
+interface WeekData {
+  weekStart: Date;
+  weekLabel: string;
+  posts: any[];
+}
 
 // Lazy loading image component for approval page
 const LazyApprovalImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {

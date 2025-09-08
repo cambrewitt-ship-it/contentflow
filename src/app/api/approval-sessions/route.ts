@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { ClientApprovalSession, CreateSessionRequest } from '../../types/approval.js';
+// Temporary inline types to resolve import issue
+interface ClientApprovalSession {
+  id: string;
+  project_id: string;
+  client_id: string;
+  share_token: string;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CreateSessionRequest {
+  project_id: string;
+  client_id: string;
+  expires_in_days?: number;
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
