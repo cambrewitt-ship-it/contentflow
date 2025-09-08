@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
 import { Button } from 'components/ui/button'
 import { Plus, Edit3, Calendar, FileText, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
-import BrandInformationPanel from 'components/BrandInformationPanel'
-import { Client, Project, DebugInfo, BrandDocument, WebsiteScrape } from 'types/api'
+import { Client, Project, DebugInfo } from 'types/api'
 
 export default function ClientDashboard({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params)
@@ -25,8 +24,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null)
   const [debugLoading, setDebugLoading] = useState(false)
   const [projectsFailed, setProjectsFailed] = useState(false)
-  const [brandDocuments, setBrandDocuments] = useState<BrandDocument[]>([])
-  const [websiteScrapes, setWebsiteScrapes] = useState<WebsiteScrape[]>([])
 
 
   // Fetch client data via API
@@ -64,29 +61,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
     if (clientId) {
       fetchClient()
-      
-      // Fetch brand documents and website scrapes
-      const fetchBrandData = async () => {
-        try {
-          // Fetch brand documents
-          const docsResponse = await fetch(`/api/clients/${clientId}/brand-documents`)
-          if (docsResponse.ok) {
-            const docsData = await docsResponse.json()
-            setBrandDocuments(docsData.documents || [])
-          }
-
-          // Fetch website scrapes
-          const scrapesResponse = await fetch(`/api/clients/${clientId}/scrape-website`)
-          if (scrapesResponse.ok) {
-            const scrapesData = await scrapesResponse.json()
-            setWebsiteScrapes(scrapesData.scrapes || [])
-          }
-        } catch (error) {
-          console.error('Error fetching brand data:', error)
-        }
-      }
-      
-      fetchBrandData()
     }
   }, [clientId])
 
@@ -596,16 +570,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           )}
         </div>
 
-        {/* Brand Information Panel */}
-        <div className="mt-8">
-          <BrandInformationPanel 
-            clientId={clientId} 
-            client={client} 
-            onUpdate={(updatedClient) => setClient(updatedClient)}
-            brandDocuments={brandDocuments}
-            websiteScrapes={websiteScrapes}
-          />
-        </div>
       </div>
     </div>
   )
