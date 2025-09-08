@@ -6,16 +6,7 @@ import { Button } from 'components/ui/button'
 import { Plus, Edit3, Calendar, FileText, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import BrandInformationPanel from 'components/BrandInformationPanel'
-import { Client, Project, OAuthMessage, DebugInfo, BrandDocument, WebsiteScrape } from 'types/api'
-import { 
-  FacebookIcon, 
-  InstagramIcon, 
-  TwitterIcon, 
-  LinkedInIcon, 
-  TikTokIcon, 
-  YouTubeIcon, 
-  ThreadsIcon 
-} from 'components/social-icons'
+import { Client, Project, DebugInfo, BrandDocument, WebsiteScrape } from 'types/api'
 
 export default function ClientDashboard({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params)
@@ -24,8 +15,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [error, setError] = useState<string | null>(null)
   const [website, setWebsite] = useState("")
   const [about, setAbout] = useState("")
-  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null)
-  const [oauthMessage, setOauthMessage] = useState<OAuthMessage | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsLoading, setProjectsLoading] = useState(false)
   const [showNewProjectForm, setShowNewProjectForm] = useState(false)
@@ -38,51 +27,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [projectsFailed, setProjectsFailed] = useState(false)
   const [brandDocuments, setBrandDocuments] = useState<BrandDocument[]>([])
   const [websiteScrapes, setWebsiteScrapes] = useState<WebsiteScrape[]>([])
-  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([])
 
-  interface ConnectedAccount {
-    _id: string;
-    platform: string;
-    name: string;
-    accountId?: string;
-  }
-
-  // Check for OAuth callback messages in URL
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const oauthSuccess = urlParams.get('oauth_success');
-      const oauthError = urlParams.get('oauth_error');
-      const errorDescription = urlParams.get('error_description');
-      const username = urlParams.get('username');
-      const connected = urlParams.get('connected');
-      
-      if (oauthSuccess) {
-        setOauthMessage({
-          type: 'success',
-          message: `Successfully connected to ${oauthSuccess}${username ? ` (${username})` : ''}!`
-        });
-        // Clear URL parameters
-        window.history.replaceState({}, document.title, window.location.pathname);
-      } else if (oauthError) {
-        setOauthMessage({
-          type: 'error',
-          message: `Failed to connect: ${errorDescription || oauthError}`
-        });
-        // Clear URL parameters
-        window.history.replaceState({}, document.title, window.location.pathname);
-      } else if (connected) {
-        // Handle the new 'connected' parameter for all platforms
-        const platformName = connected.charAt(0).toUpperCase() + connected.slice(1);
-        setOauthMessage({
-          type: 'success',
-          message: `${platformName} connected successfully${username ? ` (${username})` : ''}!`
-        });
-        // Clear URL parameters
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    }
-  }, []);
 
   // Fetch client data via API
   useEffect(() => {
@@ -194,28 +139,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
 
     fetchProjects()
-    fetchConnectedAccounts()
   }, [clientId])
-
-  // Fetch connected accounts
-  const fetchConnectedAccounts = async () => {
-    try {
-      const response = await fetch(`/api/late/get-accounts/${clientId}`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch accounts: ${response.status}`);
-      }
-      const data = await response.json();
-      setConnectedAccounts(data.accounts || []);
-      console.log('Connected accounts count:', data.accounts?.length || 0);
-    } catch (error) {
-      console.error('Error fetching accounts:', error);
-    }
-  };
-
-  // Check if a platform is connected
-  const isPlatformConnected = (platform: string) => {
-    return connectedAccounts.some(account => account.platform === platform);
-  };
 
   // Create new project
   const handleCreateProject = async () => {
@@ -288,50 +212,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
   }
 
-  // Handle platform connection
-  const handlePlatformConnect = async (platform: string) => {
-    try {
-      setConnectingPlatform(platform)
-      setError(null)
-      setOauthMessage(null) // Clear any previous OAuth messages
-      
-      console.log(`🔗 Connecting to ${platform} for client:`, clientId)
-      
-      // Use Facebook-specific route for Facebook, general route for others
-      const apiRoute = platform === 'facebook' 
-        ? '/api/late/connect-facebook'
-        : '/api/late/connect-platform'
-      
-      const requestBody = platform === 'facebook'
-        ? { clientId }
-        : { platform, clientId }
-      
-      const response = await fetch(apiRoute, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `Failed to connect to ${platform}`)
-      }
-      
-      const data = await response.json()
-      console.log(`✅ ${platform} connection URL generated - length:`, data.connectUrl?.length || 0)
-      
-      // Redirect to the connect URL from our API (which calls LATE API)
-      window.location.assign(data.connectUrl)
-      
-    } catch (err) {
-      console.error(`❌ Error connecting to ${platform}:`, err)
-      setError(err instanceof Error ? err.message : `Failed to connect to ${platform}`)
-    } finally {
-      setConnectingPlatform(null)
-    }
-  }
 
   if (loading) {
     return (
@@ -716,211 +596,15 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           )}
         </div>
 
-        {/* Two-Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-          
-          {/* Social Media Platforms Bar */}
-          <div className="col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Social Media Platforms</h3>
-            
-            {/* OAuth Success/Error Messages */}
-            {oauthMessage && (
-              <div className={`mb-4 border rounded-lg p-4 ${
-                oauthMessage.type === 'success' 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-red-50 border-red-200'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <p className={`text-sm ${
-                    oauthMessage.type === 'success' ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {oauthMessage.message}
-                  </p>
-                  <button 
-                    onClick={() => setOauthMessage(null)}
-                    className={`text-xs hover:opacity-70 ${
-                      oauthMessage.type === 'success' ? 'text-green-500' : 'text-red-500'
-                    }`}
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {/* Error Message */}
-            {error && (
-              <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-600 text-sm">{error}</p>
-                <button 
-                  onClick={() => setError(null)}
-                  className="text-red-500 text-xs mt-2 hover:text-red-700"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
-            
-            <div className="flex justify-between items-center">
-              <button 
-                onClick={() => handlePlatformConnect('facebook')}
-                disabled={connectingPlatform === 'facebook'}
-                className={`flex flex-col items-center space-y-3 p-4 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isPlatformConnected('facebook') 
-                    ? 'border-2 border-black' 
-                    : 'border-2 border-gray-200'
-                }`}
-              >
-                <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'facebook' ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                  ) : (
-                    <FacebookIcon className="text-white" size={24} />
-                  )}
-                </div>
-                <span className="text-sm font-medium text-gray-700">
-                  {connectingPlatform === 'facebook' ? 'Connecting...' : 'Facebook'}
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => handlePlatformConnect('instagram')}
-                disabled={connectingPlatform === 'instagram'}
-                className={`flex flex-col items-center space-y-3 p-4 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isPlatformConnected('instagram') 
-                    ? 'border-2 border-black' 
-                    : 'border-2 border-gray-200'
-                }`}
-              >
-                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'instagram' ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                  ) : (
-                    <InstagramIcon className="text-white" size={24} />
-                  )}
-                </div>
-                <span className="text-sm font-medium text-gray-700">
-                  {connectingPlatform === 'instagram' ? 'Connecting...' : 'Instagram'}
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => handlePlatformConnect('twitter')}
-                disabled={connectingPlatform === 'twitter'}
-                className={`flex flex-col items-center space-y-3 p-4 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isPlatformConnected('twitter') 
-                    ? 'border-2 border-black' 
-                    : 'border-2 border-gray-200'
-                }`}
-              >
-                <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'twitter' ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                  ) : (
-                    <TwitterIcon className="text-white" size={24} />
-                  )}
-                </div>
-                <span className="text-sm font-medium text-gray-700">
-                  {connectingPlatform === 'twitter' ? 'Connecting...' : 'X'}
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => handlePlatformConnect('linkedin')}
-                disabled={connectingPlatform === 'linkedin'}
-                className={`flex flex-col items-center space-y-3 p-4 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isPlatformConnected('linkedin') 
-                    ? 'border-2 border-black' 
-                    : 'border-2 border-gray-200'
-                }`}
-              >
-                <div className="w-12 h-12 bg-blue-700 rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'linkedin' ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                  ) : (
-                    <LinkedInIcon className="text-white" size={24} />
-                  )}
-                </div>
-                <span className="text-sm font-medium text-gray-700">
-                  {connectingPlatform === 'linkedin' ? 'Connecting...' : 'LinkedIn'}
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => handlePlatformConnect('tiktok')}
-                disabled={connectingPlatform === 'tiktok'}
-                className={`flex flex-col items-center space-y-3 p-4 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isPlatformConnected('tiktok') 
-                    ? 'border-2 border-black' 
-                    : 'border-2 border-gray-200'
-                }`}
-              >
-                <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'tiktok' ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                  ) : (
-                    <TikTokIcon className="text-white" size={24} />
-                  )}
-                </div>
-                <span className="text-sm font-medium text-gray-700">
-                  {connectingPlatform === 'tiktok' ? 'Connecting...' : 'TikTok'}
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => handlePlatformConnect('youtube')}
-                disabled={connectingPlatform === 'youtube'}
-                className={`flex flex-col items-center space-y-3 p-4 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isPlatformConnected('youtube') 
-                    ? 'border-2 border-black' 
-                    : 'border-2 border-gray-200'
-                }`}
-              >
-                <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'youtube' ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                  ) : (
-                    <YouTubeIcon className="text-white" size={24} />
-                  )}
-                </div>
-                <span className="text-sm font-medium text-gray-700">
-                  {connectingPlatform === 'youtube' ? 'Connecting...' : 'YouTube'}
-                </span>
-              </button>
-              
-              <button 
-                onClick={() => handlePlatformConnect('threads')}
-                disabled={connectingPlatform === 'threads'}
-                className={`flex flex-col items-center space-y-3 p-4 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isPlatformConnected('threads') 
-                    ? 'border-2 border-black' 
-                    : 'border-2 border-gray-200'
-                }`}
-              >
-                <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center">
-                  {connectingPlatform === 'threads' ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                  ) : (
-                    <ThreadsIcon className="text-white" size={24} />
-                  )}
-                </div>
-                <span className="text-sm font-medium text-gray-700">
-                  {connectingPlatform === 'threads' ? 'Connecting...' : 'Threads'}
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* Brand Information Panel */}
-          <div className="col-span-2">
-            <BrandInformationPanel 
-              clientId={clientId} 
-              client={client} 
-              onUpdate={(updatedClient) => setClient(updatedClient)}
-              brandDocuments={brandDocuments}
-              websiteScrapes={websiteScrapes}
-            />
-          </div>
+        {/* Brand Information Panel */}
+        <div className="mt-8">
+          <BrandInformationPanel 
+            clientId={clientId} 
+            client={client} 
+            onUpdate={(updatedClient) => setClient(updatedClient)}
+            brandDocuments={brandDocuments}
+            websiteScrapes={websiteScrapes}
+          />
         </div>
       </div>
     </div>
