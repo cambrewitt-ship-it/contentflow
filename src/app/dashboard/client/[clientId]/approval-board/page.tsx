@@ -115,7 +115,7 @@ export default function ApprovalBoardPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto py-6 px-4">
+      <div className="max-w-7xl mx-auto py-6 px-4 min-h-screen">
         {weeks.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
@@ -131,10 +131,10 @@ export default function ApprovalBoardPage() {
                     {week.weekLabel}
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <CardContent className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {week.posts.map((post) => (
-                      <div key={`${post.post_type}-${post.id}`} className="border rounded-lg p-4 bg-white">
+                      <div key={`${post.post_type}-${post.id}`} className="border rounded-lg p-4 bg-white h-auto">
                         {/* Image */}
                         {post.image_url && (
                           <img
