@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { ApprovalBoardPost, WeekData } from '../../../types/approval';
+import { ApprovalBoardPost, WeekData } from '../../../types/approval.js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

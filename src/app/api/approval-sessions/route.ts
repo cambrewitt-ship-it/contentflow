@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { ClientApprovalSession, CreateSessionRequest } from '@/types/approval';
+import { ClientApprovalSession, CreateSessionRequest } from '../../types/approval.js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

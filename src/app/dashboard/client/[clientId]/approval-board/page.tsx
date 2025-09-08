@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from 'components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card';
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
-import { WeekData } from '@/types/approval';
+import { WeekData } from '../../../../types/approval.js';
 
 export default function ApprovalBoardPage() {
   const params = useParams();
