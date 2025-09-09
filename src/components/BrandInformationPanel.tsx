@@ -401,7 +401,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                 </p>
                 {client?.brand_voice_examples && (
                   <p className="text-blue-600 text-sm mt-1">
-                    These examples will guide AI caption generation to match your brand's voice
+                    These examples will guide AI caption generation to match your brand&apos;s voice
                   </p>
                 )}
               </div>
