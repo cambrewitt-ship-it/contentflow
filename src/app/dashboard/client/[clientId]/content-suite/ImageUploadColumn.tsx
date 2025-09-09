@@ -43,13 +43,13 @@ export function ImageUploadColumn() {
   return (
     <div className="space-y-6">
       {/* Image Upload Area */}
-      <Card>
-        <CardHeader>
+      <Card className="h-[284px] flex flex-col">
+        <CardHeader className="flex-shrink-0">
           <CardTitle className="text-lg">Upload Images</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 flex items-center justify-center p-4">
           <div
-            className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors cursor-pointer"
+            className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors cursor-pointer w-full h-[160px] flex flex-col items-center justify-center"
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onClick={() => document.getElementById('image-upload')?.click()}

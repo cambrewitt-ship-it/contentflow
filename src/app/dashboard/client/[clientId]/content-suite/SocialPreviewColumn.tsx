@@ -3,7 +3,16 @@
 import { useContentStore } from 'lib/contentStore'
 import { Button } from 'components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
-import { Loader2, Save, X, FolderOpen, Calendar, Clock, Check } from 'lucide-react'
+import { Loader2, X, FolderOpen, Calendar, Clock, Check } from 'lucide-react'
+import { 
+  FacebookIcon, 
+  InstagramIcon, 
+  TwitterIcon, 
+  LinkedInIcon, 
+  TikTokIcon, 
+  YouTubeIcon, 
+  ThreadsIcon 
+} from 'components/social-icons'
 import { useState, useEffect } from 'react'
 import { Input } from 'components/ui/input'
 import { Textarea } from 'components/ui/textarea'
@@ -14,6 +23,9 @@ interface ConnectedAccount {
   platform: string;
   name: string;
   accountId?: string;
+  profilePicture?: string;
+  username?: string;
+  additionalData?: any;
 }
 
 interface SocialPreviewColumnProps {
@@ -40,11 +52,6 @@ export function SocialPreviewColumn({
 
 
 
-  const [showSaveModal, setShowSaveModal] = useState(false)
-  const [projectName, setProjectName] = useState('')
-  const [projectDescription, setProjectDescription] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Scheduling state
   const [showScheduleModal, setShowScheduleModal] = useState(false)
@@ -60,6 +67,14 @@ export function SocialPreviewColumn({
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([])
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set())
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false)
+  
+  // Platform preview state
+  const [selectedPreviewPlatform, setSelectedPreviewPlatform] = useState<string>('facebook')
+  const [currentAccountData, setCurrentAccountData] = useState<{
+    name: string;
+    profilePicture: string;
+    username?: string;
+  } | null>(null)
 
 
   const selectedCaption =
@@ -82,6 +97,13 @@ export function SocialPreviewColumn({
     fetchConnectedAccounts()
   }, [clientId])
 
+  // Fetch account data when platform changes
+  useEffect(() => {
+    if (connectedAccounts.length > 0) {
+      fetchAccountDataForPlatform(selectedPreviewPlatform)
+    }
+  }, [selectedPreviewPlatform, connectedAccounts])
+
   const fetchConnectedAccounts = async () => {
     try {
       setIsLoadingAccounts(true)
@@ -100,86 +122,53 @@ export function SocialPreviewColumn({
     }
   }
 
-  const handleSaveToProject = async () => {
-    if (!projectName.trim()) {
-      setSaveError('Project name is required')
-      return
-    }
-
-    setIsSaving(true)
-    setSaveError(null)
-
-    try {
-      // Create new project with content
-        const projectData = {
-          client_id: clientId,
-          name: projectName.trim(),
-          description: projectDescription.trim(),
-          content_metadata: {
-            posts: [{
-              id: `post-${Date.now()}`,
-              images: uploadedImages.map(img => ({
-                id: img.id,
-                notes: img.notes || '',
-                preview: img.preview
-              })),
-              captions: captions.map(cap => ({
-                id: cap.id,
-                text: cap.text,
-                isSelected: selectedCaptions.includes(cap.id)
-              })),
-              selectedCaption: selectedCaption,
-              postNotes: postNotes || '',
-              activeImageId: activeImageId,
-              createdAt: new Date().toISOString()
-            }]
-          }
-        }
-
-        const response = await fetch('/api/projects', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(projectData),
-        })
-
-        const result = await response.json()
-
-        if (result.success) {
-          setShowSaveModal(false)
-          setProjectName('')
-          setProjectDescription('')
-          alert(`Project "${projectName}" created successfully with your content!`)
-        } else {
-          setSaveError(result.error || 'Failed to create project')
-        }
-    } catch (error) {
-      console.error('Error saving project:', error)
-      setSaveError('Network error occurred while saving')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const openSaveModal = () => {
-    // Pre-fill project name with current date/time
-    const now = new Date()
-    const dateStr = now.toLocaleDateString('en-US', { 
-      month: 'long', 
-      day: 'numeric', 
-      year: 'numeric' 
-    })
-    const timeStr = now.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    })
+  const fetchAccountDataForPlatform = async (platform: string) => {
+    console.log(`🔍 Fetching ${platform} account data for client:`, clientId)
+    console.log(`📋 Available connected accounts:`, connectedAccounts)
+    console.log(`🔎 Looking for platform: "${platform}"`)
     
-    setProjectName(`Content - ${dateStr} ${timeStr}`)
-    setProjectDescription('')
-    setSaveError(null)
-    setShowSaveModal(true)
+    try {
+      // Find the account for the selected platform
+      const platformAccount = connectedAccounts.find((acc: ConnectedAccount) => acc.platform === platform)
+      
+      if (platformAccount) {
+        console.log(`✅ Found ${platform} account:`, platformAccount)
+        console.log(`📝 Account name: "${platformAccount.name}"`)
+        console.log(`📝 Account ID: "${platformAccount.accountId}"`)
+        console.log(`📝 Username: "${platformAccount.username}"`)
+        
+        // Use the actual account name, or accountId as fallback, or a better default
+        const accountName = platformAccount.name || 
+                           platformAccount.accountId || 
+                           `Your ${platform.charAt(0).toUpperCase() + platform.slice(1)} Page`
+        
+        setCurrentAccountData({
+          name: accountName,
+          profilePicture: platformAccount.profilePicture || '/default-avatar.svg',
+          username: platformAccount.username || platformAccount.accountId
+        })
+        return
+      } else {
+        console.log(`❌ No ${platform} account found in connected accounts`)
+      }
+      
+      // If no account found, set default data for the platform
+      console.log(`⚠️ Setting default ${platform} data`)
+      setCurrentAccountData({
+        name: `Your ${platform.charAt(0).toUpperCase() + platform.slice(1)} Account`,
+        profilePicture: '/default-avatar.svg'
+      })
+      
+    } catch (error) {
+      console.error(`💥 Error fetching ${platform} account data:`, error)
+      // Set default data if fetch fails
+      setCurrentAccountData({
+        name: `Your ${platform.charAt(0).toUpperCase() + platform.slice(1)} Account`,
+        profilePicture: '/default-avatar.svg'
+      })
+    }
   }
+
 
   const openScheduleModal = () => {
     // Set default date to tomorrow
@@ -310,7 +299,7 @@ export function SocialPreviewColumn({
 
       const result = await response.json()
       console.log('✅ Post scheduled successfully via LATE API')
-
+      
       // Show success message
       const platformNames = selectedAccounts.map(acc => acc.platform).join(', ')
       alert(`Post scheduled successfully for ${scheduledDateTime.toLocaleString()} to ${platformNames}!`)
@@ -329,45 +318,213 @@ export function SocialPreviewColumn({
     }
   }
 
-  const handlePostNow = async () => {
-    if (!displayCaption || uploadedImages.length === 0) {
-      alert('Please ensure you have both a caption and image selected')
-      return
-    }
-
-    if (!confirm('Are you sure you want to post this immediately to your connected social media accounts?')) {
-      return
-    }
-
-    try {
-      // Create the post data for immediate posting
-      const postData = {
-        clientId,
-        caption: displayCaption,
-        imageUrl: uploadedImages[0].preview,
-        platforms: ['facebook', 'instagram'], // Default platforms
-        postNotes: postNotes || ''
-      }
-
-      // Call the immediate posting API
-      const response = await fetch('/api/publishViaLate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(postData)
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to post immediately')
-      }
-
-      const result = await response.json()
-      alert('Post published successfully!')
+  // Platform-specific preview components
+  const renderFacebookPreview = () => (
+    <div className="bg-white max-w-sm mx-auto" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      {/* Facebook Header */}
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center">
+          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
+            <FacebookIcon size={20} className="text-white" />
+          </div>
+          <div className="ml-3">
+            <div className="font-semibold text-gray-900 text-sm">
+              {currentAccountData?.name || 'Loading...'}
+            </div>
+            <div className="flex items-center text-xs text-gray-500">
+              <span>🌐</span>
+              <span className="ml-1">Just now</span>
+            </div>
+          </div>
+        </div>
+        <div className="text-gray-400 text-lg">⋯</div>
+      </div>
       
-    } catch (error) {
-      console.error('Error posting immediately:', error)
-      alert(error instanceof Error ? error.message : 'Failed to post immediately')
+      {/* Facebook Caption */}
+      <div className="px-4 pb-3">
+        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
+          {displayCaption}
+        </p>
+      </div>
+      
+      {/* Facebook Image */}
+      {activeImageId && (
+        <div className="relative">
+          <img
+            src={uploadedImages.find(img => img.id === activeImageId)?.preview}
+            alt="Post content"
+            className="w-full object-cover"
+            style={{ maxHeight: '400px' }}
+          />
+        </div>
+      )}
+      
+      
+      {/* Facebook Engagement Stats */}
+      <div className="px-4 py-2 border-t border-gray-100">
+        <div className="flex items-center justify-between text-xs text-gray-500">
+          <div className="flex items-center">
+            <div className="flex -space-x-1">
+              <span className="text-blue-600 text-sm">👍</span>
+              <span className="text-yellow-500 text-sm">😮</span>
+              <span className="text-red-500 text-sm">❤️</span>
+            </div>
+            <span className="ml-2">1.4K</span>
+          </div>
+          <div className="flex items-center space-x-4">
+            <span>105 Comments</span>
+            <span>25 Shares</span>
+          </div>
+        </div>
+      </div>
+      
+      {/* Facebook Action Buttons */}
+      <div className="px-2 py-2 border-t border-gray-100">
+        <div className="flex items-center justify-around">
+          <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+            </svg>
+            <span className="text-sm font-medium">Like</span>
+          </button>
+          <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M21.99 4c0-1.1-.89-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+            </svg>
+            <span className="text-sm font-medium">Comment</span>
+          </button>
+          <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
+            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
+            </svg>
+            <span className="text-sm font-medium">Share</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderInstagramPreview = () => (
+    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden max-w-sm mx-auto">
+      {/* Instagram Header */}
+      <div className="flex items-center justify-between px-3 py-3">
+        <div className="flex items-center">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+            <InstagramIcon size={16} className="text-white" />
+          </div>
+          <div className="ml-3">
+            <div className="font-semibold text-gray-900 text-sm">
+              {currentAccountData?.name || 'your_instagram'}
+            </div>
+          </div>
+        </div>
+        <div className="text-gray-400 text-lg">⋯</div>
+      </div>
+      
+      {/* Instagram Image */}
+      {activeImageId && (
+        <div className="relative">
+          <img
+            src={uploadedImages.find(img => img.id === activeImageId)?.preview}
+            alt="Post content"
+            className="w-full aspect-square object-cover"
+          />
+        </div>
+      )}
+      
+      {/* Instagram Actions */}
+      <div className="px-3 py-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-4">
+            <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+            <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+          </div>
+          <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+          </svg>
+        </div>
+        
+        {/* Likes Count */}
+        <div className="mb-2">
+          <span className="font-semibold text-gray-900 text-sm">5,367 likes</span>
+        </div>
+        
+        {/* Instagram Caption */}
+        <div className="text-sm">
+          <span className="font-semibold text-gray-900 mr-2">
+            {currentAccountData?.name || 'your_instagram'}
+          </span>
+          <span className="text-gray-900 whitespace-pre-wrap">
+            {displayCaption}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderTwitterPreview = () => (
+    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden max-w-sm mx-auto">
+      {/* Twitter Header */}
+      <div className="flex items-center p-3 border-b border-gray-100">
+        <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center">
+          <TwitterIcon size={20} className="text-white" />
+        </div>
+        <div className="ml-3 flex-1">
+          <div className="font-semibold text-gray-900 text-sm">
+            {currentAccountData?.name || 'Your Twitter'}
+          </div>
+          <div className="text-xs text-gray-500">@{currentAccountData?.username || 'yourhandle'}</div>
+        </div>
+        <div className="text-gray-400">⋯</div>
+      </div>
+      
+      {/* Twitter Content */}
+      <div className="p-3">
+        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
+          {displayCaption}
+        </p>
+        
+        {/* Twitter Image */}
+        {activeImageId && (
+          <div className="mt-3 rounded-lg overflow-hidden">
+            <img
+              src={uploadedImages.find(img => img.id === activeImageId)?.preview}
+              alt="Post content"
+              className="w-full h-48 object-cover"
+            />
+          </div>
+        )}
+      </div>
+      
+      {/* Twitter Actions */}
+      <div className="px-3 py-2 border-t border-gray-100">
+        <div className="flex items-center justify-between text-gray-500 text-sm">
+          <span>💬 Reply</span>
+          <span>🔄 Retweet</span>
+          <span>❤️ Like</span>
+          <span>📤 Share</span>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderPlatformPreview = () => {
+    switch (selectedPreviewPlatform) {
+      case 'facebook':
+        return renderFacebookPreview()
+      case 'instagram':
+        return renderInstagramPreview()
+      case 'twitter':
+        return renderTwitterPreview()
+      default:
+        return renderFacebookPreview()
     }
   }
 
@@ -381,22 +538,52 @@ export function SocialPreviewColumn({
         <CardContent>
           {uploadedImages.length > 0 ? (
             <div className="space-y-4">
-              {/* Main Social Media Preview */}
-              {activeImageId && (
-                <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
-                  {/* Selected Image */}
-                  <div className="relative">
-                    <img
-                      src={uploadedImages.find(img => img.id === activeImageId)?.preview}
-                      alt="Social media post"
-                      className="w-full h-64 object-cover"
-                    />
+              {/* Platform Selection */}
+              <div className="flex items-center justify-center space-x-2 mb-4">
+                <button
+                  onClick={() => setSelectedPreviewPlatform('facebook')}
+                  className={`p-2 rounded-lg transition-colors ${
+                    selectedPreviewPlatform === 'facebook' 
+                      ? 'bg-blue-100 text-blue-600' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <FacebookIcon size={20} />
+                </button>
+                <button
+                  onClick={() => setSelectedPreviewPlatform('instagram')}
+                  className={`p-2 rounded-lg transition-colors ${
+                    selectedPreviewPlatform === 'instagram' 
+                      ? 'bg-pink-100 text-pink-600' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <InstagramIcon size={20} />
+                </button>
+                <button
+                  onClick={() => setSelectedPreviewPlatform('twitter')}
+                  className={`p-2 rounded-lg transition-colors ${
+                    selectedPreviewPlatform === 'twitter' 
+                      ? 'bg-blue-100 text-blue-600' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <TwitterIcon size={20} />
+                </button>
+              </div>
+
+              {/* Mobile Preview Container */}
+              <div className="bg-gray-100 p-4 rounded-lg">
+                <div className="text-center text-xs text-gray-500 mb-2">
+                  Mobile Preview - {selectedPreviewPlatform.charAt(0).toUpperCase() + selectedPreviewPlatform.slice(1)}
+                </div>
+                {renderPlatformPreview()}
                   </div>
                   
-                  {/* Caption below image */}
-                  <div className="p-4 border-t border-gray-100">
+              {/* Caption Editor */}
+              <div className="bg-gray-50 rounded-lg p-4">
                     <label htmlFor="customCaption" className="block text-sm font-medium text-gray-700 mb-2">
-                      Caption
+                  Edit Caption
                     </label>
                     <Textarea
                       id="customCaption"
@@ -412,37 +599,6 @@ export function SocialPreviewColumn({
                       </p>
                     )}
                   </div>
-                </div>
-              )}
-
-              {/* Caption Preview (when no image is selected) */}
-              {!activeImageId && (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <label htmlFor="customCaptionNoImage" className="block text-sm font-medium text-gray-700 mb-2">
-                    Caption
-                  </label>
-                  <Textarea
-                    id="customCaptionNoImage"
-                    value={customCaption}
-                    onChange={(e) => setCustomCaption(e.target.value)}
-                    placeholder={selectedCaption ? "Edit the AI-generated caption or type your own..." : "Type your caption here..."}
-                    className="w-full min-h-[80px] resize-none"
-                    rows={3}
-                  />
-                  {selectedCaption && !customCaption && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      AI Caption: {selectedCaption}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* No Image Uploaded Message */}
-              {!activeImageId && !displayCaption && (
-                <div className="text-center py-6 text-gray-500">
-                  <p>Upload images to see the social media preview</p>
-                </div>
-              )}
             </div>
           ) : (
             <div className="text-center py-8 text-gray-500">
@@ -464,37 +620,6 @@ export function SocialPreviewColumn({
             </p>
             
             <div className="space-y-3">
-              {/* Post Now Button */}
-              <Button
-                onClick={handlePostNow}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <svg
-                  className="w-5 h-5 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                  />
-                </svg>
-                Post Now
-              </Button>
-              
-              {/* Save to Projects Button */}
-              <Button
-                onClick={openSaveModal}
-                variant="outline"
-                className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
-              >
-                <Save className="w-5 h-5 mr-2" />
-                Save to Projects
-              </Button>
-              
               {/* Schedule Button */}
               <Button
                 onClick={openScheduleModal}
@@ -508,85 +633,6 @@ export function SocialPreviewColumn({
         </Card>
       )}
 
-      {/* Save to Project Modal */}
-      <Dialog open={showSaveModal} onOpenChange={setShowSaveModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Save className="w-5 h-5" />
-              Save to Projects
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            {/* Save Mode - New Project Only */}
-            <div className="text-center py-2">
-              <span className="text-sm text-gray-600">Create New Project</span>
-            </div>
-
-            <div>
-              <label htmlFor="projectName" className="block text-sm font-medium text-gray-700 mb-1">
-                Project Name *
-              </label>
-              <Input
-                id="projectName"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                placeholder="Enter project name"
-                className="w-full"
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="projectDescription" className="block text-sm font-medium text-gray-700 mb-1">
-                Description (Optional)
-              </label>
-              <Textarea
-                id="projectDescription"
-                value={projectDescription}
-                onChange={(e) => setProjectDescription(e.target.value)}
-                placeholder="Describe this project..."
-                className="w-full"
-                rows={3}
-              />
-            </div>
-
-            {saveError && (
-              <div className="text-red-600 text-sm bg-red-50 p-2 rounded">
-                {saveError}
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-2">
-              <Button
-                onClick={handleSaveToProject}
-                disabled={isSaving}
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Create Project
-                  </>
-                )}
-              </Button>
-              
-              <Button
-                onClick={() => setShowSaveModal(false)}
-                variant="outline"
-                disabled={isSaving}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Schedule Post Modal */}
       <Dialog open={showScheduleModal} onOpenChange={setShowScheduleModal}>

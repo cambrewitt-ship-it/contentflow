@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from 'components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card';
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { SocialPreviewCard } from 'components/SocialPreviewCard';
 // Temporary inline types to resolve import issue
 interface WeekData {
   weekStart: Date;
@@ -132,54 +133,21 @@ export default function ApprovalBoardPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {week.posts.map((post) => (
-                      <div key={`${post.post_type}-${post.id}`} className="border rounded-lg p-4 bg-white h-auto">
-                        {/* Image */}
-                        {post.image_url && (
-                          <img
-                            src={post.image_url}
-                            alt="Post"
-                            className="w-full h-40 object-cover rounded-lg mb-3"
-                          />
-                        )}
-
-                        {/* Caption */}
-                        <p className="text-sm text-gray-900 mb-2 line-clamp-3">
-                          {post.caption}
-                        </p>
-
-                        {/* Schedule Info */}
-                        <div className="text-xs text-gray-500 mb-3">
-                          {new Date(post.scheduled_date).toLocaleDateString('en-GB', {
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short'
-                          })}
-                          {post.scheduled_time && (
-                            <span> at {post.scheduled_time.slice(0, 5)}</span>
-                          )}
-                        </div>
-
-                        {/* Approval Status */}
-                        <div className="flex items-center justify-between">
-                          <div className={`text-xs px-2 py-1 rounded ${
-                            post.approval?.approval_status === 'approved' 
-                              ? 'bg-green-100 text-green-700'
-                              : post.approval?.approval_status === 'rejected'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-gray-100 text-gray-700'
-                          }`}>
-                            {post.approval?.approval_status || 'pending'}
-                          </div>
-                        </div>
-
-                        {/* Client Comments */}
-                        {post.approval?.client_comments && (
-                          <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                            <span className="font-medium">Client:</span> {post.approval.client_comments}
-                          </div>
-                        )}
+                      <div key={`${post.post_type}-${post.id}`} className="space-y-4">
+                        <SocialPreviewCard
+                          platform={post.platform || 'facebook'}
+                          accountName={post.account_name || 'Your Account'}
+                          username={post.username}
+                          caption={post.caption || ''}
+                          imageUrl={post.image_url}
+                          scheduledDate={post.scheduled_date}
+                          scheduledTime={post.scheduled_time}
+                          approvalStatus={post.approval?.approval_status}
+                          clientComments={post.approval?.client_comments}
+                          showApprovalInfo={true}
+                        />
                       </div>
                     ))}
                   </div>
