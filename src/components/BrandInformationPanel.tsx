@@ -43,7 +43,8 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
     target_audience: client?.target_audience || '',
     value_proposition: client?.value_proposition || '',
     caption_dos: client?.caption_dos || '',
-    caption_donts: client?.caption_donts || ''
+    caption_donts: client?.caption_donts || '',
+    brand_voice_examples: client?.brand_voice_examples || ''
   });
 
   // Fetch brand documents and website scrapes
@@ -146,7 +147,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
         if (analysisResponse.ok) {
           const analysisData = await analysisResponse.json();
           
-          // Auto-fill the form fields with AI analysis results (only the 4 essential fields)
+          // Auto-fill the form fields with AI analysis results (including company name)
           setFormData(prev => ({
             ...prev,
             company_description: analysisData.analysis.company_description,
@@ -154,6 +155,20 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
             value_proposition: analysisData.analysis.value_proposition,
             brand_tone: analysisData.analysis.brand_tone
           }));
+
+          // Update the client name if provided by AI analysis
+          if (analysisData.analysis.company_name) {
+            const updateResponse = await fetch(`/api/clients/${clientId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: analysisData.analysis.company_name })
+            });
+
+            if (updateResponse.ok) {
+              const updatedClient = await updateResponse.json();
+              onUpdate(updatedClient.client);
+            }
+          }
 
           setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully!' });
           setTimeout(() => setMessage(null), 3000);
@@ -358,6 +373,38 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
               <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
                 {client?.value_proposition || 'No value proposition specified'}
               </p>
+            )}
+          </div>
+
+          {/* Brand Voice Examples */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Brand Voice Examples
+            </label>
+            {isEditing ? (
+              <div>
+                <Textarea
+                  value={formData.brand_voice_examples}
+                  onChange={(e) => handleInputChange('brand_voice_examples', e.target.value)}
+                  placeholder="Paste examples of your brand's voice from website content, social media posts, or brand documents. These will help AI understand your writing style and tone."
+                  rows={4}
+                  className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <p className="text-blue-600 text-sm mt-1">
+                  💡 Include snippets from your website, social media, or brand documents that show how your brand should sound
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
+                  {client?.brand_voice_examples || 'No brand voice examples provided'}
+                </p>
+                {client?.brand_voice_examples && (
+                  <p className="text-blue-600 text-sm mt-1">
+                    These examples will guide AI caption generation to match your brand's voice
+                  </p>
+                )}
+              </div>
             )}
           </div>
 

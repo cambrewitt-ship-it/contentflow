@@ -1,70 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
-
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ clientId: string }> }
-) {
+export async function POST(request: NextRequest) {
   try {
-    const { clientId } = await params;
-    const { scrapeId } = await request.json();
+    const { content } = await request.json();
     
-    if (!scrapeId) {
-      return NextResponse.json({ error: 'Scrape ID is required' }, { status: 400 });
+    if (!content) {
+      return NextResponse.json({ error: 'Content is required' }, { status: 400 });
     }
 
-    console.log('🤖 Starting AI analysis for client:', clientId, 'scrape:', scrapeId);
+    console.log('🤖 Starting temporary AI analysis');
 
-    // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
-    // Fetch the scraped website content
-    const { data: scrapeData, error: fetchError } = await supabase
-      .from('website_scrapes')
-      .select('*')
-      .eq('id', scrapeId)
-      .eq('client_id', clientId)
-      .eq('scrape_status', 'completed')
-      .single();
-
-    if (fetchError || !scrapeData) {
-      console.error('❌ Failed to fetch scrape data:', fetchError);
-      return NextResponse.json({ 
-        error: 'Failed to fetch scrape data', 
-        details: fetchError?.message || 'Scrape not found' 
-      }, { status: 404 });
-    }
-
-    console.log('📄 Analyzing website content for:', scrapeData.url);
-
-    // Prepare content for AI analysis
-    const contentForAnalysis = `
-Website: ${scrapeData.url}
-Title: ${scrapeData.page_title || ''}
-Meta Description: ${scrapeData.meta_description || ''}
-Content: ${scrapeData.scraped_content || ''}
-    `.trim();
-
-    // AI Analysis using OpenAI
-    const analysisResult = await analyzeWebsiteContent(contentForAnalysis);
+    // AI Analysis using OpenAI (same as client dashboard)
+    const analysisResult = await analyzeWebsiteContent(content);
 
     console.log('✅ AI analysis completed successfully');
 
     return NextResponse.json({
       success: true,
-      analysis: analysisResult,
-      source: {
-        url: scrapeData.url,
-        scrapeId: scrapeData.id,
-        analyzedAt: new Date().toISOString()
-      }
+      analysis: analysisResult
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in AI analysis:', error);
+    console.error('💥 Error in temporary AI analysis:', error);
     return NextResponse.json({ 
       error: 'AI analysis failed', 
       details: error instanceof Error ? error.message : String(error)
@@ -85,7 +42,7 @@ async function analyzeWebsiteContent(content: string) {
         messages: [
           {
             role: 'system',
-             content: `You are an expert business analyst. Analyze the provided website content and extract the 5 essential brand information fields. Return ONLY a valid JSON object with the following structure:
+                 content: `You are an expert business analyst. Analyze the provided website content and extract the 5 essential brand information fields. Return ONLY a valid JSON object with the following structure:
 
 {
   "company_name": "The official company/business name (e.g., 'Acme Corp', 'TechStart Inc', 'Local Bakery')",
@@ -134,7 +91,7 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
     }
     
     // Validate the structure
-       const requiredFields = ['company_name', 'company_description', 'value_proposition', 'brand_tone', 'target_audience'];
+           const requiredFields = ['company_name', 'company_description', 'value_proposition', 'brand_tone', 'target_audience'];
     for (const field of requiredFields) {
       if (!analysis[field]) {
         throw new Error(`Missing required field: ${field}`);

@@ -28,15 +28,37 @@ export function UIThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('ui-theme', theme);
   }, [theme]);
 
-  // Apply theme class to body and html
+  // Apply theme class to body and html (only for dashboard pages)
   useEffect(() => {
-    if (theme === 'alternative') {
-      document.body.classList.add('glassmorphism-theme');
-      document.documentElement.classList.add('glassmorphism-theme');
-    } else {
-      document.body.classList.remove('glassmorphism-theme');
-      document.documentElement.classList.remove('glassmorphism-theme');
-    }
+    const applyTheme = () => {
+      const currentPath = window.location.pathname;
+      const isDashboardPage = currentPath.startsWith('/dashboard');
+      
+      // Only apply alternate theme to dashboard pages, not the landing page
+      if (theme === 'alternative' && isDashboardPage) {
+        document.body.classList.add('glassmorphism-theme');
+        document.documentElement.classList.add('glassmorphism-theme');
+      } else {
+        document.body.classList.remove('glassmorphism-theme');
+        document.documentElement.classList.remove('glassmorphism-theme');
+      }
+    };
+
+    // Apply theme on mount and when theme changes
+    applyTheme();
+
+    // Listen for route changes (for client-side navigation)
+    const handleRouteChange = () => {
+      applyTheme();
+    };
+
+    // Add event listener for popstate (back/forward navigation)
+    window.addEventListener('popstate', handleRouteChange);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+    };
   }, [theme]);
 
   const toggleTheme = () => {

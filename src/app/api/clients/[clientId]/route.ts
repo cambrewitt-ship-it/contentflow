@@ -72,6 +72,7 @@ export async function PUT(
       brand_keywords?: string[];
       caption_dos?: string;
       caption_donts?: string;
+      brand_voice_examples?: string;
       updated_at?: string;
     } = {};
     
@@ -83,6 +84,7 @@ export async function PUT(
     if (body.brand_keywords !== undefined) updateData.brand_keywords = body.brand_keywords;
     if (body.caption_dos !== undefined) updateData.caption_dos = body.caption_dos;
     if (body.caption_donts !== undefined) updateData.caption_donts = body.caption_donts;
+    if (body.brand_voice_examples !== undefined) updateData.brand_voice_examples = body.brand_voice_examples;
     
     // Add updated_at timestamp
     updateData.updated_at = new Date().toISOString();

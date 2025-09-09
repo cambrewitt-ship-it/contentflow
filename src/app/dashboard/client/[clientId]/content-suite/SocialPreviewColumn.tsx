@@ -3,11 +3,18 @@
 import { useContentStore } from 'lib/contentStore'
 import { Button } from 'components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
-import { Loader2, Save, X, FolderOpen } from 'lucide-react'
-import { useState } from 'react'
+import { Loader2, Save, X, FolderOpen, Calendar, Clock, Check } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { Input } from 'components/ui/input'
 import { Textarea } from 'components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'components/ui/dialog'
+
+interface ConnectedAccount {
+  _id: string;
+  platform: string;
+  name: string;
+  accountId?: string;
+}
 
 interface SocialPreviewColumnProps {
   clientId: string
@@ -39,11 +46,59 @@ export function SocialPreviewColumn({
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // Scheduling state
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [scheduleDate, setScheduleDate] = useState('')
+  const [scheduleTime, setScheduleTime] = useState('12:00 PM')
+  const [isScheduling, setIsScheduling] = useState(false)
+  const [scheduleError, setScheduleError] = useState<string | null>(null)
+
+  // Custom caption state
+  const [customCaption, setCustomCaption] = useState('')
+
+  // Connected accounts state
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([])
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set())
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(false)
+
 
   const selectedCaption =
     selectedCaptions.length > 0
       ? captions.find((cap) => cap.id === selectedCaptions[0])?.text
       : undefined
+
+  // Use custom caption if provided, otherwise use selected AI caption
+  const displayCaption = customCaption.trim() || selectedCaption || ''
+
+  // Sync custom caption with selected AI caption when it changes
+  useEffect(() => {
+    if (selectedCaption && !customCaption) {
+      setCustomCaption(selectedCaption)
+    }
+  }, [selectedCaption, customCaption])
+
+  // Fetch connected accounts on component mount
+  useEffect(() => {
+    fetchConnectedAccounts()
+  }, [clientId])
+
+  const fetchConnectedAccounts = async () => {
+    try {
+      setIsLoadingAccounts(true)
+      const response = await fetch(`/api/late/get-accounts/${clientId}`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch accounts: ${response.status}`)
+      }
+      const data = await response.json()
+      setConnectedAccounts(data.accounts || [])
+      console.log('Connected accounts count:', data.accounts?.length || 0)
+    } catch (error) {
+      console.error('Error fetching accounts:', error)
+      setScheduleError(error instanceof Error ? error.message : 'Failed to load connected accounts')
+    } finally {
+      setIsLoadingAccounts(false)
+    }
+  }
 
   const handleSaveToProject = async () => {
     if (!projectName.trim()) {
@@ -126,6 +181,196 @@ export function SocialPreviewColumn({
     setShowSaveModal(true)
   }
 
+  const openScheduleModal = () => {
+    // Set default date to tomorrow
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    setScheduleDate(tomorrow.toISOString().split('T')[0])
+    setScheduleTime('12:00 PM')
+    setShowScheduleModal(true)
+    setScheduleError(null)
+  }
+
+  const handleSchedulePost = async () => {
+    if (!scheduleDate || !scheduleTime) {
+      setScheduleError('Please select both date and time')
+      return
+    }
+
+    if (!displayCaption || uploadedImages.length === 0) {
+      setScheduleError('Please ensure you have both a caption and image selected')
+      return
+    }
+
+    if (selectedPlatforms.size === 0) {
+      setScheduleError('Please select at least one platform to schedule to')
+      return
+    }
+
+    setIsScheduling(true)
+    setScheduleError(null)
+
+    try {
+      // Parse the date and time
+      const [time, period] = scheduleTime.split(' ')
+      const [hours, minutes] = time.split(':')
+      let hour24 = parseInt(hours)
+      
+      if (period === 'PM' && hour24 !== 12) {
+        hour24 += 12
+      } else if (period === 'AM' && hour24 === 12) {
+        hour24 = 0
+      }
+
+      const scheduledDateTime = new Date(scheduleDate)
+      scheduledDateTime.setHours(hour24, parseInt(minutes), 0, 0)
+
+      // Format for LATE API (YYYY-MM-DDTHH:MM:SS)
+      const scheduledDateStr = scheduledDateTime.toISOString().split('T')[0]
+      const scheduledTimeStr = `${hour24.toString().padStart(2, '0')}:${minutes}:00`
+      const scheduledDateTimeStr = `${scheduledDateStr}T${scheduledTimeStr}`
+
+      console.log('🚀 Content Suite Scheduling - Using LATE API approach:')
+      console.log('  - Caption:', displayCaption.substring(0, 50) + '...')
+      console.log('  - Scheduled DateTime:', scheduledDateTimeStr)
+      console.log('  - Selected Platforms:', Array.from(selectedPlatforms))
+
+      // Get selected accounts
+      const selectedAccounts = connectedAccounts.filter(account => 
+        selectedPlatforms.has(account.platform)
+      )
+
+      if (selectedAccounts.length === 0) {
+        throw new Error('No valid accounts selected')
+      }
+
+      // Step 1: Upload image to LATE
+      console.log('Uploading image to LATE...')
+      const activeImage = uploadedImages.find(img => img.id === activeImageId) || uploadedImages[0]
+      let imageData = activeImage.preview
+
+      // Convert blob URL to base64 if needed
+      if (imageData.startsWith('blob:')) {
+        try {
+          const response = await fetch(imageData)
+          const blob = await response.blob()
+          const reader = new FileReader()
+          
+          imageData = await new Promise((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.onerror = reject
+            reader.readAsDataURL(blob)
+          })
+        } catch (error) {
+          console.error('Blob conversion failed:', error)
+          throw new Error('Failed to process image')
+        }
+      }
+
+      const mediaResponse = await fetch('/api/late/upload-media', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBlob: imageData })
+      })
+
+      if (!mediaResponse.ok) {
+        const errorText = await mediaResponse.text()
+        console.error('Media upload error:', errorText)
+        throw new Error('Failed to upload image to LATE')
+      }
+      
+      const { lateMediaUrl } = await mediaResponse.json()
+      console.log('✅ Image uploaded to LATE successfully')
+
+      // Step 2: Create a temporary post ID for LATE API
+      const tempPostId = `content-suite-${Date.now()}`
+
+      // Step 3: Schedule via LATE API
+      const lateRequestBody = {
+        postId: tempPostId,
+        caption: displayCaption,
+        lateMediaUrl: lateMediaUrl,
+        scheduledDateTime: scheduledDateTimeStr,
+        selectedAccounts: selectedAccounts,
+        clientId: clientId
+      }
+
+      console.log('Scheduling post via LATE API...')
+      const response = await fetch('/api/late/schedule-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(lateRequestBody)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('LATE scheduling error:', errorText)
+        throw new Error('Failed to schedule post via LATE')
+      }
+
+      const result = await response.json()
+      console.log('✅ Post scheduled successfully via LATE API')
+
+      // Show success message
+      const platformNames = selectedAccounts.map(acc => acc.platform).join(', ')
+      alert(`Post scheduled successfully for ${scheduledDateTime.toLocaleString()} to ${platformNames}!`)
+      
+      // Close modal and reset form
+      setShowScheduleModal(false)
+      setScheduleDate('')
+      setScheduleTime('12:00 PM')
+      setSelectedPlatforms(new Set())
+      
+    } catch (error) {
+      console.error('Error scheduling post:', error)
+      setScheduleError(error instanceof Error ? error.message : 'Failed to schedule post')
+    } finally {
+      setIsScheduling(false)
+    }
+  }
+
+  const handlePostNow = async () => {
+    if (!displayCaption || uploadedImages.length === 0) {
+      alert('Please ensure you have both a caption and image selected')
+      return
+    }
+
+    if (!confirm('Are you sure you want to post this immediately to your connected social media accounts?')) {
+      return
+    }
+
+    try {
+      // Create the post data for immediate posting
+      const postData = {
+        clientId,
+        caption: displayCaption,
+        imageUrl: uploadedImages[0].preview,
+        platforms: ['facebook', 'instagram'], // Default platforms
+        postNotes: postNotes || ''
+      }
+
+      // Call the immediate posting API
+      const response = await fetch('/api/publishViaLate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(postData)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to post immediately')
+      }
+
+      const result = await response.json()
+      alert('Post published successfully!')
+      
+    } catch (error) {
+      console.error('Error posting immediately:', error)
+      alert(error instanceof Error ? error.message : 'Failed to post immediately')
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Social Preview */}
@@ -148,31 +393,52 @@ export function SocialPreviewColumn({
                     />
                   </div>
                   
-                  {/* Caption below image (if selected) */}
-                  {selectedCaption && (
-                    <div className="p-4">
-                      <p className="text-sm text-gray-900 leading-relaxed">{selectedCaption}</p>
-                    </div>
-                  )}
-                  
-                  {/* No Caption Message */}
-                  {!selectedCaption && (
-                    <div className="p-4 bg-gray-50 border-t border-gray-100">
-                      <p className="text-sm text-gray-500 italic">Select a caption to complete your post</p>
-                    </div>
-                  )}
+                  {/* Caption below image */}
+                  <div className="p-4 border-t border-gray-100">
+                    <label htmlFor="customCaption" className="block text-sm font-medium text-gray-700 mb-2">
+                      Caption
+                    </label>
+                    <Textarea
+                      id="customCaption"
+                      value={customCaption}
+                      onChange={(e) => setCustomCaption(e.target.value)}
+                      placeholder={selectedCaption ? "Edit the AI-generated caption or type your own..." : "Type your caption here..."}
+                      className="w-full min-h-[80px] resize-none"
+                      rows={3}
+                    />
+                    {selectedCaption && !customCaption && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        AI Caption: {selectedCaption}
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 
               {/* Caption Preview (when no image is selected) */}
-              {selectedCaption && !activeImageId && (
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-sm text-gray-900">{selectedCaption}</p>
+              {!activeImageId && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <label htmlFor="customCaptionNoImage" className="block text-sm font-medium text-gray-700 mb-2">
+                    Caption
+                  </label>
+                  <Textarea
+                    id="customCaptionNoImage"
+                    value={customCaption}
+                    onChange={(e) => setCustomCaption(e.target.value)}
+                    placeholder={selectedCaption ? "Edit the AI-generated caption or type your own..." : "Type your caption here..."}
+                    className="w-full min-h-[80px] resize-none"
+                    rows={3}
+                  />
+                  {selectedCaption && !customCaption && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      AI Caption: {selectedCaption}
+                    </p>
+                  )}
                 </div>
               )}
 
-              {/* No Caption Selected Message */}
-              {!selectedCaption && !activeImageId && (
+              {/* No Image Uploaded Message */}
+              {!activeImageId && !displayCaption && (
                 <div className="text-center py-6 text-gray-500">
                   <p>Upload images to see the social media preview</p>
                 </div>
@@ -187,7 +453,7 @@ export function SocialPreviewColumn({
       </Card>
 
       {/* Action Buttons */}
-      {uploadedImages.length > 0 && selectedCaptions.length > 0 && (
+      {uploadedImages.length > 0 && displayCaption && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">What would you like to do?</CardTitle>
@@ -200,10 +466,7 @@ export function SocialPreviewColumn({
             <div className="space-y-3">
               {/* Post Now Button */}
               <Button
-                onClick={() => {
-                  // TODO: Implement direct posting functionality
-                  alert('Direct posting coming soon! This will post immediately to your connected social media accounts.');
-                }}
+                onClick={handlePostNow}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <svg
@@ -234,37 +497,11 @@ export function SocialPreviewColumn({
               
               {/* Schedule Button */}
               <Button
-                onClick={() => {
-                  if (selectedCaption) {
-                    handleSendToScheduler(selectedCaption, uploadedImages)
-                  }
-                }}
-                disabled={isSendingToScheduler}
-                className="w-full bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
+                onClick={openScheduleModal}
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
               >
-                {isSendingToScheduler ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Loading
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      className="w-5 h-5 mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2V7a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                    Schedule
-                  </>
-                )}
+                <Calendar className="w-5 h-5 mr-2" />
+                Schedule
               </Button>
             </div>
           </CardContent>
@@ -343,6 +580,144 @@ export function SocialPreviewColumn({
                 onClick={() => setShowSaveModal(false)}
                 variant="outline"
                 disabled={isSaving}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Schedule Post Modal */}
+      <Dialog open={showScheduleModal} onOpenChange={setShowScheduleModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Schedule Post
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="text-center py-2">
+              <span className="text-sm text-gray-600">When and where would you like to post this content?</span>
+            </div>
+
+            {/* Platform Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Platforms *
+              </label>
+              {isLoadingAccounts ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <span className="text-sm text-gray-500">Loading connected accounts...</span>
+                </div>
+              ) : connectedAccounts.length === 0 ? (
+                <div className="text-center py-4 text-gray-500">
+                  <p className="text-sm">No connected accounts found.</p>
+                  <p className="text-xs mt-1">Please connect your social media accounts first.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {connectedAccounts.map((account) => (
+                    <button
+                      key={account._id}
+                      onClick={() => {
+                        const newSelected = new Set(selectedPlatforms)
+                        if (newSelected.has(account.platform)) {
+                          newSelected.delete(account.platform)
+                        } else {
+                          newSelected.add(account.platform)
+                        }
+                        setSelectedPlatforms(newSelected)
+                      }}
+                      className={`p-3 rounded-lg border-2 transition-all text-left ${
+                        selectedPlatforms.has(account.platform)
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-sm capitalize">{account.platform}</div>
+                          <div className="text-xs text-gray-500">{account.name}</div>
+                        </div>
+                        {selectedPlatforms.has(account.platform) && (
+                          <Check className="w-4 h-4 text-blue-600" />
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Date Input */}
+            <div>
+              <label htmlFor="scheduleDate" className="block text-sm font-medium text-gray-700 mb-1">
+                Date
+              </label>
+              <Input
+                id="scheduleDate"
+                type="date"
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                className="w-full"
+                min={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+
+            {/* Time Input */}
+            <div>
+              <label htmlFor="scheduleTime" className="block text-sm font-medium text-gray-700 mb-1">
+                Time
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  id="scheduleTime"
+                  type="text"
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                  placeholder="12:00 PM"
+                  className="flex-1"
+                />
+                <div className="text-sm text-gray-500 flex items-center">
+                  <Clock className="w-4 h-4 mr-1" />
+                  Format: 12:00 PM
+                </div>
+              </div>
+            </div>
+
+            {scheduleError && (
+              <div className="text-red-600 text-sm bg-red-50 p-2 rounded">
+                {scheduleError}
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                onClick={handleSchedulePost}
+                disabled={isScheduling || selectedPlatforms.size === 0}
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50"
+              >
+                {isScheduling ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Scheduling...
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Schedule Post
+                  </>
+                )}
+              </Button>
+              
+              <Button
+                onClick={() => setShowScheduleModal(false)}
+                variant="outline"
+                disabled={isScheduling}
               >
                 <X className="w-4 h-4" />
               </Button>

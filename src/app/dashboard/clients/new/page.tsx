@@ -12,7 +12,6 @@ import Link from "next/link";
 export default function NewClientPage() {
   const [formData, setFormData] = useState({
     name: "",
-    description: "",
     company_description: "",
     website_url: "",
     brand_tone: "",
@@ -98,47 +97,71 @@ export default function NewClientPage() {
 
     setScraping(true);
     try {
-      // First, scrape the website
-      const scrapeResponse = await fetch(`/api/clients/temp/scrape-website`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: formData.website_url })
+      // Perform the actual web scraping (same logic as client dashboard)
+      console.log('🔍 Fetching website content...');
+      const response = await fetch(formData.website_url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; ContentFlow/1.0)'
+        }
       });
 
-      if (!scrapeResponse.ok) {
-        throw new Error('Failed to scrape website');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const scrapeData = await scrapeResponse.json();
+      const html = await response.text();
       
-      if (scrapeData.success && scrapeData.data && scrapeData.data.id) {
-        // Now analyze the scraped content with AI
-        const analysisResponse = await fetch(`/api/clients/temp/analyze-website`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scrapeId: scrapeData.data.id })
-        });
+      // Extract basic information using regex (same as client dashboard)
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      const metaDescMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
+      
+      const pageTitle = titleMatch ? titleMatch[1].trim() : '';
+      const metaDescription = metaDescMatch ? metaDescMatch[1].trim() : '';
+      
+      // Extract text content (remove HTML tags) - same as client dashboard
+      const textContent = html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove scripts
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove styles
+        .replace(/<[^>]+>/g, ' ') // Remove HTML tags
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim()
+        .substring(0, 5000); // Limit to first 5000 characters
 
-        if (analysisResponse.ok) {
-          const analysisData = await analysisResponse.json();
-          
-          // Auto-fill the form fields with AI analysis results (only the 4 essential fields)
-          setFormData(prev => ({
-            ...prev,
-            company_description: analysisData.analysis.company_description,
-            target_audience: analysisData.analysis.target_audience,
-            value_proposition: analysisData.analysis.value_proposition,
-            brand_tone: analysisData.analysis.brand_tone
-          }));
+      // Prepare content for AI analysis (same as client dashboard)
+      const contentForAnalysis = `
+Website: ${formData.website_url}
+Title: ${pageTitle}
+Meta Description: ${metaDescription}
+Content: ${textContent}
+      `.trim();
 
-          setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully!' });
-          setTimeout(() => setMessage(null), 3000);
-        } else {
-          throw new Error('Failed to analyze website content');
-        }
-      } else {
-        throw new Error('No scrape data received');
+      // AI Analysis using API route (same as client dashboard)
+      const analysisResponse = await fetch('/api/analyze-website-temp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: contentForAnalysis })
+      });
+
+      if (!analysisResponse.ok) {
+        throw new Error('Failed to analyze website content');
       }
+
+      const analysisData = await analysisResponse.json();
+      
+           // Auto-fill the form fields with AI analysis results (including company name)
+           setFormData(prev => ({
+             ...prev,
+             name: analysisData.analysis.company_name,
+             company_description: analysisData.analysis.company_description,
+             target_audience: analysisData.analysis.target_audience,
+             value_proposition: analysisData.analysis.value_proposition,
+             brand_tone: analysisData.analysis.brand_tone
+           }));
+
+      setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully!' });
+      setTimeout(() => setMessage(null), 3000);
+
     } catch (error) {
       setMessage({ type: 'error', text: `Failed to process website: ${error instanceof Error ? error.message : 'Unknown error'}` });
       setTimeout(() => setMessage(null), 3000);
@@ -146,6 +169,7 @@ export default function NewClientPage() {
       setScraping(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -258,23 +282,6 @@ export default function NewClientPage() {
                 )}
               </div>
 
-              {/* Client Description Field */}
-              <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => handleInputChange("description", e.target.value)}
-                  placeholder="Enter client description (optional)"
-                  rows={4}
-                  disabled={loading}
-                />
-                <p className="text-gray-500 text-sm mt-1">
-                  Brief description of the client or their business
-                </p>
-              </div>
 
               {/* Brand Information Section */}
               <div className="border-t pt-6">

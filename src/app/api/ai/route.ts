@@ -20,7 +20,7 @@ async function getBrandContext(clientId: string) {
     // Get client brand information
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('company_description, website_url, brand_tone, target_audience, value_proposition, caption_dos, caption_donts')
+      .select('company_description, website_url, brand_tone, target_audience, value_proposition, caption_dos, caption_donts, brand_voice_examples')
       .eq('id', clientId)
       .single();
     
@@ -63,6 +63,7 @@ async function getBrandContext(clientId: string) {
       value_proposition: client.value_proposition,
       dos: client.caption_dos,
       donts: client.caption_donts,
+      voice_examples: client.brand_voice_examples,
       documents: documents || [],
       website: scrapes?.[0] || null
     };
@@ -213,9 +214,32 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
         }
     }
 
+    // Build brand context section
+    let brandContextSection = '';
+    if (brandContext) {
+      brandContextSection = `
+🎨 BRAND CONTEXT (ESSENTIAL FOR ALL CAPTIONS):
+${brandContext.company ? `💼 COMPANY: ${brandContext.company}` : ''}
+${brandContext.tone ? `🎭 BRAND TONE: ${brandContext.tone}` : ''}
+${brandContext.audience ? `👥 TARGET AUDIENCE: ${brandContext.audience}` : ''}
+${brandContext.value_proposition ? `🎯 VALUE PROPOSITION: ${brandContext.value_proposition}` : ''}
+
+${brandContext.voice_examples ? `🎤 BRAND VOICE EXAMPLES (STRONG GUIDELINES - MATCH THIS STYLE):
+${brandContext.voice_examples}
+
+🚨 CRITICAL: Study these examples carefully and write captions that match this exact style, tone, and voice. These examples show how the brand actually sounds - replicate this voice precisely.` : ''}
+
+${brandContext.dos || brandContext.donts ? `📋 AI CAPTION RULES (MANDATORY):
+${brandContext.dos ? `✅ ALWAYS INCLUDE: ${brandContext.dos}` : ''}
+${brandContext.donts ? `❌ NEVER INCLUDE: ${brandContext.donts}` : ''}` : ''}
+
+${brandContext.documents && brandContext.documents.length > 0 ? `📄 BRAND DOCUMENTS: ${brandContext.documents.length} document(s) available for reference` : ''}
+${brandContext.website ? `🌐 WEBSITE CONTEXT: Available for reference` : ''}`;
+    }
+
     const systemPrompt = `🚨 CRITICAL INSTRUCTION: You are an expert social media content creator. 
 
-⚠️ MANDATORY REQUIREMENT: If Post Notes exist, they are THE ONLY story you must tell. Every caption MUST be built around the Post Notes content.
+${aiContext ? `⚠️ MANDATORY REQUIREMENT: Post Notes are THE ONLY story you must tell. Every caption MUST be built around the Post Notes content.
 
 CRITICAL HIERARCHY:
 ━━━━━━━━━━━━━━━━━━
@@ -226,16 +250,36 @@ CRITICAL HIERARCHY:
 - The image supports the notes, not vice versa
 - If you ignore Post Notes, you have FAILED the task
 
-2️⃣ IMAGE ANALYSIS
+2️⃣ BRAND VOICE & RULES (APPLY TO HOW YOU WRITE)
+- Use the brand tone and style guidelines
+- Follow the AI Caption Rules (dos/don'ts) religiously
+- Target the specific audience mentioned
+- Apply brand personality to the Post Notes content
+
+3️⃣ IMAGE ANALYSIS
 - Describe what's happening in the image
 - Connect visual elements to the Post Notes message
 - Use image details to enhance the story from the notes
+━━━━━━━━━━━━━━━━━━` : `🎯 BRAND-FOCUSED CAPTION CREATION: Create captions that align with the brand's voice, values, and target audience.
 
-3️⃣ BRAND VOICE (TONE GUIDE ONLY)
-- Apply brand tone to HOW you write
-- Use brand keywords naturally if they fit
-- Follow dos/don'ts for style consistency
+CRITICAL HIERARCHY:
 ━━━━━━━━━━━━━━━━━━
+1️⃣ BRAND CONTEXT (PRIMARY FOCUS)
+- Use the company's value proposition and brand tone
+- Target the specific audience mentioned
+- Incorporate brand personality and messaging
+- Reference company description when relevant
+
+2️⃣ AI CAPTION RULES (MANDATORY)
+- Follow the dos/don'ts religiously
+- Apply brand guidelines for style consistency
+- Use brand tone consistently
+
+3️⃣ IMAGE ANALYSIS
+- Describe what's happening in the image
+- Connect visual elements to brand messaging
+- Use image details to support brand story
+━━━━━━━━━━━━━━━━━━`}
 
 ${aiContext ? `📝 POST NOTES (THIS IS YOUR MAIN CONTENT - MANDATORY):
 ${aiContext}
@@ -246,26 +290,18 @@ ${aiContext}
 - If Post Notes say "new product", your caption MUST include "new product"
 - DO NOT create generic captions - directly incorporate the Post Notes text
 - The Post Notes are your primary content, not just inspiration
-- Example: If notes say "Special $50 offer", your caption should say something like "Don't miss our special $50 offer!" or "Get this amazing deal for just $50!"` : '⚠️ No Post Notes provided - analyze the image and create captions based on what you see.'}
+- Example: If notes say "Special $50 offer", your caption should say something like "Don't miss our special $50 offer!" or "Get this amazing deal for just $50!"` : ''}
 
-${brandContext ? `🎨 BRAND VOICE GUIDELINES:
-Company: ${brandContext.company || 'Not specified'}
-Tone: ${brandContext.tone || 'Professional and approachable'}
-Audience: ${brandContext.audience || 'General audience'}
-Value Proposition: ${brandContext.value_proposition || 'Not specified'}` : ''}
-
-${brandContext?.dos || brandContext?.donts ? `📋 STYLE RULES:
-${brandContext.dos ? `✅ ALWAYS: ${brandContext.dos}` : ''}
-${brandContext.donts ? `❌ NEVER: ${brandContext.donts}` : ''}` : ''}
+${brandContextSection}
 
 OUTPUT REQUIREMENTS:
 - Generate exactly 3 captions
-- Each caption should take a different angle while maintaining the Post Notes message
+- Each caption should take a different angle while ${aiContext ? 'maintaining the Post Notes message' : 'showcasing different aspects of the brand'}
 - Vary length: one short (1-2 lines), one medium (3-4 lines), one longer (5-6 lines)
 - Natural, conversational tone based on brand guidelines
-- If Post Notes are empty, focus on the image content
+- ${aiContext ? 'Always incorporate Post Notes content' : 'Always incorporate brand context and speak to the target audience'}
 
-🚨 FINAL CHECK: Before submitting, verify that EVERY caption directly mentions or incorporates your Post Notes content. If you created generic captions, you have failed the task.
+${aiContext ? '🚨 FINAL CHECK: Before submitting, verify that EVERY caption directly mentions or incorporates your Post Notes content AND follows the brand guidelines. If you created generic captions, you have failed the task.' : '🚨 FINAL CHECK: Before submitting, verify that EVERY caption reflects the brand tone, speaks to the target audience, and incorporates brand context. Generic captions are not acceptable.'}
 
 Provide only the 3 captions, separated by blank lines. No introduction or explanation.`;
 
@@ -403,6 +439,11 @@ ${aiContext}
     - Brand Tone: ${brandContext.tone || 'Not specified'}
     - Target Audience: ${brandContext.audience || 'Not specified'}
     - Value Proposition: ${brandContext.value_proposition || 'Not specified'}
+    
+    ${brandContext.voice_examples ? `🎤 BRAND VOICE EXAMPLES (MATCH THIS STYLE):
+    ${brandContext.voice_examples}
+    
+    🚨 CRITICAL: Study these examples and ensure your variation matches this exact style and voice.` : ''}
     
     Use this brand context to ensure your variation matches the company's voice and style.` : ''}
     

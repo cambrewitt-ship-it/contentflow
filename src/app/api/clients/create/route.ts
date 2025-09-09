@@ -9,7 +9,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { 
       name, 
-      description, 
       company_description, 
       website_url, 
       brand_tone, 
@@ -37,7 +36,6 @@ export async function POST(req: NextRequest) {
       .insert([
         {
           name: name.trim(),
-          description: description?.trim() || null,
           company_description: company_description?.trim() || null,
           website_url: website_url?.trim() || null,
           brand_tone: brand_tone || null,

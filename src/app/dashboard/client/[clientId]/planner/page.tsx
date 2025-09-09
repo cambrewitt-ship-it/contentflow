@@ -1724,7 +1724,7 @@ export default function PlannerPage() {
                           </p>
                         </div>
                         
-                        <div className="p-2 space-y-3 max-h-96 overflow-y-auto">
+                        <div className="p-2 space-y-3">
                           {weekPosts.length === 0 ? (
                             <div className="text-center text-gray-500 text-sm py-4">
                               No posts scheduled

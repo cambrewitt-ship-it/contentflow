@@ -36,6 +36,7 @@ export interface Client {
   value_proposition?: string;
   caption_dos?: string;
   caption_donts?: string;
+  brand_voice_examples?: string;
   founded_date?: string;
   late_profile_id?: string;
   created_at: string;
@@ -143,6 +144,7 @@ export interface ClientFormData {
   brand_keywords?: string;
   caption_dos?: string;
   caption_donts?: string;
+  brand_voice_examples?: string;
 }
 
 // LATE API Types
