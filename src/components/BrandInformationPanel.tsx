@@ -386,7 +386,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                 <Textarea
                   value={formData.brand_voice_examples}
                   onChange={(e) => handleInputChange('brand_voice_examples', e.target.value)}
-                  placeholder="Paste examples of your brand's voice from website content, social media posts, or brand documents. These will help AI understand your writing style and tone."
+                  placeholder="Paste examples of your brand&apos;s voice from website content, social media posts, or brand documents. These will help AI understand your writing style and tone."
                   rows={4}
                   className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
                 />
