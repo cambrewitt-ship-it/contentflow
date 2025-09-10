@@ -471,9 +471,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                       </svg>
                       <span>{website || 'No website set'}</span>
                     </div>
-                    <span className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">
-                      {client?.industry || 'Technology'}
-                    </span>
                   </div>
                 </div>
               </div>

@@ -52,6 +52,10 @@ export default function ContentSuitePage({ params }: PageProps) {
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsLoading, setProjectsLoading] = useState(false)
   const [addingToProject, setAddingToProject] = useState<string | null>(null)
+  const [showNewProjectForm, setShowNewProjectForm] = useState(false)
+  const [newProjectName, setNewProjectName] = useState("")
+  const [newProjectDescription, setNewProjectDescription] = useState("")
+  const [creatingProject, setCreatingProject] = useState(false)
 
   // Fetch projects for the client
   useEffect(() => {
@@ -85,6 +89,46 @@ export default function ContentSuitePage({ params }: PageProps) {
     }
   }, [clientId])
 
+  // Create new project
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) return;
+    
+    try {
+      setCreatingProject(true)
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          name: newProjectName.trim(),
+          description: newProjectDescription.trim()
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to create project: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      if (data.success) {
+        setProjects(prev => [data.project, ...prev])
+        setNewProjectName("")
+        setNewProjectDescription("")
+        setShowNewProjectForm(false)
+        console.log('✅ Project created successfully:', data.project)
+      } else {
+        throw new Error(data.error || 'Failed to create project')
+      }
+    } catch (err) {
+      console.error('❌ Error creating project:', err)
+      alert(`Failed to create project: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setCreatingProject(false)
+    }
+  }
+
   const handleSendToScheduler = async (
     selectedCaption: string,
     uploadedImages: { preview: string; id: string; file?: File }[]
@@ -111,6 +155,14 @@ export default function ContentSuitePage({ params }: PageProps) {
         isSendingToScheduler={isSendingToScheduler}
         addingToProject={addingToProject}
         setAddingToProject={setAddingToProject}
+        showNewProjectForm={showNewProjectForm}
+        setShowNewProjectForm={setShowNewProjectForm}
+        newProjectName={newProjectName}
+        setNewProjectName={setNewProjectName}
+        newProjectDescription={newProjectDescription}
+        setNewProjectDescription={setNewProjectDescription}
+        creatingProject={creatingProject}
+        handleCreateProject={handleCreateProject}
       />
     </ContentStoreProvider>
   )
@@ -125,7 +177,15 @@ function ContentSuiteContent({
   handleSendToScheduler,
   isSendingToScheduler,
   addingToProject,
-  setAddingToProject
+  setAddingToProject,
+  showNewProjectForm,
+  setShowNewProjectForm,
+  newProjectName,
+  setNewProjectName,
+  newProjectDescription,
+  setNewProjectDescription,
+  creatingProject,
+  handleCreateProject
 }: {
   clientId: string
   projects: Project[]
@@ -135,6 +195,14 @@ function ContentSuiteContent({
   isSendingToScheduler: boolean
   addingToProject: string | null
   setAddingToProject: (projectId: string | null) => void
+  showNewProjectForm: boolean
+  setShowNewProjectForm: (show: boolean) => void
+  newProjectName: string
+  setNewProjectName: (name: string) => void
+  newProjectDescription: string
+  setNewProjectDescription: (description: string) => void
+  creatingProject: boolean
+  handleCreateProject: () => void
 }) {
   const { uploadedImages, captions, selectedCaptions, postNotes, activeImageId, clearAll } = useContentStore()
 
@@ -334,13 +402,73 @@ function ContentSuiteContent({
               <div className="text-center py-8 text-gray-500">
                 <FolderOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                 <p className="text-sm">No projects yet</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Save your first content to create a project
+                <p className="text-xs text-gray-400 mt-1 mb-4">
+                  Create your first project to get started
                 </p>
+                <Button
+                  onClick={() => setShowNewProjectForm(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Project
+                </Button>
               </div>
             )}
           </div>
         </div>
+
+        {/* New Project Form */}
+        {showNewProjectForm && (
+          <div className="mb-8">
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Create New Project</h2>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowNewProjectForm(false)
+                    setNewProjectName("")
+                    setNewProjectDescription("")
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Project Name *
+                  </label>
+                  <Input
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="Enter project name..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <Textarea
+                    value={newProjectDescription}
+                    onChange={(e) => setNewProjectDescription(e.target.value)}
+                    placeholder="Enter project description..."
+                    rows={3}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleCreateProject}
+                    disabled={!newProjectName.trim() || creatingProject}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {creatingProject ? 'Creating...' : 'Create Project'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Column 1: Image Upload */}
