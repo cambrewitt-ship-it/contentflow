@@ -64,6 +64,7 @@ export async function PUT(
 
     // Prepare update data (only include fields that are provided)
     const updateData: {
+      name?: string;
       company_description?: string;
       website_url?: string;
       brand_tone?: string;
@@ -73,9 +74,11 @@ export async function PUT(
       caption_dos?: string;
       caption_donts?: string;
       brand_voice_examples?: string;
+      value_proposition?: string;
       updated_at?: string;
     } = {};
     
+    if (body.name !== undefined) updateData.name = body.name;
     if (body.company_description !== undefined) updateData.company_description = body.company_description;
     if (body.website_url !== undefined) updateData.website_url = body.website_url;
     if (body.brand_tone !== undefined) updateData.brand_tone = body.brand_tone;
@@ -85,6 +88,7 @@ export async function PUT(
     if (body.caption_dos !== undefined) updateData.caption_dos = body.caption_dos;
     if (body.caption_donts !== undefined) updateData.caption_donts = body.caption_donts;
     if (body.brand_voice_examples !== undefined) updateData.brand_voice_examples = body.brand_voice_examples;
+    if (body.value_proposition !== undefined) updateData.value_proposition = body.value_proposition;
     
     // Add updated_at timestamp
     updateData.updated_at = new Date().toISOString();

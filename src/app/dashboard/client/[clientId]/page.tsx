@@ -150,6 +150,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     try {
       const response = await fetch(`/api/late/get-accounts/${clientId}`);
       if (!response.ok) {
+        if (response.status === 404) {
+          console.log('Client not found or no LATE profile setup - skipping connected accounts');
+          setConnectedAccounts([]);
+          return;
+        }
         throw new Error(`Failed to fetch accounts: ${response.status}`);
       }
       const data = await response.json();
@@ -157,6 +162,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       console.log('Connected accounts count:', data.accounts?.length || 0);
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      // Don't crash the dashboard if accounts can't be fetched
+      setConnectedAccounts([]);
     }
   };
 

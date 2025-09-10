@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,20 +12,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Scrape ID is required' }, { status: 400 });
     }
 
-    console.log('🤖 Starting AI analysis for temporary scrape:', scrapeId);
+    console.log('🤖 Starting temporary AI analysis for scrape:', scrapeId);
 
-    // For temporary analysis, we'll use the scrape data directly from the request
-    // In a real implementation, you might want to store this temporarily
-    const scrapeData = {
-      url: 'temp-url',
-      page_title: 'Temporary Analysis',
-      meta_description: 'Temporary description',
-      scraped_content: 'This is temporary content for analysis'
-    };
+    // Create Supabase client
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    console.log('📄 Analyzing temporary website content');
+    // Fetch the scraped website content (allow any client_id for temp scrapes)
+    const { data: scrapeData, error: fetchError } = await supabase
+      .from('website_scrapes')
+      .select('*')
+      .eq('id', scrapeId)
+      .eq('scrape_status', 'completed')
+      .single();
 
-    // Prepare content for AI analysis
+    if (fetchError || !scrapeData) {
+      console.error('❌ Failed to fetch scrape data:', fetchError);
+      return NextResponse.json({ 
+        error: 'Failed to fetch scrape data', 
+        details: fetchError?.message || 'Scrape not found' 
+      }, { status: 404 });
+    }
+
+    console.log('📄 Analyzing website content for:', scrapeData.url);
+
+    // Prepare content for AI analysis (same as working version)
     const contentForAnalysis = `
 Website: ${scrapeData.url}
 Title: ${scrapeData.page_title || ''}
@@ -29,7 +43,7 @@ Meta Description: ${scrapeData.meta_description || ''}
 Content: ${scrapeData.scraped_content || ''}
     `.trim();
 
-    // AI Analysis using OpenAI
+    // AI Analysis using OpenAI (same as working version)
     const analysisResult = await analyzeWebsiteContent(contentForAnalysis);
 
     console.log('✅ AI analysis completed successfully');
@@ -39,7 +53,7 @@ Content: ${scrapeData.scraped_content || ''}
       analysis: analysisResult,
       source: {
         url: scrapeData.url,
-        scrapeId: scrapeId,
+        scrapeId: scrapeData.id,
         analyzedAt: new Date().toISOString()
       }
     });
@@ -66,16 +80,17 @@ async function analyzeWebsiteContent(content: string) {
         messages: [
           {
             role: 'system',
-            content: `You are an expert business analyst. Analyze the provided website content and extract ONLY the 4 essential brand information fields. Return ONLY a valid JSON object with the following structure:
+            content: `You are an expert business analyst. Analyze the provided website content and extract the 5 essential brand information fields. Return ONLY a valid JSON object with the following structure:
 
 {
+  "company_name": "The official company/business name (e.g., 'Acme Corp', 'TechStart Inc', 'Local Bakery')",
   "company_description": "2-3 sentence description of what the company does and their mission",
   "value_proposition": "Their unique selling point or main benefit they provide to customers",
   "brand_tone": "Detected writing style (professional, casual, playful, authoritative, innovative, etc.)",
   "target_audience": "Who they serve (e.g., 'SMB owners', 'Gen Z consumers', 'Enterprise clients')"
 }
 
-Be concise and accurate. If information is unclear, use reasonable inference based on the content. Focus only on these 4 fields - do not extract any other information.`
+Be concise and accurate. If information is unclear, use reasonable inference based on the content. Focus only on these 5 fields - do not extract any other information.`
           },
           {
             role: 'user',
@@ -114,7 +129,7 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
     }
     
     // Validate the structure
-    const requiredFields = ['company_description', 'value_proposition', 'brand_tone', 'target_audience'];
+    const requiredFields = ['company_name', 'company_description', 'value_proposition', 'brand_tone', 'target_audience'];
     for (const field of requiredFields) {
       if (!analysis[field]) {
         throw new Error(`Missing required field: ${field}`);

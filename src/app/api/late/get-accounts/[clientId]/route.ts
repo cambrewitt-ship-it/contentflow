@@ -27,6 +27,13 @@ export async function GET(
     }
     
     const profileId = client.late_profile_id;
+    
+    // If no LATE profile ID, return empty accounts array
+    if (!profileId) {
+      console.log('No LATE profile ID for client - returning empty accounts');
+      return NextResponse.json({ accounts: [] });
+    }
+    
     console.log('Using LATE profile ID:', profileId);
     
     // Get connected accounts from LATE API

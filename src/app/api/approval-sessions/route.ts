@@ -55,7 +55,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const share_url = `https://contentflow-v2-6lnmoc60j-cambrewitt-6402s-projects.vercel.app/approval/${share_token}`;
+    // Use ngrok URL for local development, Vercel URL for production
+    const baseUrl = process.env.NODE_ENV === 'development' 
+      ? 'https://contentmanager.ngrok.app'
+      : 'https://contentflow-v2-6lnmoc60j-cambrewitt-6402s-projects.vercel.app';
+    
+    const share_url = `${baseUrl}/approval/${share_token}`;
 
     return NextResponse.json({
       session,

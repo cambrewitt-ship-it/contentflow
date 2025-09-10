@@ -24,6 +24,28 @@ export async function POST(request: NextRequest) {
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
+    // Create a temporary scrape record with a temporary client_id
+    const tempClientId = 'temp-' + Date.now(); // Generate a temporary client ID
+    const { data: scrapeRecord, error: createError } = await supabase
+      .from('website_scrapes')
+      .insert([
+        {
+          client_id: tempClientId,
+          url: url,
+          scrape_status: 'pending'
+        }
+      ])
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('❌ Failed to create scrape record:', createError);
+      return NextResponse.json({ 
+        error: 'Failed to create scrape record', 
+        details: createError.message 
+      }, { status: 500 });
+    }
+
     try {
       // Perform the actual web scraping
       console.log('🔍 Fetching website content...');
@@ -40,14 +62,14 @@ export async function POST(request: NextRequest) {
 
       const html = await response.text();
       
-      // Extract basic information using regex (simple approach)
+      // Extract basic information using regex (same as working version)
       const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
       const metaDescMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
       
       const pageTitle = titleMatch ? titleMatch[1].trim() : '';
       const metaDescription = metaDescMatch ? metaDescMatch[1].trim() : '';
       
-      // Extract text content (remove HTML tags)
+      // Extract text content (remove HTML tags) - same as working version
       const textContent = html
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove scripts
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove styles
@@ -56,12 +78,30 @@ export async function POST(request: NextRequest) {
         .trim()
         .substring(0, 5000); // Limit to first 5000 characters
 
-      console.log('✅ Temporary website scrape completed successfully');
+      // Update the scrape record with results
+      const { error: updateError } = await supabase
+        .from('website_scrapes')
+        .update({
+          scraped_content: textContent,
+          meta_description: metaDescription,
+          page_title: pageTitle,
+          scrape_status: 'completed',
+          scraped_at: new Date().toISOString()
+        })
+        .eq('id', scrapeRecord.id);
+
+      if (updateError) {
+        console.error('❌ Failed to update scrape record:', updateError);
+        throw updateError;
+      }
+
+      console.log('✅ Website scrape completed successfully');
 
       return NextResponse.json({
         success: true,
+        scraped: true,
         data: {
-          id: 'temp-' + Date.now(), // Temporary ID
+          id: scrapeRecord.id,
           url: url,
           page_title: pageTitle,
           meta_description: metaDescription,
@@ -74,6 +114,15 @@ export async function POST(request: NextRequest) {
     } catch (scrapeError) {
       console.error('❌ Website scraping failed:', scrapeError);
       
+      // Update scrape record with error
+      await supabase
+        .from('website_scrapes')
+        .update({
+          scrape_status: 'failed',
+          scrape_error: scrapeError instanceof Error ? scrapeError.message : String(scrapeError)
+        })
+        .eq('id', scrapeRecord.id);
+
       return NextResponse.json({ 
         error: 'Website scraping failed', 
         details: scrapeError instanceof Error ? scrapeError.message : String(scrapeError)

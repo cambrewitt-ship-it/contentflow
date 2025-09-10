@@ -44,16 +44,18 @@ export default function Dashboard() {
           <p>• Schedule posts across all platforms</p>
         </div>
         
-        {/* Create New Client Button */}
-        <Link href="/dashboard/clients/new">
-          <Button className={getThemeClasses(
-            "w-full",
-            "w-full glass-button glass-button-primary"
-          )}>
-            <Plus className="w-4 h-4 mr-2" />
-            Create New Client
-          </Button>
-        </Link>
+        {/* Create New Client V2 Button */}
+        <div className="mb-12">
+          <Link href="/dashboard/clients/new-v2">
+            <Button className={getThemeClasses(
+              "w-full",
+              "w-full glass-button glass-button-primary"
+            )}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create New Client
+            </Button>
+          </Link>
+        </div>
         
         {/* UI Theme Toggle */}
         <div className="mt-8">

@@ -44,17 +44,17 @@ const LazyApprovalImage = ({ src, alt, className }: { src: string; alt: string; 
             src={src}
             alt={alt}
             onLoad={() => setIsLoaded(true)}
-            className={`w-full h-full object-cover rounded-lg transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+            className={`w-full h-auto max-h-96 object-contain rounded-lg transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
           />
           {!isLoaded && (
-            <div className="absolute inset-0 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
+            <div className="w-full h-48 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
               <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
             </div>
           )}
         </>
       )}
       {!isInView && (
-        <div className="w-full h-full bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
+        <div className="w-full h-48 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
           <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
         </div>
       )}
@@ -343,7 +343,7 @@ export default function PublicApprovalPage() {
                         }`}>
                           {status === 'approved' ? '✓ Approved' :
                            status === 'rejected' ? '✗ Rejected' :
-                           '⚠ Needs Changes'}
+                           '⚠ Improve'}
                         </span>
                         <span className="text-gray-600">
                           {post.scheduled_date && new Date(post.scheduled_date).toLocaleDateString('en-GB', {
@@ -442,7 +442,7 @@ export default function PublicApprovalPage() {
                               }`}
                             >
                               <AlertTriangle className="w-3 h-3" />
-                              Needs Changes
+                              Improve
                             </Button>
                             
                             <Button
@@ -463,11 +463,11 @@ export default function PublicApprovalPage() {
 
                         {/* Image */}
                         {post.image_url && (
-                          <div className="relative w-full h-40 mb-3">
+                          <div className="relative w-full mb-3">
                             <LazyApprovalImage
                               src={post.image_url}
                               alt="Post"
-                              className="w-full h-40"
+                              className="w-full h-auto max-h-96 object-contain"
                             />
                           </div>
                         )}

@@ -8,7 +8,6 @@ import { Button } from "components/ui/button";
 import { Badge } from "components/ui/badge";
 import { 
   Users, 
-  Plus, 
   Home, 
   Loader2,
   AlertCircle
@@ -152,17 +151,8 @@ export default function Sidebar() {
           )}>Clients</h2>
         </div>
         
-        {/* Create New Client Button */}
-        <div className="flex gap-2">
-          <Link href="/dashboard/clients/new" className="flex-1">
-            <Button size="sm" className={getThemeClasses(
-              "w-full",
-              "w-full glass-button glass-button-primary"
-            )}>
-              <Plus className="w-4 h-4 mr-2" />
-              New Client
-            </Button>
-          </Link>
+        {/* Refresh Button */}
+        <div className="flex justify-end">
           <Button 
             size="sm" 
             variant="outline" 

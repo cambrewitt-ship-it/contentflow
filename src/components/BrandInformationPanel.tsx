@@ -257,6 +257,25 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Client Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Client Name *
+            </label>
+            {isEditing ? (
+              <Input
+                value={client?.name || ''}
+                onChange={(e) => onUpdate({ ...client, name: e.target.value })}
+                placeholder="Enter client name"
+                className="font-medium"
+              />
+            ) : (
+              <p className="text-gray-900 bg-gray-50 p-3 rounded-md font-medium">
+                {client?.name || 'No client name specified'}
+              </p>
+            )}
+          </div>
+
           {/* Website URL */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -309,33 +328,6 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
             )}
           </div>
 
-          {/* Brand Tone */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Brand Tone
-            </label>
-            {isEditing ? (
-              <select
-                value={formData.brand_tone}
-                onChange={(e) => handleInputChange('brand_tone', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Select brand tone</option>
-                <option value="professional">Professional</option>
-                <option value="casual">Casual</option>
-                <option value="friendly">Friendly</option>
-                <option value="luxury">Luxury</option>
-                <option value="innovative">Innovative</option>
-                <option value="trustworthy">Trustworthy</option>
-                <option value="creative">Creative</option>
-                <option value="authoritative">Authoritative</option>
-              </select>
-            ) : (
-              <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
-                {client?.brand_tone || 'No brand tone specified'}
-              </p>
-            )}
-          </div>
 
           {/* Target Audience */}
           <div>
@@ -376,37 +368,6 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
             )}
           </div>
 
-          {/* Brand Voice Examples */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Brand Voice Examples
-            </label>
-            {isEditing ? (
-              <div>
-                <Textarea
-                  value={formData.brand_voice_examples}
-                  onChange={(e) => handleInputChange('brand_voice_examples', e.target.value)}
-                  placeholder="Paste examples of your brand&apos;s voice from website content, social media posts, or brand documents. These will help AI understand your writing style and tone."
-                  rows={4}
-                  className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
-                />
-                <p className="text-blue-600 text-sm mt-1">
-                  💡 Include snippets from your website, social media, or brand documents that show how your brand should sound
-                </p>
-              </div>
-            ) : (
-              <div>
-                <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
-                  {client?.brand_voice_examples || 'No brand voice examples provided'}
-                </p>
-                {client?.brand_voice_examples && (
-                  <p className="text-blue-600 text-sm mt-1">
-                    These examples will guide AI caption generation to match your brand&apos;s voice
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
 
         </CardContent>
       </Card>
@@ -502,6 +463,38 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                 What the AI MUST NOT include in captions
               </p>
             </div>
+          </div>
+
+          {/* Brand Voice Examples */}
+          <div className="border-t border-gray-200 pt-6 mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Brand Voice Examples
+            </label>
+            {isEditing ? (
+              <div>
+                <Textarea
+                  value={formData.brand_voice_examples}
+                  onChange={(e) => handleInputChange('brand_voice_examples', e.target.value)}
+                  placeholder="Paste examples of your brand&apos;s voice from website content, social media posts, or brand documents. These will help AI understand your writing style and tone."
+                  rows={4}
+                  className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <p className="text-blue-600 text-sm mt-1">
+                  💡 Include snippets from your website, social media, or brand documents that show how your brand should sound
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
+                  {client?.brand_voice_examples || 'No brand voice examples provided'}
+                </p>
+                {client?.brand_voice_examples && (
+                  <p className="text-blue-600 text-sm mt-1">
+                    These examples will guide AI caption generation to match your brand&apos;s voice
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
