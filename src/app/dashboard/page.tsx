@@ -35,14 +35,6 @@ export default function Dashboard() {
         )}>
           Pick a client to get started with your social media management workflow.
         </p>
-        <div className={getThemeClasses(
-          "text-sm text-muted-foreground space-y-1 mb-8",
-          "text-sm glass-text-muted space-y-1 mb-8"
-        )}>
-          <p>• Upload content and generate AI captions</p>
-          <p>• Organize campaigns by client</p>
-          <p>• Schedule posts across all platforms</p>
-        </div>
         
         {/* Create New Client V2 Button */}
         <div className="mb-12">

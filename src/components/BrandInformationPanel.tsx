@@ -37,6 +37,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   
   const [formData, setFormData] = useState({
+    name: client?.name || '',
     company_description: client?.company_description || '',
     website_url: client?.website_url || '',
     brand_tone: client?.brand_tone || '',
@@ -47,10 +48,20 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
     brand_voice_examples: client?.brand_voice_examples || ''
   });
 
-  // Fetch brand documents and website scrapes
+  // Update formData when client prop changes
   useEffect(() => {
-    // Data is now passed as props, no need to refetch
-  }, [clientId]);
+    setFormData({
+      name: client?.name || '',
+      company_description: client?.company_description || '',
+      website_url: client?.website_url || '',
+      brand_tone: client?.brand_tone || '',
+      target_audience: client?.target_audience || '',
+      value_proposition: client?.value_proposition || '',
+      caption_dos: client?.caption_dos || '',
+      caption_donts: client?.caption_donts || '',
+      brand_voice_examples: client?.brand_voice_examples || ''
+    });
+  }, [client]);
 
   // Brand documents and website scrapes are now passed as props
 
@@ -264,8 +275,8 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
             </label>
             {isEditing ? (
               <Input
-                value={client?.name || ''}
-                onChange={(e) => onUpdate({ ...client, name: e.target.value })}
+                value={formData.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
                 placeholder="Enter client name"
                 className="font-medium"
               />
@@ -433,7 +444,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                 />
               ) : (
                 <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
-                  {client?.caption_dos || 'No Do&apos;s specified'}
+                  {client?.caption_dos || 'None specified'}
                 </p>
               )}
               <p className="text-green-600 text-sm mt-1">
@@ -456,7 +467,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                 />
               ) : (
                 <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
-                  {client?.caption_donts || 'No Don&apos;ts specified'}
+                  {client?.caption_donts || 'None specified'}
                 </p>
               )}
               <p className="text-red-600 text-sm mt-1">

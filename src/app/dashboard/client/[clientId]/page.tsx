@@ -481,7 +481,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             <Button 
               onClick={() => window.location.href = `/dashboard/client/${clientId}/content-suite`}
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white w-64 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
-              style={{ height: '190px' }}
+              style={{ height: '177px' }}
             >
               <Plus className="w-16 h-16 mb-4" />
               <span className="text-2xl font-bold">Create Content</span>

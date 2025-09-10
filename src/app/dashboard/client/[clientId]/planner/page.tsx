@@ -465,6 +465,16 @@ export default function PlannerPage() {
     return weeks;
   };
 
+  // Format week commencing date as "W/C 8th Sept"
+  const formatWeekCommencing = (weekStart: Date) => {
+    const day = weekStart.getDate();
+    const month = weekStart.toLocaleDateString('en-NZ', { month: 'short' });
+    const suffix = day === 1 || day === 21 || day === 31 ? 'st' : 
+                   day === 2 || day === 22 ? 'nd' : 
+                   day === 3 || day === 23 ? 'rd' : 'th';
+    return `W/C ${day}${suffix} ${month}`;
+  };
+
 
 
   const handleDragStart = (e: React.DragEvent, post: Post) => {
@@ -1395,7 +1405,7 @@ export default function PlannerPage() {
                   <div key={weekIndex} className="flex flex-col border rounded-lg bg-white w-64">
                     <div className="bg-gray-50 p-3 border-b">
                       <h3 className="font-semibold text-sm">
-                        Week {weekOffset + weekIndex + 1}
+                        {formatWeekCommencing(weekStart)}
                         {weekOffset + weekIndex === 0 && ' (Current)'}
                       </h3>
                       <p className="text-xs text-gray-600">
@@ -1686,7 +1696,7 @@ export default function PlannerPage() {
             </div>
             
             {/* Horizontal Kanban Calendar - Weekly Rows with Daily Columns */}
-            <div className="space-y-2">
+            <div className="space-y-4">
               {getWeeksToDisplay().map((weekStart, weekIndex) => {
                 const weekEnd = new Date(weekStart);
                 weekEnd.setDate(weekStart.getDate() + 6);
@@ -1714,7 +1724,7 @@ export default function PlannerPage() {
                     {/* Week Header */}
                     <div className="bg-gray-50 p-4 border-b">
                       <h3 className="font-semibold text-lg">
-                        Week {weekOffset + weekIndex + 1}
+                        {formatWeekCommencing(weekStart)}
                         {weekOffset + weekIndex === 0 && ' (Current)'}
                       </h3>
                       <p className="text-sm text-gray-600">
@@ -1723,114 +1733,90 @@ export default function PlannerPage() {
                       </p>
                     </div>
                     
-                    {/* Horizontal Scrollable Container - Max 1200px width with bottom scroll bar */}
-                    <div 
-                      className="w-full overflow-x-auto border-b border-gray-200" 
-                      style={{ 
-                        maxWidth: '1200px',
-                        scrollbarWidth: 'thin',
-                        scrollbarColor: '#9CA3AF #F3F4F6',
-                        scrollbarGutter: 'stable'
-                      }}
-                    >
-                      <div className="flex gap-4 p-4 pb-6" style={{ minWidth: 'fit-content' }}>
-                        {/* Post Cards - 300px wide, 450px tall */}
-                        {weekPosts.map((post) => (
-                          <div
-                            key={post.id}
-                            className="flex-shrink-0"
-                            style={{ width: '300px', height: '450px' }}
-                          >
-                            <div
-                              className={`border rounded-lg p-4 hover:shadow-sm transition-shadow h-full flex flex-col overflow-hidden ${
-                                post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
-                                post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
-                                post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
-                                'border-gray-200 bg-white'
-                              }`}
-                            >
-                              {/* Approval Status Badge */}
-                              <div className="flex items-center justify-between mb-3">
-                                <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                  post.approval_status === 'approved' ? 'bg-green-100 text-green-800' :
-                                  post.approval_status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                  post.approval_status === 'needs_attention' ? 'bg-orange-100 text-orange-800' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {post.approval_status === 'approved' && <Check className="w-3 h-3 mr-1" />}
-                                  {post.approval_status === 'rejected' && <X className="w-3 h-3 mr-1" />}
-                                  {post.approval_status === 'needs_attention' && <AlertTriangle className="w-3 h-3 mr-1" />}
-                                  {(!post.approval_status || post.approval_status === 'pending') && <Minus className="w-3 h-3 mr-1" />}
-                                  {post.approval_status === 'approved' ? 'Approved' :
-                                   post.approval_status === 'rejected' ? 'Rejected' :
-                                   post.approval_status === 'needs_attention' ? 'Needs Attention' : 'Pending'}
+                    {/* Horizontal Posts Queue */}
+                    <div className="w-full overflow-x-auto">
+                      <div className="flex space-x-4 p-4">
+                        {weekPosts.length === 0 ? (
+                          <div className="text-center text-gray-500 text-sm py-8 w-full">
+                            No posts scheduled for this week
+                          </div>
+                        ) : (
+                          weekPosts.map((post) => {
+                            // Get the date and day for this post
+                            const postDate = new Date(post.scheduled_date + 'T00:00:00');
+                            const dayName = postDate.toLocaleDateString('en-NZ', { weekday: 'long' });
+                            const dateStr = postDate.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' });
+                            
+                            return (
+                              <div
+                                key={post.id}
+                                className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow ${
+                                  post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
+                                  post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
+                                  post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
+                                  'border-gray-200 bg-white'
+                                }`}
+                              >
+                                {/* Post Title - Date and Day */}
+                                <div className="mb-3 pb-2 border-b border-gray-200">
+                                  <h4 className="font-semibold text-sm text-gray-900">{dayName}</h4>
+                                  <p className="text-xs text-gray-600">{dateStr}</p>
+                                </div>
+
+                                {/* Approval Status Badge */}
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                    post.approval_status === 'approved' ? 'bg-green-100 text-green-800' :
+                                    post.approval_status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                    post.approval_status === 'needs_attention' ? 'bg-orange-100 text-orange-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {post.approval_status === 'approved' && <Check className="w-3 h-3 mr-1" />}
+                                    {post.approval_status === 'rejected' && <X className="w-3 h-3 mr-1" />}
+                                    {post.approval_status === 'needs_attention' && <AlertTriangle className="w-3 h-3 mr-1" />}
+                                    {(!post.approval_status || post.approval_status === 'pending') && <Minus className="w-3 h-3 mr-1" />}
+                                    {post.approval_status === 'approved' ? '✓' :
+                                     post.approval_status === 'rejected' ? '✗' :
+                                     post.approval_status === 'needs_attention' ? '⚠' : '○'}
+                                  </div>
+                                  
+                                  {/* Client Feedback Indicator */}
+                                  {post.client_feedback && (
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
+                                  )}
+                                </div>
+
+                                {/* Post Image */}
+                                {post.image_url && (
+                                  <div className="w-full mb-2 rounded overflow-hidden">
+                                    <LazyImage
+                                      src={post.image_url}
+                                      alt="Post"
+                                      className="w-full h-auto object-contain"
+                                    />
+                                  </div>
+                                )}
+                                
+                                {/* Time */}
+                                <div className="text-xs text-gray-600 mb-2">
+                                  {post.scheduled_time && formatTimeTo12Hour(post.scheduled_time)}
                                 </div>
                                 
-                                {/* Client Feedback Indicator */}
-                                {post.client_feedback && (
-                                  <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
-                                )}
-                              </div>
-
-                              {/* Post Image */}
-                              {post.image_url && (
-                                <div className="w-full mb-3 rounded overflow-hidden flex-shrink-0" style={{ maxHeight: '200px' }}>
-                                  <LazyImage
-                                    src={post.image_url}
-                                    alt="Post"
-                                    className="w-full h-auto object-contain"
-                                  />
-                                </div>
-                              )}
-                              
-                              {/* Date and Time */}
-                              <div className="text-xs text-gray-600 mb-2 flex-shrink-0">
-                                {post.scheduled_date && new Date(post.scheduled_date).toLocaleDateString('en-GB', {
-                                  weekday: 'short',
-                                  day: 'numeric',
-                                  month: 'short'
-                                })}
-                                {post.scheduled_time && (
-                                  <span> at {formatTimeTo12Hour(post.scheduled_time)}</span>
-                                )}
-                              </div>
-                              
-                              {/* Caption */}
-                              <div className="flex-grow overflow-hidden">
-                                <p className="text-sm text-gray-900 line-clamp-3" style={{ 
-                                  display: '-webkit-box',
-                                  WebkitLineClamp: 3,
-                                  WebkitBoxOrient: 'vertical',
-                                  overflow: 'hidden'
-                                }}>
+                                {/* Caption */}
+                                <p className="text-sm text-gray-900 mb-2">
                                   {post.caption}
                                 </p>
+                                
+                                {/* Client Feedback */}
+                                {post.client_feedback && (
+                                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                                    <span className="font-medium text-gray-700">Client feedback:</span>
+                                    <p className="mt-1 text-gray-600">{post.client_feedback}</p>
+                                  </div>
+                                )}
                               </div>
-                              
-                              {/* Client Feedback */}
-                              {post.client_feedback && (
-                                <div className="mt-2 p-2 bg-gray-50 rounded text-xs flex-shrink-0">
-                                  <span className="font-medium text-gray-700">Client feedback:</span>
-                                  <p className="mt-1 text-gray-600 line-clamp-2" style={{
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden'
-                                  }}>{post.client_feedback}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        
-                        {/* Empty state */}
-                        {weekPosts.length === 0 && (
-                          <div className="flex items-center justify-center w-full h-64 text-gray-500">
-                            <div className="text-center">
-                              <div className="text-lg font-medium">No posts scheduled</div>
-                              <div className="text-sm">for this week</div>
-                            </div>
-                          </div>
+                            );
+                          })
                         )}
                       </div>
                     </div>
