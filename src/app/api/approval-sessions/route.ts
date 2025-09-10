@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const share_url = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/approval/${share_token}`;
+    const share_url = `https://contentflow-v2-6lnmoc60j-cambrewitt-6402s-projects.vercel.app/approval/${share_token}`;
 
     return NextResponse.json({
       session,
