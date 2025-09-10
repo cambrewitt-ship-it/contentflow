@@ -102,7 +102,7 @@ export default function NewClientPage() {
       const response = await fetch(formData.website_url, {
         method: 'GET',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; ContentFlow/1.0)'
+          'User-Agent': 'Mozilla/5.0 (compatible; ContentManager/1.0)'
         }
       });
 

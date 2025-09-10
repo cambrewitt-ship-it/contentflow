@@ -1,4 +1,4 @@
--- Database Performance Optimization for ContentFlow
+-- Database Performance Optimization for Content Manager
 -- Run this in your Supabase SQL Editor to fix timeout issues and improve query performance
 
 -- ==============================================

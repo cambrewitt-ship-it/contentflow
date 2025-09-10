@@ -1,5 +1,5 @@
 -- Brand Information System Database Schema
--- This file adds brand-related functionality to the existing ContentFlow v2 database
+-- This file adds brand-related functionality to the existing Content Manager database
 
 -- 1. Enhance the existing clients table with brand information fields
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS company_description TEXT;

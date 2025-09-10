@@ -9,7 +9,7 @@ export default function Home() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center">
-              <h1 className="text-xl font-bold text-foreground">ContentFlow</h1>
+              <h1 className="text-xl font-bold text-foreground">Content Manager</h1>
             </div>
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
@@ -162,7 +162,7 @@ export default function Home() {
               Ready to transform your social media workflow?
             </h2>
             <p className="mt-6 text-lg leading-8 text-muted-foreground">
-              Join thousands of marketing agencies using ContentFlow to streamline their social media management.
+              Join thousands of marketing agencies using Content Manager to streamline their social media management.
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
               <Button size="lg" className="px-8 py-3 text-base" asChild>
@@ -181,7 +181,7 @@ export default function Home() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center space-x-2">
-              <h3 className="text-lg font-bold text-foreground">ContentFlow</h3>
+              <h3 className="text-lg font-bold text-foreground">Content Manager</h3>
             </div>
             <div className="flex items-center space-x-6 mt-4 md:mt-0">
               <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -197,7 +197,7 @@ export default function Home() {
           </div>
           <div className="mt-8 pt-8 border-t border-border/40">
             <p className="text-sm text-muted-foreground text-center">
-              © 2024 ContentFlow. All rights reserved.
+              © 2024 Content Manager. All rights reserved.
             </p>
           </div>
         </div>

@@ -1,7 +1,7 @@
-# Brand Information System - ContentFlow v2
+# Brand Information System - Content Manager
 
 ## Overview
-The Brand Information System enhances ContentFlow v2 by allowing AI to generate more contextual and on-brand captions based on client brand guidelines, company information, and website content analysis.
+The Brand Information System enhances Content Manager by allowing AI to generate more contextual and on-brand captions based on client brand guidelines, company information, and website content analysis.
 
 ## Features Implemented
 

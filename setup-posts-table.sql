@@ -1,4 +1,4 @@
--- Setup Posts Table and Do's & Don'ts for ContentFlow v2
+-- Setup Posts Table and Do's & Don'ts for Content Manager
 -- Run this in your Supabase SQL Editor
 
 -- 1. Add Do's & Don'ts columns to clients table

@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ContentFlow V2 - AI-Powered Social Media Management",
+  title: "Content Manager - AI-Powered Social Media Management",
   description: "Upload content, generate captions with AI, and schedule posts across all platforms. Built specifically for marketing agencies managing multiple clients.",
   keywords: "social media management, AI captions, marketing agencies, content scheduling",
 };

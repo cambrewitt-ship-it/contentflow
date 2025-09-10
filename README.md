@@ -1,6 +1,6 @@
-# ContentFlow V2 - AI-Powered Social Media Management
+# Content Manager - AI-Powered Social Media Management
 
-A modern SaaS landing page for ContentFlow, an AI-powered social media management platform designed for marketing agencies and marketing managers.
+A modern SaaS landing page for Content Manager, an AI-powered social media management platform designed for marketing agencies and marketing managers.
 
 ## Features
 

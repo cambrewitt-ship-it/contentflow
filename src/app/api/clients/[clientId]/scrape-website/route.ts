@@ -79,7 +79,7 @@ export async function POST(
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; ContentFlow/1.0)'
+          'User-Agent': 'Mozilla/5.0 (compatible; ContentManager/1.0)'
         }
       });
 

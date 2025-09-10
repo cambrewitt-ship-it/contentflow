@@ -27,7 +27,7 @@ export default function Dashboard() {
           "text-3xl font-bold text-foreground mb-4",
           "text-3xl font-bold glass-text-primary mb-4"
         )}>
-          Welcome to ContentFlow
+          Welcome to Content Manager
         </h1>
         <p className={getThemeClasses(
           "text-lg text-muted-foreground mb-8",
