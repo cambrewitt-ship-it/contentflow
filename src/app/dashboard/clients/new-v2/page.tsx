@@ -52,14 +52,13 @@ export default function NewClientPageV2() {
     brand_voice_examples: ""
   });
   
-  const [isEditing, setIsEditing] = useState(true); // Start in editing mode for new client
   const [uploading, setUploading] = useState(false);
   const [scraping, setScraping] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [brandDocuments, setBrandDocuments] = useState<BrandDocument[]>([]);
-  const [websiteScrapes, setWebsiteScrapes] = useState<WebsiteScrape[]>([]);
+  const [brandDocuments] = useState<BrandDocument[]>([]);
+  const [websiteScrapes] = useState<WebsiteScrape[]>([]);
   const [createdClientId, setCreatedClientId] = useState<string | null>(null);
   const router = useRouter();
 
@@ -341,7 +340,7 @@ export default function NewClientPageV2() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Website URL
                 </label>
-                {isEditing ? (
+                {true ? (
                   <div className="flex gap-2">
                     <Input
                       value={formData.website_url}
@@ -374,7 +373,7 @@ export default function NewClientPageV2() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Client Name <span className="text-red-500">*</span>
                 </label>
-                {isEditing ? (
+                {true ? (
                   <Input
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
@@ -397,7 +396,7 @@ export default function NewClientPageV2() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Company Description
                 </label>
-                {isEditing ? (
+                {true ? (
                   <Textarea
                     value={formData.company_description}
                     onChange={(e) => handleInputChange('company_description', e.target.value)}
@@ -417,7 +416,7 @@ export default function NewClientPageV2() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Target Audience
                 </label>
-                {isEditing ? (
+                {true ? (
                   <Textarea
                     value={formData.target_audience}
                     onChange={(e) => handleInputChange('target_audience', e.target.value)}
@@ -436,7 +435,7 @@ export default function NewClientPageV2() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Value Proposition
                 </label>
-                {isEditing ? (
+                {true ? (
                   <Textarea
                     value={formData.value_proposition}
                     onChange={(e) => handleInputChange('value_proposition', e.target.value)}
@@ -469,7 +468,7 @@ export default function NewClientPageV2() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     ✅ Do&apos;s
                   </label>
-                  {isEditing ? (
+                  {true ? (
                     <Textarea
                       value={formData.caption_dos}
                       onChange={(e) => handleInputChange('caption_dos', e.target.value)}
@@ -492,7 +491,7 @@ export default function NewClientPageV2() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     ❌ Don&apos;ts
                   </label>
-                  {isEditing ? (
+                  {true ? (
                     <Textarea
                       value={formData.caption_donts}
                       onChange={(e) => handleInputChange('caption_donts', e.target.value)}
@@ -516,7 +515,7 @@ export default function NewClientPageV2() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Brand Voice Examples
                 </label>
-                {isEditing ? (
+                {true ? (
                   <div>
                     <Textarea
                       value={formData.brand_voice_examples}
@@ -536,7 +535,7 @@ export default function NewClientPageV2() {
                     </p>
                     {formData.brand_voice_examples && (
                       <p className="text-blue-600 text-sm mt-1">
-                        These examples will guide AI caption generation to match your brand's voice
+                        These examples will guide AI caption generation to match your brand&apos;s voice
                       </p>
                     )}
                   </div>

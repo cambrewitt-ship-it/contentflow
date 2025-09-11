@@ -6,7 +6,7 @@ import UIThemeToggle from "components/UIThemeToggle";
 import { useUIThemeStyles } from "hooks/useUITheme";
 
 export default function Dashboard() {
-  const { getThemeClasses, isAlternative } = useUIThemeStyles();
+  const { getThemeClasses } = useUIThemeStyles();
 
   return (
     <div className="flex-1 flex items-center justify-center p-8 md:p-8 pt-20 md:pt-8">

@@ -12,9 +12,6 @@ import {
   Upload, 
   Globe, 
   FileText, 
-  ExternalLink,
-  Download,
-  Trash2,
   Loader2,
   CheckCircle,
   AlertCircle
@@ -29,7 +26,7 @@ interface BrandInformationPanelProps {
   websiteScrapes: WebsiteScrape[];
 }
 
-export default function BrandInformationPanel({ clientId, client, onUpdate, brandDocuments, websiteScrapes }: BrandInformationPanelProps) {
+export default function BrandInformationPanel({ clientId, client, onUpdate, brandDocuments }: BrandInformationPanelProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);

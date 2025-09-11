@@ -35,12 +35,15 @@ const LazyImage = ({ src, alt, className }: { src: string; alt: string; classNam
   return (
     <div ref={imgRef} className={`relative ${className}`}>
       {isInView && (
-        <img
-          src={src}
-          alt={alt}
-          onLoad={() => setIsLoaded(true)}
-          className={`transition-opacity duration-200 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
-        />
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={alt}
+            onLoad={() => setIsLoaded(true)}
+            className={`transition-opacity duration-200 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+          />
+        </>
       )}
       {!isLoaded && isInView && (
         <div className="absolute inset-0 bg-gray-200 animate-pulse rounded" />
@@ -128,18 +131,15 @@ export default function PlannerPage() {
     console.log('  - Timezone offset (hours):', now.getTimezoneOffset() / 60);
   }, []);
   
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId || null);
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week
-  const [loading, setLoading] = useState(true);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
-  const [posts, setPosts] = useState<Post[]>([]);
   
   const [projectPosts, setProjectPosts] = useState<Post[]>([]);
   const [scheduledPosts, setScheduledPosts] = useState<{[key: string]: Post[]}>({});
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
-  const [cacheExpiry, setCacheExpiry] = useState<number>(30000); // 30 seconds cache
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
@@ -155,7 +155,6 @@ export default function PlannerPage() {
   const [editingTimePostIds, setEditingTimePostIds] = useState<Set<string>>(new Set());
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const [postApprovals, setPostApprovals] = useState<{[key: string]: any}>({});
   const [refreshKey, setRefreshKey] = useState(0);
 
   const fetchConnectedAccounts = async () => {
@@ -198,7 +197,7 @@ export default function PlannerPage() {
         approvalMap[key] = approval;
       });
       
-      setPostApprovals(approvalMap);
+      // setPostApprovals(approvalMap);
     } catch (error) {
       console.error('Error fetching post approvals:', error);
     }
@@ -244,7 +243,7 @@ export default function PlannerPage() {
     
     // Check cache first (unless force refresh)
     const now = Date.now();
-    if (!forceRefresh && now - lastFetchTime < cacheExpiry && Object.keys(scheduledPosts).length > 0) {
+    if (!forceRefresh && now - lastFetchTime < 30000 && Object.keys(scheduledPosts).length > 0) {
       console.log('📦 Using cached scheduled posts data');
       return;
     }
@@ -421,7 +420,7 @@ export default function PlannerPage() {
       fetchConnectedAccounts();
       fetchPostApprovals();
     }
-  }, [projectId, clientId]);
+  }, [projectId, clientId, fetchUnscheduledPosts, fetchScheduledPosts, fetchConnectedAccounts, fetchPostApprovals]);
 
   useEffect(() => {
     console.log('🔄 useEffect triggered - projectId:', projectId, 'projects.length:', projects.length);
@@ -436,26 +435,8 @@ export default function PlannerPage() {
         fetchScheduledPosts();
       }
     }
-  }, [projectId, projects]);
+  }, [projectId, projects, fetchUnscheduledPosts, fetchScheduledPosts]);
 
-  const fetchProjects = async () => {
-    if (!clientId) return;
-    
-    try {
-      setError(null);
-      const response = await fetch(`/api/projects?clientId=${clientId}`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch projects: ${response.status}`);
-      }
-      const data = await response.json();
-      setProjects(data.projects || []);
-    } catch (error) {
-      console.error('Error fetching projects:', error);
-      setError(error instanceof Error ? error.message : 'Failed to load projects');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getWeeksToDisplay = () => {
     const weeks = [];
@@ -522,7 +503,7 @@ export default function PlannerPage() {
     setDragOverDate(dateKey);
   };
 
-  const handleDragLeave = (e: React.DragEvent, dateKey: string) => {
+  const handleDragLeave = (e: React.DragEvent, _dateKey: string) => {
     e.preventDefault();
     e.stopPropagation();
     // Only clear if we're actually leaving the date cell (not just moving to a child element)
@@ -805,7 +786,6 @@ export default function PlannerPage() {
     // Set loading state for delete operation
     setIsDeleting(true);
     
-    const errors = [];
     const toDelete = Array.from(selectedForDelete);
     const allPosts = Object.values(scheduledPosts).flat();
     
@@ -956,7 +936,6 @@ export default function PlannerPage() {
     
     let successCount = 0;
     let failCount = 0;
-    const errors = [];
     
     for (const post of postsToSchedule) {
       try {
@@ -1087,7 +1066,7 @@ export default function PlannerPage() {
         
       } catch (error) {
         console.error(`Failed to schedule post:`, error);
-        errors.push(error instanceof Error ? error.message : 'Unknown error');
+        // errors.push(error instanceof Error ? error.message : 'Unknown error');
         failCount++;
         
         // Remove this post from scheduling state even on error
@@ -1111,7 +1090,7 @@ export default function PlannerPage() {
     if (failCount === 0) {
       alert(`Successfully scheduled ${successCount} posts to ${account.platform}!`);
     } else {
-      alert(`Scheduled ${successCount} posts to ${account.platform}.\n\nFailed: ${failCount}\nErrors:\n${errors.join('\n')}`);
+      alert(`Scheduled ${successCount} posts to ${account.platform}.\n\nFailed: ${failCount}`);
     }
   };
 
@@ -1256,6 +1235,7 @@ export default function PlannerPage() {
                       </div>
                     ) : (
                       <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={post.image_url || '/api/placeholder/100/100'}
                           alt="Post"
@@ -1564,6 +1544,7 @@ export default function PlannerPage() {
                                           }`} title={`LATE Status: ${post.late_status}`} />
                                         )}
                                         
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img 
                                           src={post.image_url || '/api/placeholder/100/100'} 
                                           alt="Post"
