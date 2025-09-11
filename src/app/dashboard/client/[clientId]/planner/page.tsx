@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Share2, Loader2, RefreshCw } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
@@ -157,8 +157,16 @@ export default function PlannerPage() {
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [selectedPostsForApproval, setSelectedPostsForApproval] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
+  const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
 
-  const fetchConnectedAccounts = async () => {
+  const updatePostCaption = (postId: string, newCaption: string) => {
+    setEditingCaptions(prev => ({
+      ...prev,
+      [postId]: newCaption
+    }));
+  };
+
+  const fetchConnectedAccounts = useCallback(async () => {
     try {
       const response = await fetch(`/api/late/get-accounts/${clientId}`);
       if (!response.ok) {
@@ -171,9 +179,9 @@ export default function PlannerPage() {
       console.error('Error fetching accounts:', error);
       setError(error instanceof Error ? error.message : 'Failed to load connected accounts');
     }
-  };
+  }, [clientId]);
 
-  const fetchPostApprovals = async () => {
+  const fetchPostApprovals = useCallback(async () => {
     if (!selectedProject) return;
     
     try {
@@ -202,9 +210,9 @@ export default function PlannerPage() {
     } catch (error) {
       console.error('Error fetching post approvals:', error);
     }
-  };
+  }, [selectedProject]);
 
-  const fetchUnscheduledPosts = async () => {
+  const fetchUnscheduledPosts = useCallback(async () => {
       try {
         setIsLoadingPosts(true);
         setError(null);
@@ -237,9 +245,9 @@ export default function PlannerPage() {
       } finally {
         setIsLoadingPosts(false);
       }
-    };
+    }, [projectId]);
 
-  const fetchScheduledPosts = async (retryCount = 0, forceRefresh = false) => {
+  const fetchScheduledPosts = useCallback(async (retryCount = 0, forceRefresh = false) => {
     if (!projectId) return;
     
     // Check cache first (unless force refresh)
@@ -400,7 +408,7 @@ export default function PlannerPage() {
         setIsLoadingScheduledPosts(false);
       }
     }
-  };
+  }, [projectId, lastFetchTime, scheduledPosts]);
 
   // Get NZ timezone start of week (Monday)
   const getStartOfWeek = (offset: number = 0) => {
@@ -416,27 +424,17 @@ export default function PlannerPage() {
 
   useEffect(() => {
     if (projectId && clientId) {
-      fetchUnscheduledPosts();
-      fetchScheduledPosts();
+      // Set project info
+      setCurrentProject({ id: projectId, name: 'Current Project', description: '', status: 'active', created_at: '', updated_at: '' });
+      setSelectedProject(projectId);
+      
+      // Fetch data
       fetchConnectedAccounts();
       fetchPostApprovals();
+      fetchUnscheduledPosts();
+      fetchScheduledPosts();
     }
-  }, [projectId, clientId, fetchUnscheduledPosts, fetchScheduledPosts, fetchConnectedAccounts, fetchPostApprovals]);
-
-  useEffect(() => {
-    console.log('🔄 useEffect triggered - projectId:', projectId, 'projects.length:', projects.length);
-    if (projectId && projects.length > 0) {
-      const project = projects.find(p => p.id === projectId);
-      console.log('🔍 Found project:', project);
-      if (project) {
-        setCurrentProject(project);
-        setSelectedProject(projectId);
-        // Fetch posts after project is loaded
-        fetchUnscheduledPosts();
-        fetchScheduledPosts();
-      }
-    }
-  }, [projectId, projects, fetchUnscheduledPosts, fetchScheduledPosts]);
+  }, [projectId, clientId, fetchConnectedAccounts, fetchPostApprovals, fetchUnscheduledPosts, fetchScheduledPosts]);
 
 
   const getWeeksToDisplay = () => {
@@ -900,13 +898,10 @@ export default function PlannerPage() {
   const handleSelectAllPostsForApproval = () => {
     const allPostIds = new Set<string>();
     
-    // Add all scheduled posts
+    // Add only scheduled posts (approval board should only show scheduled posts)
     Object.values(scheduledPosts).forEach(weekPosts => {
       weekPosts.forEach(post => allPostIds.add(post.id));
     });
-    
-    // Add all unscheduled posts
-    projectPosts.forEach(post => allPostIds.add(post.id));
     
     setSelectedPostsForApproval(allPostIds);
   };
@@ -959,14 +954,39 @@ export default function PlannerPage() {
   const handleScheduleToPlatform = async (account: ConnectedAccount) => {
     if (selectedPosts.size === 0) return;
     
+    const allScheduledPosts = Object.values(scheduledPosts).flat();
+    const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
+    
+    // Validate that all posts have captions
+    console.log('🔍 Pre-scheduling validation:', {
+      postsToScheduleCount: postsToSchedule.length,
+      postsToSchedule: postsToSchedule.map(p => ({
+        id: p.id,
+        caption: p.caption,
+        captionType: typeof p.caption,
+        captionLength: p.caption?.length,
+        trimmedCaption: p.caption?.trim(),
+        hasCaption: !!p.caption,
+        captionIsEmpty: !p.caption || p.caption.trim() === ''
+      }))
+    });
+    
+    const postsWithoutCaptions = postsToSchedule.filter(post => {
+      const currentCaption = editingCaptions[post.id] || post.caption || '';
+      return currentCaption.trim().length === 0;
+    });
+    console.log('🔍 Posts without captions:', postsWithoutCaptions.length, postsWithoutCaptions);
+    
+    if (postsWithoutCaptions.length > 0) {
+      alert(`Cannot schedule posts: ${postsWithoutCaptions.length} post(s) are missing captions. Please add captions before scheduling.`);
+      return;
+    }
+    
     const confirmed = confirm(`Schedule ${selectedPosts.size} posts to ${account.platform}?`);
     if (!confirmed) return;
     
     // Set loading state for this specific platform
     setSchedulingPlatform(account.platform);
-    
-    const allScheduledPosts = Object.values(scheduledPosts).flat();
-    const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
     
     // Add all posts to scheduling state
     setSchedulingPostIds(new Set(postsToSchedule.map(p => p.id)));
@@ -1004,6 +1024,15 @@ export default function PlannerPage() {
           throw new Error('Post contains invalid blob URL. Please recreate this post from Content Suite.');
         }
 
+        // Additional debugging for image data
+        console.log('🔍 Image data analysis:');
+        console.log('  - Type:', typeof base64Image);
+        console.log('  - Length:', base64Image.length);
+        console.log('  - Starts with data:', base64Image.startsWith('data:'));
+        console.log('  - Starts with data:image:', base64Image.startsWith('data:image'));
+        console.log('  - First 100 chars:', base64Image.substring(0, 100));
+        console.log('  - Last 50 chars:', base64Image.substring(base64Image.length - 50));
+
         // Step 1: Upload image to LATE
         console.log('Uploading image to LATE...');
         console.log('Image URL type:', typeof base64Image);
@@ -1020,26 +1049,42 @@ export default function PlannerPage() {
         if (!mediaResponse.ok) {
           const errorText = await mediaResponse.text();
           console.error('Media upload error:', errorText);
-          throw new Error(`Media upload failed for post: ${post.caption.slice(0, 30)}...`);
+          console.error('Media upload status:', mediaResponse.status);
+          throw new Error(`Media upload failed for post: ${post.caption.slice(0, 30)}... (${mediaResponse.status}): ${errorText}`);
         }
         
-        const { lateMediaUrl } = await mediaResponse.json();
+        const mediaResponseData = await mediaResponse.json();
+        console.log('🔍 Media upload response data:', JSON.stringify(mediaResponseData, null, 2));
+        
+        const { lateMediaUrl } = mediaResponseData;
+        console.log('🔍 Extracted lateMediaUrl:', lateMediaUrl);
+        
+        if (!lateMediaUrl) {
+          console.error('❌ ERROR: lateMediaUrl is missing or undefined!');
+          console.error('Media response data:', mediaResponseData);
+          throw new Error('Failed to get media URL from LATE API');
+        }
         
         // Step 2: Schedule via LATE
         const scheduledDateTime = `${post.scheduled_date}T${post.scheduled_time}`;
+        const finalCaption = editingCaptions[post.id] || post.caption || '';
         
         console.log('🚀 STEP 4 - LATE API SCHEDULING:');
         console.log('  - Post from database:');
         console.log('    - scheduled_date:', post.scheduled_date);
         console.log('    - scheduled_time:', post.scheduled_time);
+        console.log('    - original caption:', post.caption);
+        console.log('    - edited caption:', editingCaptions[post.id]);
+        console.log('    - final caption:', finalCaption);
+        console.log('    - caption type:', typeof finalCaption);
+        console.log('    - caption length:', finalCaption?.length);
         console.log('  - Combined scheduledDateTime:', scheduledDateTime);
         console.log('  - Post ID:', post.id);
         console.log('  - Account platform:', account.platform);
         console.log('  - Client ID:', clientId);
-        
         const lateRequestBody = {
           postId: post.id,
-          caption: post.caption,
+          caption: finalCaption,
           lateMediaUrl: lateMediaUrl,
           scheduledDateTime: scheduledDateTime,
           selectedAccounts: [account],
@@ -1056,7 +1101,10 @@ export default function PlannerPage() {
         });
         
         if (!response.ok) {
-          throw new Error(`Schedule failed for post: ${post.caption.slice(0, 30)}...`);
+          const errorText = await response.text();
+          console.error('Schedule API error:', errorText);
+          console.error('Schedule API status:', response.status);
+          throw new Error(`Schedule failed for post: ${finalCaption.slice(0, 30)}... (${response.status}): ${errorText}`);
         }
         
         const result = await response.json();
@@ -1197,54 +1245,6 @@ export default function PlannerPage() {
           </div>
           
           <div className="flex items-center space-x-3">
-            {/* Post Selection Controls */}
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">
-                {selectedPostsForApproval.size} selected
-              </span>
-              <button
-                onClick={handleSelectAllPostsForApproval}
-                className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-              >
-                Select All
-              </button>
-              <button
-                onClick={handleDeselectAllPostsForApproval}
-                className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-              >
-                Deselect All
-              </button>
-            </div>
-            
-            {/* Share Button */}
-            <button
-              onClick={handleCreateShareLink}
-              disabled={!selectedProject || isCreatingSession || selectedPostsForApproval.size === 0}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-            >
-              {isCreatingSession ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Share
-                </>
-              )}
-            </button>
-            
-            {/* Refresh Approvals Button */}
-            <button
-              onClick={fetchPostApprovals}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
-              title="Refresh approval status"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh Approvals
-            </button>
-            
             <Link
               href={`/dashboard/client/${clientId}/content-suite`}
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -1301,18 +1301,6 @@ export default function PlannerPage() {
                             e.currentTarget.src = '/api/placeholder/100/100';
                           }}
                         />
-                        {/* Approval Selection Checkbox - Overlay */}
-                        <div className="absolute top-1 right-1">
-                          <input
-                            type="checkbox"
-                            checked={selectedPostsForApproval.has(post.id)}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              handleTogglePostForApproval(post.id);
-                            }}
-                            className="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                          />
-                        </div>
                         {/* Delete button - positioned to not interfere with drag */}
                         <button
                           onClick={(e) => {
@@ -1336,6 +1324,7 @@ export default function PlannerPage() {
                   </div>
                 </div>
         
+
         {/* Schedule Buttons */}
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-4">
@@ -1349,13 +1338,44 @@ export default function PlannerPage() {
               </span>
               {connectedAccounts.map((account) => {
                 const isScheduling = schedulingPlatform === account.platform;
+                
+                // Check if any selected posts have empty captions
+                const allScheduledPosts = Object.values(scheduledPosts).flat();
+                const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
+                
+                // Debug logging for button state
+                console.log('🔍 Button enable check for', account.platform, ':', {
+                  selectedPostsSize: selectedPosts.size,
+                  postsToScheduleLength: postsToSchedule.length,
+                  allScheduledPostsCount: allScheduledPosts.length,
+                  selectedPostsArray: Array.from(selectedPosts),
+                  postsToSchedule: postsToSchedule.map(p => ({
+                    id: p.id,
+                    caption: p.caption,
+                    captionType: typeof p.caption,
+                    captionLength: p.caption?.length,
+                    trimmedCaption: p.caption?.trim(),
+                    hasCaption: !!p.caption,
+                    captionIsEmpty: !p.caption || p.caption.trim() === '',
+                    fullPost: p // Include full post object for debugging
+                  })),
+                  hasEmptyCaptions: postsToSchedule.some(p => !p.caption || p.caption.trim() === ''),
+                  isScheduling,
+                  buttonShouldBeEnabled: !isScheduling && !postsToSchedule.some(p => !p.caption || p.caption.trim() === '')
+                });
+                
+                const hasEmptyCaptions = postsToSchedule.some(post => {
+                  const currentCaption = editingCaptions[post.id] || post.caption || '';
+                  return currentCaption.trim().length === 0;
+                });
+                
                 return (
                   <button
                     key={account._id}
                     onClick={() => handleScheduleToPlatform(account)}
-                    disabled={isScheduling}
+                    disabled={isScheduling || hasEmptyCaptions}
                     className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 ${
-                      isScheduling ? 'opacity-50 cursor-not-allowed' : ''
+                      isScheduling || hasEmptyCaptions ? 'opacity-50 cursor-not-allowed' : ''
                     } ${
                       account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
                       account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
@@ -1363,6 +1383,7 @@ export default function PlannerPage() {
                       account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
                       'bg-gray-600 hover:bg-gray-700'
                     }`}
+                    title={hasEmptyCaptions ? 'Add captions to selected posts before scheduling' : ''}
                   >
                     {isScheduling && (
                       <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
@@ -1699,6 +1720,60 @@ export default function PlannerPage() {
                 Refresh Status
               </Button>
       </div>
+            
+            {/* Post Selection Controls */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">
+                    {selectedPostsForApproval.size} selected
+                  </span>
+                  <button
+                    onClick={handleSelectAllPostsForApproval}
+                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={handleDeselectAllPostsForApproval}
+                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+                  >
+                    Deselect All
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                {/* Share Button */}
+                <button
+                  onClick={handleCreateShareLink}
+                  disabled={!selectedProject || isCreatingSession || selectedPostsForApproval.size === 0}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                >
+                  {isCreatingSession ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share
+                    </>
+                  )}
+                </button>
+                
+                {/* Refresh Approvals Button */}
+                <button
+                  onClick={fetchPostApprovals}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
+                  title="Refresh approval status"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh Approvals
+                </button>
+              </div>
+            </div>
             
             {/* Approval Summary */}
             <div className="mb-6 grid grid-cols-4 gap-4">

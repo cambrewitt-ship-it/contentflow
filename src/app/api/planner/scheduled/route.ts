@@ -22,9 +22,8 @@ export async function GET(request: Request) {
     console.log(`🔍 OPTIMIZED FETCH - Scheduled posts for project ${projectId} (limit: ${limit}, images: ${includeImageData})`);
     
     // Optimized query - only select fields needed for approval board
-    const selectFields = includeImageData 
-      ? 'id, project_id, caption, image_url, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, created_at, updated_at'
-      : 'id, project_id, caption, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, created_at, updated_at';
+    const baseFields = 'id, project_id, caption, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, late_status, late_post_id, platforms_scheduled, created_at, updated_at';
+    const selectFields = includeImageData ? `${baseFields}, image_url` : baseFields;
     
     const { data, error } = await supabase
       .from('planner_scheduled_posts')
@@ -45,11 +44,11 @@ export async function GET(request: Request) {
     
     console.log(`✅ Retrieved ${data?.length || 0} scheduled posts in ${queryDuration}ms`);
     
-    // Debug: Log approval status of posts (only first few)
+    // Debug: Log approval status and captions of posts (only first few)
     if (data && data.length > 0) {
-      console.log('📊 Approval status debug:');
+      console.log('📊 Approval status and caption debug:');
       data.slice(0, 3).forEach((post: Record<string, any>, index: number) => {
-        console.log(`  Post ${post.id?.substring(0, 8)}... - Status: ${post.approval_status || 'NO STATUS'} - Feedback: ${post.client_feedback || 'NO FEEDBACK'}`);
+        console.log(`  Post ${post.id?.substring(0, 8)}... - Status: ${post.approval_status || 'NO STATUS'} - Caption: "${post.caption || 'NO CAPTION'}" - Caption Length: ${post.caption?.length || 0}`);
       });
     }
     

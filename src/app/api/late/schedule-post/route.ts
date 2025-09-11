@@ -11,15 +11,31 @@ export async function POST(request: Request) {
     const body = await request.json();
     console.log('🔧 STEP 6 - LATE API ROUTE RECEIVED:');
     console.log('  - Request body keys:', Object.keys(body));
+    console.log('  - Full request body:', JSON.stringify(body, null, 2));
     
     // Check for required fields
-    if (!body.postId || !body.caption || !body.lateMediaUrl) {
+    if (!body.postId || body.caption === undefined || body.caption === null || !body.lateMediaUrl) {
       console.error('Missing required fields:', {
         postId: body.postId,
-        caption: !!body.caption,
+        caption: body.caption,
+        captionType: typeof body.caption,
         lateMediaUrl: !!body.lateMediaUrl
       });
+      console.error('lateMediaUrl value:', body.lateMediaUrl);
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Validate caption content - reject empty captions
+    if (!body.caption || body.caption.trim() === '') {
+      console.error('Empty caption rejected:', {
+        caption: body.caption,
+        captionType: typeof body.caption,
+        captionLength: body.caption?.length
+      });
+      return NextResponse.json(
+        { error: 'Caption/content is required for social media posts' },
+        { status: 400 }
+      );
     }
     
     const { 
@@ -58,9 +74,12 @@ export async function POST(request: Request) {
     console.log('  - Reconstructed localDateTime:', localDateTime);
     console.log('  - Using Pacific/Auckland timezone as specified');
 
+    // Ensure we have valid content for LATE API
+    const finalContent = caption.trim() || 'Posted via Content Manager';
+    
     // Log what we're sending to LATE
     const requestBody = {
-      content: caption,
+      content: finalContent,
       platforms: platforms,
       scheduledFor: localDateTime, // Send user's actual time: "2024-09-16T18:00:00"
       timezone: 'Pacific/Auckland',
@@ -89,7 +108,9 @@ export async function POST(request: Request) {
     if (!lateResponse.ok) {
       const error = await lateResponse.text();
       console.error('LATE API error:', error);
-      throw new Error('Failed to schedule post');
+      console.error('LATE API status:', lateResponse.status);
+      console.error('LATE API headers:', Object.fromEntries(lateResponse.headers.entries()));
+      throw new Error(`LATE API error (${lateResponse.status}): ${error}`);
     }
     
     const lateData = await lateResponse.json();

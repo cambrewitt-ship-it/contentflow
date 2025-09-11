@@ -7,7 +7,27 @@ const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function POST(request: Request) {
   try {
-    const { clientId, projectId, posts, status = 'draft' } = await request.json();
+    const body = await request.json();
+    console.log('🚀 Creating posts - Full request body:', JSON.stringify(body, null, 2));
+    
+    // Handle both array format and individual post format
+    let posts, clientId, projectId, status = 'draft';
+    
+    if (body.posts && Array.isArray(body.posts)) {
+      // Array format: { posts: [...], clientId, projectId }
+      posts = body.posts;
+      clientId = body.clientId;
+      projectId = body.projectId;
+      status = body.status || 'draft';
+    } else if (body.caption && body.image_url) {
+      // Individual post format: { caption, image_url, client_id, project_id, ... }
+      posts = [body];
+      clientId = body.client_id;
+      projectId = body.project_id;
+      status = body.status || 'draft';
+    } else {
+      throw new Error('Invalid request format - expected either posts array or individual post data');
+    }
     
     console.log('🚀 Creating posts:', { clientId, projectId, postsCount: posts.length, status });
     
@@ -32,19 +52,24 @@ export async function POST(request: Request) {
     console.log('📊 About to insert posts into database...');
     
     // Create posts in the main posts table
+    const postsToInsert = posts.map((post: { caption: string; image_url: string; notes?: string }) => {
+      console.log('📝 Saving post with caption:', post.caption);
+      return {
+        client_id: clientId,
+        project_id: projectId || 'default',
+        caption: post.caption,
+        image_url: post.image_url, // Fixed: was expecting 'imageUrl' but getting 'image_url'
+        media_type: 'image',
+        status: status,
+        notes: post.notes || ''
+      };
+    });
+    
+    console.log('📝 Posts to insert into database:', JSON.stringify(postsToInsert, null, 2));
+    
     const { data: postsData, error: postsError } = await supabase
       .from('posts')
-      .insert(
-        posts.map((post: { caption: string; image_url: string; notes?: string }) => ({
-          client_id: clientId,
-          project_id: projectId || 'default',
-          caption: post.caption,
-          image_url: post.image_url, // Fixed: was expecting 'imageUrl' but getting 'image_url'
-          media_type: 'image',
-          status: status,
-          notes: post.notes || ''
-        }))
-      )
+      .insert(postsToInsert)
       .select();
     
     if (postsError) {

@@ -30,6 +30,20 @@ export async function GET(request: Request) {
     
     console.log(`✅ Retrieved ${data?.length || 0} unscheduled posts`);
     
+    // Debug logging for captions
+    if (data && data.length > 0) {
+      console.log('🔍 Retrieved posts with captions:');
+      data.forEach((post, index) => {
+        console.log(`  Post ${index + 1}:`, {
+          id: post.id,
+          caption: post.caption,
+          captionType: typeof post.caption,
+          captionLength: post.caption?.length,
+          hasCaption: !!post.caption
+        });
+      });
+    }
+    
     return NextResponse.json({ posts: data || [] });
     
   } catch (error: unknown) {

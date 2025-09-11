@@ -143,11 +143,12 @@ export default function Sidebar() {
         <div className="flex items-center justify-center">
           {/* CM Logo */}
           <div className="flex items-center gap-1">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-600 to-purple-400 flex items-center justify-center text-white font-bold text-lg">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-lg" style={{backgroundColor: '#1e3a8a'}}>
               C
             </div>
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-500 to-purple-300 flex items-center justify-center text-white font-bold text-lg">
-              M
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-lg relative overflow-hidden" style={{backgroundColor: '#1e3a8a'}}>
+              <div className="absolute inset-0 transform skew-x-12 -translate-x-1" style={{backgroundColor: '#1e3a8a'}}></div>
+              <span className="relative z-10">M</span>
             </div>
           </div>
         </div>

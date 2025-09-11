@@ -6,10 +6,14 @@ export async function POST(request: Request) {
     const { imageBlob } = await request.json();
     console.log('Image data type:', typeof imageBlob);
     console.log('Image data preview:', imageBlob?.substring(0, 50));
+    console.log('Image data length:', imageBlob?.length);
+    console.log('Image data starts with data:', imageBlob?.startsWith('data:'));
     
     // Validate image data (supports both blob URLs and base64)
     const validation = isValidImageData(imageBlob);
+    console.log('Image validation result:', validation);
     if (!validation.isValid) {
+      console.error('❌ Image validation failed:', validation);
       throw new Error('Invalid image data - must be blob URL or base64');
     }
     
@@ -65,8 +69,25 @@ export async function POST(request: Request) {
     
     const data = await response.json();
     console.log('LATE response - success:', !data.error, 'mediaId:', data.mediaId);
+    console.log('LATE response full data:', JSON.stringify(data, null, 2));
     
-    return NextResponse.json({ lateMediaUrl: data.files[0].url });
+    // Handle different possible response structures from LATE API
+    let mediaUrl;
+    if (data.files && data.files[0] && data.files[0].url) {
+      mediaUrl = data.files[0].url;
+    } else if (data.url) {
+      mediaUrl = data.url;
+    } else if (data.mediaUrl) {
+      mediaUrl = data.mediaUrl;
+    } else if (data.media && data.media.url) {
+      mediaUrl = data.media.url;
+    } else {
+      console.error('Unexpected LATE API response structure:', data);
+      throw new Error('Unexpected response structure from LATE API');
+    }
+    
+    console.log('Extracted media URL:', mediaUrl);
+    return NextResponse.json({ lateMediaUrl: mediaUrl });
     
   } catch (error) {
     console.error('Upload error details:', error);
