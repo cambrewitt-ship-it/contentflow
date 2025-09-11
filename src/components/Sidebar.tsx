@@ -135,36 +135,21 @@ export default function Sidebar() {
       "w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col",
       "w-64 glass-sidebar min-h-screen flex flex-col"
     )}>
-      {/* Header */}
+      {/* Header with CM Logo */}
       <div className={getThemeClasses(
         "p-4 border-b border-gray-200",
         "p-4 border-b border-white/20"
       )}>
-        <div className="flex items-center gap-2 mb-4">
-          <Users className={getThemeClasses(
-            "w-6 h-6 text-blue-600",
-            "w-6 h-6 glass-text-primary"
-          )} />
-          <h2 className={getThemeClasses(
-            "text-lg font-semibold text-gray-900",
-            "text-lg font-semibold glass-text-primary"
-          )}>Clients</h2>
-        </div>
-        
-        {/* Refresh Button */}
-        <div className="flex justify-end">
-          <Button 
-            size="sm" 
-            variant="outline" 
-            onClick={refreshClients}
-            title="Refresh clients list"
-            className={getThemeClasses(
-              "",
-              "glass-button"
-            )}
-          >
-            <Loader2 className="w-4 h-4" />
-          </Button>
+        <div className="flex items-center justify-center">
+          {/* CM Logo */}
+          <div className="flex items-center gap-1">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-600 to-purple-400 flex items-center justify-center text-white font-bold text-lg">
+              C
+            </div>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-500 to-purple-300 flex items-center justify-center text-white font-bold text-lg">
+              M
+            </div>
+          </div>
         </div>
       </div>
 
@@ -204,10 +189,26 @@ export default function Sidebar() {
 
       {/* Clients List */}
       <div className="flex-1 p-4 overflow-y-auto">
-        <h3 className={getThemeClasses(
-          "text-sm font-medium text-gray-500 mb-3",
-          "text-sm font-medium glass-text-muted mb-3"
-        )}>All Clients</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className={getThemeClasses(
+            "text-sm font-medium text-gray-500",
+            "text-sm font-medium glass-text-muted"
+          )}>All Clients</h3>
+          
+          {/* Refresh Button */}
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={refreshClients}
+            title="Refresh clients list"
+            className={getThemeClasses(
+              "h-6 w-6 p-0",
+              "h-6 w-6 p-0 glass-button"
+            )}
+          >
+            <Loader2 className="w-3 h-3" />
+          </Button>
+        </div>
         
         {clients.length === 0 ? (
           <div className="text-center py-8">
