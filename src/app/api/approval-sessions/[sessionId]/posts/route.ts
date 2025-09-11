@@ -79,10 +79,33 @@ export async function GET(
       );
     }
 
+    // First, get the selected post IDs for this session
+    const { data: postApprovals, error: approvalsError } = await supabase
+      .from('post_approvals')
+      .select('post_id, post_type, approval_status, client_comments, created_at')
+      .eq('session_id', session.id);
+
+    if (approvalsError) {
+      console.error('❌ Error fetching post approvals:', approvalsError);
+      return NextResponse.json(
+        { error: 'Failed to fetch post approvals' },
+        { status: 500 }
+      );
+    }
+
+    // Extract selected post IDs by type
+    const selectedPlannerPostIds = postApprovals
+      ?.filter(approval => approval.post_type === 'planner_scheduled')
+      ?.map(approval => approval.post_id) || [];
+    
+    const selectedScheduledPostIds = postApprovals
+      ?.filter(approval => approval.post_type === 'scheduled')
+      ?.map(approval => approval.post_id) || [];
+
     // OPTIMIZED: Use Promise.all for parallel queries (safe version)
-    const [scheduledResult, otherScheduledResult, approvalsResult] = await Promise.all([
-      // Fetch scheduled posts from planner_scheduled_posts
-      supabase
+    const [scheduledResult, otherScheduledResult] = await Promise.all([
+      // Fetch only selected scheduled posts from planner_scheduled_posts
+      selectedPlannerPostIds.length > 0 ? supabase
         .from('planner_scheduled_posts')
         .select(`
           id,
@@ -94,10 +117,11 @@ export async function GET(
           client_id
         `)
         .eq('project_id', session.project_id)
-        .order('scheduled_date', { ascending: true }),
+        .in('id', selectedPlannerPostIds)
+        .order('scheduled_date', { ascending: true }) : { data: [], error: null },
       
-      // Fetch posts from scheduled_posts table
-      supabase
+      // Fetch only selected posts from scheduled_posts table
+      selectedScheduledPostIds.length > 0 ? supabase
         .from('scheduled_posts')
         .select(`
           id,
@@ -108,27 +132,19 @@ export async function GET(
           client_id
         `)
         .eq('project_id', session.project_id)
-        .order('scheduled_time', { ascending: true }),
-      
-      // Fetch existing approvals
-      supabase
-        .from('post_approvals')
-        .select('post_id, post_type, approval_status, client_comments, created_at')
-        .eq('session_id', session.id)
+        .in('id', selectedScheduledPostIds)
+        .order('scheduled_time', { ascending: true }) : { data: [], error: null }
     ]);
 
     const { data: scheduledPosts, error: scheduledError } = scheduledResult;
     const { data: otherScheduledPosts, error: otherScheduledError } = otherScheduledResult;
-    const { data: approvals, error: approvalsError } = approvalsResult;
+    const approvals = postApprovals;
 
     if (scheduledError) {
       console.error('❌ Error fetching scheduled posts:', scheduledError);
     }
     if (otherScheduledError) {
       console.error('❌ Error fetching other scheduled posts:', otherScheduledError);
-    }
-    if (approvalsError) {
-      console.error('❌ Error fetching approvals:', approvalsError);
     }
 
     // Combine and format posts

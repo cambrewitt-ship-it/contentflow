@@ -155,6 +155,7 @@ export default function PlannerPage() {
   const [editingTimePostIds, setEditingTimePostIds] = useState<Set<string>>(new Set());
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [selectedPostsForApproval, setSelectedPostsForApproval] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
 
   const fetchConnectedAccounts = async () => {
@@ -884,9 +885,44 @@ export default function PlannerPage() {
     }
   };
 
+  const handleTogglePostForApproval = (postId: string) => {
+    setSelectedPostsForApproval(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(postId)) {
+        newSet.delete(postId);
+      } else {
+        newSet.add(postId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAllPostsForApproval = () => {
+    const allPostIds = new Set<string>();
+    
+    // Add all scheduled posts
+    Object.values(scheduledPosts).forEach(weekPosts => {
+      weekPosts.forEach(post => allPostIds.add(post.id));
+    });
+    
+    // Add all unscheduled posts
+    projectPosts.forEach(post => allPostIds.add(post.id));
+    
+    setSelectedPostsForApproval(allPostIds);
+  };
+
+  const handleDeselectAllPostsForApproval = () => {
+    setSelectedPostsForApproval(new Set());
+  };
+
   const handleCreateShareLink = async () => {
     if (!selectedProject) {
       alert('Please select a project first');
+      return;
+    }
+
+    if (selectedPostsForApproval.size === 0) {
+      alert('Please select at least one post to share for approval');
       return;
     }
 
@@ -897,7 +933,8 @@ export default function PlannerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           project_id: selectedProject,
-          client_id: clientId
+          client_id: clientId,
+          selected_post_ids: Array.from(selectedPostsForApproval)
         })
       });
 
@@ -909,7 +946,7 @@ export default function PlannerPage() {
       
       // For now, just copy to clipboard and show alert
       await navigator.clipboard.writeText(share_url);
-      alert(`Share link copied to clipboard!\n\nLink: ${share_url}\nExpires: ${new Date(session.expires_at).toLocaleDateString()}`);
+      alert(`Share link copied to clipboard!\n\nLink: ${share_url}\nExpires: ${new Date(session.expires_at).toLocaleDateString()}\n\nSelected ${selectedPostsForApproval.size} posts for approval`);
       
     } catch (error) {
       console.error('❌ Error creating share link:', error);
@@ -1160,10 +1197,29 @@ export default function PlannerPage() {
           </div>
           
           <div className="flex items-center space-x-3">
+            {/* Post Selection Controls */}
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-600">
+                {selectedPostsForApproval.size} selected
+              </span>
+              <button
+                onClick={handleSelectAllPostsForApproval}
+                className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+              >
+                Select All
+              </button>
+              <button
+                onClick={handleDeselectAllPostsForApproval}
+                className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+              >
+                Deselect All
+              </button>
+            </div>
+            
             {/* Share Button */}
             <button
               onClick={handleCreateShareLink}
-              disabled={!selectedProject || isCreatingSession}
+              disabled={!selectedProject || isCreatingSession || selectedPostsForApproval.size === 0}
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
               {isCreatingSession ? (
@@ -1245,6 +1301,18 @@ export default function PlannerPage() {
                             e.currentTarget.src = '/api/placeholder/100/100';
                           }}
                         />
+                        {/* Approval Selection Checkbox - Overlay */}
+                        <div className="absolute top-1 right-1">
+                          <input
+                            type="checkbox"
+                            checked={selectedPostsForApproval.has(post.id)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              handleTogglePostForApproval(post.id);
+                            }}
+                            className="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                          />
+                        </div>
                         {/* Delete button - positioned to not interfere with drag */}
                         <button
                           onClick={(e) => {
@@ -1740,8 +1808,21 @@ export default function PlannerPage() {
                               >
                                 {/* Post Title - Date and Day */}
                                 <div className="mb-3 pb-2 border-b border-gray-200">
-                                  <h4 className="font-semibold text-sm text-gray-900">{dayName}</h4>
-                                  <p className="text-xs text-gray-600">{dateStr}</p>
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <h4 className="font-semibold text-sm text-gray-900">{dayName}</h4>
+                                      <p className="text-xs text-gray-600">{dateStr}</p>
+                                    </div>
+                                    {/* Approval Selection Checkbox */}
+                                    <div className="flex items-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedPostsForApproval.has(post.id)}
+                                        onChange={() => handleTogglePostForApproval(post.id)}
+                                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                      />
+                                    </div>
+                                  </div>
                                 </div>
 
                                 {/* Approval Status Badge */}
