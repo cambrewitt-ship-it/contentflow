@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     // Use ngrok URL for local development, Vercel URL for production
     const baseUrl = process.env.NODE_ENV === 'development' 
       ? 'https://contentmanager.ngrok.app'
-      : 'https://contentflow-v2-ojyxyo45o-cambrewitt-6402s-projects.vercel.app';
+      : 'https://contentflow-v2-k0emhyuuz-cambrewitt-6402s-projects.vercel.app';
     
     const share_url = `${baseUrl}/approval/${share_token}`;
 
