@@ -145,6 +145,7 @@ export interface ClientFormData {
   caption_dos?: string;
   caption_donts?: string;
   brand_voice_examples?: string;
+  late_profile_id?: string;
 }
 
 // LATE API Types

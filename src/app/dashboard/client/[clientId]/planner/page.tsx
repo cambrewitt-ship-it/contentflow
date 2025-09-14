@@ -1763,15 +1763,6 @@ export default function PlannerPage() {
                   )}
                 </button>
                 
-                {/* Refresh Approvals Button */}
-                <button
-                  onClick={fetchPostApprovals}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
-                  title="Refresh approval status"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh Approvals
-                </button>
               </div>
             </div>
             

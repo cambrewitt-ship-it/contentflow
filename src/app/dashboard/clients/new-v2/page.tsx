@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "components/ui/card";
 import { Button } from "components/ui/button";
@@ -49,17 +49,20 @@ export default function NewClientPageV2() {
     value_proposition: "",
     caption_dos: "",
     caption_donts: "",
-    brand_voice_examples: ""
+    brand_voice_examples: "",
+    brand_color: "#4ade80" // Default green color for LATE profile
   });
   
   const [uploading, setUploading] = useState(false);
   const [scraping, setScraping] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<'idle' | 'creating' | 'setting-up-social' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [brandDocuments] = useState<BrandDocument[]>([]);
   const [websiteScrapes] = useState<WebsiteScrape[]>([]);
-  const [createdClientId, setCreatedClientId] = useState<string | null>(null);
+  const [lateProfileCreated, setLateProfileCreated] = useState(false);
+  const isSubmittingRef = useRef(false);
   const router = useRouter();
 
   const validateForm = () => {
@@ -86,58 +89,86 @@ export default function NewClientPageV2() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Prevent double submission using both state and ref
+    if (loading || isSubmittingRef.current) {
+      console.log('⚠️ Form already submitting, ignoring duplicate submission');
+      return;
+    }
+    
+    console.log('🚀 Form submission started');
+    console.log('📋 Form data:', formData);
+    
     if (!validateForm()) {
+      console.log('❌ Form validation failed');
       return;
     }
 
+    console.log('✅ Form validation passed, starting client creation...');
     setLoading(true);
+    setLoadingStage('creating');
+    isSubmittingRef.current = true;
     
     try {
-      let clientId = createdClientId;
+      // Always create a new client when user clicks "Create New Client" button
+      // This ensures LATE profile creation happens even if there was a temporary client from scraping
+      console.log('🆕 Creating new client with LATE profile integration');
+      setLoadingStage('setting-up-social');
       
-      // If we already have a client ID from scraping, update it instead of creating a new one
-      if (createdClientId) {
-        console.log('🔄 Updating existing client:', createdClientId);
-        const updateResponse = await fetch(`/api/clients/${createdClientId}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData),
-        });
+      const response = await fetch("/api/clients/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
 
-        if (!updateResponse.ok) {
-          const errorData = await updateResponse.json();
-          throw new Error(errorData.error || "Failed to update client");
-        }
-        
-        console.log('✅ Client updated successfully');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create client");
+      }
+
+      const { clientId: newClientId, lateProfileId, lateProfileCreated } = await response.json();
+      const clientId = newClientId;
+      console.log('✅ New client created:', clientId);
+      console.log('🎯 LATE profile created:', lateProfileCreated, lateProfileId);
+      
+      // Show success message with LATE profile status
+      if (lateProfileCreated) {
+        setMessage({ 
+          type: 'success', 
+          text: `Client created successfully! Social media profile is ready with LATE integration.` 
+        });
       } else {
-        // If no existing client, create a new one
-        console.log('🆕 Creating new client');
-        const response = await fetch("/api/clients/create", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData),
+        setMessage({ 
+          type: 'success', 
+          text: `Client created successfully! Note: Social media profile setup encountered an issue but client was saved.` 
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to create client");
-        }
-
-        const { clientId: newClientId } = await response.json();
-        clientId = newClientId;
-        console.log('✅ New client created:', clientId);
       }
       
-      // Trigger sidebar refresh by dispatching a custom event
-      window.dispatchEvent(new CustomEvent('clientCreated', { detail: { clientId } }));
+      // Clear the form after successful creation
+      setFormData({
+        name: "",
+        company_description: "",
+        website_url: "",
+        brand_tone: "",
+        target_audience: "",
+        value_proposition: "",
+        caption_dos: "",
+        caption_donts: "",
+        brand_voice_examples: "",
+        brand_color: "#4ade80"
+      });
       
-      // Redirect to the client's dashboard
-      router.push(`/dashboard/client/${clientId}`);
+      // Clear the form after successful creation
+      
+      // Redirect after a short delay to show the success message
+      setTimeout(() => {
+        // Trigger sidebar refresh by dispatching a custom event
+        window.dispatchEvent(new CustomEvent('clientCreated', { detail: { clientId } }));
+        
+        // Redirect to the client's dashboard
+        router.push(`/dashboard/client/${clientId}`);
+      }, 2000);
       
     } catch (error) {
       console.error("Error creating client:", error);
@@ -146,6 +177,8 @@ export default function NewClientPageV2() {
       });
     } finally {
       setLoading(false);
+      setLoadingStage('idle');
+      isSubmittingRef.current = false;
     }
   };
 
@@ -180,8 +213,10 @@ export default function NewClientPageV2() {
     }
 
     setScraping(true);
+    let tempClientId = null;
+    
     try {
-      // First create a temporary client to get a clientId
+      // Create a temporary client for scraping (we'll delete it after)
       console.log('🔍 Creating temporary client for scraping...');
       const createResponse = await fetch("/api/clients/create", {
         method: "POST",
@@ -189,29 +224,30 @@ export default function NewClientPageV2() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: formData.name || "Temporary Client",
-          company_description: formData.company_description || "",
+          name: "TEMP_SCRAPE_" + Date.now(),
+          company_description: "",
           website_url: formData.website_url,
-          brand_tone: formData.brand_tone || "",
-          target_audience: formData.target_audience || "",
-          value_proposition: formData.value_proposition || "",
-          caption_dos: formData.caption_dos || "",
-          caption_donts: formData.caption_donts || "",
-          brand_voice_examples: formData.brand_voice_examples || ""
+          brand_tone: "",
+          target_audience: "",
+          value_proposition: "",
+          caption_dos: "",
+          caption_donts: "",
+          brand_voice_examples: "",
+          brand_color: "#4ade80",
+          skipLateProfile: true // Flag to skip LATE profile creation for temp clients
         }),
       });
 
       if (!createResponse.ok) {
-        throw new Error('Failed to create temporary client');
+        throw new Error('Failed to create temporary client for scraping');
       }
 
       const { clientId } = await createResponse.json();
-      console.log('✅ Temporary client created with ID:', clientId);
-      setCreatedClientId(clientId); // Store the client ID for later use
+      tempClientId = clientId;
+      console.log('✅ Temporary client created with ID:', tempClientId);
 
-      // Now use the EXACT same approach as the working client dashboard
-      // First, scrape the website
-      const scrapeResponse = await fetch(`/api/clients/${clientId}/scrape-website`, {
+      // First, scrape the website using the temp client ID
+      const scrapeResponse = await fetch(`/api/clients/${tempClientId}/scrape-website`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: formData.website_url })
@@ -225,7 +261,7 @@ export default function NewClientPageV2() {
       
       if (scrapeData.success && scrapeData.data && scrapeData.data.id) {
         // Now analyze the scraped content with AI
-        const analysisResponse = await fetch(`/api/clients/${clientId}/analyze-website`, {
+        const analysisResponse = await fetch(`/api/clients/${tempClientId}/analyze-website`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ scrapeId: scrapeData.data.id })
@@ -244,30 +280,7 @@ export default function NewClientPageV2() {
             brand_tone: analysisData.analysis.brand_tone
           }));
 
-          // Update the client in the database with all the AI analysis results
-          try {
-            const updateResponse = await fetch(`/api/clients/${clientId}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                name: analysisData.analysis.company_name,
-                company_description: analysisData.analysis.company_description,
-                target_audience: analysisData.analysis.target_audience,
-                value_proposition: analysisData.analysis.value_proposition,
-                brand_tone: analysisData.analysis.brand_tone
-              })
-            });
-
-            if (updateResponse.ok) {
-              console.log('✅ Client updated in database with AI analysis results');
-            } else {
-              console.warn('⚠️ Failed to update client in database');
-            }
-          } catch (updateError) {
-            console.warn('⚠️ Error updating client:', updateError);
-          }
-
-          setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully!' });
+          setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully! Click "Create New Client" to save.' });
           setTimeout(() => setMessage(null), 3000);
         } else {
           throw new Error('Failed to analyze website content');
@@ -281,6 +294,27 @@ export default function NewClientPageV2() {
       setTimeout(() => setMessage(null), 3000);
     } finally {
       setScraping(false);
+      
+      // Clean up: Delete the temporary client if it was created
+      if (tempClientId) {
+        try {
+          console.log('🧹 Cleaning up temporary client:', tempClientId);
+          const deleteResponse = await fetch(`/api/clients/${tempClientId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          
+          if (deleteResponse.ok) {
+            console.log('✅ Temporary client deleted successfully');
+          } else {
+            const errorData = await deleteResponse.json();
+            console.warn('⚠️ Failed to delete temporary client:', errorData);
+          }
+        } catch (cleanupError) {
+          console.warn('⚠️ Failed to delete temporary client:', cleanupError);
+          // Don't show this error to the user as it's not critical
+        }
+      }
     }
   };
 
@@ -447,6 +481,36 @@ export default function NewClientPageV2() {
                     {formData.value_proposition || 'No value proposition specified'}
                   </p>
                 )}
+              </div>
+
+              {/* Brand Color */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Brand Color (for LATE profile)
+                </label>
+                {true ? (
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="color"
+                      value={formData.brand_color}
+                      onChange={(e) => handleInputChange('brand_color', e.target.value)}
+                      className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
+                    />
+                    <Input
+                      value={formData.brand_color}
+                      onChange={(e) => handleInputChange('brand_color', e.target.value)}
+                      placeholder="#4ade80"
+                      className="flex-1"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
+                    {formData.brand_color || '#4ade80'}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  This color will be used for the LATE profile associated with this client
+                </p>
               </div>
 
             </CardContent>
@@ -619,14 +683,29 @@ export default function NewClientPageV2() {
               <div className="mt-6 pt-4 border-t border-gray-200">
                 <div className="flex justify-end">
                   <Button 
-                    onClick={handleSubmit}
+                    onClick={(e) => {
+                      console.log('🖱️ Create Client button clicked');
+                      console.log('🔄 Loading state:', loading);
+                      console.log('🔄 Loading stage:', loadingStage);
+                      console.log('🔄 Is submitting ref:', isSubmittingRef.current);
+                      
+                      // Additional protection against double clicks
+                      if (loading || isSubmittingRef.current) {
+                        console.log('⚠️ Button click ignored - already submitting');
+                        return;
+                      }
+                      
+                      handleSubmit(e);
+                    }}
                     disabled={loading}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
                   >
                     {loading ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating...
+                        {loadingStage === 'creating' ? 'Creating client...' : 
+                         loadingStage === 'setting-up-social' ? 'Setting up social media...' : 
+                         'Creating...'}
                       </>
                     ) : (
                       <>

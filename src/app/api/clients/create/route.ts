@@ -4,9 +4,98 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
+// Function to create LATE profile
+async function createLateProfile(clientName: string, brandInfo: {
+  brand_color?: string;
+  company_description?: string;
+  brand_tone?: string;
+  target_audience?: string;
+  value_proposition?: string;
+  website_url?: string;
+}) {
+  try {
+    console.log('🚀 Creating LATE profile for client:', clientName);
+    console.log('📋 Using brand information:', brandInfo);
+    
+    const lateApiKey = process.env.LATE_API_KEY;
+    if (!lateApiKey) {
+      throw new Error('LATE API key not configured');
+    }
+
+    // Build a comprehensive description using brand information
+    let description = `Social media profile for ${clientName}`;
+    
+    if (brandInfo.company_description) {
+      description += `\n\nAbout: ${brandInfo.company_description}`;
+    }
+    
+    if (brandInfo.value_proposition) {
+      description += `\n\nValue Proposition: ${brandInfo.value_proposition}`;
+    }
+    
+    if (brandInfo.target_audience) {
+      description += `\n\nTarget Audience: ${brandInfo.target_audience}`;
+    }
+    
+    if (brandInfo.brand_tone) {
+      description += `\n\nBrand Tone: ${brandInfo.brand_tone}`;
+    }
+    
+    if (brandInfo.website_url) {
+      description += `\n\nWebsite: ${brandInfo.website_url}`;
+    }
+
+    const requestBody = {
+      name: clientName,
+      description: description,
+      color: brandInfo.brand_color || "#4ade80"
+    };
+
+    console.log('📤 LATE API request body:', requestBody);
+    console.log('🌐 LATE API URL: https://getlate.dev/api/v1/profiles');
+    console.log('🔑 Authorization header:', `Bearer ${lateApiKey.substring(0, 10)}...`);
+
+    const response = await fetch('https://getlate.dev/api/v1/profiles', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${lateApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    console.log('📡 LATE API response status:', response.status);
+    console.log('📡 LATE API response headers:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ LATE API error response:', errorText);
+      console.error('❌ LATE API error status:', response.status);
+      console.error('❌ LATE API error statusText:', response.statusText);
+      throw new Error(`LATE API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ LATE profile created successfully:', data);
+    console.log('✅ LATE profile ID extracted:', data._id);
+
+    if (!data._id) {
+      throw new Error('LATE API response missing _id field');
+    }
+
+    return data._id;
+  } catch (error) {
+    console.error('❌ Error creating LATE profile:', error);
+    throw error;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
+    console.log('🎯 POST /api/clients/create - Request received');
     const body = await req.json();
+    console.log('📋 Request body:', body);
+    
     const { 
       name, 
       company_description, 
@@ -15,7 +104,9 @@ export async function POST(req: NextRequest) {
       target_audience, 
       value_proposition, 
       caption_dos, 
-      caption_donts 
+      caption_donts,
+      brand_color, // Add brand color field for LATE profile
+      skipLateProfile // Flag to skip LATE profile creation for temp clients
     } = body;
 
     // Validate required fields
@@ -30,7 +121,35 @@ export async function POST(req: NextRequest) {
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    // Insert the new client
+    // Try to create LATE profile first (unless skipped for temp clients)
+    let lateProfileId = null;
+    if (!skipLateProfile) {
+      try {
+        console.log('🎯 Attempting to create LATE profile...');
+        console.log('🔑 LATE API Key available:', !!process.env.LATE_API_KEY);
+        console.log('🔑 LATE API Key length:', process.env.LATE_API_KEY?.length || 0);
+        
+        lateProfileId = await createLateProfile(name.trim(), {
+          brand_color: brand_color,
+          company_description: company_description,
+          brand_tone: brand_tone,
+          target_audience: target_audience,
+          value_proposition: value_proposition,
+          website_url: website_url
+        });
+        console.log('✅ LATE profile created with ID:', lateProfileId);
+      } catch (lateError) {
+        console.error('⚠️ Failed to create LATE profile, continuing with client creation:');
+        console.error('❌ LATE Error details:', lateError);
+        console.error('❌ LATE Error message:', lateError instanceof Error ? lateError.message : String(lateError));
+        console.error('❌ LATE Error stack:', lateError instanceof Error ? lateError.stack : 'No stack trace');
+        // Don't fail the entire operation if LATE fails
+      }
+    } else {
+      console.log('⏭️ Skipping LATE profile creation for temporary client');
+    }
+
+    // Insert the new client with LATE profile ID
     const { data: client, error: insertError } = await supabase
       .from('clients')
       .insert([
@@ -43,6 +162,7 @@ export async function POST(req: NextRequest) {
           value_proposition: value_proposition?.trim() || null,
           caption_dos: caption_dos?.trim() || null,
           caption_donts: caption_donts?.trim() || null,
+          late_profile_id: lateProfileId, // Add LATE profile ID
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
@@ -59,11 +179,18 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('✅ Client created successfully:', client.id);
+    if (lateProfileId) {
+      console.log('✅ LATE profile linked:', lateProfileId);
+    } else {
+      console.log('⚠️ No LATE profile linked (creation failed)');
+    }
 
     return NextResponse.json({
       success: true,
       clientId: client.id,
-      client: client
+      client: client,
+      lateProfileId: lateProfileId, // Include LATE profile ID in response
+      lateProfileCreated: !!lateProfileId // Boolean indicating if LATE profile was created
     });
 
   } catch (error: unknown) {

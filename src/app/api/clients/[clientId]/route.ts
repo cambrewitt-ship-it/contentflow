@@ -123,3 +123,43 @@ export async function PUT(
     }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ clientId: string }> }
+) {
+  try {
+    const { clientId } = await params;
+    
+    console.log('🗑️ Deleting client with ID:', clientId);
+
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    const { error } = await supabase
+      .from('clients')
+      .delete()
+      .eq('id', clientId);
+
+    if (error) {
+      console.error('❌ Supabase delete error:', error);
+      return NextResponse.json({ 
+        error: 'Failed to delete client', 
+        details: error.message 
+      }, { status: 500 });
+    }
+
+    console.log('✅ Client deleted successfully:', clientId);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Client deleted successfully'
+    });
+
+  } catch (error: unknown) {
+    console.error('💥 Error in delete client route:', error);
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 });
+  }
+}
