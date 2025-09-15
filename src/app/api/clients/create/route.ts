@@ -77,13 +77,17 @@ async function createLateProfile(clientName: string, brandInfo: {
 
     const data = await response.json();
     console.log('✅ LATE profile created successfully:', data);
-    console.log('✅ LATE profile ID extracted:', data._id);
+    
+    // Handle the nested response structure
+    const profileId = data._id || data.profile?._id;
+    console.log('✅ LATE profile ID extracted:', profileId);
 
-    if (!data._id) {
+    if (!profileId) {
+      console.error('❌ LATE API response structure:', JSON.stringify(data, null, 2));
       throw new Error('LATE API response missing _id field');
     }
 
-    return data._id;
+    return profileId;
   } catch (error) {
     console.error('❌ Error creating LATE profile:', error);
     throw error;

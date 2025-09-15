@@ -4,11 +4,55 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+// Get the correct app URL - prefer environment variable, but fallback to detecting from request
+function getAppUrl(req: NextRequest): string {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+  
+  // If environment URL is ngrok, try to detect the real URL from the request
+  if (envUrl && envUrl.includes('ngrok')) {
+    console.log('⚠️ Detected ngrok URL in NEXT_PUBLIC_APP_URL, attempting to detect real URL');
+    
+    // Try to get the host from the request
+    const host = req.headers.get('host');
+    if (host && !host.includes('ngrok')) {
+      const protocol = req.headers.get('x-forwarded-proto') || 'https';
+      const detectedUrl = `${protocol}://${host}`;
+      console.log('✅ Detected real URL from request:', detectedUrl);
+      return detectedUrl;
+    }
+  }
+  
+  // If no environment URL or it's production URL, try to detect localhost from request
+  const host = req.headers.get('host');
+  if (host && host.includes('localhost')) {
+    const protocol = req.headers.get('x-forwarded-proto') || 'http';
+    const detectedUrl = `${protocol}://${host}`;
+    console.log('✅ Detected localhost URL from request:', detectedUrl);
+    return detectedUrl;
+  }
+  
+  return envUrl || 'http://localhost:3000';
+}
 
 export async function GET(req: NextRequest) {
+  // Get the correct app URL
+  const appUrl = getAppUrl(req);
+  
   try {
-    const { searchParams } = new URL(req.url);
+    // Handle malformed URLs with multiple ? characters
+    let cleanUrl = req.url;
+    if (cleanUrl.includes('??') || cleanUrl.split('?').length > 2) {
+      console.log('🔧 Detected malformed URL with multiple ? characters:', cleanUrl);
+      // Split on first ? and take everything after it, then replace subsequent ? with &
+      const [baseUrl, queryString] = cleanUrl.split('?', 2);
+      if (queryString) {
+        const cleanedQueryString = queryString.replace(/\?/g, '&');
+        cleanUrl = `${baseUrl}?${cleanedQueryString}`;
+        console.log('✅ Cleaned URL:', cleanUrl);
+      }
+    }
+    
+    const { searchParams } = new URL(cleanUrl);
     
     // Extract parameters from URL
     const success = searchParams.get('success');
@@ -18,6 +62,13 @@ export async function GET(req: NextRequest) {
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
     let clientId = searchParams.get('clientId');
+    
+    // Clean up clientId if it has additional data appended (common issue with some OAuth flows)
+    if (clientId && clientId.includes('-ct_')) {
+      console.log('🔧 Cleaning up malformed clientId:', clientId);
+      clientId = clientId.split('-ct_')[0];
+      console.log('✅ Cleaned clientId:', clientId);
+    }
     
     // If clientId is not in query params, try to extract it from the redirect_url
     if (!clientId) {

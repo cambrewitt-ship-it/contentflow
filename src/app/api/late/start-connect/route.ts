@@ -80,7 +80,7 @@ export async function POST(req: Request) {
 
     // 7. Build connect URL
     console.log('🔗 Step 7: Building Connect URL');
-    const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/late/oauth-callback`;
+    const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://contentflow-v2.vercel.app'}/api/late/oauth-callback`;
     const connectUrl = `https://getlate.dev/api/v1/connect/${platform}?profileId=${profileId}&redirect_url=${encodeURIComponent(redirectUrl)}`;
 
     console.log('🔗 Generated connectUrl:', connectUrl);

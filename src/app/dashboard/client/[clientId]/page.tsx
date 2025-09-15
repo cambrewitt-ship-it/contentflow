@@ -1,6 +1,7 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useState, useCallback, useRef } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
 import { Button } from 'components/ui/button'
 import { Plus, Edit3, Calendar, FileText, ArrowRight, Trash2 } from 'lucide-react'
@@ -19,6 +20,8 @@ import {
 
 export default function ClientDashboard({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params)
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +44,14 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null)
   const [oauthMessage, setOauthMessage] = useState<OAuthMessage | null>(null)
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([])
+  const [fetchingAccounts, setFetchingAccounts] = useState(false)
+  
+  // Refs to prevent duplicate requests
+  const fetchAccountsRef = useRef(false)
+  const fetchClientRef = useRef(false)
+  const fetchProjectsRef = useRef(false)
+  const fetchBrandDataRef = useRef(false)
+  const oauthHandledRef = useRef<string | null>(null)
 
   interface ConnectedAccount {
     _id: string;
@@ -52,8 +63,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   // Fetch client data via API
   useEffect(() => {
+    if (!clientId || fetchClientRef.current) return
+    
     async function fetchClient() {
       try {
+        fetchClientRef.current = true
         setLoading(true)
         setError(null)
         
@@ -77,38 +91,57 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         
       } catch (err) {
         console.error('❌ Error fetching client:', err)
-        setError(err instanceof Error ? err.message : 'Failed to fetch client data')
+        // Only set error if it's a critical error (404, not just network issues)
+        if (err instanceof Error && err.message === 'Client not found') {
+          setError(err.message)
+        } else {
+          // For other errors, retry after a short delay instead of showing error immediately
+          console.log('🔄 Retrying client fetch in 2 seconds...')
+          setTimeout(() => {
+            if (!client) { // Only retry if we still don't have client data
+              fetchClientRef.current = false
+              fetchClient()
+            }
+          }, 2000)
+        }
       } finally {
         setLoading(false)
+        fetchClientRef.current = false
       }
     }
 
-    if (clientId) {
-      fetchClient()
-      
-      // Fetch brand documents and website scrapes
-      const fetchBrandData = async () => {
-        try {
-          // Fetch brand documents
-          const docsResponse = await fetch(`/api/clients/${clientId}/brand-documents`)
-          if (docsResponse.ok) {
-            const docsData = await docsResponse.json()
-            setBrandDocuments(docsData.documents || [])
-          }
+    fetchClient()
+  }, [clientId])
 
-          // Fetch website scrapes
-          const scrapesResponse = await fetch(`/api/clients/${clientId}/scrape-website`)
-          if (scrapesResponse.ok) {
-            const scrapesData = await scrapesResponse.json()
-            setWebsiteScrapes(scrapesData.scrapes || [])
-          }
-        } catch (error) {
-          console.error('Error fetching brand data:', error)
+  // Fetch brand data separately to prevent infinite loops
+  useEffect(() => {
+    if (!clientId || fetchBrandDataRef.current) return
+    
+    async function fetchBrandData() {
+      try {
+        fetchBrandDataRef.current = true
+        
+        // Fetch brand documents
+        const docsResponse = await fetch(`/api/clients/${clientId}/brand-documents`)
+        if (docsResponse.ok) {
+          const docsData = await docsResponse.json()
+          setBrandDocuments(docsData.documents || [])
         }
+
+        // Fetch website scrapes
+        const scrapesResponse = await fetch(`/api/clients/${clientId}/scrape-website`)
+        if (scrapesResponse.ok) {
+          const scrapesData = await scrapesResponse.json()
+          setWebsiteScrapes(scrapesData.scrapes || [])
+        }
+      } catch (error) {
+        console.error('Error fetching brand data:', error)
+      } finally {
+        fetchBrandDataRef.current = false
       }
-      
-      fetchBrandData()
     }
+    
+    fetchBrandData()
   }, [clientId])
 
   // Check for OAuth callback messages in URL
@@ -139,15 +172,12 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
   }, []);
 
-  // Fetch connected accounts
-  useEffect(() => {
-    if (clientId) {
-      fetchConnectedAccounts()
-    }
-  }, [clientId])
-
-  const fetchConnectedAccounts = async () => {
+  const fetchConnectedAccounts = useCallback(async () => {
+    if (!clientId || fetchAccountsRef.current) return
+    
     try {
+      fetchAccountsRef.current = true
+      setFetchingAccounts(true)
       const response = await fetch(`/api/late/get-accounts/${clientId}`);
       if (!response.ok) {
         if (response.status === 404) {
@@ -155,7 +185,10 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           setConnectedAccounts([]);
           return;
         }
-        throw new Error(`Failed to fetch accounts: ${response.status}`);
+        // Don't throw error for other status codes - just log and continue
+        console.warn(`⚠️ Failed to fetch accounts: ${response.status} - continuing without accounts`);
+        setConnectedAccounts([]);
+        return;
       }
       const data = await response.json();
       setConnectedAccounts(data.accounts || []);
@@ -164,8 +197,171 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       console.error('Error fetching accounts:', error);
       // Don't crash the dashboard if accounts can't be fetched
       setConnectedAccounts([]);
+    } finally {
+      setFetchingAccounts(false)
+      fetchAccountsRef.current = false
     }
-  };
+  }, [clientId]);
+
+  // Function to clear OAuth messages after delay
+  const clearOAuthMessage = useCallback(() => {
+    setTimeout(() => {
+      setOauthMessage(null)
+    }, 5000) // Clear message after 5 seconds
+  }, []);
+
+  // Function to refresh accounts after OAuth success
+  const refreshAccountsAfterOAuth = useCallback(async () => {
+    if (!clientId || fetchAccountsRef.current) return
+    
+    try {
+      fetchAccountsRef.current = true
+      const response = await fetch(`/api/late/get-accounts/${clientId}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log('Client not found or no LATE profile setup - skipping account refresh');
+          setConnectedAccounts([]);
+          return;
+        }
+        // Don't throw error for other status codes - just log and continue
+        console.warn(`⚠️ Failed to refresh accounts: ${response.status} - continuing without refresh`);
+        return;
+      }
+      const data = await response.json();
+      setConnectedAccounts(data.accounts || []);
+      console.log('✅ Accounts refreshed after OAuth - count:', data.accounts?.length || 0);
+    } catch (error) {
+      console.error('Error refreshing accounts after OAuth:', error);
+      // Don't crash the dashboard if accounts can't be fetched
+      setConnectedAccounts([]);
+    } finally {
+      fetchAccountsRef.current = false
+    }
+  }, [clientId]);
+
+  // Fetch connected accounts
+  useEffect(() => {
+    if (clientId && !fetchAccountsRef.current) {
+      fetchConnectedAccounts()
+    }
+  }, [clientId, fetchConnectedAccounts])
+
+  // Handle OAuth callback URL parameters
+  useEffect(() => {
+    if (!searchParams) return
+    
+    // Create a unique key for this set of search params to prevent duplicate processing
+    const searchParamsString = searchParams.toString()
+    
+    // Skip if we've already handled these exact parameters
+    if (oauthHandledRef.current === searchParamsString) return
+    
+    const connected = searchParams.get('connected')
+    const status = searchParams.get('status')
+    const error = searchParams.get('error')
+    const errorDescription = searchParams.get('error_description')
+    const profileId = searchParams.get('profileId')
+    const username = searchParams.get('username')
+    const message = searchParams.get('message')
+
+    console.log('🔍 OAuth URL parameters detected:', {
+      connected,
+      status,
+      error,
+      errorDescription,
+      profileId,
+      username,
+      message
+    })
+
+    // Mark these parameters as handled
+    oauthHandledRef.current = searchParamsString
+
+    // Handle Facebook OAuth success
+    if (connected === 'facebook' && status === 'success') {
+      console.log('✅ Facebook OAuth success detected')
+      setOauthMessage({
+        type: 'success',
+        message: 'Facebook account connected successfully!'
+      })
+      
+      // Clear message after delay
+      clearOAuthMessage()
+      
+      // Refresh connected accounts to show the new connection
+      setTimeout(() => {
+        refreshAccountsAfterOAuth()
+      }, 1000) // Small delay to ensure the connection is processed
+      
+      // Clean up URL parameters
+      setTimeout(() => {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('connected')
+        url.searchParams.delete('status')
+        url.searchParams.delete('profileId')
+        url.searchParams.delete('username')
+        router.replace(url.pathname + url.search)
+      }, 2000) // Clean up after showing the message
+    }
+    
+    // Handle OAuth errors
+    else if (connected === 'facebook' && status === 'error') {
+      console.log('❌ Facebook OAuth error detected:', { error, errorDescription })
+      // Don't show error message - just clean up URL parameters
+      
+      // Clean up URL parameters
+      setTimeout(() => {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('connected')
+        url.searchParams.delete('status')
+        url.searchParams.delete('error')
+        url.searchParams.delete('error_description')
+        router.replace(url.pathname + url.search)
+      }, 1000) // Clean up URL parameters without showing message
+    }
+    
+    // Handle OAuth warnings
+    else if (connected === 'facebook' && status === 'warning') {
+      console.log('⚠️ Facebook OAuth warning detected')
+      // Don't show error message - just clean up URL parameters
+      
+      // Clean up URL parameters
+      setTimeout(() => {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('connected')
+        url.searchParams.delete('status')
+        url.searchParams.delete('message')
+        router.replace(url.pathname + url.search)
+      }, 1000) // Clean up URL parameters without showing message
+    }
+
+    // Handle generic OAuth success (for other platforms)
+    else if (connected && status === 'success') {
+      console.log(`✅ ${connected} OAuth success detected`)
+      setOauthMessage({
+        type: 'success',
+        message: `${connected.charAt(0).toUpperCase() + connected.slice(1)} account connected successfully!`
+      })
+      
+      // Clear message after delay
+      clearOAuthMessage()
+      
+      // Refresh connected accounts
+      setTimeout(() => {
+        refreshAccountsAfterOAuth()
+      }, 1000)
+      
+      // Clean up URL parameters
+      setTimeout(() => {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('connected')
+        url.searchParams.delete('status')
+        url.searchParams.delete('username')
+        router.replace(url.pathname + url.search)
+      }, 2000)
+    }
+
+  }, [searchParams, refreshAccountsAfterOAuth, router, clearOAuthMessage])
 
   // Check if a platform is connected
   const isPlatformConnected = (platform: string) => {
@@ -176,7 +372,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const handlePlatformConnect = async (platform: string) => {
     try {
       setConnectingPlatform(platform)
-      setError(null)
+      setError(null) // Clear any previous errors
       setOauthMessage(null) // Clear any previous OAuth messages
       
       console.log(`🔗 Connecting to ${platform} for client:`, clientId)
@@ -205,21 +401,27 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       
       const data = await response.json()
       console.log(`✅ ${platform} connection initiated:`, data)
+      console.log('🔍 API Response structure:', JSON.stringify(data, null, 2))
       
-      // Redirect to OAuth URL
-      if (data.authUrl) {
-        window.location.href = data.authUrl
+      // Check if the response is successful
+      if (!data.success) {
+        throw new Error(data.error || `Failed to connect to ${platform}`)
+      }
+      
+      // Redirect to OAuth URL using the correct field name
+      if (data.connectUrl) {
+        console.log(`🔗 Redirecting to: ${data.connectUrl}`)
+        window.location.href = data.connectUrl
       } else {
+        console.error('❌ No connectUrl in response:', data)
         throw new Error('No authentication URL received')
       }
       
     } catch (err) {
       console.error(`❌ Error connecting to ${platform}:`, err)
-      setError(err instanceof Error ? err.message : `Failed to connect to ${platform}`)
-      setOauthMessage({
-        type: 'error',
-        message: `Failed to connect to ${platform}: ${err instanceof Error ? err.message : 'Unknown error'}`
-      })
+      
+      // Don't show error messages - just log the error
+      // All functionality remains the same, just no UI error messages
     } finally {
       setConnectingPlatform(null)
     }
@@ -227,10 +429,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   // Fetch projects for the client
   useEffect(() => {
+    if (!clientId || fetchProjectsRef.current) return
+    
     async function fetchProjects() {
-      if (!clientId) return;
-      
       try {
+        fetchProjectsRef.current = true
         setProjectsLoading(true)
         console.log('🔄 Fetching projects for clientId:', clientId);
         
@@ -270,6 +473,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         // Don't set the main error state - let the dashboard render without projects
       } finally {
         setProjectsLoading(false)
+        fetchProjectsRef.current = false
       }
     }
 
@@ -357,18 +561,23 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       
       console.log('🗑️ Deleting client:', clientId);
       
-      const response = await fetch(`/api/clients?clientId=${clientId}`, {
+      const response = await fetch(`/api/clients/${clientId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
       });
       
+      console.log('📡 Delete response status:', response.status);
+      
       if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Delete error response:', errorData);
         throw new Error(`Failed to delete client: ${response.statusText}`);
       }
       
-      console.log('✅ Client deleted successfully');
+      const responseData = await response.json();
+      console.log('✅ Client deleted successfully, response:', responseData);
       
       // Redirect to main dashboard after successful deletion
       window.location.href = '/dashboard';
@@ -488,6 +697,30 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             </Button>
           </div>
         </div>
+
+        {/* OAuth Messages */}
+        {oauthMessage && (
+          <div className={`mb-6 p-4 rounded-lg border ${
+            oauthMessage.type === 'success' 
+              ? 'bg-green-50 border-green-200 text-green-800' 
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className={`w-5 h-5 rounded-full mr-3 ${
+                  oauthMessage.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+                }`}></div>
+                <p className="font-medium">{oauthMessage.message}</p>
+              </div>
+              <button
+                onClick={() => setOauthMessage(null)}
+                className="text-gray-400 hover:text-gray-600 ml-4"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Projects Section */}
         <div className="mt-8">

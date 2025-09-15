@@ -167,6 +167,13 @@ export default function PlannerPage() {
   };
 
   const fetchConnectedAccounts = useCallback(async () => {
+    // Add caching to prevent excessive calls
+    const now = Date.now();
+    if (now - lastFetchTime < 30000 && connectedAccounts.length > 0) {
+      console.log('📦 Using cached connected accounts data');
+      return;
+    }
+    
     try {
       const response = await fetch(`/api/late/get-accounts/${clientId}`);
       if (!response.ok) {
@@ -179,7 +186,7 @@ export default function PlannerPage() {
       console.error('Error fetching accounts:', error);
       setError(error instanceof Error ? error.message : 'Failed to load connected accounts');
     }
-  }, [clientId]);
+  }, [clientId, lastFetchTime, connectedAccounts.length]);
 
   const fetchPostApprovals = useCallback(async () => {
     if (!selectedProject) return;
@@ -212,7 +219,14 @@ export default function PlannerPage() {
     }
   }, [selectedProject]);
 
-  const fetchUnscheduledPosts = useCallback(async () => {
+  const fetchUnscheduledPosts = useCallback(async (forceRefresh = false) => {
+      // Add caching to prevent excessive calls
+      const now = Date.now();
+      if (!forceRefresh && now - lastFetchTime < 10000 && projectPosts.length > 0) {
+        console.log('📦 Using cached unscheduled posts data');
+        return;
+      }
+      
       try {
         setIsLoadingPosts(true);
         setError(null);
@@ -239,39 +253,38 @@ export default function PlannerPage() {
         }
         
         setProjectPosts(data.posts || []);
+        setLastFetchTime(now); // Update cache timestamp
       } catch (error) {
         console.error('Error fetching unscheduled posts:', error);
         setError(error instanceof Error ? error.message : 'Failed to load unscheduled posts');
       } finally {
         setIsLoadingPosts(false);
       }
-    }, [projectId]);
+    }, [projectId, lastFetchTime, projectPosts.length]);
 
   const fetchScheduledPosts = useCallback(async (retryCount = 0, forceRefresh = false) => {
     if (!projectId) return;
     
-    // Check cache first (unless force refresh)
+    // Check cache first (unless force refresh) - use a separate cache timestamp for scheduled posts
     const now = Date.now();
     if (!forceRefresh && now - lastFetchTime < 30000 && Object.keys(scheduledPosts).length > 0) {
       console.log('📦 Using cached scheduled posts data');
       return;
     }
     
-    const maxRetries = 2;
-    const baseLimit = 30; // Increased for better UX
-    const retryLimit = Math.max(15, baseLimit - (retryCount * 5)); // Reduce limit on retries
+    const maxRetries = 1; // Reduced retries to prevent loops
+    const baseLimit = 20; // Reduced limit to prevent timeouts
     
     try {
       if (retryCount === 0) {
         setIsLoadingScheduledPosts(true);
         setError(null);
       }
-      console.log(`🔍 OPTIMIZED FETCH - Scheduled posts for project: ${projectId} (attempt ${retryCount + 1}, limit: ${retryLimit})`);
+      console.log(`🔍 FETCHING - Scheduled posts for project: ${projectId} (attempt ${retryCount + 1})`);
       
-      // Use optimized query with conditional image data loading
-      const includeImageData = retryCount === 0; // Only load images on first attempt
+      // Simplified query - always include image data for better UX
       const response = await fetch(
-        `/api/planner/scheduled?projectId=${projectId}&limit=${retryLimit}&includeImageData=${includeImageData}`
+        `/api/planner/scheduled?projectId=${projectId}&limit=${baseLimit}&includeImageData=true`
       );
       
       if (!response.ok) {
@@ -282,10 +295,11 @@ export default function PlannerPage() {
           console.error('⏰ Query timeout:', errorData);
           
           if (retryCount < maxRetries) {
-            console.log(`🔄 Retrying with reduced limit (${retryLimit})...`);
+            console.log(`🔄 Retrying... (attempt ${retryCount + 1})`);
             return fetchScheduledPosts(retryCount + 1);
           } else {
-            alert('Query timeout - the database is taking too long to respond. Please try again later or contact support.');
+            setError('Query timeout - please try refreshing the page');
+            setIsLoadingScheduledPosts(false);
             return;
           }
         }
@@ -301,42 +315,9 @@ export default function PlannerPage() {
       }
       
       const data = await response.json();
-      
-      // Debug: Log the fetched data for approval status
-      console.log('🔄 fetchScheduledPosts - Raw API response:', data);
-      if (data.posts && data.posts.length > 0) {
-        console.log('📊 First few posts approval status:');
-        data.posts.slice(0, 3).forEach((post: any, index: number) => {
-          console.log(`  ${index + 1}. Post ${post.id?.substring(0, 8)}... - Status: ${post.approval_status || 'NO STATUS'} - Feedback: ${post.client_feedback || 'NO FEEDBACK'}`);
-        });
-      }
-      
-      // Handle optimized response format
       const posts = data.posts || [];
-      const pagination = data.pagination;
-      const performance = data.performance;
       
-      console.log(`✅ Retrieved ${posts.length} scheduled posts`, pagination ? `(total: ${pagination.total})` : '');
-      
-      if (performance) {
-        console.log(`⏱️ Query performance: ${performance.queryDuration} (optimized: ${performance.optimized})`);
-        
-        if (!performance.optimized) {
-          console.warn('⚠️ Query took longer than expected - consider database optimization');
-        }
-      }
-      
-      // Debug image data (safe logging)
-      if (posts.length > 0 && includeImageData) {
-        console.log(`Found ${posts.length} scheduled posts with image data`);
-        posts.forEach((post: Post, index: number) => {
-          console.log(`Scheduled Post ${index}:`, {
-            hasImage: !!post.image_url,
-            imageType: typeof post.image_url,
-            imageLength: post.image_url?.length || 0
-          });
-        });
-      }
+      console.log(`✅ Retrieved ${posts.length} scheduled posts`);
       
       // Map posts by date
       const mapped: {[key: string]: Post[]} = {};
@@ -352,61 +333,23 @@ export default function PlannerPage() {
       setRefreshKey(prev => prev + 1); // Force re-render
       console.log('Scheduled posts loaded - dates:', Object.keys(mapped).length);
       
-      // Debug: Log the final mapped data
-      console.log('🗂️ Final mapped scheduled posts:');
-      Object.entries(mapped).forEach(([date, posts]) => {
-        console.log(`  ${date}: ${posts.length} posts`);
-        posts.forEach((post, index) => {
-          if (index < 2) { // Only log first 2 posts per date
-            console.log(`    ${post.id?.substring(0, 8)}... - Status: ${post.approval_status || 'NO STATUS'}`);
-          }
-        });
-      });
-      
-      // Handle pagination warnings
-      if (pagination && pagination.hasMore) {
-        console.warn(`⚠️ Only showing first ${pagination.limit} posts. There are ${pagination.total} total posts.`);
-        
-        // Show user notification for large datasets
-        if (pagination.total > 100) {
-          console.info(`💡 Consider implementing pagination for better performance with ${pagination.total} total posts`);
-        }
-      }
-      
-      // Success metrics
-      if (retryCount > 0) {
-        console.log(`🎉 Successfully loaded posts after ${retryCount + 1} attempts`);
-      }
-      
     } catch (error) {
       if (retryCount === 0) {
         setIsLoadingScheduledPosts(false);
       }
       console.error('❌ Error fetching scheduled posts:', error);
       
-      // Retry logic for network errors
+      // Simplified retry logic
       const errorMessage = error instanceof Error ? error.message : String(error);
-      if (retryCount < maxRetries && (
-        errorMessage.includes('fetch') || 
-        errorMessage.includes('network') ||
-        errorMessage.includes('ECONNREFUSED')
-      )) {
+      if (retryCount < maxRetries && errorMessage.includes('fetch')) {
         console.log(`🔄 Network error, retrying... (attempt ${retryCount + 1})`);
-        setTimeout(() => fetchScheduledPosts(retryCount + 1), 1000 * (retryCount + 1));
+        setTimeout(() => fetchScheduledPosts(retryCount + 1), 2000); // Longer delay
         return;
       }
       
       // Show user-friendly error message
-      if (errorMessage.includes('timeout') || errorMessage.includes('TIMEOUT')) {
-        setError('Database query timeout. Please try again or contact support if the issue persists.');
-      } else if (errorMessage.includes('404')) {
-        console.log('No scheduled posts found - this is normal for new projects');
-        setScheduledPosts({});
-        setIsLoadingScheduledPosts(false);
-      } else {
-        setError(`Failed to load scheduled posts: ${errorMessage}`);
-        setIsLoadingScheduledPosts(false);
-      }
+      setError(`Failed to load scheduled posts: ${errorMessage}`);
+      setIsLoadingScheduledPosts(false);
     }
   }, [projectId, lastFetchTime, scheduledPosts]);
 
@@ -431,10 +374,10 @@ export default function PlannerPage() {
       // Fetch data
       fetchConnectedAccounts();
       fetchPostApprovals();
-      fetchUnscheduledPosts();
-      fetchScheduledPosts();
+      fetchUnscheduledPosts(true); // Force refresh on initial load
+      fetchScheduledPosts(0, true); // Force refresh on initial load
     }
-  }, [projectId, clientId, fetchConnectedAccounts, fetchPostApprovals, fetchUnscheduledPosts, fetchScheduledPosts]);
+  }, [projectId, clientId]); // Removed function dependencies to prevent circular loops
 
 
   const getWeeksToDisplay = () => {
@@ -1211,15 +1154,6 @@ export default function PlannerPage() {
         </div>
       )}
 
-      {/* Loading State */}
-      {isLoadingPosts && (
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
-            <p className="text-sm text-blue-800">Loading posts...</p>
-          </div>
-        </div>
-      )}
 
       {/* Header */}
         <div className="bg-white border-b border-gray-200 px-6 py-4 mb-6 rounded-lg shadow">
@@ -1260,9 +1194,31 @@ export default function PlannerPage() {
 
         {/* Posts Queue */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">Posts in Project</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-700">Posts in Project</h3>
+            <button
+              onClick={() => fetchUnscheduledPosts(true)}
+              disabled={isLoadingPosts}
+              className="inline-flex items-center px-2 py-1 text-xs text-gray-600 hover:text-gray-800 disabled:opacity-50"
+              title="Refresh unscheduled posts"
+            >
+              <RefreshCw className={`w-3 h-3 mr-1 ${isLoadingPosts ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+          
+          {/* Loading State for Unscheduled Posts - Only show when no posts are loaded yet */}
+          {isLoadingPosts && projectPosts.length === 0 && (
+            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+                <p className="text-sm text-blue-800">Loading unscheduled posts...</p>
+              </div>
+            </div>
+          )}
+          
           <div className="flex gap-3 overflow-x-auto pb-2">
-            {projectPosts.length === 0 ? (
+            {projectPosts.length === 0 && !isLoadingPosts ? (
               <div className="text-gray-400 text-sm py-4">
                 No posts added yet. Add posts from Content Suite.
             </div>
@@ -1709,7 +1665,15 @@ export default function PlannerPage() {
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">Scheduled Posts - Approval Board</h2>
                 <p className="text-sm text-gray-600 mt-1">Review approval status and client feedback for all scheduled posts</p>
-        </div>
+              </div>
+              
+              {/* Loading State for Scheduled Posts */}
+              {isLoadingScheduledPosts && (
+                <div className="flex items-center text-sm text-blue-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                  Loading scheduled posts...
+                </div>
+              )}
               <Button
                 onClick={() => fetchScheduledPosts(0, true)}
                 variant="outline"
@@ -1812,7 +1776,15 @@ export default function PlannerPage() {
             
             {/* Horizontal Kanban Calendar - Weekly Rows with Daily Columns */}
             <div className="space-y-4">
-              {getWeeksToDisplay().map((weekStart, weekIndex) => {
+              {isLoadingScheduledPosts ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading scheduled posts...</p>
+                  </div>
+                </div>
+              ) : (
+                getWeeksToDisplay().map((weekStart, weekIndex) => {
                 const weekEnd = new Date(weekStart);
                 weekEnd.setDate(weekStart.getDate() + 6);
                 
@@ -1950,7 +1922,8 @@ export default function PlannerPage() {
                     </div>
                   </div>
                 );
-              })}
+              })
+              )}
             </div>
           </div>
           
