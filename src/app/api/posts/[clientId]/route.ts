@@ -19,7 +19,10 @@ export async function GET(
     
     const { data, error } = await supabase
       .from('posts')
-      .select('*')
+      .select(`
+        *,
+        last_edited_by:clients!posts_last_edited_by_fkey(id, name, email)
+      `)
       .eq('client_id', clientId)
       .in('status', ['draft', 'ready'])
       .order('created_at', { ascending: false });

@@ -50,6 +50,7 @@ export interface ContentStore {
   generateAICaptions: (imageId: string, notes?: string) => Promise<void>
   remixCaption: (captionId: string) => Promise<void>
   clearAll: () => void
+  clearStorageOnly: () => void
 }
 
 const ContentStoreContext = createContext<ContentStore | null>(null)
@@ -119,21 +120,43 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
   // Track if we've hydrated from localStorage
   const [hasHydrated, setHasHydrated] = useState(false)
 
+  // Function to check and clean up localStorage if it's getting full
+  const cleanupLocalStorage = () => {
+    if (typeof window !== "undefined") {
+      try {
+        // Check if we're approaching quota limits
+        const used = JSON.stringify(localStorage).length
+        const maxSize = 5 * 1024 * 1024 // 5MB limit
+        
+        if (used > maxSize * 0.8) { // If we're using more than 80% of quota
+          console.warn("localStorage approaching quota limit, cleaning up...")
+          
+          // Clear old image metadata first
+          localStorage.removeItem(getStorageKey("imageMetadata"))
+          
+          // If still too large, clear everything except essential data
+          if (JSON.stringify(localStorage).length > maxSize * 0.9) {
+            console.warn("localStorage still too large, clearing all data...")
+            localStorage.clear()
+          }
+        }
+      } catch (error) {
+        console.error("Error during localStorage cleanup:", error)
+      }
+    }
+  }
+
   // Hydrate from localStorage on mount (client-side only)
   useEffect(() => {
     if (typeof window !== "undefined" && !hasHydrated) {
       try {
-        const savedImages = localStorage.getItem(getStorageKey("uploadedImages"))
         const savedCaptions = localStorage.getItem(getStorageKey("captions"))
         const savedSelectedCaptions = localStorage.getItem(getStorageKey("selectedCaptions"))
         const savedActiveImageId = localStorage.getItem(getStorageKey("activeImageId"))
         const savedPostNotes = localStorage.getItem(getStorageKey("postNotes"))
+        const savedImageMetadata = localStorage.getItem(getStorageKey("imageMetadata"))
 
-        if (savedImages) {
-          const parsedImages: SerializableUploadedImage[] = JSON.parse(savedImages)
-          const restoredImages = parsedImages.map(fromSerializable)
-          setUploadedImages(restoredImages)
-        }
+        // Restore non-image data
         if (savedCaptions) {
           const parsedCaptions = JSON.parse(savedCaptions)
           setCaptions(parsedCaptions)
@@ -149,6 +172,12 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           setPostNotes(savedPostNotes)
         }
 
+        // For images, we'll start with an empty array since we can't restore the actual image data
+        // Users will need to re-upload images, but their captions and other data will be preserved
+        if (savedImageMetadata) {
+          console.log("Found image metadata in localStorage, but images need to be re-uploaded")
+        }
+
         setHasHydrated(true)
       } catch (error) {
         console.error("Error hydrating from localStorage:", error)
@@ -157,17 +186,70 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     }
   }, [hasHydrated])
 
-  // Save to localStorage whenever state changes
+  // Save to localStorage whenever state changes (but not images to avoid quota issues)
   useEffect(() => {
     if (hasHydrated) {
-      const serializableImages = uploadedImages.map(toSerializable)
-      localStorage.setItem(getStorageKey("uploadedImages"), JSON.stringify(serializableImages))
-      localStorage.setItem(getStorageKey("captions"), JSON.stringify(captions))
-      localStorage.setItem(getStorageKey("selectedCaptions"), JSON.stringify(selectedCaptions))
-      localStorage.setItem(getStorageKey("activeImageId"), activeImageId || "")
-      localStorage.setItem(getStorageKey("postNotes"), postNotes)
+      try {
+        // Only save non-image data to localStorage to avoid quota issues
+        localStorage.setItem(getStorageKey("captions"), JSON.stringify(captions))
+        localStorage.setItem(getStorageKey("selectedCaptions"), JSON.stringify(selectedCaptions))
+        localStorage.setItem(getStorageKey("activeImageId"), activeImageId || "")
+        localStorage.setItem(getStorageKey("postNotes"), postNotes)
+        
+        // For images, only save metadata (not the actual image data)
+        const imageMetadata = uploadedImages.map(img => ({
+          id: img.id,
+          filename: img.file.name,
+          size: img.file.size,
+          type: img.file.type,
+          notes: img.notes,
+          hasBlobUrl: !!img.blobUrl
+        }))
+        localStorage.setItem(getStorageKey("imageMetadata"), JSON.stringify(imageMetadata))
+      } catch (error) {
+        console.error("Error saving to localStorage:", error)
+        // If we hit quota issues, clear old data and try again
+        if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+          console.warn("localStorage quota exceeded, clearing old data...")
+          try {
+            localStorage.clear()
+            // Retry saving essential data only
+            localStorage.setItem(getStorageKey("captions"), JSON.stringify(captions))
+            localStorage.setItem(getStorageKey("selectedCaptions"), JSON.stringify(selectedCaptions))
+            localStorage.setItem(getStorageKey("activeImageId"), activeImageId || "")
+            localStorage.setItem(getStorageKey("postNotes"), postNotes)
+            
+            // Show user-friendly notification
+            if (typeof window !== "undefined") {
+              console.info("💾 Storage cleared to free up space. Your captions and settings have been preserved.")
+            }
+          } catch (retryError) {
+            console.error("Failed to save after clearing localStorage:", retryError)
+          }
+        }
+      }
     }
-  }, [hasHydrated, uploadedImages, captions, selectedCaptions, activeImageId, postNotes])
+  }, [hasHydrated, captions, selectedCaptions, activeImageId, postNotes, uploadedImages])
+
+  // Cleanup localStorage periodically and on unmount
+  useEffect(() => {
+    // Run cleanup immediately
+    cleanupLocalStorage()
+    
+    // Set up periodic cleanup every 5 minutes
+    const cleanupInterval = setInterval(cleanupLocalStorage, 5 * 60 * 1000)
+    
+    // Cleanup on unmount
+    return () => {
+      clearInterval(cleanupInterval)
+      // Clean up blob URLs when component unmounts
+      uploadedImages.forEach(image => {
+        if (image.preview.startsWith('blob:')) {
+          URL.revokeObjectURL(image.preview)
+        }
+      })
+    }
+  }, [uploadedImages])
 
   const addImage = async (file: File) => {
     const id = `img-${Date.now()}`
@@ -367,11 +449,23 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     
     // Also clear localStorage to prevent hydration from restoring old data
     if (typeof window !== "undefined") {
-      localStorage.removeItem(getStorageKey("uploadedImages"))
+      localStorage.removeItem(getStorageKey("imageMetadata"))
       localStorage.removeItem(getStorageKey("captions"))
       localStorage.removeItem(getStorageKey("selectedCaptions"))
       localStorage.removeItem(getStorageKey("activeImageId"))
       localStorage.removeItem(getStorageKey("postNotes"))
+    }
+  }
+
+  const clearStorageOnly = () => {
+    // Clear only localStorage without affecting current state
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.clear()
+        console.info("💾 Storage cleared successfully")
+      } catch (error) {
+        console.error("Error clearing storage:", error)
+      }
     }
   }
 
@@ -396,6 +490,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     generateAICaptions,
     remixCaption,
     clearAll,
+    clearStorageOnly,
   }
 
   return (

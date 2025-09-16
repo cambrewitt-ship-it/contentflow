@@ -270,7 +270,7 @@ export default function PublicApprovalPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-2xl font-bold text-gray-900">Content Approval</h1>
           <p className="text-sm text-gray-500">
@@ -416,15 +416,15 @@ export default function PublicApprovalPage() {
                         {/* Approval Buttons */}
                         <div className="mb-4">
                           <div className="text-xs font-medium text-gray-700 mb-2">Select approval:</div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-1 w-full">
                             <Button
-                              variant={(selectedStatus || post.approval?.approval_status) === 'approved' ? 'default' : 'outline'}
+                              variant="default"
                               size="sm"
                               onClick={() => handlePostSelection(postKey, 'approved')}
-                              className={`flex items-center gap-1 text-xs ${
+                              className={`flex items-center justify-center gap-1 text-xs flex-1 ${
                                 (selectedStatus || post.approval?.approval_status) === 'approved' 
-                                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' 
-                                  : 'border-green-600 text-green-600 hover:bg-green-50'
+                                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600 ring-2 ring-green-300 ring-offset-1' 
+                                  : 'bg-green-600 hover:bg-green-700 text-white border-green-600'
                               }`}
                             >
                               <CheckCircle className="w-3 h-3" />
@@ -432,13 +432,13 @@ export default function PublicApprovalPage() {
                             </Button>
                             
                             <Button
-                              variant={(selectedStatus || post.approval?.approval_status) === 'needs_attention' ? 'default' : 'outline'}
+                              variant="default"
                               size="sm"
                               onClick={() => handlePostSelection(postKey, 'needs_attention')}
-                              className={`flex items-center gap-1 text-xs ${
+                              className={`flex items-center justify-center gap-1 text-xs flex-1 ${
                                 (selectedStatus || post.approval?.approval_status) === 'needs_attention' 
-                                  ? 'bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-600' 
-                                  : 'border-yellow-600 text-yellow-600 hover:bg-yellow-50'
+                                  ? 'bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-600 ring-2 ring-yellow-300 ring-offset-1' 
+                                  : 'bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-600'
                               }`}
                             >
                               <AlertTriangle className="w-3 h-3" />
@@ -446,19 +446,35 @@ export default function PublicApprovalPage() {
                             </Button>
                             
                             <Button
-                              variant={(selectedStatus || post.approval?.approval_status) === 'rejected' ? 'default' : 'outline'}
+                              variant="default"
                               size="sm"
                               onClick={() => handlePostSelection(postKey, 'rejected')}
-                              className={`flex items-center gap-1 text-xs ${
+                              className={`flex items-center justify-center text-xs w-8 h-8 p-0 ${
                                 (selectedStatus || post.approval?.approval_status) === 'rejected' 
-                                  ? 'bg-red-600 hover:bg-red-700 text-white border-red-600' 
-                                  : 'border-red-600 text-red-600 hover:bg-red-50'
+                                  ? 'bg-red-600 hover:bg-red-700 text-white border-red-600 ring-2 ring-red-300 ring-offset-1' 
+                                  : 'bg-red-600 hover:bg-red-700 text-white border-red-600'
                               }`}
                             >
-                              <XCircle className="w-3 h-3" />
-                              Reject
+                              <XCircle className="w-4 h-4" />
                             </Button>
                           </div>
+                        </div>
+
+                        {/* Comment Input - Moved to be right after approval buttons */}
+                        <div className="mb-3">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Comments or feedback:
+                          </label>
+                          <textarea
+                            placeholder="Let us know what changes you'd like to see..."
+                            value={comments[`${post.post_type}-${post.id}`] || ''}
+                            onChange={(e) => setComments(prev => ({
+                              ...prev,
+                              [`${post.post_type}-${post.id}`]: e.target.value
+                            }))}
+                            className="w-full p-2 text-xs border border-gray-300 rounded resize-none"
+                            rows={2}
+                          />
                         </div>
 
                         {/* Image */}
@@ -492,7 +508,6 @@ export default function PublicApprovalPage() {
                           )}
                         </div>
 
-
                         {/* Approval Status */}
                         <div className="flex items-center justify-end mb-3 mr-2">
                           <div className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${
@@ -507,23 +522,6 @@ export default function PublicApprovalPage() {
                             {(!post.approval?.approval_status || post.approval?.approval_status === 'pending') && <Minus className="w-3 h-3" />}
                             {post.approval?.approval_status || 'pending'}
                           </div>
-                        </div>
-
-                        {/* Comment Input */}
-                        <div className="mb-3">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Comments or feedback:
-                          </label>
-                          <textarea
-                            placeholder="Let us know what changes you'd like to see..."
-                            value={comments[`${post.post_type}-${post.id}`] || ''}
-                            onChange={(e) => setComments(prev => ({
-                              ...prev,
-                              [`${post.post_type}-${post.id}`]: e.target.value
-                            }))}
-                            className="w-full p-2 text-xs border border-gray-300 rounded resize-none"
-                            rows={2}
-                          />
                         </div>
 
                         {/* Client Comments */}

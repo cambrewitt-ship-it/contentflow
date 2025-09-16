@@ -35,12 +35,23 @@ interface SocialPreviewColumnProps {
     uploadedImages: { preview: string; id: string; file?: File }[]
   ) => Promise<void>
   isSendingToScheduler: boolean
+  // Editing props
+  isEditing?: boolean
+  updatingPost?: boolean
+  // Custom caption change handler
+  onCustomCaptionChange?: (customCaption: string) => void
+  // Caption confirmation change handler
+  onCaptionConfirmationChange?: (confirmed: boolean) => void
 }
 
 export function SocialPreviewColumn({
   clientId,
   handleSendToScheduler,
   isSendingToScheduler,
+  isEditing = false,
+  updatingPost = false,
+  onCustomCaptionChange,
+  onCaptionConfirmationChange,
 }: SocialPreviewColumnProps) {
   const {
     uploadedImages,
@@ -48,6 +59,8 @@ export function SocialPreviewColumn({
     selectedCaptions,
     activeImageId,
     postNotes,
+    setCaptions,
+    setSelectedCaptions,
   } = useContentStore()
 
 
@@ -62,6 +75,7 @@ export function SocialPreviewColumn({
 
   // Custom caption state
   const [customCaption, setCustomCaption] = useState('')
+  const [useAsSelectedCaption, setUseAsSelectedCaption] = useState(false)
 
   // Connected accounts state
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([])
@@ -91,6 +105,46 @@ export function SocialPreviewColumn({
       setCustomCaption(selectedCaption)
     }
   }, [selectedCaption, customCaption])
+
+  // Call parent component when custom caption changes
+  useEffect(() => {
+    if (onCustomCaptionChange && customCaption) {
+      onCustomCaptionChange(customCaption)
+    }
+  }, [customCaption, onCustomCaptionChange])
+
+  // Call parent component when confirmation state changes
+  useEffect(() => {
+    if (onCaptionConfirmationChange) {
+      onCaptionConfirmationChange(useAsSelectedCaption)
+    }
+  }, [useAsSelectedCaption, onCaptionConfirmationChange])
+
+  // Only update content store when we're about to save/update a post
+  // This prevents the custom caption from appearing in the AI captions section during live editing
+  const updateContentStoreForSaving = () => {
+    if (customCaption && customCaption !== selectedCaption && useAsSelectedCaption) {
+      // Update the content store with the custom caption only when saving
+      const captionId = selectedCaptions[0] || 'custom-caption-1'
+      const updatedCaptions = captions.map(cap => 
+        cap.id === captionId ? { ...cap, text: customCaption } : cap
+      )
+      
+      // If no caption exists, create a new one
+      if (updatedCaptions.length === 0 || !captions.find(cap => cap.id === captionId)) {
+        updatedCaptions.push({
+          id: captionId,
+          text: customCaption
+        })
+      }
+      
+      // Update the content store
+      setCaptions(updatedCaptions)
+      if (!selectedCaptions.includes(captionId)) {
+        setSelectedCaptions([captionId])
+      }
+    }
+  }
 
   // Fetch connected accounts on component mount
   useEffect(() => {
@@ -181,6 +235,15 @@ export function SocialPreviewColumn({
   }
 
   const handleSchedulePost = async () => {
+    // Always update content store before saving (for both new posts and edits)
+    updateContentStoreForSaving()
+    
+    // If editing, use the handleSendToScheduler function
+    if (isEditing) {
+      await handleSendToScheduler(displayCaption, uploadedImages)
+      return
+    }
+
     if (!scheduleDate || !scheduleTime) {
       setScheduleError('Please select both date and time')
       return
@@ -626,6 +689,37 @@ export function SocialPreviewColumn({
                         AI Caption: {selectedCaption}
                       </p>
                     )}
+                    
+                    {/* Checkbox to control whether custom caption should be treated as selected caption */}
+                    {customCaption && (
+                      <div className="mt-3 flex items-center">
+                        <button
+                          type="button"
+                          onClick={() => setUseAsSelectedCaption(!useAsSelectedCaption)}
+                          className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                            useAsSelectedCaption
+                              ? 'bg-green-600 text-white shadow-md hover:bg-green-700'
+                              : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded border-2 mr-2 flex items-center justify-center ${
+                            useAsSelectedCaption
+                              ? 'border-white bg-white'
+                              : 'border-gray-400 bg-white'
+                          }`}>
+                            {useAsSelectedCaption && (
+                              <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </div>
+                          Confirm
+                        </button>
+                        <span className="ml-2 text-xs text-gray-500">
+                          {useAsSelectedCaption ? 'Caption confirmed for use' : 'Click to confirm this caption'}
+                        </span>
+                      </div>
+                    )}
                   </div>
             </div>
           ) : (
@@ -648,13 +742,23 @@ export function SocialPreviewColumn({
             </p>
             
             <div className="space-y-3">
-              {/* Schedule Button */}
+              {/* Schedule/Update Button */}
               <Button
-                onClick={openScheduleModal}
-                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                onClick={isEditing ? () => handleSendToScheduler(displayCaption, uploadedImages) : openScheduleModal}
+                disabled={updatingPost}
+                className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
               >
-                <Calendar className="w-5 h-5 mr-2" />
-                Schedule
+                {updatingPost ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="w-5 h-5 mr-2" />
+                    {isEditing ? 'Update Post' : 'Schedule'}
+                  </>
+                )}
               </Button>
             </div>
           </CardContent>
@@ -778,12 +882,12 @@ export function SocialPreviewColumn({
                 {isScheduling ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Scheduling...
+                    {isEditing ? 'Updating...' : 'Scheduling...'}
                   </>
                 ) : (
                   <>
                     <Calendar className="w-4 h-4 mr-2" />
-                    Schedule Post
+                    {isEditing ? 'Update Post' : 'Schedule Post'}
                   </>
                 )}
               </Button>

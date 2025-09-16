@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Share2, Loader2, RefreshCw } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
+import { EditIndicators } from 'components/EditIndicators';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { Button } from 'components/ui/button';
@@ -90,9 +91,20 @@ interface Post {
   late_post_id?: string;
   platforms_scheduled?: string[];
   late_status?: string;
-  approval_status?: 'pending' | 'approved' | 'rejected' | 'needs_attention';
+  approval_status?: 'pending' | 'approved' | 'rejected' | 'needs_attention' | 'draft';
   needs_attention?: boolean;
   client_feedback?: string;
+  // New editing fields
+  edit_count?: number;
+  last_edited_at?: string;
+  last_edited_by?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  needs_reapproval?: boolean;
+  original_caption?: string;
+  status?: 'draft' | 'ready' | 'scheduled' | 'published' | 'archived' | 'deleted';
 }
 
 interface ConnectedAccount {
@@ -378,6 +390,23 @@ export default function PlannerPage() {
       fetchScheduledPosts(0, true); // Force refresh on initial load
     }
   }, [projectId, clientId]); // Removed function dependencies to prevent circular loops
+
+  // Check for refresh flag from content suite
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const shouldRefresh = urlParams.get('refresh') === 'true';
+    
+    if (shouldRefresh && projectId) {
+      console.log('🔄 Refreshing data after returning from content suite');
+      fetchUnscheduledPosts(true);
+      fetchScheduledPosts(0, true);
+      
+      // Remove the refresh parameter from URL
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('refresh');
+      window.history.replaceState({}, '', newUrl.toString());
+    }
+  }, [projectId]);
 
 
   const getWeeksToDisplay = () => {
@@ -1257,20 +1286,39 @@ export default function PlannerPage() {
                             e.currentTarget.src = '/api/placeholder/100/100';
                           }}
                         />
-                        {/* Delete button - positioned to not interfere with drag */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            if (confirm('Are you sure you want to delete this post?')) {
-                              handleDeleteUnscheduledPost(post.id);
-                            }
-                          }}
-                          className="absolute top-1 right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
-                          title="Delete post"
-                        >
-                          ×
-                        </button>
+                        {/* Action buttons - positioned to not interfere with drag */}
+                        <div className="absolute top-1 right-1 flex flex-col gap-1">
+                          {/* Edit button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              // Navigate to content suite with editPostId parameter in same tab
+                              window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
+                            }}
+                            className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
+                            title="Edit in Content Suite"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          
+                          {/* Delete button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              if (confirm('Are you sure you want to delete this post?')) {
+                                handleDeleteUnscheduledPost(post.id);
+                              }
+                            }}
+                            className="w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
+                            title="Delete post"
+                          >
+                            ×
+                          </button>
+                        </div>
                       </>
                     )}
                   </div>
@@ -1863,22 +1911,13 @@ export default function PlannerPage() {
                                   </div>
                                 </div>
 
-                                {/* Approval Status Badge */}
+                                {/* Edit Indicators and Approval Status */}
                                 <div className="flex items-center justify-between mb-2">
-                                  <div className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                    post.approval_status === 'approved' ? 'bg-green-100 text-green-800' :
-                                    post.approval_status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                    post.approval_status === 'needs_attention' ? 'bg-orange-100 text-orange-800' :
-                                    'bg-gray-100 text-gray-800'
-                                  }`}>
-                                    {post.approval_status === 'approved' && <Check className="w-3 h-3 mr-1" />}
-                                    {post.approval_status === 'rejected' && <X className="w-3 h-3 mr-1" />}
-                                    {post.approval_status === 'needs_attention' && <AlertTriangle className="w-3 h-3 mr-1" />}
-                                    {(!post.approval_status || post.approval_status === 'pending') && <Minus className="w-3 h-3 mr-1" />}
-                                    {post.approval_status === 'approved' ? '✓' :
-                                     post.approval_status === 'rejected' ? '✗' :
-                                     post.approval_status === 'needs_attention' ? '⚠' : '○'}
-                                  </div>
+                                  <EditIndicators 
+                                    post={post} 
+                                    clientId={clientId}
+                                    showHistory={true}
+                                  />
                                   
                                   {/* Client Feedback Indicator */}
                                   {post.client_feedback && (
@@ -1903,9 +1942,24 @@ export default function PlannerPage() {
                                 </div>
                                 
                                 {/* Caption */}
-                                <p className="text-sm text-gray-900 mb-2">
-                                  {post.caption}
-                                </p>
+                                <div className="flex items-start justify-between mb-2">
+                                  <p className="text-sm text-gray-900 flex-1">
+                                    {post.caption}
+                                  </p>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // Navigate to content suite with editPostId parameter in same tab
+                                      window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
+                                    }}
+                                    className="ml-2 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors flex-shrink-0"
+                                    title="Edit content"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                </div>
                                 
                                 {/* Client Feedback */}
                                 {post.client_feedback && (
@@ -1914,6 +1968,43 @@ export default function PlannerPage() {
                                     <p className="mt-1 text-gray-600">{post.client_feedback}</p>
                                   </div>
                                 )}
+
+                                {/* Post Actions */}
+                                <div className="mt-3 pt-2 border-t border-gray-100">
+                                  <div className="flex items-center justify-between">
+                                    {/* Status and Info */}
+                                    <div className="flex items-center space-x-2 text-xs text-gray-500">
+                                      {post.late_status && (
+                                        <span className={`px-2 py-1 rounded-full text-xs ${
+                                          post.late_status === 'scheduled' ? 'bg-green-100 text-green-700' :
+                                          post.late_status === 'published' ? 'bg-blue-100 text-blue-700' :
+                                          post.late_status === 'failed' ? 'bg-red-100 text-red-700' :
+                                          'bg-gray-100 text-gray-700'
+                                        }`}>
+                                          {post.late_status}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Edit in Content Suite Button */}
+                                    {(post as any).status !== 'published' && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          // Navigate to content suite with editPostId parameter in same tab
+                                          window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
+                                        }}
+                                        className="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                                        title="Edit in Content Suite"
+                                      >
+                                        <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                        Edit in Content Suite
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             );
                           })

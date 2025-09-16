@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     console.log('📊 About to insert posts into database...');
     
     // Create posts in the main posts table
-    const postsToInsert = posts.map((post: { caption: string; image_url: string; notes?: string }) => {
+    const postsToInsert = posts.map((post: { caption: string; image_url: string; notes?: string; edit_reason?: string }) => {
       console.log('📝 Saving post with caption:', post.caption);
       return {
         client_id: clientId,
@@ -61,7 +61,13 @@ export async function POST(request: Request) {
         image_url: post.image_url, // Fixed: was expecting 'imageUrl' but getting 'image_url'
         media_type: 'image',
         status: status,
-        notes: post.notes || ''
+        notes: post.notes || '',
+        // New editing fields
+        original_caption: post.caption, // Set original caption on creation
+        edit_count: 0, // Start with 0 edits
+        needs_reapproval: false, // New posts don't need reapproval
+        approval_status: 'pending', // Default approval status
+        edit_reason: post.edit_reason || null
       };
     });
     

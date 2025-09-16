@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     console.log(`🔍 OPTIMIZED FETCH - Scheduled posts for project ${projectId} (limit: ${limit}, images: ${includeImageData})`);
     
     // Optimized query - only select fields needed for approval board
-    const baseFields = 'id, project_id, caption, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, late_status, late_post_id, platforms_scheduled, created_at, updated_at';
+    const baseFields = 'id, project_id, caption, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, late_status, late_post_id, platforms_scheduled, created_at, updated_at, last_edited_at, edit_count, needs_reapproval, original_caption';
     const selectFields = includeImageData ? `${baseFields}, image_url` : baseFields;
     
     const { data, error } = await supabase
