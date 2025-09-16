@@ -130,7 +130,11 @@ export async function PUT(
     }
     
     // 1. POST STATUS VALIDATION
-    if (!['draft', 'ready', 'scheduled'].includes(currentPost.status)) {
+    // Check if post has a status field (main posts table) or if it's in planner tables
+    const hasStatusField = currentPost.status !== undefined;
+    const isPlannerPost = currentPost.scheduled_date !== undefined || currentPost.project_id !== undefined;
+    
+    if (hasStatusField && !['draft', 'ready', 'scheduled'].includes(currentPost.status)) {
       const statusMessages = {
         'published': 'Cannot edit published posts. Please create a new version instead.',
         'archived': 'Cannot edit archived posts. Please restore the post first.',
@@ -144,6 +148,11 @@ export async function PUT(
         },
         { status: 400 }
       );
+    }
+    
+    // For planner posts, we allow editing by default since they don't have restrictive status values
+    if (isPlannerPost) {
+      console.log('✅ Planner post - allowing edit (no status restrictions)');
     }
     
     // 2. CONCURRENT EDITING PREVENTION

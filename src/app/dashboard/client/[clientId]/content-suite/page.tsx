@@ -570,6 +570,18 @@ function ContentSuiteContent({
         </div>
       )}
 
+      {/* Edit Instructions */}
+      {isEditing && (
+        <div className="bg-green-50 border-b border-green-200 px-6 py-3">
+          <div className="flex items-center">
+            <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
+            <p className="text-sm text-green-800">
+              <strong>Update Mode:</strong> Use the "Update Post" button below to save your changes. This will update the existing post in your planner.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Loading State for Post */}
       {loadingPost && (
         <div className="bg-white border-b border-gray-200 px-6 py-8">
@@ -582,15 +594,16 @@ function ContentSuiteContent({
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* My Projects Section */}
-        <div className="mb-8">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">My Projects</h2>
-              <span className="text-sm text-gray-500">
-                {projectsLoading ? 'Loading...' : `${projects.length} project${projects.length !== 1 ? 's' : ''}`}
-              </span>
-            </div>
+        {/* My Projects Section - Only show when not editing */}
+        {!isEditing && (
+          <div className="mb-8">
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">My Projects</h2>
+                <span className="text-sm text-gray-500">
+                  {projectsLoading ? 'Loading...' : `${projects.length} project${projects.length !== 1 ? 's' : ''}`}
+                </span>
+              </div>
             
             {projectsLoading ? (
               <div className="flex items-center justify-center py-8">
@@ -708,11 +721,12 @@ function ContentSuiteContent({
                 </Button>
               </div>
             )}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* New Project Form */}
-        {showNewProjectForm && (
+        {/* New Project Form - Only show when not editing */}
+        {!isEditing && showNewProjectForm && (
           <div className="mb-8">
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
