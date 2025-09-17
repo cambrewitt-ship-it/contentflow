@@ -270,11 +270,18 @@ export async function PUT(
     if (edit_reason !== undefined) {
       updateData.edit_reason = edit_reason;
     }
-    if (media_type !== undefined) {
-      updateData.media_type = media_type;
-    }
-    if (media_alt_text !== undefined) {
-      updateData.media_alt_text = media_alt_text;
+    
+    // Only add media_type and media_alt_text for main posts table, not planner tables
+    if (!isPlannerPost) {
+      if (media_type !== undefined) {
+        updateData.media_type = media_type;
+      }
+      if (media_alt_text !== undefined) {
+        updateData.media_alt_text = media_alt_text;
+      }
+      console.log('📝 Main posts table - including media_type and media_alt_text');
+    } else {
+      console.log('📝 Planner post - skipping media_type and media_alt_text (not supported)');
     }
     
     // AI generation settings (store as JSONB)

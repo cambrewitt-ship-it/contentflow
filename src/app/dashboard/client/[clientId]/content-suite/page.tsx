@@ -196,15 +196,76 @@ export default function ContentSuitePage({ params }: PageProps) {
       setUpdatingPost(true)
       console.log('🔄 Updating post:', editingPostId)
       
+      // Get the actual caption from content store if selectedCaption is empty
+      const finalCaption = selectedCaption?.trim() || editingPost?.caption || ''
+      
+      if (!finalCaption.trim()) {
+        throw new Error('Caption is required to update the post')
+      }
+      
+      console.log('📝 Final caption for update:', finalCaption)
+      
+      // Handle image conversion from base64 to blob URL if needed
+      let imageUrl = uploadedImages[0]?.preview || editingPost?.image_url
+      
+      console.log('🔍 Image URL type check:', {
+        hasImage: !!imageUrl,
+        isBase64: imageUrl?.startsWith('data:image/'),
+        isBlob: imageUrl?.startsWith('blob:'),
+        isHttps: imageUrl?.startsWith('https://'),
+        length: imageUrl?.length,
+        preview: imageUrl?.substring(0, 100) + '...'
+      })
+      
+      if (imageUrl && imageUrl.startsWith('data:image/')) {
+        console.log('🔄 Converting base64 image to blob URL...')
+        try {
+          // Extract MIME type from base64 string
+          const mimeType = imageUrl.match(/data:([^;]+)/)?.[1] || 'image/jpeg'
+          console.log('📝 Detected MIME type:', mimeType)
+          
+          // Upload to Vercel Blob via API
+          const filename = `post-${editingPostId}-${Date.now()}.${mimeType.split('/')[1] || 'jpg'}`
+          console.log('📤 Uploading to blob with filename:', filename)
+          
+          const uploadResponse = await fetch('/api/upload-image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              imageData: imageUrl,
+              filename: filename
+            })
+          })
+          
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json()
+            imageUrl = uploadResult.url
+            console.log('✅ Image converted to blob URL:', imageUrl)
+          } else {
+            const errorData = await uploadResponse.json()
+            console.error('❌ Upload failed:', errorData)
+            throw new Error(errorData.error || 'Upload failed')
+          }
+        } catch (error) {
+          console.error('❌ Error converting image:', error)
+          console.warn('⚠️ Using original image URL')
+        }
+      } else {
+        console.log('ℹ️ Image is not base64, using as-is:', imageUrl?.substring(0, 100))
+      }
+      
       // Prepare the update data
       const updateData = {
         client_id: clientId,
         edited_by_user_id: clientId, // Using clientId as user ID for now
-        caption: selectedCaption,
-        image_url: uploadedImages[0]?.preview || editingPost?.image_url,
+        caption: finalCaption,
+        image_url: imageUrl,
         platforms: ['instagram', 'facebook', 'twitter'], // Default platforms
         edit_reason: 'Updated via content suite',
-        media_type: 'image',
+        // Only include media_type for main posts table, not planner tables
+        ...(editingPost?.scheduled_date ? {} : { media_type: 'image' }),
         // Include AI settings if available
         ai_settings: editingPost?.ai_settings || {},
         // Include tags and categories if available
@@ -460,8 +521,44 @@ function ContentSuiteContent({
     try {
       let imageData = post.generatedImage;
       
+      // Convert base64 to blob URL if needed
+      if (imageData && imageData.startsWith('data:image/')) {
+        try {
+          console.log('🔄 Converting base64 image to blob URL for project...')
+          
+          // Extract MIME type from base64 string
+          const mimeType = imageData.match(/data:([^;]+)/)?.[1] || 'image/jpeg'
+          
+          // Upload to Vercel Blob via API
+          const filename = `project-${projectId}-${Date.now()}.${mimeType.split('/')[1] || 'jpg'}`
+          
+          const uploadResponse = await fetch('/api/upload-image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              imageData: imageData,
+              filename: filename
+            })
+          })
+          
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json()
+            imageData = uploadResult.url
+            console.log('✅ Image converted to blob URL for project:', imageData)
+          } else {
+            const errorData = await uploadResponse.json()
+            console.error('❌ Upload failed for project:', errorData)
+            throw new Error(errorData.error || 'Upload failed')
+          }
+        } catch (error) {
+          console.error('❌ Error converting image for project:', error)
+          console.warn('⚠️ Using original image data')
+        }
+      }
       // Only convert blob URLs, not base64 strings
-      if (imageData && imageData.startsWith('blob:')) {
+      else if (imageData && imageData.startsWith('blob:')) {
         try {
           const response = await fetch(imageData);
           const blob = await response.blob();
@@ -576,7 +673,7 @@ function ContentSuiteContent({
           <div className="flex items-center">
             <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
             <p className="text-sm text-green-800">
-              <strong>Update Mode:</strong> Use the "Update Post" button below to save your changes. This will update the existing post in your planner.
+              <strong>Update Mode:</strong> Use the &quot;Update Post&quot; button below to save your changes. This will update the existing post in your planner.
             </p>
           </div>
         </div>

@@ -100,11 +100,12 @@ export function SocialPreviewColumn({
   const displayCaption = customCaption.trim() || selectedCaption || ''
 
   // Sync custom caption with selected AI caption when it changes
+  // Only sync if custom caption is empty and we have a selected caption
   useEffect(() => {
-    if (selectedCaption && !customCaption) {
+    if (selectedCaption && customCaption === '') {
       setCustomCaption(selectedCaption)
     }
-  }, [selectedCaption, customCaption])
+  }, [selectedCaption])
 
   // Call parent component when custom caption changes
   useEffect(() => {
