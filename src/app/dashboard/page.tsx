@@ -38,7 +38,7 @@ export default function Dashboard() {
         
         {/* Create New Client V2 Button */}
         <div className="mb-12">
-          <Link href="/dashboard/clients/new-v2">
+          <Link href="/dashboard/clients/new">
             <Button className={getThemeClasses(
               "w-full",
               "w-full glass-button glass-button-primary"

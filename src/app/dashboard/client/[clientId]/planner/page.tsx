@@ -1473,9 +1473,9 @@ export default function PlannerPage() {
           </div>
           <div className="overflow-x-auto">
             <div className="min-w-[1000px] p-4">
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-4" style={{ gap: '16px' }}>
                 {getWeeksToDisplay().map((weekStart, weekIndex) => (
-                  <div key={weekIndex} className="flex flex-col border rounded-lg bg-white w-64">
+                  <div key={weekIndex} className="flex flex-col border rounded-lg bg-white min-w-64 flex-1">
                     <div className="bg-gray-50 p-3 border-b">
                       <h3 className="font-semibold text-sm">
                         {formatWeekCommencing(weekStart)}
@@ -1779,7 +1779,7 @@ export default function PlannerPage() {
             </div>
             
             {/* Approval Summary */}
-            <div className="mb-6 grid grid-cols-4 gap-4">
+            <div className="mb-6 grid grid-cols-4" style={{ gap: '16px' }}>
               {(() => {
                 const allPosts = Object.values(scheduledPosts).flat();
                 const approved = allPosts.filter(p => p.approval_status === 'approved').length;

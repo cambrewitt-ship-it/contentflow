@@ -338,7 +338,7 @@ export default function NewClientPageV2() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Create New Client (V2)</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Create New Client</h1>
           <p className="text-gray-600 mt-2">
             Add a new client with full brand information and web scraping capabilities
           </p>
@@ -483,8 +483,8 @@ export default function NewClientPageV2() {
                 )}
               </div>
 
-              {/* Brand Color */}
-              <div>
+              {/* Brand Color - Hidden from UI but kept for LATE profile functionality */}
+              <div className="hidden">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Brand Color (for LATE profile)
                 </label>

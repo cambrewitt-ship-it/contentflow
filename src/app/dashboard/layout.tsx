@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "components/ui/button";
 import Sidebar from "components/Sidebar";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
     <div className="flex h-screen bg-background">
@@ -24,11 +25,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Left Sidebar */}
       <div className={`
         fixed md:relative inset-y-0 left-0 z-40
-        transform transition-transform duration-300 ease-in-out
+        transform transition-all duration-300 ease-in-out
         shadow-lg md:shadow-none
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'}
       `}>
-        <Sidebar />
+        <Sidebar 
+          collapsed={sidebarCollapsed} 
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
       </div>
 
       {/* Overlay for mobile */}

@@ -105,11 +105,12 @@ export default function ApprovalBoardPage() {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Client Approval Board</h1>
-              <p className="text-sm text-gray-500">
-                Review and manage client feedback on scheduled posts
-              </p>
+            <div className="flex items-center">
+              <img 
+                src="/cm-logo.png" 
+                alt="CM Logo" 
+                className="h-12 w-auto object-contain"
+              />
             </div>
           </div>
         </div>

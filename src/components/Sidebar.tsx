@@ -10,7 +10,9 @@ import {
   Users, 
   Home, 
   Loader2,
-  AlertCircle
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import Link from "next/link";
 
@@ -21,7 +23,12 @@ interface Client {
   created_at: string;
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+}
+
+export default function Sidebar({ collapsed = false, onToggleCollapse }: SidebarProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -132,21 +139,46 @@ export default function Sidebar() {
 
   return (
     <div className={getThemeClasses(
-      "w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col",
-      "w-64 glass-sidebar min-h-screen flex flex-col"
+      `bg-white border-r border-gray-200 min-h-screen flex flex-col transition-all duration-300 ${
+        collapsed ? 'w-16' : 'w-64'
+      }`,
+      `glass-sidebar min-h-screen flex flex-col transition-all duration-300 ${
+        collapsed ? 'w-16' : 'w-64'
+      }`
     )}>
-      {/* Header with CM Logo */}
+      {/* Header with CM Logo and Collapse Button */}
       <div className={getThemeClasses(
         "p-4 border-b border-gray-200",
         "p-4 border-b border-white/20"
       )}>
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-between">
           {/* CM Logo */}
-          <img 
-            src="/cm-logo.png" 
-            alt="CM Logo" 
-            className="h-12 w-auto object-contain"
-          />
+          <div className="flex items-center justify-center">
+            <img 
+              src="/cm-logo.png" 
+              alt="CM Logo" 
+              className={`object-contain transition-all duration-300 ${
+                collapsed ? 'h-8 w-8' : 'h-24 w-auto'
+              }`}
+            />
+          </div>
+          
+          {/* Collapse Button - Desktop Only */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggleCollapse}
+            className={`hidden md:flex h-8 w-8 p-0 hover:bg-gray-100 ${
+              collapsed ? 'ml-0' : 'ml-2'
+            }`}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </Button>
         </div>
       </div>
 
@@ -155,10 +187,12 @@ export default function Sidebar() {
         "p-4 border-b border-gray-200",
         "p-4 border-b border-white/20"
       )}>
-        <h3 className={getThemeClasses(
-          "text-sm font-medium text-gray-500 mb-3",
-          "text-sm font-medium glass-text-muted mb-3"
-        )}>Navigation</h3>
+        {!collapsed && (
+          <h3 className={getThemeClasses(
+            "text-sm font-medium text-gray-500 mb-3",
+            "text-sm font-medium glass-text-muted mb-3"
+          )}>Navigation</h3>
+        )}
         <nav className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -167,16 +201,17 @@ export default function Sidebar() {
                 <Button
                   variant={item.active ? "secondary" : "ghost"}
                   className={getThemeClasses(
-                    `w-full justify-start ${
+                    `w-full ${collapsed ? 'justify-center px-2' : 'justify-start'} ${
                       item.active ? "bg-blue-50 text-blue-700 border-blue-200" : "text-gray-700 hover:bg-gray-50"
                     }`,
-                    `w-full justify-start glass-button ${
+                    `w-full ${collapsed ? 'justify-center px-2' : 'justify-start'} glass-button ${
                       item.active ? "glass-text-primary" : "glass-text-secondary hover:glass-text-primary"
                     }`
                   )}
+                  title={collapsed ? item.name : undefined}
                 >
-                  <Icon className="w-4 h-4 mr-2" />
-                  {item.name}
+                  <Icon className={`w-4 h-4 ${collapsed ? '' : 'mr-2'}`} />
+                  {!collapsed && item.name}
                 </Button>
               </Link>
             );
@@ -186,26 +221,28 @@ export default function Sidebar() {
 
       {/* Clients List */}
       <div className="flex-1 p-4 overflow-y-auto">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className={getThemeClasses(
-            "text-sm font-medium text-gray-500",
-            "text-sm font-medium glass-text-muted"
-          )}>All Clients</h3>
-          
-          {/* Refresh Button */}
-          <Button 
-            size="sm" 
-            variant="outline" 
-            onClick={refreshClients}
-            title="Refresh clients list"
-            className={getThemeClasses(
-              "h-6 w-6 p-0",
-              "h-6 w-6 p-0 glass-button"
-            )}
-          >
-            <Loader2 className="w-3 h-3" />
-          </Button>
-        </div>
+        {!collapsed && (
+          <div className="flex items-center justify-between mb-3">
+            <h3 className={getThemeClasses(
+              "text-sm font-medium text-gray-500",
+              "text-sm font-medium glass-text-muted"
+            )}>All Clients</h3>
+            
+            {/* Refresh Button */}
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={refreshClients}
+              title="Refresh clients list"
+              className={getThemeClasses(
+                "h-6 w-6 p-0",
+                "h-6 w-6 p-0 glass-button"
+              )}
+            >
+              <Loader2 className="w-3 h-3" />
+            </Button>
+          </div>
+        )}
         
         {clients.length === 0 ? (
           <div className="text-center py-8">
@@ -240,29 +277,36 @@ export default function Sidebar() {
                     }`
                   )}
                   onClick={() => router.push(`/dashboard/client/${client.id}`)}
+                  title={collapsed ? client.name : undefined}
                 >
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                  <CardContent className={`p-3 ${collapsed ? 'p-2' : ''}`}>
+                    <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
+                      <div className={`${collapsed ? '' : 'flex-1 min-w-0'}`}>
+                        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2'}`}>
                           <div className={getThemeClasses(
-                            "w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-700",
-                            "w-6 h-6 rounded-full glass-card flex items-center justify-center text-xs font-medium glass-text-primary"
+                            `rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-700 ${
+                              collapsed ? 'w-8 h-8' : 'w-6 h-6'
+                            }`,
+                            `rounded-full glass-card flex items-center justify-center text-xs font-medium glass-text-primary ${
+                              collapsed ? 'w-8 h-8' : 'w-6 h-6'
+                            }`
                           )}>
                             {client.name.charAt(0).toUpperCase()}
                           </div>
-                          <span className={getThemeClasses(
-                            `font-medium truncate ${
-                              isActiveClient ? 'text-blue-700' : 'text-gray-900'
-                            }`,
-                            `font-medium truncate ${
-                              isActiveClient ? 'glass-text-primary' : 'glass-text-secondary'
-                            }`
-                          )}>
-                            {client.name}
-                          </span>
+                          {!collapsed && (
+                            <span className={getThemeClasses(
+                              `font-medium truncate ${
+                                isActiveClient ? 'text-blue-700' : 'text-gray-900'
+                              }`,
+                              `font-medium truncate ${
+                                isActiveClient ? 'glass-text-primary' : 'glass-text-secondary'
+                              }`
+                            )}>
+                              {client.name}
+                            </span>
+                          )}
                         </div>
-                        {client.description && (
+                        {!collapsed && client.description && (
                           <p className={getThemeClasses(
                             "text-xs text-gray-500 truncate mt-1",
                             "text-xs glass-text-muted truncate mt-1"
@@ -273,7 +317,7 @@ export default function Sidebar() {
                       </div>
                       
                       {/* Active indicator */}
-                      {isActiveClient && (
+                      {!collapsed && isActiveClient && (
                         <Badge variant="secondary" className={getThemeClasses(
                           "text-xs bg-blue-100 text-blue-700",
                           "text-xs glass-card glass-text-primary"
@@ -291,19 +335,21 @@ export default function Sidebar() {
       </div>
 
       {/* Footer */}
-      <div className={getThemeClasses(
-        "p-4 border-t border-gray-200",
-        "p-4 border-t border-white/20"
-      )}>
-        <div className="text-center">
-          <p className={getThemeClasses(
-            "text-xs text-gray-400",
-            "text-xs glass-text-muted"
-          )}>
-            {clients.length} client{clients.length !== 1 ? 's' : ''}
-          </p>
+      {!collapsed && (
+        <div className={getThemeClasses(
+          "p-4 border-t border-gray-200",
+          "p-4 border-t border-white/20"
+        )}>
+          <div className="text-center">
+            <p className={getThemeClasses(
+              "text-xs text-gray-400",
+              "text-xs glass-text-muted"
+            )}>
+              {clients.length} client{clients.length !== 1 ? 's' : ''}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
