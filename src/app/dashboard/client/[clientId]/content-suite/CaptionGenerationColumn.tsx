@@ -24,6 +24,7 @@ export function CaptionGenerationColumn() {
 
   const [generatingCaptions, setGeneratingCaptions] = useState(false)
   const [remixingCaption, setRemixingCaption] = useState<string | null>(null)
+  const [copyType, setCopyType] = useState<'social-media' | 'email-marketing'>('social-media')
 
   const activeImage = uploadedImages.find((img) => img.id === activeImageId)
 
@@ -33,11 +34,18 @@ export function CaptionGenerationColumn() {
       return
     }
 
+    console.log('Starting caption generation...')
+    console.log('Copy type:', copyType)
+    console.log('Post notes:', postNotes)
+    console.log('Active image:', activeImage.id)
+
     setGeneratingCaptions(true)
     try {
       // Use the active image ID for AI caption generation
       // Post Notes are optional - pass them if they exist
-      await generateAICaptions(activeImage.id, postNotes.trim() || undefined)
+      // Pass the selected copy type
+      await generateAICaptions(activeImage.id, postNotes.trim() || undefined, copyType)
+      console.log('Caption generation completed')
       // Success - captions will be added automatically
     } catch (error) {
       console.error('Failed to generate captions:', error)
@@ -77,20 +85,22 @@ export function CaptionGenerationColumn() {
 
   return (
     <div className="space-y-6">
-      {/* Post Notes */}
+      {/* Copy Type Selection */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Post Notes</CardTitle>
+          <CardTitle className="text-lg">Copy Type</CardTitle>
         </CardHeader>
         <CardContent>
-          <Textarea
-            value={postNotes}
-            onChange={(e) => setPostNotes(e.target.value)}
-            placeholder="Add specific notes, context, or instructions for your post (optional)..."
-            className="min-h-[120px] resize-none"
-          />
+          <select 
+            value={copyType} 
+            onChange={(e) => setCopyType(e.target.value as 'social-media' | 'email-marketing')}
+            className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="social-media">Social Media Copy</option>
+            <option value="email-marketing">Email Marketing Copy</option>
+          </select>
           <p className="text-xs text-muted-foreground mt-2">
-            These notes will be used to generate AI captions that match your requirements. Leave empty to generate captions based on image content and brand context.
+            Select the type of copy you want to generate for your content
           </p>
         </CardContent>
       </Card>
@@ -115,7 +125,7 @@ export function CaptionGenerationColumn() {
               ) : (
                 <>
                   <Brain className="w-4 h-4 mr-2" />
-                  Generate AI Captions
+                  Generate {copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy
                 </>
               )}
             </Button>
@@ -123,13 +133,15 @@ export function CaptionGenerationColumn() {
         </Card>
       )}
 
-      {/* Generated Captions */}
+      {/* Generated Content */}
       {captions.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Generated Captions ({captions.length})</CardTitle>
+            <CardTitle className="text-lg">
+              Generated {copyType === 'social-media' ? 'Captions' : 'Email Copy'} ({captions.length})
+            </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Edit any caption text and click &quot;Select&quot; to choose your preferred option
+              Edit any {copyType === 'social-media' ? 'caption' : 'copy'} text and click &quot;Select&quot; to choose your preferred option
             </p>
           </CardHeader>
           <CardContent>

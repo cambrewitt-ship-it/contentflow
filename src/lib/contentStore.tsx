@@ -47,7 +47,7 @@ export interface ContentStore {
   updateImageNotes: (id: string, notes: string) => void
   updateCaption: (id: string, text: string) => void
   selectCaption: (id: string) => void
-  generateAICaptions: (imageId: string, notes?: string) => Promise<void>
+  generateAICaptions: (imageId: string, notes?: string, copyType?: 'social-media' | 'email-marketing') => Promise<void>
   remixCaption: (captionId: string) => Promise<void>
   clearAll: () => void
   clearStorageOnly: () => void
@@ -319,7 +319,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     })
   }
 
-  const generateAICaptions = async (imageId: string, notes?: string) => {
+  const generateAICaptions = async (imageId: string, notes?: string, copyType?: 'social-media' | 'email-marketing') => {
     try {
       // Find the image data
       const image = uploadedImages.find(img => img.id === imageId)
@@ -352,6 +352,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           imageData: imageData,
           aiContext: notes || postNotes,
           clientId: clientId,
+          copyType: copyType || 'social-media',
         }),
       })
 
@@ -362,14 +363,21 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       }
 
       const data = await response.json()
+      console.log('API Response:', data)
+      console.log('Copy Type:', copyType)
+      
       if (data.captions && Array.isArray(data.captions)) {
+        console.log('Captions received:', data.captions)
         // Convert the captions array to the expected format with IDs
         const newCaptions = data.captions.map((text: string, index: number) => ({
           id: `caption-${Date.now()}-${index}`,
           text: text,
           isSelected: false
         }))
+        console.log('New captions to set:', newCaptions)
         setCaptions(newCaptions)
+      } else {
+        console.error('No captions in response or not an array:', data)
       }
     } catch (error) {
       console.error('Error generating AI captions:', error)

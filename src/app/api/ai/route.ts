@@ -77,7 +77,7 @@ async function getBrandContext(clientId: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { action, imageData, prompt, existingCaptions, aiContext, clientId } = await request.json();
+    const { action, imageData, prompt, existingCaptions, aiContext, clientId, copyType } = await request.json();
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         return await analyzeImage(imageData, prompt);
       
       case 'generate_captions':
-        return await generateCaptions(imageData, existingCaptions, aiContext, clientId);
+        return await generateCaptions(imageData, existingCaptions, aiContext, clientId, copyType);
       
       case 'remix_caption':
         return await remixCaption(imageData, prompt, existingCaptions, aiContext, clientId);
@@ -176,7 +176,7 @@ async function analyzeImage(imageData: string, prompt?: string) {
   }
 }
 
-async function generateCaptions(imageData: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string) {
+async function generateCaptions(imageData: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string, copyType?: string) {
   try {
     // Validate image data
     const validation = isValidImageData(imageData);
@@ -294,16 +294,39 @@ ${aiContext}
 
 ${brandContextSection}
 
+${copyType === 'email-marketing' ? `📧 EMAIL MARKETING COPY REQUIREMENTS:
+- Generate ONE single email paragraph (NOT multiple captions or social media posts)
+- Format: 2-4 sentences + CTA on a new line
+- NO hashtags, NO social media formatting
+- Write as a professional email paragraph
+- TONE & STYLE:
+  - Write at 6th-8th grade reading level
+  - Active voice > passive voice
+  - "You" focused (2:1 ratio of "you" to "we/I")
+  - One idea per sentence
+  - Conversational but professional
+- STRUCTURE:
+  - 2-4 sentences describing the offer/product/service
+  - Call-to-action on a separate line
+  - NO bullet points, NO multiple paragraphs
+  - NO social media elements` : `📱 SOCIAL MEDIA COPY REQUIREMENTS:
+- Generate social media post captions
+- Create engaging, platform-appropriate content
+- Include relevant hashtags when appropriate
+- Focus on social engagement and brand awareness
+- Use social media best practices (visual storytelling, community building)`}
+
 OUTPUT REQUIREMENTS:
-- Generate exactly 3 captions
-- Each caption should take a different angle while ${aiContext ? 'maintaining the Post Notes message' : 'showcasing different aspects of the brand'}
-- Vary length: one short (1-2 lines), one medium (3-4 lines), one longer (5-6 lines)
+- Generate exactly ${copyType === 'email-marketing' ? '1 single email paragraph' : '3 captions'}
+- ${copyType === 'email-marketing' ? 'Format as: [2-4 sentences describing the offer/product/service]\\n\\n[Call-to-action on new line]' : 'Each caption should take a different angle while ' + (aiContext ? 'maintaining the Post Notes message' : 'showcasing different aspects of the brand')}
+- ${copyType === 'email-marketing' ? 'Make it engaging, conversion-focused, and professional' : 'Vary length: one short (1-2 lines), one medium (3-4 lines), one longer (5-6 lines)'}
 - Natural, conversational tone based on brand guidelines
 - ${aiContext ? 'Always incorporate Post Notes content' : 'Always incorporate brand context and speak to the target audience'}
+- ${copyType === 'email-marketing' ? 'DO NOT generate multiple captions, hashtags, or social media formatting - create ONE single email paragraph' : 'Format as social media post captions'}
 
-${aiContext ? '🚨 FINAL CHECK: Before submitting, verify that EVERY caption directly mentions or incorporates your Post Notes content AND follows the brand guidelines. If you created generic captions, you have failed the task.' : '🚨 FINAL CHECK: Before submitting, verify that EVERY caption reflects the brand tone, speaks to the target audience, and incorporates brand context. Generic captions are not acceptable.'}
+${aiContext ? '🚨 FINAL CHECK: Before submitting, verify that EVERY ${copyType === "email-marketing" ? "email" : "caption"} directly mentions or incorporates your Post Notes content AND follows the brand guidelines. If you created generic content, you have failed the task.' : '🚨 FINAL CHECK: Before submitting, verify that EVERY ${copyType === "email-marketing" ? "email" : "caption"} reflects the brand tone, speaks to the target audience, and incorporates brand context. Generic content is not acceptable.'}
 
-Provide only the 3 captions, separated by blank lines. No introduction or explanation.`;
+${copyType === 'email-marketing' ? 'Provide ONLY 1 single email paragraph in this exact format: [2-4 sentences about the offer/product]\\n\\n[Call-to-action]. Do NOT provide multiple options, captions, hashtags, or social media formatting.' : 'Provide only 3 captions, separated by blank lines. No introduction or explanation.'}`;
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
@@ -317,7 +340,13 @@ Provide only the 3 captions, separated by blank lines. No introduction or explan
           content: [
             {
               type: 'text',
-              text: `${aiContext ? `CRITICAL: Your Post Notes are "${aiContext}". Generate exactly 3 social media captions that DIRECTLY mention and use these Post Notes. Every caption must include the actual content from your notes. Do not create generic captions - make the Post Notes the main focus of each caption.` : 'Generate exactly 3 social media captions for this image based on what you see.'} Start with the first caption immediately, no introduction needed.`
+              text: copyType === 'email-marketing' 
+                ? (aiContext 
+                    ? 'Generate ONE single email paragraph (2-4 sentences + CTA) based on your Post Notes: "' + aiContext + '". Write as a professional email, NO hashtags or social media formatting.'
+                    : 'Generate ONE single email paragraph (2-4 sentences + CTA) for this image. Write as a professional email, NO hashtags or social media formatting.')
+                : (aiContext 
+                    ? 'CRITICAL: Your Post Notes are "' + aiContext + '". Generate exactly 3 social media captions that DIRECTLY mention and use these Post Notes. Every caption must include the actual content from your notes. Do not create generic captions - make the Post Notes the main focus of each caption. Start with the first caption immediately, no introduction needed.'
+                    : 'Generate exactly 3 social media captions for this image based on what you see. Start with the first caption immediately, no introduction needed.')
             },
             {
               type: 'image_url',
@@ -335,42 +364,51 @@ Provide only the 3 captions, separated by blank lines. No introduction or explan
 
     const content = response.choices[0]?.message?.content || '';
     
-    // Parse the response into individual captions
-    let captions = content
-      .split(/\n\n|\n-|\n\d+\./)
-      .filter(caption => {
-        const trimmed = caption.trim();
-        // Filter out introductory text and ensure minimum length
-        return trimmed.length > 20 && 
-               !trimmed.toLowerCase().includes('here are') &&
-               !trimmed.toLowerCase().includes('captions for') &&
-               !trimmed.toLowerCase().includes('engaging captions') &&
-               !trimmed.toLowerCase().includes('three captions') &&
-               !trimmed.toLowerCase().includes('social media') &&
-               !trimmed.toLowerCase().includes('for your image');
-      })
-      .map(caption => caption.trim())
-      .slice(0, 3);
+    // Parse the response based on copy type
+    let captions;
     
-    // Ensure we have exactly 3 captions
-    if (captions.length < 3) {
-      console.warn(`Only generated ${captions.length} captions, expected 3`);
-      // If we don't have 3 captions, try to split the content more aggressively
+    if (copyType === 'email-marketing') {
+      // For email marketing, treat the entire response as one piece of content
+      const trimmed = content.trim();
+      captions = trimmed.length > 20 ? [trimmed] : [];
+    } else {
+      // For social media, parse into individual captions
+      captions = content
+        .split(/\n\n|\n-|\n\d+\./)
+        .filter(caption => {
+          const trimmed = caption.trim();
+          // Filter out introductory text and ensure minimum length
+          return trimmed.length > 20 && 
+                 !trimmed.toLowerCase().includes('here are') &&
+                 !trimmed.toLowerCase().includes('captions for') &&
+                 !trimmed.toLowerCase().includes('engaging captions') &&
+                 !trimmed.toLowerCase().includes('three captions') &&
+                 !trimmed.toLowerCase().includes('social media') &&
+                 !trimmed.toLowerCase().includes('for your image');
+        })
+        .map(caption => caption.trim())
+        .slice(0, 3);
+      
+      // Ensure we have exactly 3 captions for social media
       if (captions.length < 3) {
-        const fallbackCaptions = content
-          .split(/\n/)
-          .filter(line => line.trim().length > 15)
-          .map(line => line.trim())
-          .filter(line => !line.toLowerCase().includes('here are') && 
-                         !line.toLowerCase().includes('captions for') &&
-                         !line.toLowerCase().includes('engaging captions') &&
-                         !line.toLowerCase().includes('three captions') &&
-                         !line.toLowerCase().includes('social media') &&
-                         !line.toLowerCase().includes('for your image'))
-          .slice(0, 3);
-        
-        if (fallbackCaptions.length >= 3) {
-          captions = fallbackCaptions;
+        console.warn('Only generated ' + captions.length + ' captions, expected 3');
+        // If we don't have 3 captions, try to split the content more aggressively
+        if (captions.length < 3) {
+          const fallbackCaptions = content
+            .split(/\n/)
+            .filter(line => line.trim().length > 15)
+            .map(line => line.trim())
+            .filter(line => !line.toLowerCase().includes('here are') && 
+                           !line.toLowerCase().includes('captions for') &&
+                           !line.toLowerCase().includes('engaging captions') &&
+                           !line.toLowerCase().includes('three captions') &&
+                           !line.toLowerCase().includes('social media') &&
+                           !line.toLowerCase().includes('for your image'))
+            .slice(0, 3);
+          
+          if (fallbackCaptions.length >= 3) {
+            captions = fallbackCaptions;
+          }
         }
       }
     }
@@ -404,65 +442,75 @@ async function remixCaption(imageData: string, prompt: string, existingCaptions:
       brandContext = await getBrandContext(clientId);
     }
 
-    const systemPrompt = `You are a creative social media copywriter specializing in brand-aware content creation. 
-    The user wants you to create a fresh variation of an existing caption.
+    // Build system prompt with proper string concatenation
+    let systemPrompt = 'You are a creative social media copywriter specializing in brand-aware content creation. ';
+    systemPrompt += 'The user wants you to create a fresh variation of an existing caption.\n\n';
+    systemPrompt += '🎯 YOUR TASK:\n';
+    systemPrompt += 'Create a NEW version of the original caption that:\n';
+    systemPrompt += '- Maintains the EXACT same meaning and message\n';
+    systemPrompt += '- Uses DIFFERENT words and phrasing\n';
+    systemPrompt += '- Keeps the SAME style, tone, and structure\n';
+    systemPrompt += '- Incorporates the user\'s post notes naturally\n\n';
+    systemPrompt += '🚨 CRITICAL REQUIREMENTS:\n';
+    systemPrompt += '- DO NOT change the core message or meaning\n';
+    systemPrompt += '- DO create a fresh variation with different wording\n';
+    systemPrompt += '- DO maintain the same emotional tone and style\n';
+    systemPrompt += '- DO include the post notes content naturally\n';
+    systemPrompt += '- DO NOT add any explanations, introductions, or commentary\n';
+    systemPrompt += '- DO NOT mention the image or try to analyze it\n\n';
+    systemPrompt += '🎭 TONE MATCHING (HIGHEST PRIORITY):\n';
+    systemPrompt += '- Study the original caption\'s tone, style, and personality\n';
+    systemPrompt += '- Match the exact emotional feel and writing style\n';
+    systemPrompt += '- If the original is casual and friendly, keep it casual and friendly\n';
+    systemPrompt += '- If the original is professional and formal, keep it professional and formal\n';
+    systemPrompt += '- Copy the same level of enthusiasm, humor, or seriousness\n\n';
     
-    🎯 YOUR TASK:
-    Create a NEW version of the original caption that:
-    - Maintains the EXACT same meaning and message
-    - Uses DIFFERENT words and phrasing
-    - Keeps the SAME style, tone, and structure
-    - Incorporates the user's post notes naturally
+    if (aiContext) {
+      systemPrompt += '📝 POST NOTES (MANDATORY - include this content):\n';
+      systemPrompt += aiContext + '\n\n';
+      systemPrompt += 'IMPORTANT: Weave the post notes content naturally into your variation. If the notes mention specific details (like "$50", "available online"), these must appear in your caption.\n\n';
+    }
     
-    🚨 CRITICAL REQUIREMENTS:
-    - DO NOT change the core message or meaning
-    - DO create a fresh variation with different wording
-    - DO maintain the same emotional tone and style
-    - DO include the post notes content naturally
-    - DO NOT add any explanations, introductions, or commentary
-    - DO NOT mention the image or try to analyze it
+    if (brandContext) {
+      systemPrompt += '🎨 BRAND CONTEXT (use for tone and style):\n';
+      systemPrompt += '- Company: ' + (brandContext.company || 'Not specified') + '\n';
+      systemPrompt += '- Brand Tone: ' + (brandContext.tone || 'Not specified') + '\n';
+      systemPrompt += '- Target Audience: ' + (brandContext.audience || 'Not specified') + '\n';
+      systemPrompt += '- Value Proposition: ' + (brandContext.value_proposition || 'Not specified') + '\n\n';
+      
+      if (brandContext.voice_examples) {
+        systemPrompt += '🎤 BRAND VOICE EXAMPLES (MATCH THIS STYLE):\n';
+        systemPrompt += brandContext.voice_examples + '\n\n';
+        systemPrompt += '🚨 CRITICAL: Study these examples and ensure your variation matches this exact style and voice.\n\n';
+      }
+      
+      systemPrompt += 'Use this brand context to ensure your variation matches the company\'s voice and style.\n\n';
+    }
     
-    🎭 TONE MATCHING (HIGHEST PRIORITY):
-    - Study the original caption's tone, style, and personality
-    - Match the exact emotional feel and writing style
-    - If the original is casual and friendly, keep it casual and friendly
-    - If the original is professional and formal, keep it professional and formal
-    - Copy the same level of enthusiasm, humor, or seriousness
+    if (brandContext?.dos || brandContext?.donts) {
+      systemPrompt += '📋 STYLE RULES:\n';
+      if (brandContext.dos) {
+        systemPrompt += '✅ DO: ' + brandContext.dos + '\n';
+      }
+      if (brandContext.donts) {
+        systemPrompt += '❌ DON\'T: ' + brandContext.donts + '\n';
+      }
+      systemPrompt += '\n';
+    }
     
-    ${aiContext ? `📝 POST NOTES (MANDATORY - include this content):
-${aiContext}
+    if (existingCaptions.length > 0) {
+      systemPrompt += '📚 EXISTING CAPTIONS FOR REFERENCE: ' + existingCaptions.join(', ') + '\n\n';
+    }
     
-    IMPORTANT: Weave the post notes content naturally into your variation. If the notes mention specific details (like "$50", "available online"), these must appear in your caption.` : ''}
-    
-    ${brandContext ? `🎨 BRAND CONTEXT (use for tone and style):
-    - Company: ${brandContext.company || 'Not specified'}
-    - Brand Tone: ${brandContext.tone || 'Not specified'}
-    - Target Audience: ${brandContext.audience || 'Not specified'}
-    - Value Proposition: ${brandContext.value_proposition || 'Not specified'}
-    
-    ${brandContext.voice_examples ? `🎤 BRAND VOICE EXAMPLES (MATCH THIS STYLE):
-    ${brandContext.voice_examples}
-    
-    🚨 CRITICAL: Study these examples and ensure your variation matches this exact style and voice.` : ''}
-    
-    Use this brand context to ensure your variation matches the company's voice and style.` : ''}
-    
-    ${brandContext?.dos || brandContext?.donts ? `📋 STYLE RULES:
-    ${brandContext.dos ? `✅ DO: ${brandContext.dos}` : ''}
-    ${brandContext.donts ? `❌ DON'T: ${brandContext.donts}` : ''}` : ''}
-    
-    ${existingCaptions.length > 0 ? `📚 EXISTING CAPTIONS FOR REFERENCE: ${existingCaptions.join(', ')}` : ''}
-    
-    🎯 FINAL INSTRUCTION: 
-    Generate exactly 1 caption variation that rephrases the original while keeping the same meaning, style, and tone. 
-    Make it fresh and different, but maintain the core message completely.
-    
-    🚨 OUTPUT FORMAT:
-    - Provide ONLY the new caption text
-    - NO explanations, introductions, or commentary
-    - NO "I'm unable to comment on the image" or similar text
-    - NO "here's a caption remix:" or similar phrases
-    - Just the pure caption text, nothing else`;
+    systemPrompt += '🎯 FINAL INSTRUCTION: \n';
+    systemPrompt += 'Generate exactly 1 caption variation that rephrases the original while keeping the same meaning, style, and tone. \n';
+    systemPrompt += 'Make it fresh and different, but maintain the core message completely.\n\n';
+    systemPrompt += '🚨 OUTPUT FORMAT:\n';
+    systemPrompt += '- Provide ONLY the new caption text\n';
+    systemPrompt += '- NO explanations, introductions, or commentary\n';
+    systemPrompt += '- NO "I\'m unable to comment on the image" or similar text\n';
+    systemPrompt += '- NO "here\'s a caption remix:" or similar phrases\n';
+    systemPrompt += '- Just the pure caption text, nothing else';
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
@@ -473,7 +521,7 @@ ${aiContext}
         },
         {
           role: 'user',
-          content: `Create a fresh variation of this caption: "${prompt.split('Original caption: "')[1]?.replace('"', '') || 'Unknown caption'}"`
+          content: 'Create a fresh variation of this caption: "' + (prompt.split('Original caption: "')[1]?.replace('"', '') || 'Unknown caption') + '"'
         }
       ],
       max_tokens: 400,
