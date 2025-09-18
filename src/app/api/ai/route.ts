@@ -326,7 +326,7 @@ OUTPUT REQUIREMENTS:
 
 ${aiContext ? '🚨 FINAL CHECK: Before submitting, verify that EVERY ${copyType === "email-marketing" ? "email" : "caption"} directly mentions or incorporates your Post Notes content AND follows the brand guidelines. If you created generic content, you have failed the task.' : '🚨 FINAL CHECK: Before submitting, verify that EVERY ${copyType === "email-marketing" ? "email" : "caption"} reflects the brand tone, speaks to the target audience, and incorporates brand context. Generic content is not acceptable.'}
 
-${copyType === 'email-marketing' ? 'Provide ONLY 1 single email paragraph in this exact format: [2-4 sentences about the offer/product]\\n\\n[Call-to-action]. Do NOT provide multiple options, captions, hashtags, or social media formatting.' : 'Provide only 3 captions, separated by blank lines. No introduction or explanation.'}`;
+${copyType === 'email-marketing' ? 'Provide ONLY 1 single email paragraph in this exact format: [2-4 sentences about the offer/product] followed by a blank line, then [Call-to-action]. Use actual line breaks, not \\n characters. Do NOT provide multiple options, captions, hashtags, or social media formatting.' : 'Provide only 3 captions, separated by blank lines. No introduction or explanation.'}`;
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
@@ -342,8 +342,8 @@ ${copyType === 'email-marketing' ? 'Provide ONLY 1 single email paragraph in thi
               type: 'text',
               text: copyType === 'email-marketing' 
                 ? (aiContext 
-                    ? 'Generate ONE single email paragraph (2-4 sentences + CTA) based on your Post Notes: "' + aiContext + '". Write as a professional email, NO hashtags or social media formatting.'
-                    : 'Generate ONE single email paragraph (2-4 sentences + CTA) for this image. Write as a professional email, NO hashtags or social media formatting.')
+                    ? 'Generate ONE single email paragraph (2-4 sentences + CTA) based on your Post Notes: "' + aiContext + '". Write as a professional email with actual line breaks between the main text and CTA. NO hashtags or social media formatting.'
+                    : 'Generate ONE single email paragraph (2-4 sentences + CTA) for this image. Write as a professional email with actual line breaks between the main text and CTA. NO hashtags or social media formatting.')
                 : (aiContext 
                     ? 'CRITICAL: Your Post Notes are "' + aiContext + '". Generate exactly 3 social media captions that DIRECTLY mention and use these Post Notes. Every caption must include the actual content from your notes. Do not create generic captions - make the Post Notes the main focus of each caption. Start with the first caption immediately, no introduction needed.'
                     : 'Generate exactly 3 social media captions for this image based on what you see. Start with the first caption immediately, no introduction needed.')
@@ -369,8 +369,21 @@ ${copyType === 'email-marketing' ? 'Provide ONLY 1 single email paragraph in thi
     
     if (copyType === 'email-marketing') {
       // For email marketing, treat the entire response as one piece of content
-      const trimmed = content.trim();
-      captions = trimmed.length > 20 ? [trimmed] : [];
+      let processedContent = content.trim();
+      
+      // Fix common formatting issues
+      // Replace literal \n\n with actual line breaks
+      processedContent = processedContent.replace(/\\n\\n/g, '\n\n');
+      processedContent = processedContent.replace(/\\n/g, '\n');
+      
+      // Ensure proper CTA formatting - if there's text after a period and before the end,
+      // make sure it's on a new line
+      processedContent = processedContent.replace(/\.\s*([A-Z][^.!?]*[.!?]?)$/gm, '.\n\n$1');
+      
+      // Clean up any double line breaks
+      processedContent = processedContent.replace(/\n{3,}/g, '\n\n');
+      
+      captions = processedContent.length > 20 ? [processedContent] : [];
     } else {
       // For social media, parse into individual captions
       captions = content
