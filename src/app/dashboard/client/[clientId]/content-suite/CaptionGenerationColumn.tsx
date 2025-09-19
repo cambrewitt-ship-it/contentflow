@@ -20,11 +20,12 @@ export function CaptionGenerationColumn() {
     remixCaption,
     postNotes,
     setPostNotes,
+    copyType,
+    setCopyType,
   } = useContentStore()
 
   const [generatingCaptions, setGeneratingCaptions] = useState(false)
   const [remixingCaption, setRemixingCaption] = useState<string | null>(null)
-  const [copyType, setCopyType] = useState<'social-media' | 'email-marketing'>('social-media')
 
   const activeImage = uploadedImages.find((img) => img.id === activeImageId)
 
@@ -85,53 +86,67 @@ export function CaptionGenerationColumn() {
 
   return (
     <div className="space-y-6">
-      {/* Copy Type Selection */}
+      {/* Copy Type Selection & AI Caption Generation */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Copy Type</CardTitle>
         </CardHeader>
         <CardContent>
-          <select 
-            value={copyType} 
-            onChange={(e) => setCopyType(e.target.value as 'social-media' | 'email-marketing')}
-            className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="social-media">Social Media Copy</option>
-            <option value="email-marketing">Email Marketing Copy</option>
-          </select>
-          <p className="text-xs text-muted-foreground mt-2">
-            Select the type of copy you want to generate for your content
-          </p>
+          <div className="space-y-4">
+            <div>
+              <select 
+                value={copyType} 
+                onChange={(e) => setCopyType(e.target.value as 'social-media' | 'email-marketing')}
+                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="social-media">Social Media Copy</option>
+                <option value="email-marketing">Email Marketing Copy</option>
+              </select>
+              <p className="text-xs text-muted-foreground mt-2">
+                Select the type of copy you want to generate for your content
+              </p>
+            </div>
+
+            {/* AI Caption Generation */}
+            {activeImage ? (
+              <div>
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-semibold mb-3">AI Caption Generation</h3>
+                  <Button
+                    onClick={handleGenerateCaptions}
+                    disabled={generatingCaptions}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {generatingCaptions ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="w-4 h-4 mr-2" />
+                        Generate {copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-semibold mb-3">AI Caption Generation</h3>
+                  <div className="text-center py-6">
+                    <div className="text-gray-400 mb-2">
+                      <Brain className="w-12 h-12 mx-auto" />
+                    </div>
+                    <p className="text-gray-600">Upload images to start generating AI captions</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
-
-      {/* AI Caption Generation */}
-      {activeImage && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">AI Caption Generation</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Button
-              onClick={handleGenerateCaptions}
-              disabled={generatingCaptions}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {generatingCaptions ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Brain className="w-4 h-4 mr-2" />
-                  Generate {copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Generated Content */}
       {captions.length > 0 && (
@@ -215,17 +230,6 @@ export function CaptionGenerationColumn() {
         </Card>
       )}
 
-      {/* No Images Message */}
-      {uploadedImages.length === 0 && (
-        <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-gray-400 mb-2">
-              <Brain className="w-12 h-12 mx-auto" />
-            </div>
-            <p className="text-gray-600">Upload images to start generating AI captions</p>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

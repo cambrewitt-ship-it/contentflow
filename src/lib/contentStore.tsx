@@ -37,11 +37,13 @@ export interface ContentStore {
   activeImageId: string | null
   hasHydrated: boolean
   postNotes: string
+  copyType: 'social-media' | 'email-marketing'
   setUploadedImages: (images: UploadedImage[]) => void
   setCaptions: (captions: Caption[]) => void
   setSelectedCaptions: (captions: string[]) => void
   setActiveImageId: (id: string | null) => void
   setPostNotes: (notes: string) => void
+  setCopyType: (copyType: 'social-media' | 'email-marketing') => void
   addImage: (file: File) => Promise<void>
   removeImage: (id: string) => void
   updateImageNotes: (id: string, notes: string) => void
@@ -116,6 +118,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
   const [selectedCaptions, setSelectedCaptions] = useState<string[]>([])
   const [activeImageId, setActiveImageId] = useState<string | null>(null)
   const [postNotes, setPostNotes] = useState<string>('')
+  const [copyType, setCopyType] = useState<'social-media' | 'email-marketing'>('social-media')
 
   // Track if we've hydrated from localStorage
   const [hasHydrated, setHasHydrated] = useState(false)
@@ -485,11 +488,13 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     activeImageId,
     hasHydrated,
     postNotes,
+    copyType,
     setUploadedImages,
     setCaptions,
     setSelectedCaptions,
     setActiveImageId,
     setPostNotes,
+    setCopyType,
     addImage,
     removeImage,
     updateImageNotes,

@@ -44,10 +44,10 @@ export function ImageUploadColumn() {
 
   return (
     <div className="space-y-6">
-      {/* Combined Upload and Uploaded Images Card */}
+      {/* Combined Upload, Images, and Post Notes Card */}
       <Card>
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg">Upload Images</CardTitle>
+          <CardTitle className="text-lg">Upload Images & Post Notes</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Upload Area */}
@@ -78,63 +78,50 @@ export function ImageUploadColumn() {
           {uploadedImages.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Uploaded Images ({uploadedImages.length})</h3>
-              <div className="space-y-4">
+              <div className="grid grid-cols-4 gap-3">
                 {uploadedImages.map((image) => (
                   <div
                     key={image.id}
-                    className={`relative border-2 rounded-lg p-3 cursor-pointer transition-all ${
+                    className={`relative aspect-square border-2 rounded-lg cursor-pointer transition-all ${
                       activeImageId === image.id
                         ? 'border-blue-500 bg-blue-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                     onClick={() => setActiveImageId(image.id)}
                   >
-                    <div className="flex items-center space-x-3">
-                      <div className="flex-shrink-0">
-                        <img
-                          src={image.preview}
-                          alt="Uploaded content"
-                          className="w-16 h-16 object-cover rounded-md"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-600 truncate">
-                          {image.file.name}
-                        </p>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          removeImage(image.id)
-                        }}
-                        className="flex-shrink-0 text-red-500 hover:text-red-700 p-1"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <img
+                      src={image.preview}
+                      alt="Uploaded content"
+                      className="w-full h-full object-cover rounded-md"
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeImage(image.id)
+                      }}
+                      className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
                   </div>
                 ))}
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Post Notes */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Post Notes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            value={postNotes}
-            onChange={(e) => setPostNotes(e.target.value)}
-            placeholder="Add specific notes, context, or instructions for your post (optional)..."
-            className="min-h-[120px] resize-none"
-          />
-          <p className="text-xs text-muted-foreground mt-2">
-            These notes will be used to generate AI captions that match your requirements. Leave empty to generate captions based on image content and brand context.
-          </p>
+          {/* Post Notes Section */}
+          <div className="border-t border-gray-200 pt-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Post Notes</h3>
+            <Textarea
+              value={postNotes}
+              onChange={(e) => setPostNotes(e.target.value)}
+              placeholder="Add specific notes, context, or instructions for your post (optional)..."
+              className="min-h-[120px] resize-none"
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              These notes will be used to generate AI captions that match your requirements. Leave empty to generate captions based on image content and brand context.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

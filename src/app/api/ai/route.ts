@@ -237,9 +237,38 @@ ${brandContext.documents && brandContext.documents.length > 0 ? `📄 BRAND DOCU
 ${brandContext.website ? `🌐 WEBSITE CONTEXT: Available for reference` : ''}`;
     }
 
-    const systemPrompt = `🚨 CRITICAL INSTRUCTION: You are an expert social media content creator. 
 
-${aiContext ? `⚠️ MANDATORY REQUIREMENT: Post Notes are THE ONLY story you must tell. Every caption MUST be built around the Post Notes content.
+
+    const finalInstruction = copyType === "email-marketing" ? "Provide ONLY 1 single email paragraph in this exact format: [2-3 concise sentences about the offer/product] followed by a blank line, then [Call-to-action]. Use actual line breaks, not \\n characters. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. Do NOT provide multiple options, captions, hashtags, or social media formatting." : "Provide only 3 captions, separated by blank lines. No introduction or explanation.";
+
+    const systemPrompt = `🚨 CRITICAL INSTRUCTION: You are an expert ${copyType === 'email-marketing' ? 'email marketing copywriter' : 'social media content creator'}. 
+
+${copyType === 'email-marketing' ? `📧 EMAIL MARKETING FOCUS: Create professional email copy that converts and engages.
+
+CRITICAL HIERARCHY FOR EMAIL MARKETING:
+━━━━━━━━━━━━━━━━━━
+1️⃣ BRAND VOICE EXAMPLES (ABSOLUTE PRIORITY - NON-NEGOTIABLE)
+- Study the brand voice examples provided above
+- Match the EXACT tone, style, and personality from these examples
+- Use the same language patterns and expressions
+- Replicate the brand's authentic voice precisely
+- If brand voice examples are provided, you MUST use them
+
+2️⃣ POST NOTES (HIGH PRIORITY)
+- Incorporate Post Notes content naturally
+- Include specific details, prices, offers, or information from the notes
+- Make the Post Notes the main focus of your email
+
+3️⃣ BRAND CONTEXT (APPLY TO HOW YOU WRITE)
+- Use the company's value proposition and brand tone
+- Target the specific audience mentioned
+- Follow the AI Caption Rules (dos/don'ts) religiously
+- Apply brand personality to the content
+
+4️⃣ IMAGE ANALYSIS
+- Describe what's happening in the image
+- Connect visual elements to the email message
+- Use image details to enhance the story` : (aiContext ? `⚠️ MANDATORY REQUIREMENT: Post Notes are THE ONLY story you must tell. Every caption MUST be built around the Post Notes content.
 
 CRITICAL HIERARCHY:
 ━━━━━━━━━━━━━━━━━━
@@ -279,7 +308,8 @@ CRITICAL HIERARCHY:
 - Describe what's happening in the image
 - Connect visual elements to brand messaging
 - Use image details to support brand story
-━━━━━━━━━━━━━━━━━━`}
+━━━━━━━━━━━━━━━━━━`)}
+━━━━━━━━━━━━━━━━━━}
 
 ${aiContext ? `📝 POST NOTES (THIS IS YOUR MAIN CONTENT - MANDATORY):
 ${aiContext}
@@ -296,20 +326,27 @@ ${brandContextSection}
 
 ${copyType === 'email-marketing' ? `📧 EMAIL MARKETING COPY REQUIREMENTS:
 - Generate ONE single email paragraph (NOT multiple captions or social media posts)
-- Format: 2-4 sentences + CTA on a new line
+- Format: 2-3 concise sentences + CTA on a new line
 - NO hashtags, NO social media formatting
 - Write as a professional email paragraph
-- TONE & STYLE:
+- TONE & STYLE (CRITICAL - MATCH BRAND VOICE):
   - Write at 6th-8th grade reading level
   - Active voice > passive voice
   - "You" focused (2:1 ratio of "you" to "we/I")
   - One idea per sentence
   - Conversational but professional
+  - MUST match the brand voice examples provided above
+  - Use the exact tone, style, and personality from brand voice examples
 - STRUCTURE:
-  - 2-4 sentences describing the offer/product/service
+  - 2-3 concise sentences describing the offer/product/service
   - Call-to-action on a separate line
   - NO bullet points, NO multiple paragraphs
-  - NO social media elements` : `📱 SOCIAL MEDIA COPY REQUIREMENTS:
+  - NO social media elements
+- BRAND VOICE INTEGRATION:
+  - Study the brand voice examples carefully
+  - Match the exact writing style and personality
+  - Use similar language patterns and expressions
+  - Maintain the same level of formality/informality` : `📱 SOCIAL MEDIA COPY REQUIREMENTS:
 - Generate social media post captions
 - Create engaging, platform-appropriate content
 - Include relevant hashtags when appropriate
@@ -318,15 +355,15 @@ ${copyType === 'email-marketing' ? `📧 EMAIL MARKETING COPY REQUIREMENTS:
 
 OUTPUT REQUIREMENTS:
 - Generate exactly ${copyType === 'email-marketing' ? '1 single email paragraph' : '3 captions'}
-- ${copyType === 'email-marketing' ? 'Format as: [2-4 sentences describing the offer/product/service]\\n\\n[Call-to-action on new line]' : 'Each caption should take a different angle while ' + (aiContext ? 'maintaining the Post Notes message' : 'showcasing different aspects of the brand')}
+- ${copyType === 'email-marketing' ? 'Format as: [2-3 concise sentences describing the offer/product/service]\\n\\n[Call-to-action on new line]' : 'Each caption should take a different angle while ' + (aiContext ? 'maintaining the Post Notes message' : 'showcasing different aspects of the brand')}
 - ${copyType === 'email-marketing' ? 'Make it engaging, conversion-focused, and professional' : 'Vary length: one short (1-2 lines), one medium (3-4 lines), one longer (5-6 lines)'}
 - Natural, conversational tone based on brand guidelines
 - ${aiContext ? 'Always incorporate Post Notes content' : 'Always incorporate brand context and speak to the target audience'}
 - ${copyType === 'email-marketing' ? 'DO NOT generate multiple captions, hashtags, or social media formatting - create ONE single email paragraph' : 'Format as social media post captions'}
 
-${aiContext ? '🚨 FINAL CHECK: Before submitting, verify that EVERY ${copyType === "email-marketing" ? "email" : "caption"} directly mentions or incorporates your Post Notes content AND follows the brand guidelines. If you created generic content, you have failed the task.' : '🚨 FINAL CHECK: Before submitting, verify that EVERY ${copyType === "email-marketing" ? "email" : "caption"} reflects the brand tone, speaks to the target audience, and incorporates brand context. Generic content is not acceptable.'}
+${aiContext ? '🚨 FINAL CHECK: Before submitting, verify that EVERY ${copyType === "email-marketing" ? "email" : "caption"} directly mentions or incorporates your Post Notes content AND follows the brand guidelines. If you created generic content, you have failed the task.' : (copyType === 'email-marketing' ? '🚨 FINAL CHECK: Before submitting, verify that your email copy matches the brand voice examples EXACTLY - same tone, style, and personality. If brand voice examples were provided and you did not use them, you have failed the task. Generic email content is not acceptable.' : '🚨 FINAL CHECK: Before submitting, verify that EVERY ${copyType === "email-marketing" ? "email" : "caption"} reflects the brand tone, speaks to the target audience, and incorporates brand context. Generic content is not acceptable.')}
 
-${copyType === 'email-marketing' ? 'Provide ONLY 1 single email paragraph in this exact format: [2-4 sentences about the offer/product] followed by a blank line, then [Call-to-action]. Use actual line breaks, not \\n characters. Do NOT provide multiple options, captions, hashtags, or social media formatting.' : 'Provide only 3 captions, separated by blank lines. No introduction or explanation.'}`;
+${finalInstruction}`;
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
@@ -342,8 +379,8 @@ ${copyType === 'email-marketing' ? 'Provide ONLY 1 single email paragraph in thi
               type: 'text',
               text: copyType === 'email-marketing' 
                 ? (aiContext 
-                    ? 'Generate ONE single email paragraph (2-4 sentences + CTA) based on your Post Notes: "' + aiContext + '". Write as a professional email with actual line breaks between the main text and CTA. NO hashtags or social media formatting.'
-                    : 'Generate ONE single email paragraph (2-4 sentences + CTA) for this image. Write as a professional email with actual line breaks between the main text and CTA. NO hashtags or social media formatting.')
+                    ? 'Generate ONE single email paragraph (2-3 concise sentences + CTA) based on your Post Notes: "' + aiContext + '". Write as a professional email with actual line breaks between the main text and CTA. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. NO hashtags or social media formatting.'
+                    : 'Generate ONE single email paragraph (2-3 concise sentences + CTA) for this image. Write as a professional email with actual line breaks between the main text and CTA. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. NO hashtags or social media formatting.')
                 : (aiContext 
                     ? 'CRITICAL: Your Post Notes are "' + aiContext + '". Generate exactly 3 social media captions that DIRECTLY mention and use these Post Notes. Every caption must include the actual content from your notes. Do not create generic captions - make the Post Notes the main focus of each caption. Start with the first caption immediately, no introduction needed.'
                     : 'Generate exactly 3 social media captions for this image based on what you see. Start with the first caption immediately, no introduction needed.')
@@ -386,44 +423,44 @@ ${copyType === 'email-marketing' ? 'Provide ONLY 1 single email paragraph in thi
       captions = processedContent.length > 20 ? [processedContent] : [];
     } else {
       // For social media, parse into individual captions
-      captions = content
-        .split(/\n\n|\n-|\n\d+\./)
-        .filter(caption => {
-          const trimmed = caption.trim();
-          // Filter out introductory text and ensure minimum length
-          return trimmed.length > 20 && 
-                 !trimmed.toLowerCase().includes('here are') &&
-                 !trimmed.toLowerCase().includes('captions for') &&
-                 !trimmed.toLowerCase().includes('engaging captions') &&
-                 !trimmed.toLowerCase().includes('three captions') &&
-                 !trimmed.toLowerCase().includes('social media') &&
-                 !trimmed.toLowerCase().includes('for your image');
-        })
+      // First try splitting by double line breaks
+      let potentialCaptions = content.split(/\n\n+/);
+      
+      // If we don't have enough, try splitting by single line breaks
+      if (potentialCaptions.length < 3) {
+        potentialCaptions = content.split(/\n/);
+      }
+      
+      // If still not enough, try splitting by other patterns
+      if (potentialCaptions.length < 3) {
+        potentialCaptions = content.split(/\n-|\n\d+\./);
+      }
+      
+      // Filter and clean up captions
+      captions = potentialCaptions
         .map(caption => caption.trim())
+        .filter(caption => {
+          // Only filter out very short captions and obvious intro text
+          return caption.length > 15 && 
+                 !caption.toLowerCase().startsWith('here are') &&
+                 !caption.toLowerCase().startsWith('captions for') &&
+                 !caption.toLowerCase().startsWith('engaging captions') &&
+                 !caption.toLowerCase().startsWith('three captions');
+        })
         .slice(0, 3);
       
-      // Ensure we have exactly 3 captions for social media
+      // If we still don't have 3 captions, take the first 3 non-empty lines
       if (captions.length < 3) {
-        console.warn('Only generated ' + captions.length + ' captions, expected 3');
-        // If we don't have 3 captions, try to split the content more aggressively
-        if (captions.length < 3) {
-          const fallbackCaptions = content
-            .split(/\n/)
-            .filter(line => line.trim().length > 15)
-            .map(line => line.trim())
-            .filter(line => !line.toLowerCase().includes('here are') && 
-                           !line.toLowerCase().includes('captions for') &&
-                           !line.toLowerCase().includes('engaging captions') &&
-                           !line.toLowerCase().includes('three captions') &&
-                           !line.toLowerCase().includes('social media') &&
-                           !line.toLowerCase().includes('for your image'))
-            .slice(0, 3);
-          
-          if (fallbackCaptions.length >= 3) {
-            captions = fallbackCaptions;
-          }
+        const allLines = content.split(/\n/)
+          .map(line => line.trim())
+          .filter(line => line.length > 10);
+        
+        if (allLines.length >= 3) {
+          captions = allLines.slice(0, 3);
         }
       }
+      
+      console.log('Social media captions parsed:', captions.length, 'captions');
     }
 
     return NextResponse.json({

@@ -59,6 +59,7 @@ export function SocialPreviewColumn({
     selectedCaptions,
     activeImageId,
     postNotes,
+    copyType,
     setCaptions,
     setSelectedCaptions,
   } = useContentStore()
@@ -100,9 +101,9 @@ export function SocialPreviewColumn({
   const displayCaption = customCaption.trim() || selectedCaption || ''
 
   // Sync custom caption with selected AI caption when it changes
-  // Only sync if custom caption is empty and we have a selected caption
+  // Always sync when a new caption is selected to override previous selection
   useEffect(() => {
-    if (selectedCaption && customCaption === '') {
+    if (selectedCaption) {
       setCustomCaption(selectedCaption)
     }
   }, [selectedCaption])
@@ -607,6 +608,44 @@ export function SocialPreviewColumn({
     </div>
   )
 
+  const renderEmailPreview = () => (
+    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden max-w-lg mx-auto">
+      {/* Email Header */}
+      <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
+              <span className="text-white text-sm font-semibold">📧</span>
+            </div>
+            <div className="ml-3">
+              <div className="font-semibold text-gray-900 text-sm">Email Marketing</div>
+              <div className="text-xs text-gray-500">Professional email preview</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Email Content */}
+      <div className="p-4">
+        {/* Email Image */}
+        {activeImageId && (
+          <div className="mb-4">
+            <img
+              src={uploadedImages.find(img => img.id === activeImageId)?.preview}
+              alt="Email content"
+              className="w-full max-h-64 object-cover rounded-lg"
+            />
+          </div>
+        )}
+        
+        {/* Email Copy */}
+        <div className="text-gray-900 leading-relaxed whitespace-pre-wrap">
+          {displayCaption}
+        </div>
+      </div>
+    </div>
+  )
+
   const renderPlatformPreview = () => {
     switch (selectedPreviewPlatform) {
       case 'facebook':
@@ -622,112 +661,294 @@ export function SocialPreviewColumn({
 
   return (
     <div className="space-y-6">
-      {/* Social Preview */}
+      {/* Content Preview */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Social Media Preview</CardTitle>
+          <CardTitle className="text-lg">
+            {copyType === 'email-marketing' ? 'Email Marketing Preview' : 'Social Media Preview'}
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {uploadedImages.length > 0 ? (
-            <div className="space-y-4">
-              {/* Platform Selection */}
-              <div className="flex items-center justify-center space-x-2 mb-4">
-                <button
-                  onClick={() => setSelectedPreviewPlatform('facebook')}
-                  className={`p-2 rounded-lg transition-colors ${
-                    selectedPreviewPlatform === 'facebook' 
-                      ? 'bg-blue-100 text-blue-600' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  <FacebookIcon size={20} />
-                </button>
-                <button
-                  onClick={() => setSelectedPreviewPlatform('instagram')}
-                  className={`p-2 rounded-lg transition-colors ${
-                    selectedPreviewPlatform === 'instagram' 
-                      ? 'bg-pink-100 text-pink-600' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  <InstagramIcon size={20} />
-                </button>
-                <button
-                  onClick={() => setSelectedPreviewPlatform('twitter')}
-                  className={`p-2 rounded-lg transition-colors ${
-                    selectedPreviewPlatform === 'twitter' 
-                      ? 'bg-blue-100 text-blue-600' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  <TwitterIcon size={20} />
-                </button>
-              </div>
-
-              {/* Mobile Preview Container */}
+          <div className="space-y-4">
+            {copyType === 'email-marketing' ? (
+              /* Email Marketing Preview */
               <div className="bg-gray-100 p-4 rounded-lg">
                 <div className="text-center text-xs text-gray-500 mb-2">
-                  Mobile Preview - {selectedPreviewPlatform.charAt(0).toUpperCase() + selectedPreviewPlatform.slice(1)}
+                  Email Marketing Preview
                 </div>
-                {renderPlatformPreview()}
-                  </div>
-                  
-              {/* Caption Editor */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                    <label htmlFor="customCaption" className="block text-sm font-medium text-gray-700 mb-2">
-                  Edit Caption
-                    </label>
-                    <Textarea
-                      id="customCaption"
-                      value={customCaption}
-                      onChange={(e) => setCustomCaption(e.target.value)}
-                      placeholder={selectedCaption ? "Edit the AI-generated caption or type your own..." : "Type your caption here..."}
-                      className="w-full min-h-[80px] resize-none"
-                      rows={3}
-                    />
-                    {selectedCaption && !customCaption && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        AI Caption: {selectedCaption}
-                      </p>
-                    )}
-                    
-                    {/* Checkbox to control whether custom caption should be treated as selected caption */}
-                    {customCaption && (
-                      <div className="mt-3 flex items-center">
-                        <button
-                          type="button"
-                          onClick={() => setUseAsSelectedCaption(!useAsSelectedCaption)}
-                          className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                            useAsSelectedCaption
-                              ? 'bg-green-600 text-white shadow-md hover:bg-green-700'
-                              : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
-                          }`}
-                        >
-                          <div className={`w-4 h-4 rounded border-2 mr-2 flex items-center justify-center ${
-                            useAsSelectedCaption
-                              ? 'border-white bg-white'
-                              : 'border-gray-400 bg-white'
-                          }`}>
-                            {useAsSelectedCaption && (
-                              <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            )}
+                {uploadedImages.length > 0 ? renderEmailPreview() : (
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden max-w-lg mx-auto">
+                    {/* Email Header */}
+                    <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
+                            <span className="text-white text-sm font-semibold">📧</span>
                           </div>
-                          Confirm
-                        </button>
-                        <span className="ml-2 text-xs text-gray-500">
-                          {useAsSelectedCaption ? 'Caption confirmed for use' : 'Click to confirm this caption'}
-                        </span>
+                          <div className="ml-3">
+                            <div className="font-semibold text-gray-900 text-sm">Email Marketing</div>
+                            <div className="text-xs text-gray-500">Professional email preview</div>
+                          </div>
+                        </div>
                       </div>
-                    )}
+                    </div>
+                    
+                    {/* Email Content - No Image Placeholder */}
+                    <div className="p-4">
+                      <div className="mb-4">
+                        <div className="w-full h-32 bg-gray-200 rounded-lg flex items-center justify-center">
+                          <span className="text-gray-500 text-sm">No Image</span>
+                        </div>
+                      </div>
+                      
+                      {/* Email Copy */}
+                      <div className="text-gray-900 leading-relaxed whitespace-pre-wrap">
+                        {displayCaption || 'Your email content will appear here...'}
+                      </div>
+                    </div>
                   </div>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <p>Upload images to see preview</p>
-            </div>
-          )}
+                )}
+              </div>
+            ) : (
+              /* Social Media Preview */
+              <>
+                {/* Platform Selection */}
+                <div className="flex items-center justify-center space-x-2 mb-4">
+                  <button
+                    onClick={() => setSelectedPreviewPlatform('facebook')}
+                    className={`p-2 rounded-lg transition-colors ${
+                      selectedPreviewPlatform === 'facebook' 
+                        ? 'bg-blue-100 text-blue-600' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <FacebookIcon size={20} />
+                  </button>
+                  <button
+                    onClick={() => setSelectedPreviewPlatform('instagram')}
+                    className={`p-2 rounded-lg transition-colors ${
+                      selectedPreviewPlatform === 'instagram' 
+                        ? 'bg-pink-100 text-pink-600' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <InstagramIcon size={20} />
+                  </button>
+                  <button
+                    onClick={() => setSelectedPreviewPlatform('twitter')}
+                    className={`p-2 rounded-lg transition-colors ${
+                      selectedPreviewPlatform === 'twitter' 
+                        ? 'bg-blue-100 text-blue-600' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <TwitterIcon size={20} />
+                  </button>
+                </div>
+
+                {/* Mobile Preview Container */}
+                <div className="bg-gray-100 p-4 rounded-lg">
+                  <div className="text-center text-xs text-gray-500 mb-2">
+                    Mobile Preview - {selectedPreviewPlatform.charAt(0).toUpperCase() + selectedPreviewPlatform.slice(1)}
+                  </div>
+                  {uploadedImages.length > 0 ? renderPlatformPreview() : (
+                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden max-w-sm mx-auto">
+                      {/* Platform Header */}
+                      {selectedPreviewPlatform === 'facebook' && (
+                        <div className="flex items-center justify-between px-4 py-3">
+                          <div className="flex items-center">
+                            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
+                              <FacebookIcon size={20} className="text-white" />
+                            </div>
+                            <div className="ml-3">
+                              <div className="font-semibold text-gray-900 text-sm">Your Facebook</div>
+                              <div className="flex items-center text-xs text-gray-500">
+                                <span>🌐</span>
+                                <span className="ml-1">Just now</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-gray-400 text-lg">⋯</div>
+                        </div>
+                      )}
+                      
+                      {selectedPreviewPlatform === 'instagram' && (
+                        <div className="flex items-center justify-between px-3 py-3">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                              <InstagramIcon size={16} className="text-white" />
+                            </div>
+                            <div className="ml-3">
+                              <div className="font-semibold text-gray-900 text-sm">your_instagram</div>
+                            </div>
+                          </div>
+                          <div className="text-gray-400 text-lg">⋯</div>
+                        </div>
+                      )}
+                      
+                      {selectedPreviewPlatform === 'twitter' && (
+                        <div className="flex items-center p-3 border-b border-gray-100">
+                          <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center">
+                            <TwitterIcon size={20} className="text-white" />
+                          </div>
+                          <div className="ml-3 flex-1">
+                            <div className="font-semibold text-gray-900 text-sm">Your Twitter</div>
+                            <div className="text-xs text-gray-500">@yourhandle</div>
+                          </div>
+                          <div className="text-gray-400">⋯</div>
+                        </div>
+                      )}
+                      
+                      {/* Caption */}
+                      <div className={selectedPreviewPlatform === 'twitter' ? 'p-3' : 'px-4 pb-3'}>
+                        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
+                          {displayCaption || 'Your caption will appear here...'}
+                        </p>
+                      </div>
+                      
+                      {/* No Image Placeholder */}
+                      <div className="relative">
+                        <div className={`${selectedPreviewPlatform === 'instagram' ? 'aspect-square' : 'h-48'} bg-gray-200 flex items-center justify-center`}>
+                          <span className="text-gray-500 text-sm">No Image</span>
+                        </div>
+                      </div>
+                      
+                      {/* Platform-specific bottom sections */}
+                      {selectedPreviewPlatform === 'facebook' && (
+                        <>
+                          <div className="px-4 py-2 border-t border-gray-100">
+                            <div className="flex items-center justify-between text-xs text-gray-500">
+                              <div className="flex items-center">
+                                <span className="ml-2">0</span>
+                              </div>
+                              <div className="flex items-center space-x-4">
+                                <span>0 Comments</span>
+                                <span>0 Shares</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="px-2 py-2 border-t border-gray-100">
+                            <div className="flex items-center justify-around">
+                              <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
+                                <span className="text-sm font-medium">Like</span>
+                              </button>
+                              <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
+                                <span className="text-sm font-medium">Comment</span>
+                              </button>
+                              <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
+                                <span className="text-sm font-medium">Share</span>
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      
+                      {selectedPreviewPlatform === 'instagram' && (
+                        <div className="px-3 py-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center space-x-4">
+                              <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                              </svg>
+                              <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                              </svg>
+                              <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                              </svg>
+                            </div>
+                            <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                            </svg>
+                          </div>
+                          <div className="mb-2">
+                            <span className="font-semibold text-gray-900 text-sm">0 likes</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {selectedPreviewPlatform === 'twitter' && (
+                        <div className="px-3 py-2 border-t border-gray-100">
+                          <div className="flex items-center justify-center text-gray-500 text-sm">
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                              </div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                </svg>
+                                <span className="ml-1">0</span>
+                              </div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-pink-500" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                                </svg>
+                                <span className="ml-1 text-pink-500">0</span>
+                              </div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                                </svg>
+                              </div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Confirm Post Button */}
+            {uploadedImages.length > 0 && customCaption && (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex justify-center">
+                    <Button
+                      onClick={() => setUseAsSelectedCaption(!useAsSelectedCaption)}
+                      className={`px-6 py-2 ${
+                        useAsSelectedCaption
+                          ? 'bg-green-600 hover:bg-green-700 text-white'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      }`}
+                    >
+                      {useAsSelectedCaption ? 'Confirmed ✓' : 'Confirm Post'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+                
+            {/* Caption Editor */}
+            <div className="bg-gray-50 rounded-lg p-4">
+                  <label htmlFor="customCaption" className="block text-sm font-medium text-gray-700 mb-2">
+                Edit {copyType === 'email-marketing' ? 'Email Copy' : 'Caption'}
+                  </label>
+                  <Textarea
+                    id="customCaption"
+                    value={customCaption}
+                    onChange={(e) => setCustomCaption(e.target.value)}
+                    placeholder={selectedCaption ? `Edit the AI-generated ${copyType === 'email-marketing' ? 'email copy' : 'caption'} or type your own...` : `Type your ${copyType === 'email-marketing' ? 'email copy' : 'caption'} here...`}
+                    className="w-full min-h-[80px] resize-none"
+                    rows={3}
+                  />
+                  {selectedCaption && !customCaption && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      AI {copyType === 'email-marketing' ? 'Email Copy' : 'Caption'}: {selectedCaption}
+                    </p>
+                  )}
+                  
+                </div>
+          </div>
         </CardContent>
       </Card>
 

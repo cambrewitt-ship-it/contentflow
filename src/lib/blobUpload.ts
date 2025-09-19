@@ -64,6 +64,11 @@ export function isValidBlobUrl(url: string): boolean {
     return false;
   }
   
+  // Check if it's a local blob URL (for development)
+  if (url.startsWith('blob:http://localhost') || url.startsWith('blob:http://127.0.0.1')) {
+    return true;
+  }
+  
   // Check if it's a valid HTTPS URL
   if (!url.startsWith('https://')) {
     return false;
@@ -89,7 +94,7 @@ export function isValidImageData(imageData: string): { isValid: boolean; type: '
     return { isValid: false, type: 'invalid' };
   }
   
-  // Check if it's a blob URL
+  // Check if it's a blob URL (including local development URLs)
   if (isValidBlobUrl(imageData)) {
     return { isValid: true, type: 'blob' };
   }
