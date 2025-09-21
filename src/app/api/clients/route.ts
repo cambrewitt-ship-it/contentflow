@@ -80,11 +80,23 @@ export async function DELETE(req: NextRequest) {
 
     console.log('🗑️ Deleting client:', clientId);
 
-    // Create Supabase client with auth context
-    const supabase = createRouteHandlerClient({ cookies });
+    // Get the authorization header
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ No authorization header found');
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in to delete clients'
+      }, { status: 401 });
+    }
+
+    const token = authHeader.split(' ')[1];
     
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Create Supabase client with the user's token
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    
+    // Get the authenticated user using the token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
       console.error('❌ Authentication error:', authError);
