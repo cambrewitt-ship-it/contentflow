@@ -4,6 +4,83 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
+// Function to disconnect all social accounts from a LATE profile
+async function disconnectAllLateAccounts(lateProfileId: string) {
+  try {
+    console.log('🔌 Disconnecting all social accounts from LATE profile:', lateProfileId);
+    
+    const lateApiKey = process.env.LATE_API_KEY;
+    if (!lateApiKey) {
+      console.error('❌ LATE API key not found in environment variables');
+      throw new Error('LATE API key not configured');
+    }
+
+    // First, get all accounts for this profile
+    console.log('📋 Fetching accounts for profile:', lateProfileId);
+    const accountsResponse = await fetch(`https://getlate.dev/api/v1/accounts?profileId=${lateProfileId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${lateApiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!accountsResponse.ok) {
+      const errorText = await accountsResponse.text();
+      console.error('❌ Failed to fetch accounts:', errorText);
+      throw new Error(`Failed to fetch accounts: ${accountsResponse.status} - ${errorText}`);
+    }
+
+    const accountsData = await accountsResponse.json();
+    const accounts = accountsData.accounts || [];
+    
+    console.log(`📊 Found ${accounts.length} connected accounts to disconnect`);
+
+    if (accounts.length === 0) {
+      console.log('ℹ️ No accounts to disconnect');
+      return true;
+    }
+
+    // Disconnect each account
+    const disconnectPromises = accounts.map(async (account: any) => {
+      try {
+        console.log(`🔌 Disconnecting account: ${account.platform} (${account.username})`);
+        
+        const disconnectResponse = await fetch(`https://getlate.dev/api/v1/accounts/${account._id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${lateApiKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!disconnectResponse.ok) {
+          const errorText = await disconnectResponse.text();
+          console.error(`❌ Failed to disconnect account ${account._id}:`, errorText);
+          throw new Error(`Failed to disconnect account: ${disconnectResponse.status} - ${errorText}`);
+        }
+
+        console.log(`✅ Successfully disconnected ${account.platform} account`);
+        return true;
+      } catch (error) {
+        console.error(`❌ Error disconnecting account ${account._id}:`, error);
+        // Don't throw here - we want to try disconnecting all accounts even if some fail
+        return false;
+      }
+    });
+
+    const results = await Promise.all(disconnectPromises);
+    const successCount = results.filter(Boolean).length;
+    
+    console.log(`✅ Disconnected ${successCount}/${accounts.length} accounts successfully`);
+    
+    return successCount > 0; // Return true if at least one account was disconnected
+  } catch (error) {
+    console.error('❌ Error disconnecting LATE accounts:', error);
+    throw error;
+  }
+}
+
 // Function to delete LATE profile
 async function deleteLateProfile(lateProfileId: string) {
   try {
@@ -15,6 +92,13 @@ async function deleteLateProfile(lateProfileId: string) {
       throw new Error('LATE API key not configured');
     }
 
+    // First, disconnect all social accounts
+    console.log('🔌 Step 1: Disconnecting all social accounts...');
+    await disconnectAllLateAccounts(lateProfileId);
+    console.log('✅ Step 1 completed: All social accounts disconnected');
+
+    // Now delete the profile
+    console.log('🗑️ Step 2: Deleting LATE profile...');
     console.log('🔑 LATE API key found, length:', lateApiKey.length);
     console.log('🌐 Making request to: https://getlate.dev/api/v1/profiles/' + lateProfileId);
 

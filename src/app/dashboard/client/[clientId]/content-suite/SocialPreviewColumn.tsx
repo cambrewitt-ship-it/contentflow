@@ -910,22 +910,18 @@ export function SocialPreviewColumn({
 
             {/* Confirm Post Button */}
             {uploadedImages.length > 0 && customCaption && (
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex justify-center">
-                    <Button
-                      onClick={() => setUseAsSelectedCaption(!useAsSelectedCaption)}
-                      className={`px-6 py-2 ${
-                        useAsSelectedCaption
-                          ? 'bg-green-600 hover:bg-green-700 text-white'
-                          : 'bg-blue-600 hover:bg-blue-700 text-white'
-                      }`}
-                    >
-                      {useAsSelectedCaption ? 'Confirmed ✓' : 'Confirm Post'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="flex justify-center">
+                <Button
+                  onClick={() => setUseAsSelectedCaption(!useAsSelectedCaption)}
+                  className={`px-6 py-2 ${
+                    useAsSelectedCaption
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {useAsSelectedCaption ? 'Confirmed ✓' : 'Confirm Post'}
+                </Button>
+              </div>
             )}
                 
             {/* Caption Editor */}

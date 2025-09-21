@@ -14,6 +14,7 @@ interface UserProfile {
   id: string;
   email: string;
   full_name: string;
+  username: string;
   avatar_url: string;
   company_name: string;
   role: string;
@@ -67,6 +68,7 @@ export default function ProfilePage() {
         .from('user_profiles')
         .update({
           full_name: profile.full_name,
+          username: profile.username,
           company_name: profile.company_name,
         })
         .eq('id', user?.id);
@@ -174,6 +176,21 @@ export default function ProfilePage() {
                   onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
                   placeholder="Enter your full name"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="username" className="text-sm font-medium">
+                  Username
+                </label>
+                <Input
+                  id="username"
+                  value={profile.username || ''}
+                  onChange={(e) => setProfile({ ...profile, username: e.target.value })}
+                  placeholder="Enter your username"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Choose a unique username. This will be used for @mentions and display purposes.
+                </p>
               </div>
 
               <div className="space-y-2">

@@ -63,6 +63,9 @@ async function createLateProfileForExistingClient(client: { id: string; name: st
 
     console.log('📤 LATE API request body:', requestBody);
     console.log('🌐 LATE API URL: https://getlate.dev/api/v1/profiles');
+    console.log('🔑 LATE API Key available:', !!lateApiKey);
+    console.log('🔑 LATE API Key length:', lateApiKey?.length || 0);
+    console.log('🔑 LATE API Key preview:', lateApiKey?.substring(0, 10) + '...');
 
     const response = await fetch('https://getlate.dev/api/v1/profiles', {
       method: 'POST',
@@ -74,23 +77,45 @@ async function createLateProfileForExistingClient(client: { id: string; name: st
     });
 
     console.log('📡 LATE API response status:', response.status);
+    console.log('📡 LATE API response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ LATE API error response:', errorText);
+      console.error('❌ LATE API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        body: errorText
+      });
       throw new Error(`LATE API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
     console.log('✅ LATE profile created successfully:', data);
+    console.log('🔍 LATE API response structure analysis:', {
+      hasId: !!data._id,
+      hasProfile: !!data.profile,
+      hasProfileId: !!data.profile?._id,
+      allKeys: Object.keys(data),
+      dataType: typeof data,
+      isArray: Array.isArray(data)
+    });
     
-    // Handle the nested response structure
-    const profileId = data._id || data.profile?._id;
+    // Handle the nested response structure - try multiple possible locations
+    const profileId = data._id || data.profile?._id || data.id || data.profileId;
     console.log('✅ LATE profile ID extracted:', profileId);
+    console.log('🔍 Profile ID extraction attempt:', {
+      dataId: data._id,
+      dataProfileId: data.profile?._id,
+      dataIdField: data.id,
+      dataProfileIdField: data.profileId,
+      finalProfileId: profileId
+    });
 
     if (!profileId) {
       console.error('❌ LATE API response structure:', JSON.stringify(data, null, 2));
-      throw new Error('LATE API response missing _id field');
+      console.error('❌ Available keys in response:', Object.keys(data));
+      throw new Error(`LATE API response missing profile ID field. Available keys: ${Object.keys(data).join(', ')}`);
     }
 
     return profileId;

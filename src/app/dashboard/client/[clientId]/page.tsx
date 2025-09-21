@@ -571,6 +571,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       const response = await fetch(`/api/clients/${clientId}`, {
         method: 'DELETE',
         headers: {
+          'Authorization': `Bearer ${getAccessToken() || ''}`,
           'Content-Type': 'application/json',
         },
       });

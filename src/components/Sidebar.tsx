@@ -157,14 +157,20 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
   }
 
   return (
-    <div className={getThemeClasses(
-      `bg-white border-r border-gray-200 min-h-screen flex flex-col transition-all duration-300 ${
-        collapsed ? 'w-16' : 'w-64'
-      }`,
-      `glass-sidebar min-h-screen flex flex-col transition-all duration-300 ${
-        collapsed ? 'w-16' : 'w-64'
-      }`
-    )}>
+    <div 
+      className={getThemeClasses(
+        `bg-white border-r border-gray-200 min-h-screen flex flex-col transition-all duration-300 ${
+          collapsed ? 'w-16' : 'w-64'
+        }`,
+        `glass-sidebar min-h-screen flex flex-col transition-all duration-300 ${
+          collapsed ? 'w-16' : 'w-64'
+        }`
+      )}
+      style={{
+        background: 'white',
+        backgroundImage: 'none'
+      }}
+    >
       {/* Header with CM Logo and Collapse Button */}
       <div className={getThemeClasses(
         "p-4 border-b border-gray-200",
@@ -173,13 +179,15 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
         <div className="flex items-center justify-between">
           {/* CM Logo */}
           <div className="flex items-center justify-center">
-            <img 
-              src="/cm-logo.png" 
-              alt="CM Logo" 
-              className={`object-contain transition-all duration-300 ${
-                collapsed ? 'h-8 w-8' : 'h-24 w-auto'
-              }`}
-            />
+            <Link href="/dashboard" className="block">
+              <img 
+                src="/cm-logo.png" 
+                alt="CM Logo" 
+                className={`object-contain transition-all duration-300 cursor-pointer hover:opacity-80 ${
+                  collapsed ? 'h-8 w-8' : 'h-24 w-auto'
+                }`}
+              />
+            </Link>
           </div>
           
           {/* Collapse Button - Desktop Only */}

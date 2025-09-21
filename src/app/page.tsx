@@ -3,10 +3,45 @@
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { useAuth } from "../contexts/AuthContext";
+import { supabase } from "../lib/supabaseClient";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+
+interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string;
+  username: string;
+  avatar_url: string;
+  company_name: string;
+  role: string;
+}
 
 export default function Home() {
   const { user, signOut } = useAuth();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  // Fetch user profile
+  useEffect(() => {
+    async function fetchProfile() {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+        setProfile(data);
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+      }
+    }
+
+    fetchProfile();
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -31,7 +66,7 @@ export default function Home() {
               {user ? (
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-muted-foreground">
-                    Welcome, {user.email}
+                    Welcome, {profile?.username || profile?.full_name || user.email}
                   </span>
                   <Link href="/dashboard">
                     <Button size="sm">Dashboard</Button>

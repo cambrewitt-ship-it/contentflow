@@ -6,6 +6,7 @@ import Link from "next/link";
 import UIThemeToggle from "../../components/UIThemeToggle";
 import { useUIThemeStyles } from "../../hooks/useUITheme";
 import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabaseClient";
 import { useState, useEffect } from "react";
 
 interface Client {
@@ -19,12 +20,46 @@ interface Client {
   updated_at: string;
 }
 
+interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string;
+  username: string;
+  avatar_url: string;
+  company_name: string;
+  role: string;
+}
+
 export default function Dashboard() {
   const { getThemeClasses } = useUIThemeStyles();
   const { user, signOut, getAccessToken } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch user profile
+  useEffect(() => {
+    async function fetchProfile() {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+        setProfile(data);
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+        // Don't set error state for profile fetch failure
+      }
+    }
+
+    fetchProfile();
+  }, [user]);
 
   // Fetch user's clients
   useEffect(() => {
@@ -103,7 +138,7 @@ export default function Dashboard() {
             "text-3xl font-bold text-foreground mb-2",
             "text-3xl font-bold glass-text-primary mb-2"
           )}>
-            Welcome back, {user?.email?.split('@')[0] || 'User'}!
+            Welcome back, {profile?.username || profile?.full_name || user?.email?.split('@')[0] || 'User'}!
           </h1>
           <p className={getThemeClasses(
             "text-lg text-muted-foreground",

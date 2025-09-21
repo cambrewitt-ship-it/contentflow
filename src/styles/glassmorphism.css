@@ -18,24 +18,35 @@
   --glass-radius: 16px;
 }
 
-/* Apply glassmorphism theme to body - Static blue gradient */
+/* Apply glassmorphism theme to body - Ocean background image */
 .glassmorphism-theme {
-  background: linear-gradient(135deg, 
-    #3b82f6 0%, 
-    #1e40af 50%, 
-    #1d4ed8 100%) !important;
+  background-image: url('/ocean-background.png') !important;
+  background-position: center center !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
   min-height: 100vh !important;
   height: auto !important;
   overflow-x: hidden !important;
 }
 
+/* Debug: Force ocean background with higher specificity */
+body.glassmorphism-theme {
+  background-image: url('/ocean-background.png') !important;
+  background-position: center center !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+}
+
 /* Force background on html and body when theme is active */
 html.glassmorphism-theme,
 body.glassmorphism-theme {
-  background: linear-gradient(135deg, 
-    #3b82f6 0%, 
-    #1e40af 50%, 
-    #1d4ed8 100%) !important;
+  background-image: url('/ocean-background.png') !important;
+  background-position: center center !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
   min-height: 100vh !important;
   height: auto !important;
   overflow-x: hidden !important;
@@ -63,7 +74,8 @@ body.glassmorphism-theme {
 
 /* Ensure sidebar has white background, not blue */
 .glassmorphism-theme .glass-sidebar {
-  background: rgba(255, 255, 255, 0.95) !important;
+  background: white !important;
+  background-image: none !important;
 }
 
 /* Ensure all main containers have blue background */
@@ -201,7 +213,8 @@ body.glassmorphism-theme {
 /* Glass Sidebar - Pure White Tempered Glass */
 .glass-sidebar {
   backdrop-filter: blur(25px);
-  background: rgba(255, 255, 255, 0.95) !important;
+  background: white !important;
+  background-image: none !important;
   border-right: 1px solid rgba(0, 0, 0, 0.1);
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.1),
@@ -531,4 +544,92 @@ body.glassmorphism-theme {
   .glass-text-secondary {
     color: #1a1a1a;
   }
+}
+
+/* CRITICAL: Force ocean background - highest specificity */
+html.glassmorphism-theme body.glassmorphism-theme {
+  background-image: url('/ocean-background.png') !important;
+  background-position: center center !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+  background-color: transparent !important;
+}
+
+/* ULTIMATE: Force ocean background with maximum specificity */
+html.glassmorphism-theme body.glassmorphism-theme,
+html.glassmorphism-theme body.glassmorphism-theme * {
+  background-image: url('/ocean-background.png') !important;
+  background-position: center center !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+}
+
+/* Ensure sidebar stays white in alternate UI */
+.glassmorphism-theme .glass-sidebar {
+  background: white !important;
+  background-image: none !important;
+  background-color: white !important;
+}
+
+.glassmorphism-theme .glass-sidebar * {
+  background-image: none !important;
+  background-color: transparent !important;
+}
+
+/* Force white background on all sidebar elements */
+.glassmorphism-theme .glass-sidebar,
+.glassmorphism-theme .glass-sidebar > *,
+.glassmorphism-theme .glass-sidebar div,
+.glassmorphism-theme .glass-sidebar section,
+.glassmorphism-theme .glass-sidebar article {
+  background: white !important;
+  background-image: none !important;
+}
+
+/* ULTIMATE: Completely block ocean background from sidebar */
+.glassmorphism-theme .glass-sidebar {
+  background: white !important;
+  background-image: none !important;
+  background-color: white !important;
+  background-attachment: scroll !important;
+  background-position: initial !important;
+  background-size: initial !important;
+  background-repeat: no-repeat !important;
+}
+
+/* Override any inherited background from parent elements */
+.glassmorphism-theme .glass-sidebar::before,
+.glassmorphism-theme .glass-sidebar::after {
+  background: white !important;
+  background-image: none !important;
+}
+
+/* NUCLEAR OPTION: Force white background with maximum specificity */
+html.glassmorphism-theme body.glassmorphism-theme .glass-sidebar {
+  background: white !important;
+  background-image: none !important;
+  background-color: white !important;
+  background-attachment: scroll !important;
+  background-position: initial !important;
+  background-size: initial !important;
+  background-repeat: no-repeat !important;
+}
+
+html.glassmorphism-theme body.glassmorphism-theme .glass-sidebar * {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Target the sidebar container div as well */
+html.glassmorphism-theme body.glassmorphism-theme .fixed.inset-y-0.left-0.z-40 {
+  background: white !important;
+  background-image: none !important;
+}
+
+/* Target any div containing the sidebar */
+html.glassmorphism-theme body.glassmorphism-theme div:has(.glass-sidebar) {
+  background: white !important;
+  background-image: none !important;
 }
