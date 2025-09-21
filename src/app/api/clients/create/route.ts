@@ -122,8 +122,33 @@ export async function POST(req: NextRequest) {
 
     console.log('🏢 Creating new client:', name);
 
-    // Create Supabase client
+    // Get the authorization header
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ No authorization header found');
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in to create clients'
+      }, { status: 401 });
+    }
+
+    const token = authHeader.split(' ')[1];
+    
+    // Create Supabase client with the user's token
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    
+    // Get the authenticated user using the token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.error('❌ Authentication error:', authError);
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in to create clients'
+      }, { status: 401 });
+    }
+
+    console.log('✅ Authenticated user:', user.id);
 
     // Try to create LATE profile first (unless skipped for temp clients)
     let lateProfileId = null;
@@ -153,7 +178,7 @@ export async function POST(req: NextRequest) {
       console.log('⏭️ Skipping LATE profile creation for temporary client');
     }
 
-    // Insert the new client with LATE profile ID
+    // Insert the new client with LATE profile ID and user association
     const { data: client, error: insertError } = await supabase
       .from('clients')
       .insert([
@@ -167,6 +192,7 @@ export async function POST(req: NextRequest) {
           caption_dos: caption_dos?.trim() || null,
           caption_donts: caption_donts?.trim() || null,
           late_profile_id: lateProfileId, // Add LATE profile ID
+          user_id: user.id, // Associate with authenticated user
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }

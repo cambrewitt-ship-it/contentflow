@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUIThemeStyles } from "hooks/useUITheme";
+import { useAuth } from "contexts/AuthContext";
 import { Card, CardContent } from "components/ui/card";
 import { Button } from "components/ui/button";
 import { Badge } from "components/ui/badge";
@@ -35,17 +36,28 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
   const pathname = usePathname();
   const router = useRouter();
   const { getThemeClasses } = useUIThemeStyles();
+  const { user, getAccessToken } = useAuth();
 
   // Fetch all clients from Supabase
   useEffect(() => {
     async function fetchClients() {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
         
         console.log('🔍 Fetching all clients for sidebar...');
         
-        const response = await fetch('/api/clients');
+        const response = await fetch('/api/clients', {
+          headers: {
+            'Authorization': `Bearer ${getAccessToken() || ''}`,
+            'Content-Type': 'application/json'
+          }
+        });
         
         if (!response.ok) {
           throw new Error(`Failed to fetch clients: ${response.statusText}`);
@@ -77,7 +89,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
     return () => {
       window.removeEventListener('clientCreated', handleClientCreated);
     };
-  }, []);
+  }, [user]);
 
   // Extract current client ID from pathname
   const currentClientId = pathname?.split('/')[2] || null;
@@ -100,8 +112,15 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
 
   // Refresh clients list (can be called after creating new clients)
   const refreshClients = () => {
+    if (!user) return;
+    
     setLoading(true);
-    fetch('/api/clients')
+    fetch('/api/clients', {
+      headers: {
+        'Authorization': `Bearer ${getAccessToken() || ''}`,
+        'Content-Type': 'application/json'
+      }
+    })
       .then(res => res.json())
       .then(data => {
         setClients(data.clients || []);

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import "../styles/glassmorphism.css";
-import { UIThemeProvider } from "contexts/UIThemeContext";
+import { UIThemeProvider } from "../contexts/UIThemeContext";
+import { AuthProvider } from "../contexts/AuthContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,9 +21,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} antialiased`}>
-        <UIThemeProvider>
-          {children}
-        </UIThemeProvider>
+        <AuthProvider>
+          <UIThemeProvider>
+            {children}
+          </UIThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

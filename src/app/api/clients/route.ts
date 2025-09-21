@@ -6,15 +6,41 @@ const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function GET(req: NextRequest) {
   try {
-    console.log('🔍 Fetching all clients...');
+    console.log('🔍 Fetching clients for authenticated user...');
 
-    // Create Supabase client with service role for admin access
+    // Get the authorization header
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ No authorization header found');
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in to view clients'
+      }, { status: 401 });
+    }
+
+    const token = authHeader.split(' ')[1];
+    
+    // Create Supabase client with the user's token
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    
+    // Get the authenticated user using the token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.error('❌ Authentication error:', authError);
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in to view clients'
+      }, { status: 401 });
+    }
 
-    // Query all clients from the clients table
+    console.log('✅ Authenticated user:', user.id);
+
+    // Query clients for the authenticated user only
     const { data: clients, error } = await supabase
       .from('clients')
       .select('id, name, description, company_description, website_url, brand_tone, target_audience, industry, brand_keywords, caption_dos, caption_donts, created_at, updated_at')
+      .eq('user_id', user.id)
       .order('name', { ascending: true });
 
     if (error) {
@@ -25,7 +51,7 @@ export async function GET(req: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log('✅ Clients fetched successfully:', clients?.length || 0, 'clients found');
+    console.log('✅ User clients fetched successfully:', clients?.length || 0, 'clients found');
 
     return NextResponse.json({ 
       success: true,
@@ -54,8 +80,35 @@ export async function DELETE(req: NextRequest) {
 
     console.log('🗑️ Deleting client:', clientId);
 
-    // Create Supabase client with service role for admin access
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    // Create Supabase client with auth context
+    const supabase = createRouteHandlerClient({ cookies });
+    
+    // Get the authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('❌ Authentication error:', authError);
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in to delete clients'
+      }, { status: 401 });
+    }
+
+    // Verify the client belongs to the authenticated user
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('id, user_id')
+      .eq('id', clientId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (clientError || !client) {
+      console.error('❌ Client not found or access denied:', clientError);
+      return NextResponse.json({ 
+        error: 'Client not found or access denied', 
+        details: 'You can only delete your own clients'
+      }, { status: 404 });
+    }
 
     // First, delete all related data (projects, posts, etc.)
     // Delete projects first (this will cascade to posts due to foreign key constraints)
@@ -95,16 +148,16 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Finally, delete the client
-    const { error: clientError } = await supabase
+    const { error: deleteError } = await supabase
       .from('clients')
       .delete()
       .eq('id', clientId);
 
-    if (clientError) {
-      console.error('❌ Error deleting client:', clientError);
+    if (deleteError) {
+      console.error('❌ Error deleting client:', deleteError);
       return NextResponse.json({ 
         error: 'Failed to delete client', 
-        details: clientError.message 
+        details: deleteError.message 
       }, { status: 500 });
     }
 

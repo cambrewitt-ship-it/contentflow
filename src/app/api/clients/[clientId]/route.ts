@@ -71,12 +71,39 @@ export async function GET(
       console.log('✅ Cleaned clientId in client API:', cleanClientId);
     }
 
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ No authorization header found');
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in to view clients'
+      }, { status: 401 });
+    }
+
+    const token = authHeader.split(' ')[1];
+    
+    // Create Supabase client with the user's token
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    
+    // Get the authenticated user using the token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.error('❌ Authentication error:', authError);
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in to view clients'
+      }, { status: 401 });
+    }
+
+    console.log('✅ Authenticated user:', user.id);
 
     const { data: client, error } = await supabase
       .from('clients')
       .select('*')
       .eq('id', cleanClientId)
+      .eq('user_id', user.id) // Only get clients owned by the authenticated user
       .single();
 
     if (error) {
@@ -118,7 +145,47 @@ export async function PUT(
     
     console.log('🔄 Updating client data for ID:', clientId, 'Body:', body);
 
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ No authorization header found');
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in to update clients'
+      }, { status: 401 });
+    }
+
+    const token = authHeader.split(' ')[1];
+    
+    // Create Supabase client with the user's token
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    
+    // Get the authenticated user using the token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.error('❌ Authentication error:', authError);
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in to update clients'
+      }, { status: 401 });
+    }
+
+    // Verify the client belongs to the authenticated user
+    const { data: existingClient, error: clientError } = await supabase
+      .from('clients')
+      .select('id, user_id')
+      .eq('id', clientId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (clientError || !existingClient) {
+      console.error('❌ Client not found or access denied:', clientError);
+      return NextResponse.json({ 
+        error: 'Client not found or access denied', 
+        details: 'You can only update your own clients'
+      }, { status: 404 });
+    }
 
     // Prepare update data (only include fields that are provided)
     const updateData: {
@@ -191,13 +258,38 @@ export async function DELETE(
     
     console.log('🗑️ Deleting client with ID:', clientId);
 
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ No authorization header found');
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in to delete clients'
+      }, { status: 401 });
+    }
 
-    // First, get the client to check if it has a LATE profile
+    const token = authHeader.split(' ')[1];
+    
+    // Create Supabase client with the user's token
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    
+    // Get the authenticated user using the token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.error('❌ Authentication error:', authError);
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in to delete clients'
+      }, { status: 401 });
+    }
+
+    // First, get the client to check if it has a LATE profile and verify ownership
     const { data: client, error: fetchError } = await supabase
       .from('clients')
-      .select('late_profile_id, name')
+      .select('late_profile_id, name, user_id')
       .eq('id', clientId)
+      .eq('user_id', user.id) // Only allow deletion of own clients
       .single();
 
     if (fetchError) {

@@ -7,6 +7,7 @@ import { Button } from 'components/ui/button'
 import { Plus, Edit3, Calendar, FileText, ArrowRight, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import BrandInformationPanel from 'components/BrandInformationPanel'
+import { useAuth } from 'contexts/AuthContext'
 import { Client, Project, DebugInfo, BrandDocument, WebsiteScrape, OAuthMessage } from 'types/api'
 import { 
   FacebookIcon, 
@@ -22,6 +23,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const { clientId } = use(params)
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { getAccessToken } = useAuth()
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -73,7 +75,12 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         
         console.log('🔍 Fetching client data for ID:', clientId)
         
-        const response = await fetch(`/api/clients/${clientId}`)
+        const response = await fetch(`/api/clients/${clientId}`, {
+          headers: {
+            'Authorization': `Bearer ${getAccessToken() || ''}`,
+            'Content-Type': 'application/json'
+          }
+        })
         
         if (!response.ok) {
           if (response.status === 404) {

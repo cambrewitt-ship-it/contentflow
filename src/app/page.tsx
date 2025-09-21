@@ -1,7 +1,13 @@
-import { Button } from "components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "components/ui/card";
+"use client";
+
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { useAuth } from "../contexts/AuthContext";
+import Link from "next/link";
 
 export default function Home() {
+  const { user, signOut } = useAuth();
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -22,9 +28,32 @@ export default function Home() {
               <a href="#pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                 Pricing
               </a>
-              <Button variant="outline" size="sm">
-                Sign In
-              </Button>
+              {user ? (
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm text-muted-foreground">
+                    Welcome, {user.email}
+                  </span>
+                  <Link href="/dashboard">
+                    <Button size="sm">Dashboard</Button>
+                  </Link>
+                  <Button variant="outline" size="sm" onClick={signOut}>
+                    Sign Out
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <Link href="/auth/login">
+                    <Button variant="outline" size="sm">
+                      Sign In
+                    </Button>
+                  </Link>
+                  <Link href="/auth/signup">
+                    <Button size="sm">
+                      Sign Up
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>

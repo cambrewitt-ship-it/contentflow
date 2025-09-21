@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "components/ui/card";
 import { Button } from "components/ui/button";
 import { Input } from "components/ui/input";
 import { Textarea } from "components/ui/textarea";
+import { useAuth } from "contexts/AuthContext";
 import { 
   Loader2, 
   Plus,
@@ -40,6 +41,7 @@ interface WebsiteScrape {
 }
 
 export default function NewClientPageV2() {
+  const { getAccessToken } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     company_description: "",
@@ -118,6 +120,7 @@ export default function NewClientPageV2() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${getAccessToken() || ''}`,
         },
         body: JSON.stringify(formData),
       });
@@ -222,6 +225,7 @@ export default function NewClientPageV2() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${getAccessToken() || ''}`,
         },
         body: JSON.stringify({
           name: "TEMP_SCRAPE_" + Date.now(),
@@ -249,7 +253,10 @@ export default function NewClientPageV2() {
       // First, scrape the website using the temp client ID
       const scrapeResponse = await fetch(`/api/clients/${tempClientId}/scrape-website`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAccessToken() || ''}`,
+        },
         body: JSON.stringify({ url: formData.website_url })
       });
 
@@ -263,7 +270,10 @@ export default function NewClientPageV2() {
         // Now analyze the scraped content with AI
         const analysisResponse = await fetch(`/api/clients/${tempClientId}/analyze-website`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getAccessToken() || ''}`,
+          },
           body: JSON.stringify({ scrapeId: scrapeData.data.id })
         });
 
@@ -301,7 +311,10 @@ export default function NewClientPageV2() {
           console.log('🧹 Cleaning up temporary client:', tempClientId);
           const deleteResponse = await fetch(`/api/clients/${tempClientId}`, {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${getAccessToken() || ''}`,
+            }
           });
           
           if (deleteResponse.ok) {
