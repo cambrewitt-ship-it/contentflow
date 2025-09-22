@@ -115,13 +115,6 @@ export function SocialPreviewColumn({
     }
   }, [customCaption, onCustomCaptionChange])
 
-  // Auto-confirm caption when editing starts
-  useEffect(() => {
-    if (isEditing && customCaption) {
-      setUseAsSelectedCaption(true)
-    }
-  }, [isEditing, customCaption])
-
   // Call parent component when confirmation state changes
   useEffect(() => {
     if (onCaptionConfirmationChange) {
@@ -400,7 +393,7 @@ export function SocialPreviewColumn({
             <FacebookIcon size={20} className="text-white" />
           </div>
           <div className="ml-3">
-            <div className="font-semibold text-gray-700 text-sm">
+            <div className="font-semibold text-gray-900 text-sm">
               Your Facebook
             </div>
             <div className="flex items-center text-xs text-gray-500">
@@ -409,12 +402,12 @@ export function SocialPreviewColumn({
             </div>
           </div>
         </div>
-        <div className="text-gray-400 card-title-26">⋯</div>
+        <div className="text-gray-400 text-lg">⋯</div>
       </div>
       
       {/* Facebook Caption */}
       <div className="px-4 pb-3">
-        <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
+        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
           {displayCaption}
         </p>
       </div>
@@ -444,11 +437,11 @@ export function SocialPreviewColumn({
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
               </svg>
             </div>
-            <span className="ml-2">1.4K</span>
+            <span className="ml-2">436</span>
           </div>
           <div className="flex items-center space-x-4">
-            <span>105 Comments</span>
-            <span>25 Shares</span>
+            <span>54 Comments</span>
+            <span>8 Shares</span>
           </div>
         </div>
       </div>
@@ -488,12 +481,12 @@ export function SocialPreviewColumn({
             <InstagramIcon size={16} className="text-white" />
           </div>
           <div className="ml-3">
-            <div className="font-semibold text-gray-700 text-sm">
+            <div className="font-semibold text-gray-900 text-sm">
               {currentAccountData?.name || 'your_instagram'}
             </div>
           </div>
         </div>
-        <div className="text-gray-400 card-title-26">⋯</div>
+        <div className="text-gray-400 text-lg">⋯</div>
       </div>
       
       {/* Instagram Image */}
@@ -511,32 +504,32 @@ export function SocialPreviewColumn({
       <div className="px-3 py-3">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-4">
-            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
             </svg>
-            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
-            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
           </div>
-          <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
         </div>
         
         {/* Likes Count */}
         <div className="mb-2">
-          <span className="font-semibold text-gray-700 text-sm">5,367 likes</span>
+          <span className="font-semibold text-gray-900 text-sm">237 likes</span>
         </div>
         
         {/* Instagram Caption */}
         <div className="text-sm">
-          <span className="font-semibold text-gray-700 mr-2">
+          <span className="font-semibold text-gray-900 mr-2">
             {currentAccountData?.name || 'your_instagram'}
           </span>
-          <span className="text-gray-700 whitespace-pre-wrap">
+          <span className="text-gray-900 whitespace-pre-wrap">
             {displayCaption}
           </span>
         </div>
@@ -552,7 +545,7 @@ export function SocialPreviewColumn({
           <TwitterIcon size={20} className="text-white" />
         </div>
         <div className="ml-3 flex-1">
-          <div className="font-semibold text-gray-700 text-sm">
+          <div className="font-semibold text-gray-900 text-sm">
             {currentAccountData?.name || 'Your Twitter'}
           </div>
           <div className="text-xs text-gray-500">@{currentAccountData?.username || 'yourhandle'}</div>
@@ -562,7 +555,7 @@ export function SocialPreviewColumn({
       
       {/* Twitter Content */}
       <div className="p-3">
-        <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
+        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
           {displayCaption}
         </p>
         
@@ -586,18 +579,19 @@ export function SocialPreviewColumn({
               <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
+              <span className="ml-1">104</span>
             </div>
             <div className="flex items-center">
               <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
-              <span className="ml-1">1</span>
+              <span className="ml-1">78</span>
             </div>
             <div className="flex items-center">
               <svg className="w-4 h-4 text-pink-500" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
               </svg>
-              <span className="ml-1 text-pink-500">1</span>
+              <span className="ml-1 text-pink-500">24</span>
             </div>
             <div className="flex items-center">
               <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -625,7 +619,7 @@ export function SocialPreviewColumn({
               <span className="text-white text-sm font-semibold">📧</span>
             </div>
             <div className="ml-3">
-              <div className="font-semibold text-gray-700 text-sm">Email Marketing</div>
+              <div className="font-semibold text-gray-900 text-sm">Email Marketing</div>
               <div className="text-xs text-gray-500">Professional email preview</div>
             </div>
           </div>
@@ -646,7 +640,7 @@ export function SocialPreviewColumn({
         )}
         
         {/* Email Copy */}
-        <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+        <div className="text-gray-900 leading-relaxed whitespace-pre-wrap">
           {displayCaption}
         </div>
       </div>
@@ -667,7 +661,7 @@ export function SocialPreviewColumn({
   }
 
   return (
-    <div className="space-y-6 h-full flex flex-col">
+    <div className="space-y-6">
       {/* Content Preview */}
       <Card>
         <CardHeader>
@@ -693,7 +687,7 @@ export function SocialPreviewColumn({
                             <span className="text-white text-sm font-semibold">📧</span>
                           </div>
                           <div className="ml-3">
-                            <div className="font-semibold text-gray-700 text-sm">Email Marketing</div>
+                            <div className="font-semibold text-gray-900 text-sm">Email Marketing</div>
                             <div className="text-xs text-gray-500">Professional email preview</div>
                           </div>
                         </div>
@@ -709,7 +703,7 @@ export function SocialPreviewColumn({
                       </div>
                       
                       {/* Email Copy */}
-                      <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                      <div className="text-gray-900 leading-relaxed whitespace-pre-wrap">
                         {displayCaption || 'Your email content will appear here...'}
                       </div>
                     </div>
@@ -768,14 +762,14 @@ export function SocialPreviewColumn({
                               <FacebookIcon size={20} className="text-white" />
                             </div>
                             <div className="ml-3">
-                              <div className="font-semibold text-gray-700 text-sm">Your Facebook</div>
+                              <div className="font-semibold text-gray-900 text-sm">Your Facebook</div>
                               <div className="flex items-center text-xs text-gray-500">
                                 <span>🌐</span>
                                 <span className="ml-1">Just now</span>
                               </div>
                             </div>
                           </div>
-                          <div className="text-gray-400 card-title-26">⋯</div>
+                          <div className="text-gray-400 text-lg">⋯</div>
                         </div>
                       )}
                       
@@ -786,10 +780,10 @@ export function SocialPreviewColumn({
                               <InstagramIcon size={16} className="text-white" />
                             </div>
                             <div className="ml-3">
-                              <div className="font-semibold text-gray-700 text-sm">your_instagram</div>
+                              <div className="font-semibold text-gray-900 text-sm">your_instagram</div>
                             </div>
                           </div>
-                          <div className="text-gray-400 card-title-26">⋯</div>
+                          <div className="text-gray-400 text-lg">⋯</div>
                         </div>
                       )}
                       
@@ -799,7 +793,7 @@ export function SocialPreviewColumn({
                             <TwitterIcon size={20} className="text-white" />
                           </div>
                           <div className="ml-3 flex-1">
-                            <div className="font-semibold text-gray-700 text-sm">Your Twitter</div>
+                            <div className="font-semibold text-gray-900 text-sm">Your Twitter</div>
                             <div className="text-xs text-gray-500">@yourhandle</div>
                           </div>
                           <div className="text-gray-400">⋯</div>
@@ -808,7 +802,7 @@ export function SocialPreviewColumn({
                       
                       {/* Caption */}
                       <div className={selectedPreviewPlatform === 'twitter' ? 'p-3' : 'px-4 pb-3'}>
-                        <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
+                        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
                           {displayCaption || 'Your caption will appear here...'}
                         </p>
                       </div>
@@ -826,23 +820,40 @@ export function SocialPreviewColumn({
                           <div className="px-4 py-2 border-t border-gray-100">
                             <div className="flex items-center justify-between text-xs text-gray-500">
                               <div className="flex items-center">
-                                <span className="ml-2">0</span>
+                                <div className="flex -space-x-1">
+                                  <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M7.493 18.75c-.425 0-.82-.236-.975-.632A7.48 7.48 0 016 15.375c0-1.75.599-3.358 1.602-4.634.151-.192.373-.309.6-.397.473-.183.89-.514 1.212-.924a9.042 9.042 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75 2.25 2.25 0 012.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558-.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H14.23c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23h-.777zM2.331 10.977a11.969 11.969 0 00-.831 4.398 12 12 0 00.52 3.507c.26.85 1.084 1.368 1.973 1.368H4.9c.445 0 .72-.498.523-.898a8.963 8.963 0 01-.924-3.977c0-1.708.476-3.305 1.302-4.666.245-.403-.028-.959-.5-.959H4.25c-.832 0-1.612.453-1.918 1.227z"/>
+                                  </svg>
+                                  <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                                  </svg>
+                                </div>
+                                <span className="ml-2">436</span>
                               </div>
                               <div className="flex items-center space-x-4">
-                                <span>0 Comments</span>
-                                <span>0 Shares</span>
+                                <span>54 Comments</span>
+                                <span>8 Shares</span>
                               </div>
                             </div>
                           </div>
                           <div className="px-2 py-2 border-t border-gray-100">
                             <div className="flex items-center justify-around">
                               <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
+                                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                                </svg>
                                 <span className="text-sm font-medium">Like</span>
                               </button>
                               <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
+                                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M21.99 4c0-1.1-.89-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+                                </svg>
                                 <span className="text-sm font-medium">Comment</span>
                               </button>
                               <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
+                                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
+                                </svg>
                                 <span className="text-sm font-medium">Share</span>
                               </button>
                             </div>
@@ -854,22 +865,22 @@ export function SocialPreviewColumn({
                         <div className="px-3 py-3">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center space-x-4">
-                              <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                               </svg>
-                              <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                               </svg>
-                              <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                               </svg>
                             </div>
-                            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                             </svg>
                           </div>
                           <div className="mb-2">
-                            <span className="font-semibold text-gray-700 text-sm">0 likes</span>
+                            <span className="font-semibold text-gray-900 text-sm">237 likes</span>
                           </div>
                         </div>
                       )}
@@ -882,18 +893,19 @@ export function SocialPreviewColumn({
                                 <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                 </svg>
+                                <span className="ml-1">104</span>
                               </div>
                               <div className="flex items-center">
                                 <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                 </svg>
-                                <span className="ml-1">0</span>
+                                <span className="ml-1">78</span>
                               </div>
                               <div className="flex items-center">
                                 <svg className="w-4 h-4 text-pink-500" fill="currentColor" viewBox="0 0 24 24">
                                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                                 </svg>
-                                <span className="ml-1 text-pink-500">0</span>
+                                <span className="ml-1 text-pink-500">24</span>
                               </div>
                               <div className="flex items-center">
                                 <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -926,10 +938,7 @@ export function SocialPreviewColumn({
                       : 'bg-blue-600 hover:bg-blue-700 text-white'
                   }`}
                 >
-                  {useAsSelectedCaption 
-                    ? (isEditing ? 'Auto-Confirmed ✓' : 'Confirmed ✓')
-                    : 'Confirm Post'
-                  }
+                  {useAsSelectedCaption ? 'Confirmed ✓' : 'Confirm Post'}
                 </Button>
               </div>
             )}
@@ -962,7 +971,7 @@ export function SocialPreviewColumn({
       {uploadedImages.length > 0 && displayCaption && (
         <Card>
           <CardHeader>
-            <CardTitle className="card-title-26">What would you like to do?</CardTitle>
+            <CardTitle className="text-lg">What would you like to do?</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">

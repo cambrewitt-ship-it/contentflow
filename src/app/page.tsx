@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabaseClient";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface UserProfile {
   id: string;
@@ -19,6 +20,7 @@ interface UserProfile {
 
 export default function Home() {
   const { user, signOut } = useAuth();
+  const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
   // Fetch user profile
@@ -71,7 +73,10 @@ export default function Home() {
                   <Link href="/dashboard">
                     <Button size="sm">Dashboard</Button>
                   </Link>
-                  <Button variant="outline" size="sm" onClick={signOut}>
+                  <Button variant="outline" size="sm" onClick={async () => {
+                    await signOut();
+                    router.push('/');
+                  }}>
                     Sign Out
                   </Button>
                 </div>
@@ -107,10 +112,20 @@ export default function Home() {
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
 
-              <Button size="lg" className="px-8 py-3 text-base" asChild>
-                <a href="/dashboard">Get Started</a>
+              <Button 
+                size="lg" 
+                className="px-8 py-3 text-base" 
+                onClick={() => {
+                  if (user) {
+                    router.push('/dashboard');
+                  } else {
+                    router.push('/auth/login');
+                  }
+                }}
+              >
+                Get Started
               </Button>
-              <Button variant="outline" size="lg" className="px-8 py-3 text-base">
+              <Button size="lg" className="px-8 py-3 text-base bg-white text-gray-900 hover:bg-gray-50 border border-gray-200">
                 Watch Demo
               </Button>
             </div>

@@ -270,7 +270,10 @@ export default function ProfilePage() {
                   Sign out of your account on this device
                 </p>
               </div>
-              <Button variant="outline" onClick={signOut}>
+              <Button variant="outline" onClick={async () => {
+                await signOut();
+                router.push('/');
+              }}>
                 Sign Out
               </Button>
             </div>

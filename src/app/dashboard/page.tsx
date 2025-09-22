@@ -1,10 +1,8 @@
 "use client";
-import { User, Plus, Settings, LogOut, Users, Calendar, FileText } from "lucide-react";
+import { User, Plus, Settings, LogOut } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import Link from "next/link";
-import UIThemeToggle from "../../components/UIThemeToggle";
-import { useUIThemeStyles } from "../../hooks/useUITheme";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 import { useState, useEffect } from "react";
@@ -31,12 +29,13 @@ interface UserProfile {
 }
 
 export default function Dashboard() {
-  const { getThemeClasses } = useUIThemeStyles();
   const { user, signOut, getAccessToken } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState<string>('');
+  const [currentDate, setCurrentDate] = useState<string>('');
 
   // Fetch user profile
   useEffect(() => {
@@ -101,11 +100,52 @@ export default function Dashboard() {
     }
   }, [user]);
 
+  // Update NZST time and date every minute
+  useEffect(() => {
+    const updateTimeAndDate = () => {
+      const now = new Date();
+      
+      // Format time
+      const nzstTime = now.toLocaleString('en-US', {
+        timeZone: 'Pacific/Auckland',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      setCurrentTime(nzstTime);
+      
+      // Format date
+      const nzstDate = now.toLocaleDateString('en-US', {
+        timeZone: 'Pacific/Auckland',
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      });
+      
+      // Add ordinal suffix to day (1st, 2nd, 3rd, 4th, etc.)
+      const day = now.getDate();
+      const ordinal = day === 1 || day === 21 || day === 31 ? 'st' :
+                     day === 2 || day === 22 ? 'nd' :
+                     day === 3 || day === 23 ? 'rd' : 'th';
+      
+      const formattedDate = nzstDate.replace(/\d+/, `${day}${ordinal}`);
+      setCurrentDate(formattedDate);
+    };
+
+    // Update immediately
+    updateTimeAndDate();
+    
+    // Update every minute (60000ms)
+    const interval = setInterval(updateTimeAndDate, 60000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading your clients...</p>
         </div>
       </div>
@@ -133,122 +173,36 @@ export default function Dashboard() {
     <div className="flex-1 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className={getThemeClasses(
-            "text-3xl font-bold text-foreground mb-2",
-            "text-3xl font-bold glass-text-primary mb-2"
-          )}>
+        <div className="mb-8 text-center mt-[50px]">
+          {/* NZST Clock */}
+          <div className="mb-6">
+            <p className="text-4xl font-bold font-mono text-foreground">
+              {currentTime}
+            </p>
+            <p className="text-lg text-muted-foreground mt-2">
+              {currentDate}
+            </p>
+          </div>
+          
+          <h1 className="text-3xl font-bold text-foreground mb-2">
             Welcome back, {profile?.username || profile?.full_name || user?.email?.split('@')[0] || 'User'}!
           </h1>
-          <p className={getThemeClasses(
-            "text-lg text-muted-foreground",
-            "text-lg glass-text-secondary"
-          )}>
+          <p className="text-lg text-muted-foreground">
             Manage your clients and create amazing social media content
           </p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className={getThemeClasses(
-            "p-6",
-            "glass-card p-6"
-          )}>
-            <CardContent className="p-0">
-              <div className="flex items-center">
-                <Users className={getThemeClasses(
-                  "h-8 w-8 text-blue-600",
-                  "h-8 w-8 glass-text-primary"
-                )} />
-                <div className="ml-4">
-                  <p className={getThemeClasses(
-                    "text-2xl font-bold text-foreground",
-                    "text-2xl font-bold glass-text-primary"
-                  )}>
-                    {clients.length}
-                  </p>
-                  <p className={getThemeClasses(
-                    "text-sm text-muted-foreground",
-                    "text-sm glass-text-muted"
-                  )}>
-                    Total Clients
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className={getThemeClasses(
-            "p-6",
-            "glass-card p-6"
-          )}>
-            <CardContent className="p-0">
-              <div className="flex items-center">
-                <Calendar className={getThemeClasses(
-                  "h-8 w-8 text-green-600",
-            "h-8 w-8 glass-text-primary"
-          )} />
-                <div className="ml-4">
-                  <p className={getThemeClasses(
-                    "text-2xl font-bold text-foreground",
-                    "text-2xl font-bold glass-text-primary"
-                  )}>
-                    0
-                  </p>
-                  <p className={getThemeClasses(
-                    "text-sm text-muted-foreground",
-                    "text-sm glass-text-muted"
-                  )}>
-                    Scheduled Posts
-                  </p>
-                </div>
-        </div>
-            </CardContent>
-          </Card>
-
-          <Card className={getThemeClasses(
-            "p-6",
-            "glass-card p-6"
-          )}>
-            <CardContent className="p-0">
-              <div className="flex items-center">
-                <FileText className={getThemeClasses(
-                  "h-8 w-8 text-purple-600",
-                  "h-8 w-8 glass-text-primary"
-                )} />
-                <div className="ml-4">
-                  <p className={getThemeClasses(
-                    "text-2xl font-bold text-foreground",
-                    "text-2xl font-bold glass-text-primary"
-                  )}>
-                    0
-                  </p>
-        <p className={getThemeClasses(
-                    "text-sm text-muted-foreground",
-                    "text-sm glass-text-muted"
-                  )}>
-                    Projects
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Spacer to push clients section halfway down */}
+        <div className="h-[calc(30vh-210px)]"></div>
 
         {/* Clients Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className={getThemeClasses(
-              "text-2xl font-bold text-foreground",
-              "text-2xl font-bold glass-text-primary"
-            )}>
+            <h2 className="text-2xl font-bold text-foreground">
               Your Clients
             </h2>
           <Link href="/dashboard/clients/new">
-            <Button className={getThemeClasses(
-                "flex items-center space-x-2",
-                "flex items-center space-x-2 glass-button glass-button-primary"
-              )}>
+            <Button className="flex items-center space-x-2">
                 <Plus className="w-4 h-4" />
                 <span>Add Client</span>
               </Button>
@@ -256,32 +210,17 @@ export default function Dashboard() {
           </div>
 
           {clients.length === 0 ? (
-            <Card className={getThemeClasses(
-              "p-12 text-center",
-              "glass-card p-12 text-center"
-            )}>
+            <Card className="p-12 text-center">
               <CardContent className="p-0">
-                <Users className={getThemeClasses(
-                  "h-16 w-16 text-muted-foreground mx-auto mb-4",
-                  "h-16 w-16 glass-text-muted mx-auto mb-4"
-                )} />
-                <h3 className={getThemeClasses(
-                  "text-xl font-semibold text-foreground mb-2",
-                  "text-xl font-semibold glass-text-primary mb-2"
-                )}>
+                <User className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-foreground mb-2">
                   No clients yet
                 </h3>
-                <p className={getThemeClasses(
-                  "text-muted-foreground mb-6",
-                  "text-muted-foreground mb-6"
-                )}>
+                <p className="text-muted-foreground mb-6">
                   Get started by creating your first client to manage their social media content
                 </p>
                 <Link href="/dashboard/clients/new">
-                  <Button size="lg" className={getThemeClasses(
-                    "px-8",
-                    "px-8 glass-button glass-button-primary"
-                  )}>
+                  <Button size="lg" className="px-8">
                     <Plus className="w-5 h-5 mr-2" />
                     Create Your First Client
                   </Button>
@@ -289,49 +228,34 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
               {clients.map((client) => (
                 <Card 
                   key={client.id} 
-                  className={getThemeClasses(
-                    "cursor-pointer transition-all hover:shadow-lg hover:scale-105",
-                    "cursor-pointer transition-all hover:shadow-lg hover:scale-105 glass-card hover:bg-white/5"
-                  )}
+                  className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 flex flex-col h-full"
                 >
                   <Link href={`/dashboard/client/${client.id}`}>
                     <CardHeader>
                       <div className="flex items-center space-x-3">
-                        <div className={getThemeClasses(
-                          "w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-xl font-bold text-blue-700",
-                          "w-12 h-12 glass-card rounded-full flex items-center justify-center text-xl font-bold glass-text-primary"
-                        )}>
+                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-xl font-bold text-blue-700">
                           {client.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <CardTitle className={getThemeClasses(
-                            "text-xl font-bold truncate",
-                            "text-xl font-bold truncate glass-text-primary"
-                          )}>
+                          <CardTitle className="text-xl font-bold break-words leading-tight">
                             {client.name}
                           </CardTitle>
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="flex-1 flex flex-col justify-between">
                       {client.company_description && (
-                        <p className={getThemeClasses(
-                          "text-sm text-muted-foreground line-clamp-2 mb-4",
-                          "text-sm glass-text-muted line-clamp-2 mb-4"
-                        )}>
+                        <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
                           {client.company_description}
                         </p>
                       )}
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mt-auto">
                         <span>Created {new Date(client.created_at).toLocaleDateString()}</span>
-                        <span className={getThemeClasses(
-                          "text-blue-600 font-medium",
-                          "glass-text-primary font-medium"
-                        )}>
+                        <span className="text-blue-600 font-medium">
                           View Details →
                         </span>
                       </div>
@@ -343,12 +267,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Theme Toggle */}
-        <div className="flex justify-center">
-          <div className="flex items-center">
-            <UIThemeToggle />
-          </div>
-        </div>
       </div>
     </div>
   );

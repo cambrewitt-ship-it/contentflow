@@ -49,6 +49,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [fetchingAccounts, setFetchingAccounts] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [removingLogo, setRemovingLogo] = useState(false)
+  const [isEditingLogo, setIsEditingLogo] = useState(false)
   
   // Refs to prevent duplicate requests
   const fetchAccountsRef = useRef(false)
@@ -77,9 +78,22 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         
         console.log('🔍 Fetching client data for ID:', clientId)
         
+        const accessToken = getAccessToken();
+        console.log('🔑 Access token status:', accessToken ? 'Available' : 'Missing');
+        
+        if (!accessToken) {
+          console.log('⚠️ No access token available, waiting for session...');
+          // Wait a bit for the session to be available after OAuth callback
+          setTimeout(() => {
+            fetchClientRef.current = false;
+            fetchClient();
+          }, 1000);
+          return;
+        }
+        
         const response = await fetch(`/api/clients/${clientId}`, {
           headers: {
-            'Authorization': `Bearer ${getAccessToken() || ''}`,
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
           }
         })
@@ -120,7 +134,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
 
     fetchClient()
-  }, [clientId])
+  }, [clientId, getAccessToken])
 
   // Fetch brand data separately to prevent infinite loops
   useEffect(() => {
@@ -570,10 +584,17 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       
       console.log('🗑️ Deleting client:', clientId);
       
+      const accessToken = getAccessToken();
+      if (!accessToken) {
+        console.error('❌ No access token available for delete operation');
+        alert('Authentication required. Please refresh the page and try again.');
+        return;
+      }
+
       const response = await fetch(`/api/clients/${clientId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${getAccessToken() || ''}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       });
@@ -659,6 +680,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       setUploadingLogo(false);
       // Reset file input
       event.target.value = '';
+      // Exit editing mode after upload
+      setIsEditingLogo(false);
     }
   };
 
@@ -688,16 +711,18 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       alert(`Failed to remove logo: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setRemovingLogo(false);
+      // Exit editing mode after removal
+      setIsEditingLogo(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-background p-8">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
               <p className="text-gray-600">Loading client dashboard...</p>
             </div>
           </div>
@@ -708,7 +733,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-background p-8">
         <div className="max-w-7xl mx-auto">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6">
             <h2 className="text-lg font-semibold text-red-800 mb-2">Error Loading Dashboard</h2>
@@ -721,7 +746,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   if (!client) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-background p-8">
         <div className="max-w-7xl mx-auto">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
             <h2 className="text-lg font-semibold text-yellow-800 mb-2">Client Not Found</h2>
@@ -733,7 +758,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header with Quick Actions */}
         <div className="mb-8">
@@ -780,29 +805,31 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     )}
                   </div>
                   
-                  {/* Logo Upload Button */}
-                  <div className="absolute -bottom-1 -right-1">
-                    <label htmlFor="logo-upload" className="cursor-pointer">
-                      <div className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-1.5 shadow-lg transition-colors">
-                        {uploadingLogo ? (
-                          <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                        ) : (
-                          <Upload className="w-4 h-4" />
-                        )}
-                      </div>
-                    </label>
-                    <input
-                      id="logo-upload"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                      className="hidden"
-                      disabled={uploadingLogo}
-                    />
-                  </div>
+                  {/* Logo Upload Button - Only show when editing */}
+                  {isEditingLogo && (
+                    <div className="absolute -bottom-1 -right-1">
+                      <label htmlFor="logo-upload" className="cursor-pointer">
+                        <div className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-1.5 shadow-lg transition-colors">
+                          {uploadingLogo ? (
+                            <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                          ) : (
+                            <Upload className="w-4 h-4" />
+                          )}
+                        </div>
+                      </label>
+                      <input
+                        id="logo-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                        disabled={uploadingLogo}
+                      />
+                    </div>
+                  )}
                   
-                  {/* Logo Remove Button */}
-                  {client?.logo_url && (
+                  {/* Logo Remove Button - Only show when editing */}
+                  {client?.logo_url && isEditingLogo && (
                     <button
                       onClick={handleLogoRemove}
                       disabled={removingLogo}
@@ -815,12 +842,38 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                       )}
                     </button>
                   )}
+                  
+                  {/* Cancel Edit Button - Only show when editing */}
+                  {isEditingLogo && (
+                    <button
+                      onClick={() => setIsEditingLogo(false)}
+                      className="absolute -top-1 -left-1 bg-gray-600 hover:bg-gray-700 text-white rounded-full p-1 shadow-lg transition-colors"
+                      title="Cancel editing"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
                 
                 <div className="flex-1">
-                  <h1 className="font-bold text-gray-700 mb-3 text-smooth" style={{ fontSize: '24px' }}>
-                    {client?.name || 'Client Dashboard'}
-                  </h1>
+                  <div className="flex items-center justify-between">
+                    <h1 className="font-bold text-gray-700 mb-3 text-smooth" style={{ fontSize: '24px' }}>
+                      {client?.name || 'Client Dashboard'}
+                    </h1>
+                    
+                    {/* Edit Logo Button */}
+                    {client?.logo_url && !isEditingLogo && (
+                      <Button
+                        onClick={() => setIsEditingLogo(true)}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                      >
+                        <Edit3 className="w-3 h-3 mr-1" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
                   <div className="flex items-center space-x-4 text-gray-600">
                     <div className="flex items-center space-x-2">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1075,7 +1128,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             <>
               {projectsLoading ? (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-4 border-gray-900 border-t-transparent mx-auto"></div>
                   <p className="mt-2 text-gray-600">Loading projects...</p>
                 </div>
               ) : projects.length > 0 ? (
@@ -1190,7 +1243,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   >
                     <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
                       {connectingPlatform === 'facebook' ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <FacebookIcon className="text-white" size={20} />
                       )}
@@ -1212,7 +1265,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   >
                     <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
                       {connectingPlatform === 'instagram' ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <InstagramIcon className="text-white" size={20} />
                       )}
@@ -1234,7 +1287,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   >
                     <div className="w-10 h-10 bg-blue-400 rounded-full flex items-center justify-center">
                       {connectingPlatform === 'twitter' ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <TwitterIcon className="text-white" size={20} />
                       )}
@@ -1256,7 +1309,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   >
                     <div className="w-10 h-10 bg-blue-700 rounded-full flex items-center justify-center">
                       {connectingPlatform === 'linkedin' ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <LinkedInIcon className="text-white" size={20} />
                       )}
@@ -1278,7 +1331,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   >
                     <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center">
                       {connectingPlatform === 'tiktok' ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <TikTokIcon className="text-white" size={20} />
                       )}
@@ -1300,7 +1353,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   >
                     <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center">
                       {connectingPlatform === 'youtube' ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <YouTubeIcon className="text-white" size={20} />
                       )}
@@ -1322,7 +1375,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   >
                     <div className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center">
                       {connectingPlatform === 'threads' ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <ThreadsIcon className="text-white" size={20} />
                       )}
@@ -1349,7 +1402,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               <div className="border-t pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-2xl font-bold text-red-900">Danger Zone</h3>
+                    <h3 className="text-2xl font-bold text-red-900">Delete Client</h3>
                     <p className="text-sm text-red-700 mt-1">
                       Permanently delete this client and all associated data. This action cannot be undone.
                     </p>
@@ -1374,7 +1427,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         >
                           {deletingClient ? (
                             <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
                               Deleting...
                             </>
                           ) : (

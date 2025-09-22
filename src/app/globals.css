@@ -46,7 +46,7 @@
 
 :root {
   --radius: 0.625rem;
-  --background: #ffffff;
+  --background: linear-gradient(135deg, #ffffff 0%, #f8fafc 25%, #e0f2fe 50%, #bae6fd 75%, #7dd3fc 100%);
   --foreground: #374151;
   --card: #ffffff;
   --card-foreground: #374151;
@@ -123,6 +123,8 @@
   }
   body {
     @apply bg-background text-foreground font-sans;
+    background-attachment: fixed !important;
+    min-height: 100vh !important;
     font-family: 'Poppins', 'Inter', 'SF Pro Display', 'Aptos', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif !important;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -132,6 +134,9 @@
     font-variant-ligatures: common-ligatures;
   }
   html {
+    background: var(--background);
+    background-attachment: fixed !important;
+    min-height: 100vh !important;
     font-family: 'Poppins', 'Inter', 'SF Pro Display', 'Aptos', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif !important;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -169,3 +174,5 @@
     font-variant-ligatures: common-ligatures;
   }
 }
+
+

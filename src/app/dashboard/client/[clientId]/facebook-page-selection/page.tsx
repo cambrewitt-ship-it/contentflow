@@ -127,7 +127,7 @@ export default function FacebookPageSelection({ params }: PageSelectionProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading Facebook pages...</p>
@@ -138,7 +138,7 @@ export default function FacebookPageSelection({ params }: PageSelectionProps) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="max-w-md mx-auto">
           <Card>
             <CardHeader>
@@ -161,7 +161,7 @@ export default function FacebookPageSelection({ params }: PageSelectionProps) {
 
   if (!sessionData) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="max-w-md mx-auto">
           <Card>
             <CardHeader>
@@ -183,7 +183,7 @@ export default function FacebookPageSelection({ params }: PageSelectionProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-background p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
@@ -263,7 +263,7 @@ export default function FacebookPageSelection({ params }: PageSelectionProps) {
             <div className="flex space-x-3 mt-6">
               <button
                 onClick={() => window.location.href = `/dashboard/client/${clientId}`}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-background transition-colors"
                 disabled={connecting}
               >
                 Cancel

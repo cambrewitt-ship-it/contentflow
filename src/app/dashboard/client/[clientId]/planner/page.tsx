@@ -8,6 +8,7 @@ import { EditIndicators } from 'components/EditIndicators';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { Button } from 'components/ui/button';
+import { FacebookIcon, InstagramIcon, TwitterIcon, LinkedInIcon } from 'components/social-icons';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -1155,7 +1156,7 @@ export default function PlannerPage() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <div className="p-6 pb-8">
       {/* Error Display */}
       {error && (
@@ -1329,12 +1330,25 @@ export default function PlannerPage() {
                 </div>
         
 
-        {/* Schedule Buttons */}
+        {/* Action Buttons */}
         <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-4">
-            {/* Navigation buttons can go here if needed */}
-          </div>
+          {/* Left side - Delete button */}
+          {selectedForDelete.size > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              disabled={isDeleting}
+              className={`px-4 py-2 text-white rounded flex items-center gap-2 ${
+                isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' : 'bg-red-600 hover:bg-red-700'
+              }`}
+            >
+              {isDeleting && (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              )}
+              {isDeleting ? 'Deleting...' : `Delete ${selectedForDelete.size} Selected Posts`}
+            </button>
+          )}
           
+          {/* Right side - Schedule buttons */}
           {selectedPosts.size > 0 && connectedAccounts.length > 0 && (
             <div className="flex gap-2">
               <span className="text-sm text-gray-600 py-2">
@@ -1389,32 +1403,23 @@ export default function PlannerPage() {
                     }`}
                     title={hasEmptyCaptions ? 'Add captions to selected posts before scheduling' : ''}
                   >
-                    {isScheduling && (
+                    {isScheduling ? (
                       <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        {account.platform === 'facebook' && <FacebookIcon size={16} />}
+                        {account.platform === 'instagram' && <InstagramIcon size={16} />}
+                        {account.platform === 'twitter' && <TwitterIcon size={16} />}
+                        {account.platform === 'linkedin' && <LinkedInIcon size={16} />}
+                        <span>Schedule</span>
+                      </div>
                     )}
-                    {isScheduling ? 'Scheduling...' : `Schedule to ${account.platform}`}
                   </button>
                 );
               })}
             </div>
           )}
         </div>
-      
-        {/* Bulk Delete Button */}
-        {selectedForDelete.size > 0 && (
-          <button
-            onClick={handleBulkDelete}
-            disabled={isDeleting}
-            className={`px-4 py-2 text-white rounded mb-4 flex items-center gap-2 ${
-              isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' : 'bg-red-600 hover:bg-red-700'
-            }`}
-          >
-            {isDeleting && (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            )}
-            {isDeleting ? 'Deleting...' : `Delete ${selectedForDelete.size} Selected Posts`}
-          </button>
-        )}
 
         {/* Calendar */}
         <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
@@ -1627,6 +1632,20 @@ export default function PlannerPage() {
                                           className="w-3 h-3"
                                         />
                                         
+                                        {/* Platform Icons */}
+                                        {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
+                                          <div className="flex items-center gap-1">
+                                            {post.platforms_scheduled.map((platform, platformIdx) => (
+                                              <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
+                                                {platform === 'facebook' && <FacebookIcon size={12} className="text-blue-600" />}
+                                                {platform === 'instagram' && <InstagramIcon size={12} className="text-pink-600" />}
+                                                {platform === 'twitter' && <TwitterIcon size={12} className="text-sky-500" />}
+                                                {platform === 'linkedin' && <LinkedInIcon size={12} className="text-blue-700" />}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                        
                                         {/* LATE Status Indicator */}
                                         {post.late_status && (
                                           <div className={`w-2 h-2 rounded-full ${
@@ -1708,54 +1727,57 @@ export default function PlannerPage() {
           </div>
           
           {/* Scheduled Posts Section - Approval Board */}
-          <div className="mt-8 border-t border-gray-200 pt-8">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-700">Scheduled Posts - Approval Board</h2>
-                <p className="text-sm text-gray-600 mt-1">Review approval status and client feedback for all scheduled posts</p>
-              </div>
-              
-              {/* Loading State for Scheduled Posts */}
-              {isLoadingScheduledPosts && (
-                <div className="flex items-center text-sm text-blue-600">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                  Loading scheduled posts...
+          <div className="mt-8 border-t border-gray-200 pt-8 mx-6">
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-700">Scheduled Posts - Approval Board</h2>
+                  <p className="text-sm text-gray-600 mt-1">Review approval status and client feedback for all scheduled posts</p>
                 </div>
-              )}
-              <Button
-                onClick={() => fetchScheduledPosts(0, true)}
-                variant="outline"
-                size="sm"
-                className="text-sm"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh Status
-              </Button>
-      </div>
+                
+                {/* Loading State for Scheduled Posts */}
+                {isLoadingScheduledPosts && (
+                  <div className="flex items-center text-sm text-blue-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                    Loading scheduled posts...
+                  </div>
+                )}
+                <Button
+                  onClick={() => fetchScheduledPosts(0, true)}
+                  variant="outline"
+                  size="sm"
+                  className="text-sm"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh Status
+                </Button>
+              </div>
+            </div>
             
             {/* Post Selection Controls */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600">
-                    {selectedPostsForApproval.size} selected
-                  </span>
-                  <button
-                    onClick={handleSelectAllPostsForApproval}
-                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    onClick={handleDeselectAllPostsForApproval}
-                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-                  >
-                    Deselect All
-                  </button>
+            <div className="mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">
+                      {selectedPostsForApproval.size} selected
+                    </span>
+                    <button
+                      onClick={handleSelectAllPostsForApproval}
+                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      onClick={handleDeselectAllPostsForApproval}
+                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+                    >
+                      Deselect All
+                    </button>
+                  </div>
                 </div>
-              </div>
               
-              <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2">
                 {/* Share Button */}
                 <button
                   onClick={handleCreateShareLink}
@@ -1775,6 +1797,7 @@ export default function PlannerPage() {
                   )}
                 </button>
                 
+                </div>
               </div>
             </div>
             
@@ -1981,12 +2004,12 @@ export default function PlannerPage() {
                                           post.late_status === 'failed' ? 'bg-red-100 text-red-700' :
                                           'bg-gray-100 text-gray-700'
                                         }`}>
-                                          {post.late_status}
+                                          {post.late_status === 'scheduled' ? 'Scheduled' : post.late_status}
                                         </span>
                                       )}
                                     </div>
 
-                                    {/* Edit in Content Suite Button */}
+                                    {/* Edit Button */}
                                     {(post as any).status !== 'published' && (
                                       <button
                                         onClick={(e) => {
@@ -1994,13 +2017,13 @@ export default function PlannerPage() {
                                           // Navigate to content suite with editPostId parameter in same tab
                                           window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
                                         }}
-                                        className="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                                        className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
                                         title="Edit in Content Suite"
                                       >
-                                        <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                         </svg>
-                                        Edit in Content Suite
+                                        Edit
                                       </button>
                                     )}
                                   </div>

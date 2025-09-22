@@ -1,11 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "components/ui/button";
 import { 
   Settings, 
-  LogOut, 
   User,
   ChevronDown
 } from "lucide-react";
@@ -18,19 +15,8 @@ interface TopBarProps {
 }
 
 export default function TopBar({ className = "" }: TopBarProps) {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { getThemeClasses } = useUIThemeStyles();
-  const router = useRouter();
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      router.push('/');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
 
   return (
     <div className={getThemeClasses(
@@ -91,19 +77,6 @@ export default function TopBar({ className = "" }: TopBarProps) {
           </Button>
         </Link>
 
-        {/* Sign Out Button */}
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={handleSignOut}
-          className={getThemeClasses(
-            "flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50",
-            "flex items-center space-x-2 glass-button text-red-400 hover:text-red-300"
-          )}
-        >
-          <LogOut className="w-4 h-4" />
-          <span className="hidden sm:inline">Sign Out</span>
-        </Button>
       </div>
     </div>
   );

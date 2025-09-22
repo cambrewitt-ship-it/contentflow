@@ -255,19 +255,37 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
               "text-sm font-medium glass-text-muted"
             )}>All Clients</h3>
             
-            {/* Refresh Button */}
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={refreshClients}
-              title="Refresh clients list"
-              className={getThemeClasses(
-                "h-6 w-6 p-0",
-                "h-6 w-6 p-0 glass-button"
-              )}
-            >
-              <Loader2 className="w-3 h-3" />
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Add Client Button */}
+              <Link href="/dashboard/clients/new">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  title="Add new client"
+                  className={getThemeClasses(
+                    "h-6 px-2 text-xs",
+                    "h-6 px-2 text-xs glass-button"
+                  )}
+                >
+                  <Users className="w-3 h-3 mr-1" />
+                  Add
+                </Button>
+              </Link>
+              
+              {/* Refresh Button */}
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={refreshClients}
+                title="Refresh clients list"
+                className={getThemeClasses(
+                  "h-6 w-6 p-0",
+                  "h-6 w-6 p-0 glass-button"
+                )}
+              >
+                <Loader2 className="w-3 h-3" />
+              </Button>
+            </div>
           </div>
         )}
         
