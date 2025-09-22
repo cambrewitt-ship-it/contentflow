@@ -1196,7 +1196,7 @@ export default function PlannerPage() {
               Back to Dashboard
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-gray-700">
                 {currentProject ? `${currentProject.name} Planner` : 'Content Planner'}
               </h1>
               {currentProject && (
@@ -1711,7 +1711,7 @@ export default function PlannerPage() {
           <div className="mt-8 border-t border-gray-200 pt-8">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Scheduled Posts - Approval Board</h2>
+                <h2 className="text-xl font-semibold text-gray-700">Scheduled Posts - Approval Board</h2>
                 <p className="text-sm text-gray-600 mt-1">Review approval status and client feedback for all scheduled posts</p>
               </div>
               
@@ -1815,7 +1815,7 @@ export default function PlannerPage() {
                         <div className="w-4 h-4 bg-gray-400 rounded-full mr-2"></div>
                         <span className="text-sm font-medium text-gray-800">Pending</span>
                       </div>
-                      <div className="text-lg font-bold text-gray-900 mt-1">{pending}</div>
+                      <div className="text-lg font-bold text-gray-700 mt-1">{pending}</div>
                     </div>
                   </>
                 );
@@ -1896,7 +1896,7 @@ export default function PlannerPage() {
                                 <div className="mb-3 pb-2 border-b border-gray-200">
                                   <div className="flex items-center justify-between">
                                     <div>
-                                      <h4 className="font-semibold text-sm text-gray-900">{dayName}</h4>
+                                      <h4 className="font-semibold text-sm text-gray-700">{dayName}</h4>
                                       <p className="text-xs text-gray-600">{dateStr}</p>
                                     </div>
                                     {/* Approval Selection Checkbox */}
@@ -1943,7 +1943,7 @@ export default function PlannerPage() {
                                 
                                 {/* Caption */}
                                 <div className="flex items-start justify-between mb-2">
-                                  <p className="text-sm text-gray-900 flex-1">
+                                  <p className="text-sm text-gray-700 flex-1">
                                     {post.caption}
                                   </p>
                                   <button

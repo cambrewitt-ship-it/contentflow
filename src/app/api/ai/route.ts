@@ -199,8 +199,17 @@ async function generateCaptions(imageData: string, existingCaptions: string[] = 
             audience: brandContext.audience || 'Not set',
             value_proposition: brandContext.value_proposition ? 'Set' : 'Not set',
             documents: brandContext.documents?.length || 0,
-            website: brandContext.website ? 'Available' : 'None'
+            website: brandContext.website ? 'Available' : 'None',
+            voice_examples: brandContext.voice_examples ? 'Set' : 'Not set'
           });
+          
+          // Enhanced logging for brand voice examples
+          if (brandContext.voice_examples) {
+            console.log('🎤 BRAND VOICE EXAMPLES FOUND:', brandContext.voice_examples);
+            console.log('📏 BRAND VOICE EXAMPLES LENGTH:', brandContext.voice_examples.length);
+          } else {
+            console.log('⚠️ NO BRAND VOICE EXAMPLES FOUND - AI will use generic voice');
+          }
         }
         
         // Enhanced logging for user context
@@ -224,10 +233,17 @@ ${brandContext.tone ? `🎭 BRAND TONE: ${brandContext.tone}` : ''}
 ${brandContext.audience ? `👥 TARGET AUDIENCE: ${brandContext.audience}` : ''}
 ${brandContext.value_proposition ? `🎯 VALUE PROPOSITION: ${brandContext.value_proposition}` : ''}
 
-${brandContext.voice_examples ? `🎤 BRAND VOICE EXAMPLES (STRONG GUIDELINES - MATCH THIS STYLE):
+${brandContext.voice_examples ? `🎤 BRAND VOICE EXAMPLES (ABSOLUTE PRIORITY - NON-NEGOTIABLE):
 ${brandContext.voice_examples}
 
-🚨 CRITICAL: Study these examples carefully and write captions that match this exact style, tone, and voice. These examples show how the brand actually sounds - replicate this voice precisely.` : ''}
+🚨 CRITICAL INSTRUCTION FOR BRAND VOICE:
+- These examples show the EXACT tone, style, and personality your brand uses
+- You MUST replicate this voice precisely in every caption
+- Study the language patterns, expressions, and writing style
+- Match the same level of formality/informality
+- Use similar sentence structures and vocabulary
+- If brand voice examples are provided, you MUST use them - generic content is unacceptable
+- These examples take PRIORITY over all other brand guidelines` : ''}
 
 ${brandContext.dos || brandContext.donts ? `📋 AI CAPTION RULES (MANDATORY):
 ${brandContext.dos ? `✅ ALWAYS INCLUDE: ${brandContext.dos}` : ''}
@@ -364,6 +380,15 @@ OUTPUT REQUIREMENTS:
 ${aiContext ? '🚨 FINAL CHECK: Before submitting, verify that EVERY ${copyType === "email-marketing" ? "email" : "caption"} directly mentions or incorporates your Post Notes content AND follows the brand guidelines. If you created generic content, you have failed the task.' : (copyType === 'email-marketing' ? '🚨 FINAL CHECK: Before submitting, verify that your email copy matches the brand voice examples EXACTLY - same tone, style, and personality. If brand voice examples were provided and you did not use them, you have failed the task. Generic email content is not acceptable.' : '🚨 FINAL CHECK: Before submitting, verify that EVERY ${copyType === "email-marketing" ? "email" : "caption"} reflects the brand tone, speaks to the target audience, and incorporates brand context. Generic content is not acceptable.')}
 
 ${finalInstruction}`;
+
+    console.log('🤖 Sending request to OpenAI...');
+    console.log('📝 System prompt length:', systemPrompt.length);
+    
+    // Log the complete prompt for debugging brand voice examples
+    console.log('🔍 COMPLETE SYSTEM PROMPT:');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(systemPrompt);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',

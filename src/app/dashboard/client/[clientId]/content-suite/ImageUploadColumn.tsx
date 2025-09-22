@@ -43,13 +43,13 @@ export function ImageUploadColumn() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       {/* Combined Upload, Images, and Post Notes Card */}
       <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg">Upload Images & Post Notes</CardTitle>
+        <CardHeader>
+          <CardTitle className="card-title-26">Upload Images</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4">
           {/* Upload Area */}
           <div
             className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors cursor-pointer w-full h-[100px] flex flex-col items-center justify-center"
@@ -58,7 +58,7 @@ export function ImageUploadColumn() {
             onClick={() => document.getElementById('image-upload')?.click()}
           >
             <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-            <p className="text-sm font-medium text-gray-900 mb-1">
+            <p className="text-sm font-medium text-gray-700 mb-1">
               Drop images here or click to upload
             </p>
             <p className="text-xs text-gray-500">
@@ -77,7 +77,7 @@ export function ImageUploadColumn() {
           {/* Uploaded Images */}
           {uploadedImages.length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Uploaded Images ({uploadedImages.length})</h3>
+              <h3 className="text-lg font-semibold text-gray-700 mb-4">Uploaded Images ({uploadedImages.length})</h3>
               <div className="grid grid-cols-4 gap-3">
                 {uploadedImages.map((image) => (
                   <div
@@ -111,7 +111,7 @@ export function ImageUploadColumn() {
 
           {/* Post Notes Section */}
           <div className="border-t border-gray-200 pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Post Notes</h3>
+            <h3 className="text-22px text-gray-700 mb-4">Post Notes</h3>
             <Textarea
               value={postNotes}
               onChange={(e) => setPostNotes(e.target.value)}

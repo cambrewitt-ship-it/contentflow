@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 import "../styles/glassmorphism.css";
 import { UIThemeProvider } from "../contexts/UIThemeContext";
 import { AuthProvider } from "../contexts/AuthContext";
 
-const inter = Inter({ subsets: ["latin"] });
+const poppins = Poppins({ 
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-poppins"
+});
 
 export const metadata: Metadata = {
   title: "Content Manager - AI-Powered Social Media Management",
@@ -20,7 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} antialiased`}>
+      <body className={`${poppins.className} antialiased`}>
         <AuthProvider>
           <UIThemeProvider>
             {children}

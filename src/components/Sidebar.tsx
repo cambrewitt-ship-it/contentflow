@@ -322,13 +322,13 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                           </div>
                           {!collapsed && (
                             <span className={getThemeClasses(
-                              `font-medium truncate ${
-                                isActiveClient ? 'text-blue-700' : 'text-gray-900'
+                              `font-bold truncate ${
+                                isActiveClient ? 'text-blue-700' : 'text-gray-600'
                               }`,
-                              `font-medium truncate ${
+                              `font-bold truncate ${
                                 isActiveClient ? 'glass-text-primary' : 'glass-text-secondary'
                               }`
-                            )}>
+                            )} style={{ fontSize: '20px', fontWeight: '800' }}>
                               {client.name}
                             </span>
                           )}

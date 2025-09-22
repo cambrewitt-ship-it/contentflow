@@ -78,7 +78,7 @@ export default function ApprovalBoardPage() {
         <div className="max-w-4xl mx-auto py-8 px-4">
           <div className="text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            <h2 className="text-xl font-semibold text-gray-700 mb-2">
               Failed to Load Approval Board
             </h2>
             <p className="text-gray-600 mb-4">{error}</p>
@@ -100,7 +100,7 @@ export default function ApprovalBoardPage() {
             <Button
               variant="ghost"
               onClick={() => router.back()}
-              className="text-gray-600 hover:text-gray-900"
+              className="text-gray-600 hover:text-gray-700"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
@@ -129,7 +129,7 @@ export default function ApprovalBoardPage() {
             {weeks.map((week, index) => (
               <Card key={index}>
                 <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-gray-900">
+                  <CardTitle className="card-title-26 text-gray-700">
                     {week.weekLabel}
                   </CardTitle>
                 </CardHeader>

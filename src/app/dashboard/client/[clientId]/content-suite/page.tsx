@@ -622,7 +622,7 @@ function ContentSuiteContent({
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-gray-700">
                 {isEditing ? 'Edit Post' : 'Content Suite'}
               </h1>
               <p className="text-sm text-gray-500">
@@ -696,7 +696,7 @@ function ContentSuiteContent({
           <div className="mb-8">
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">My Projects</h2>
+                <h2 className="text-lg font-semibold text-gray-700">My Projects</h2>
                 <span className="text-sm text-gray-500">
                   {projectsLoading ? 'Loading...' : `${projects.length} project${projects.length !== 1 ? 's' : ''}`}
                 </span>
@@ -716,7 +716,7 @@ function ContentSuiteContent({
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                        <h3 className="font-medium text-gray-700 group-hover:text-blue-600 transition-colors">
                           {project.name}
                         </h3>
                         {project.description && (
@@ -827,7 +827,7 @@ function ContentSuiteContent({
           <div className="mb-8">
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Create New Project</h2>
+                <h2 className="text-lg font-semibold text-gray-700">Create New Project</h2>
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -875,7 +875,7 @@ function ContentSuiteContent({
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="content-suite-columns">
           {/* Column 1: Image Upload */}
           <ImageUploadColumn />
 

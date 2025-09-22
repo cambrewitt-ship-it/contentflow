@@ -108,8 +108,38 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar */}
+      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+        {/* Header with CM Logo */}
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-center">
+            <Link href="/dashboard" className="block">
+              <img 
+                src="/cm-logo.png" 
+                alt="CM Logo" 
+                className="h-24 w-auto object-contain transition-all duration-300 cursor-pointer hover:opacity-80"
+              />
+            </Link>
+          </div>
+        </div>
+        
+        {/* Sidebar Content */}
+        <div className="flex-1 p-4">
+          <div className="space-y-4">
+            <Link href="/dashboard">
+              <Button variant="outline" className="w-full justify-start">
+                <Home className="w-4 h-4 mr-2" />
+                Dashboard
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 p-4">
+        <div className="max-w-2xl mx-auto">
         {/* Navigation Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -123,16 +153,6 @@ export default function ProfilePage() {
                 <ArrowLeft className="w-4 h-4" />
                 <span>Back</span>
               </Button>
-              <Link href="/dashboard">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center space-x-2"
-                >
-                  <Home className="w-4 h-4" />
-                  <span>Dashboard</span>
-                </Button>
-              </Link>
             </div>
           </div>
           <h1 className="text-3xl font-bold">Profile Settings</h1>
@@ -205,17 +225,6 @@ export default function ProfilePage() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <label htmlFor="role" className="text-sm font-medium">
-                  Role
-                </label>
-                <Input
-                  id="role"
-                  value={profile.role || ''}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
 
               {error && (
                 <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
@@ -245,11 +254,12 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
+        {/* Sign Out Section */}
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle className="text-red-600">Danger Zone</CardTitle>
+            <CardTitle>Account Actions</CardTitle>
             <CardDescription>
-              Irreversible and destructive actions
+              Manage your account session
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -266,6 +276,8 @@ export default function ProfilePage() {
             </div>
           </CardContent>
         </Card>
+
+        </div>
       </div>
     </div>
   );

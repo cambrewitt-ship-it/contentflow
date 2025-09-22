@@ -39,6 +39,7 @@ export interface Client {
   brand_voice_examples?: string;
   founded_date?: string;
   late_profile_id?: string;
+  logo_url?: string;
   created_at: string;
   updated_at: string;
 }

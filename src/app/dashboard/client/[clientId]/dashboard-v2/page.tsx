@@ -266,7 +266,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
             {/* Client Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-4 mb-4">
-                <h1 className="text-3xl font-bold text-gray-900">{client.name}</h1>
+                <h1 className="text-3xl font-bold text-gray-700">{client.name}</h1>
                 <Badge variant="secondary" className="text-sm px-3 py-1">
                   {industry}
                 </Badge>
@@ -315,7 +315,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
           {/* Left Column: Website & Contact */}
           <Card className="shadow-sm border-gray-200">
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
+              <CardTitle className="card-title-26 flex items-center justify-between">
                 <span>Website & Contact</span>
                 {editing && (
                   <Button 
@@ -362,7 +362,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
           {/* Right Column: Tone of Voice Documents */}
           <Card className="shadow-sm border-gray-200">
             <CardHeader>
-              <CardTitle>Tone of Voice Documents</CardTitle>
+              <CardTitle className="card-title-26">Tone of Voice Documents</CardTitle>
             </CardHeader>
             <CardContent>
               {/* Upload Dropzone */}
@@ -413,7 +413,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
                           {getFileIcon(file)}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+                          <p className="text-sm font-medium text-gray-700 truncate">{file.name}</p>
                           <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
                         </div>
                       </div>
@@ -438,7 +438,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Projects</CardTitle>
+                <CardTitle className="card-title-26">Projects</CardTitle>
                 <p className="text-sm text-gray-500 mt-1">
                   {projects.length} project{projects.length !== 1 ? 's' : ''} total
                 </p>
@@ -469,7 +469,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <FileText className="w-8 h-8 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No projects yet</h3>
+                <h3 className="text-lg font-medium text-gray-700 mb-2">No projects yet</h3>
                 <p className="text-gray-500 mb-6">
                   Create your first project to start organizing your content and campaigns.
                 </p>
@@ -482,7 +482,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {projects.map((project) => (
                   <div key={project.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <h4 className="font-medium text-gray-900 mb-2">{project.name}</h4>
+                    <h4 className="font-medium text-gray-700 mb-2">{project.name}</h4>
                     <p className="text-sm text-gray-500 mb-3">{project.description}</p>
                     <div className="flex items-center justify-between text-xs text-gray-400">
                       <span>{project.postCount || 0} posts</span>

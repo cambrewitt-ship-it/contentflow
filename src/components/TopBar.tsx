@@ -1,0 +1,110 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "components/ui/button";
+import { 
+  Settings, 
+  LogOut, 
+  User,
+  ChevronDown
+} from "lucide-react";
+import { useAuth } from "contexts/AuthContext";
+import { useUIThemeStyles } from "hooks/useUITheme";
+import Link from "next/link";
+
+interface TopBarProps {
+  className?: string;
+}
+
+export default function TopBar({ className = "" }: TopBarProps) {
+  const { user, signOut } = useAuth();
+  const { getThemeClasses } = useUIThemeStyles();
+  const router = useRouter();
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  return (
+    <div className={getThemeClasses(
+      `bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between ${className}`,
+      `glass-card border-b border-white/20 px-6 py-4 flex items-center justify-between ${className}`
+    )}>
+      {/* Left side - Logo/Brand */}
+      <div className="flex items-center">
+        <h1 className={getThemeClasses(
+          "text-xl font-bold text-gray-900",
+          "text-xl font-bold glass-text-primary"
+        )}>
+          Content Manager
+        </h1>
+      </div>
+
+      {/* Right side - Profile Menu */}
+      <div className="flex items-center space-x-4">
+        {/* Profile Info */}
+        <div className="flex items-center space-x-3">
+          <div className={getThemeClasses(
+            "w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center",
+            "w-8 h-8 glass-card rounded-full flex items-center justify-center"
+          )}>
+            <User className={getThemeClasses(
+              "w-4 h-4 text-blue-700",
+              "w-4 h-4 glass-text-primary"
+            )} />
+          </div>
+          <div className="hidden sm:block">
+            <p className={getThemeClasses(
+              "text-sm font-medium text-gray-900",
+              "text-sm font-medium glass-text-primary"
+            )}>
+              {user?.email?.split('@')[0] || 'User'}
+            </p>
+            <p className={getThemeClasses(
+              "text-xs text-gray-500",
+              "text-xs glass-text-muted"
+            )}>
+              {user?.email || ''}
+            </p>
+          </div>
+        </div>
+
+        {/* Profile Settings Button */}
+        <Link href="/profile">
+          <Button 
+            variant="outline" 
+            size="sm"
+            className={getThemeClasses(
+              "flex items-center space-x-2",
+              "flex items-center space-x-2 glass-button"
+            )}
+          >
+            <Settings className="w-4 h-4" />
+            <span className="hidden sm:inline">Profile Settings</span>
+          </Button>
+        </Link>
+
+        {/* Sign Out Button */}
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={handleSignOut}
+          className={getThemeClasses(
+            "flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50",
+            "flex items-center space-x-2 glass-button text-red-400 hover:text-red-300"
+          )}
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline">Sign Out</span>
+        </Button>
+      </div>
+    </div>
+  );
+}

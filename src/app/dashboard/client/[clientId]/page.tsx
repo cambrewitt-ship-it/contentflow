@@ -4,7 +4,7 @@ import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
 import { Button } from 'components/ui/button'
-import { Plus, Edit3, Calendar, FileText, ArrowRight, Trash2 } from 'lucide-react'
+import { Plus, Edit3, Calendar, FileText, ArrowRight, Trash2, Upload, X } from 'lucide-react'
 import Link from 'next/link'
 import BrandInformationPanel from 'components/BrandInformationPanel'
 import { useAuth } from 'contexts/AuthContext'
@@ -47,6 +47,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [oauthMessage, setOauthMessage] = useState<OAuthMessage | null>(null)
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([])
   const [fetchingAccounts, setFetchingAccounts] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [removingLogo, setRemovingLogo] = useState(false)
   
   // Refs to prevent duplicate requests
   const fetchAccountsRef = useRef(false)
@@ -599,6 +601,96 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
   };
 
+  // Handle logo upload
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !client) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      return;
+    }
+
+    try {
+      setUploadingLogo(true);
+      
+      // Convert file to base64
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64Data = e.target?.result as string;
+        
+        const response = await fetch(`/api/clients/${clientId}/logo`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            imageData: base64Data,
+            filename: file.name
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to upload logo');
+        }
+
+        const data = await response.json();
+        
+        // Update client state with new logo URL
+        setClient(prev => prev ? { ...prev, logo_url: data.logoUrl } : null);
+        
+        console.log('✅ Logo uploaded successfully:', data.logoUrl);
+      };
+      
+      reader.readAsDataURL(file);
+      
+    } catch (err) {
+      console.error('❌ Error uploading logo:', err);
+      alert(`Failed to upload logo: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setUploadingLogo(false);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
+
+  // Handle logo removal
+  const handleLogoRemove = async () => {
+    if (!client) return;
+
+    try {
+      setRemovingLogo(true);
+      
+      const response = await fetch(`/api/clients/${clientId}/logo`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to remove logo');
+      }
+
+      // Update client state to remove logo URL
+      setClient(prev => prev ? { ...prev, logo_url: undefined } : null);
+      
+      console.log('✅ Logo removed successfully');
+      
+    } catch (err) {
+      console.error('❌ Error removing logo:', err);
+      alert(`Failed to remove logo: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setRemovingLogo(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
@@ -672,13 +764,61 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             <Card className="flex-1">
             <CardContent className="p-6">
               <div className="flex items-center space-x-6">
-                <div className="w-20 h-20 bg-gray-300 rounded-full flex items-center justify-center">
-                  <span className="text-2xl font-bold text-gray-600">
-                    {client?.name ? client.name.charAt(0).toUpperCase() : 'C'}
-                  </span>
+                {/* Logo Display/Upload Section */}
+                <div className="relative">
+                  <div className="w-20 h-20 bg-gray-100 border-2 border-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                    {client?.logo_url ? (
+                      <img 
+                        src={client.logo_url} 
+                        alt={`${client.name} logo`}
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-2xl font-bold text-gray-600">
+                        {client?.name ? client.name.charAt(0).toUpperCase() : 'C'}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Logo Upload Button */}
+                  <div className="absolute -bottom-1 -right-1">
+                    <label htmlFor="logo-upload" className="cursor-pointer">
+                      <div className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-1.5 shadow-lg transition-colors">
+                        {uploadingLogo ? (
+                          <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                        ) : (
+                          <Upload className="w-4 h-4" />
+                        )}
+                      </div>
+                    </label>
+                    <input
+                      id="logo-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                      disabled={uploadingLogo}
+                    />
+                  </div>
+                  
+                  {/* Logo Remove Button */}
+                  {client?.logo_url && (
+                    <button
+                      onClick={handleLogoRemove}
+                      disabled={removingLogo}
+                      className="absolute -top-1 -right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-1 shadow-lg transition-colors disabled:opacity-50"
+                    >
+                      {removingLogo ? (
+                        <div className="w-3 h-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                      ) : (
+                        <X className="w-3 h-3" />
+                      )}
+                    </button>
+                  )}
                 </div>
+                
                 <div className="flex-1">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-3">
+                  <h1 className="font-bold text-gray-700 mb-3 text-smooth" style={{ fontSize: '24px' }}>
                     {client?.name || 'Client Dashboard'}
                   </h1>
                   <div className="flex items-center space-x-4 text-gray-600">
@@ -733,12 +873,12 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         {/* Projects Section */}
         <div className="mt-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Projects</h2>
+            <h2 className="text-2xl font-bold text-gray-700 text-smooth">Projects</h2>
             <div className="flex gap-2">
               {!projectsFailed && (
                 <Button 
                   onClick={() => setShowNewProjectForm(true)}
-                  className="bg-black hover:bg-gray-800 text-white"
+                  className="bg-gray-700 hover:bg-gray-800 text-white"
                   style={{ width: '255px' }}
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -752,7 +892,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           {projectsFailed && (
             <Card className="mb-6 border-yellow-200 bg-yellow-50">
               <CardHeader>
-                <CardTitle className="text-lg text-yellow-800">Projects Temporarily Unavailable</CardTitle>
+                <CardTitle className="card-title-26 text-yellow-800">Projects Temporarily Unavailable</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -789,7 +929,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           {debugInfo && (
             <Card className="mb-6 border-orange-200 bg-orange-50">
               <CardHeader>
-                <CardTitle className="text-lg text-orange-800">Database Debug Information</CardTitle>
+                <CardTitle className="card-title-26 text-orange-800">Database Debug Information</CardTitle>
               </CardHeader>
               <CardContent>
                 <pre className="text-xs bg-white p-3 rounded border overflow-auto max-h-96">
@@ -819,7 +959,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           {!projectsFailed && showNewProjectForm && (
             <Card className="mb-6">
               <CardHeader>
-                <CardTitle className="text-lg">Create New Project</CardTitle>
+                <CardTitle className="card-title-26">Create New Project</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -872,7 +1012,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           {!projectsFailed && showProjectSelection && (
             <Card className="mb-6">
               <CardHeader>
-                <CardTitle className="text-lg">Choose Project for Content Creation</CardTitle>
+                <CardTitle className="card-title-26">Choose Project for Content Creation</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -890,7 +1030,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         }}
                       >
                         <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">{project.name}</h4>
+                          <h4 className="font-medium text-gray-700">{project.name}</h4>
                           {project.description && (
                             <p className="text-sm text-gray-600 mt-1">{project.description}</p>
                           )}
@@ -943,7 +1083,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   {projects.map((project) => (
                     <Card key={project.id} className="hover:shadow-md transition-shadow">
                       <CardHeader>
-                        <CardTitle className="text-lg">{project.name}</CardTitle>
+                        <CardTitle className="card-title-26">{project.name}</CardTitle>
                         {project.description && (
                           <p className="text-sm text-gray-600">{project.description}</p>
                         )}
@@ -977,7 +1117,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
-                  <h3 className="mt-4 text-lg font-medium text-gray-900">No projects yet</h3>
+                  <h3 className="mt-4 text-2xl font-bold text-gray-700">No projects yet</h3>
                   <p className="mt-2 text-gray-600 mb-4">Get started by creating your first project to organize your content strategy.</p>
                   <div className="flex gap-3 justify-center">
                     <Button 
@@ -1009,7 +1149,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             <CardContent className="p-6 space-y-8">
               {/* Social Media Platforms Section */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Social Media Platforms</h3>
+                <h3 className="text-2xl font-bold text-gray-700 mb-4 text-smooth">Social Media Platforms</h3>
                 
                 {/* OAuth Success/Error Messages */}
                 {oauthMessage && (
@@ -1044,7 +1184,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     disabled={connectingPlatform === 'facebook'}
                     className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       isPlatformConnected('facebook')
-                        ? 'border-2 border-black'
+                        ? 'border-2 border-gray-700'
                         : 'border-2 border-gray-200'
                     }`}
                   >
@@ -1066,7 +1206,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     disabled={connectingPlatform === 'instagram'}
                     className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       isPlatformConnected('instagram')
-                        ? 'border-2 border-black'
+                        ? 'border-2 border-gray-700'
                         : 'border-2 border-gray-200'
                     }`}
                   >
@@ -1088,7 +1228,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     disabled={connectingPlatform === 'twitter'}
                     className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       isPlatformConnected('twitter')
-                        ? 'border-2 border-black'
+                        ? 'border-2 border-gray-700'
                         : 'border-2 border-gray-200'
                     }`}
                   >
@@ -1110,7 +1250,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     disabled={connectingPlatform === 'linkedin'}
                     className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       isPlatformConnected('linkedin')
-                        ? 'border-2 border-black'
+                        ? 'border-2 border-gray-700'
                         : 'border-2 border-gray-200'
                     }`}
                   >
@@ -1132,7 +1272,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     disabled={connectingPlatform === 'tiktok'}
                     className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       isPlatformConnected('tiktok')
-                        ? 'border-2 border-black'
+                        ? 'border-2 border-gray-700'
                         : 'border-2 border-gray-200'
                     }`}
                   >
@@ -1154,7 +1294,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     disabled={connectingPlatform === 'youtube'}
                     className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       isPlatformConnected('youtube')
-                        ? 'border-2 border-black'
+                        ? 'border-2 border-gray-700'
                         : 'border-2 border-gray-200'
                     }`}
                   >
@@ -1176,7 +1316,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     disabled={connectingPlatform === 'threads'}
                     className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       isPlatformConnected('threads')
-                        ? 'border-2 border-black'
+                        ? 'border-2 border-gray-700'
                         : 'border-2 border-gray-200'
                     }`}
                   >
@@ -1209,7 +1349,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               <div className="border-t pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold text-red-900">Danger Zone</h3>
+                    <h3 className="text-2xl font-bold text-red-900">Danger Zone</h3>
                     <p className="text-sm text-red-700 mt-1">
                       Permanently delete this client and all associated data. This action cannot be undone.
                     </p>

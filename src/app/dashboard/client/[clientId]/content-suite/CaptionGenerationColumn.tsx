@@ -85,11 +85,11 @@ export function CaptionGenerationColumn() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       {/* Copy Type Selection & AI Caption Generation */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Copy Type</CardTitle>
+          <CardTitle className="card-title-26">Copy Type</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -111,7 +111,7 @@ export function CaptionGenerationColumn() {
             {activeImage ? (
               <div>
                 <div className="border-t pt-4">
-                  <h3 className="text-lg font-semibold mb-3">AI Caption Generation</h3>
+                  <h3 className="text-22px mb-3">AI Caption Generation</h3>
                   <Button
                     onClick={handleGenerateCaptions}
                     disabled={generatingCaptions}
@@ -134,7 +134,7 @@ export function CaptionGenerationColumn() {
             ) : (
               <div>
                 <div className="border-t pt-4">
-                  <h3 className="text-lg font-semibold mb-3">AI Caption Generation</h3>
+                  <h3 className="text-22px mb-3">AI Caption Generation</h3>
                   <div className="text-center py-6">
                     <div className="text-gray-400 mb-2">
                       <Brain className="w-12 h-12 mx-auto" />
@@ -152,7 +152,7 @@ export function CaptionGenerationColumn() {
       {captions.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">
+            <CardTitle className="card-title-26">
               Generated {copyType === 'social-media' ? 'Captions' : 'Email Copy'} ({captions.length})
             </CardTitle>
             <p className="text-sm text-muted-foreground">
@@ -176,7 +176,7 @@ export function CaptionGenerationColumn() {
                       value={caption.text}
                       onChange={(e) => updateCaption(caption.id, e.target.value)}
                       placeholder="Edit your caption..."
-                      className="min-h-[80px] resize-none border-0 bg-transparent focus:ring-0 focus:border-0 p-0 text-sm text-gray-900"
+                      className="min-h-[80px] resize-none border-0 bg-transparent focus:ring-0 focus:border-0 p-0 text-sm text-gray-700"
                       onClick={(e) => e.stopPropagation()}
                     />
                     

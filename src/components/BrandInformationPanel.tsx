@@ -17,6 +17,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Client, BrandDocument, WebsiteScrape } from 'types/api';
+import { useAuth } from 'contexts/AuthContext';
 
 interface BrandInformationPanelProps {
   clientId: string;
@@ -27,6 +28,7 @@ interface BrandInformationPanelProps {
 }
 
 export default function BrandInformationPanel({ clientId, client, onUpdate, brandDocuments }: BrandInformationPanelProps) {
+  const { getAccessToken } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -71,7 +73,10 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
     try {
       const response = await fetch(`/api/clients/${clientId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAccessToken() || ''}`
+        },
         body: JSON.stringify(formData)
       });
 
@@ -168,7 +173,10 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
           if (analysisData.analysis.company_name) {
             const updateResponse = await fetch(`/api/clients/${clientId}`, {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getAccessToken() || ''}`
+              },
               body: JSON.stringify({ name: analysisData.analysis.company_name })
             });
 

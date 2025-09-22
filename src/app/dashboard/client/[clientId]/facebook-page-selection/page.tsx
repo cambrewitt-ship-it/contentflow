@@ -142,7 +142,7 @@ export default function FacebookPageSelection({ params }: PageSelectionProps) {
         <div className="max-w-md mx-auto">
           <Card>
             <CardHeader>
-              <CardTitle className="text-red-600">Error Loading Pages</CardTitle>
+              <CardTitle className="card-title-26 text-red-600">Error Loading Pages</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-gray-600 mb-4">{error}</p>
@@ -165,7 +165,7 @@ export default function FacebookPageSelection({ params }: PageSelectionProps) {
         <div className="max-w-md mx-auto">
           <Card>
             <CardHeader>
-              <CardTitle className="text-red-600">Session Data Missing</CardTitle>
+              <CardTitle className="card-title-26 text-red-600">Session Data Missing</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-gray-600 mb-4">Unable to load page selection data. Please try connecting to Facebook again.</p>
@@ -187,7 +187,7 @@ export default function FacebookPageSelection({ params }: PageSelectionProps) {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Select Facebook Page</h1>
+          <h1 className="text-3xl font-bold text-gray-700 mb-2">Select Facebook Page</h1>
           <p className="text-gray-600">
             Choose which Facebook page to connect to <strong>{sessionData.clientName}</strong>
           </p>
@@ -196,7 +196,7 @@ export default function FacebookPageSelection({ params }: PageSelectionProps) {
         {/* Page Selection */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
+            <CardTitle className="card-title-26 flex items-center space-x-2">
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                 <span className="text-white text-sm font-bold">f</span>
               </div>
@@ -240,7 +240,7 @@ export default function FacebookPageSelection({ params }: PageSelectionProps) {
                           </div>
                         )}
                         <div>
-                          <h3 className="font-medium text-gray-900">{page.name}</h3>
+                          <h3 className="font-medium text-gray-700">{page.name}</h3>
                           {page.category && (
                             <p className="text-sm text-gray-500">{page.category}</p>
                           )}

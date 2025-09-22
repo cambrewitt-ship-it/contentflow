@@ -302,26 +302,18 @@ export default function Dashboard() {
                     <CardHeader>
                       <div className="flex items-center space-x-3">
                         <div className={getThemeClasses(
-                          "w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-lg font-bold text-blue-700",
-                          "w-12 h-12 glass-card rounded-full flex items-center justify-center text-lg font-bold glass-text-primary"
+                          "w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-xl font-bold text-blue-700",
+                          "w-12 h-12 glass-card rounded-full flex items-center justify-center text-xl font-bold glass-text-primary"
                         )}>
                           {client.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
                           <CardTitle className={getThemeClasses(
-                            "text-lg truncate",
-                            "text-lg truncate glass-text-primary"
+                            "text-xl font-bold truncate",
+                            "text-xl font-bold truncate glass-text-primary"
                           )}>
                             {client.name}
                           </CardTitle>
-                          {client.brand_tone && (
-                            <p className={getThemeClasses(
-                              "text-sm text-muted-foreground capitalize",
-                              "text-sm glass-text-muted capitalize"
-                            )}>
-                              {client.brand_tone} tone
-                            </p>
-                          )}
                         </div>
                       </div>
                     </CardHeader>
@@ -351,21 +343,11 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* User Actions */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href="/profile">
-            <Button variant="outline" className="flex items-center space-x-2">
-              <Settings className="w-4 h-4" />
-              <span>Profile Settings</span>
-            </Button>
-          </Link>
-          <Button variant="outline" onClick={signOut} className="flex items-center space-x-2">
-            <LogOut className="w-4 h-4" />
-            <span>Sign Out</span>
-          </Button>
+        {/* Theme Toggle */}
+        <div className="flex justify-center">
           <div className="flex items-center">
             <UIThemeToggle />
-        </div>
+          </div>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "components/ui/button";
 import Sidebar from "components/Sidebar";
+import TopBar from "components/TopBar";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -46,7 +47,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-h-0">
-        {children}
+        {/* Top Bar */}
+        <TopBar />
+        
+        {/* Page Content */}
+        <div className="flex-1 overflow-auto">
+          {children}
+        </div>
       </div>
     </div>
   );
