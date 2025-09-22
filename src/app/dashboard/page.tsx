@@ -188,7 +188,7 @@ export default function Dashboard() {
             Welcome back, {profile?.username || profile?.full_name || user?.email?.split('@')[0] || 'User'}!
           </h1>
           <p className="text-lg text-muted-foreground">
-            Manage your clients and create amazing social media content
+            Select a client to get started
           </p>
         </div>
 
@@ -232,7 +232,7 @@ export default function Dashboard() {
               {clients.map((client) => (
                 <Card 
                   key={client.id} 
-                  className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 flex flex-col h-full"
+                  className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 flex flex-col h-full opacity-90"
                 >
                   <Link href={`/dashboard/client/${client.id}`}>
                     <CardHeader>
