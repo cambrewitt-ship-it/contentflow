@@ -1,0 +1,323 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_SUPABASE_SERVICE_ROLE!
+);
+
+// Get posts awaiting approval for a client via portal token
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const token = searchParams.get('token');
+
+    console.log('🔍 Portal approvals request:', { token: token?.substring(0, 8) + '...' });
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'Portal token is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate portal token and get client info
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('id, name, portal_enabled')
+      .eq('portal_token', token)
+      .single();
+
+    if (clientError || !client) {
+      console.log('❌ Invalid portal token:', clientError);
+      return NextResponse.json(
+        { success: false, error: 'Invalid portal token' },
+        { status: 401 }
+      );
+    }
+
+    if (!client.portal_enabled) {
+      return NextResponse.json(
+        { success: false, error: 'Portal access is disabled' },
+        { status: 401 }
+      );
+    }
+
+    console.log('✅ Portal token validated for client:', client.id);
+
+    // Get all projects for this client
+    const { data: projects, error: projectsError } = await supabase
+      .from('projects')
+      .select('id, name')
+      .eq('client_id', client.id);
+
+    if (projectsError) {
+      console.error('❌ Error fetching projects:', projectsError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch projects' },
+        { status: 500 }
+      );
+    }
+
+    if (!projects || projects.length === 0) {
+      return NextResponse.json({
+        success: true,
+        client: { id: client.id, name: client.name },
+        projects: [],
+        weeks: []
+      });
+    }
+
+    const projectIds = projects.map(p => p.id);
+    console.log('📋 Found projects:', projectIds);
+
+    // Get posts from both scheduled tables for all client projects
+    const [scheduledPosts, plannerScheduledPosts] = await Promise.all([
+      supabase
+        .from('scheduled_posts')
+        .select(`
+          id,
+          caption,
+          image_url,
+          scheduled_time,
+          approval_status,
+          needs_attention,
+          client_feedback,
+          created_at,
+          project_id
+        `)
+        .in('project_id', projectIds)
+        .order('scheduled_time', { ascending: true }),
+      
+      supabase
+        .from('planner_scheduled_posts')
+        .select(`
+          id,
+          caption,
+          image_url,
+          scheduled_date,
+          scheduled_time,
+          approval_status,
+          needs_attention,
+          client_feedback,
+          created_at,
+          project_id
+        `)
+        .in('project_id', projectIds)
+        .order('scheduled_date', { ascending: true })
+    ]);
+
+    if (scheduledPosts.error) {
+      console.error('❌ Error fetching scheduled posts:', scheduledPosts.error);
+    }
+
+    if (plannerScheduledPosts.error) {
+      console.error('❌ Error fetching planner scheduled posts:', plannerScheduledPosts.error);
+    }
+
+    // Combine and format posts
+    const allPosts = [
+      ...(scheduledPosts.data || []).map(post => ({
+        ...post,
+        post_type: 'scheduled' as const
+      })),
+      ...(plannerScheduledPosts.data || []).map(post => ({
+        ...post,
+        post_type: 'planner_scheduled' as const
+      }))
+    ];
+
+    console.log(`📊 Found ${allPosts.length} total posts`);
+
+    // Group posts by week
+    const weeks = groupPostsByWeek(allPosts);
+
+    return NextResponse.json({
+      success: true,
+      client: { id: client.id, name: client.name },
+      projects: projects,
+      weeks: weeks
+    });
+
+  } catch (error) {
+    console.error('❌ Portal approvals error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// Submit approval decisions
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { 
+      token,
+      post_id, 
+      post_type, 
+      approval_status, 
+      client_comments,
+      edited_caption 
+    } = body;
+
+    console.log('📥 Portal approval submission:', {
+      token: token?.substring(0, 8) + '...',
+      post_id: post_id?.substring(0, 8) + '...',
+      post_type,
+      approval_status,
+      has_comments: !!client_comments,
+      has_edited_caption: !!edited_caption
+    });
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'Portal token is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate portal token
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('id, portal_enabled')
+      .eq('portal_token', token)
+      .single();
+
+    if (clientError || !client) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid portal token' },
+        { status: 401 }
+      );
+    }
+
+    if (!client.portal_enabled) {
+      return NextResponse.json(
+        { success: false, error: 'Portal access is disabled' },
+        { status: 401 }
+      );
+    }
+
+    // Validate approval_status
+    const validStatuses = ['approved', 'rejected', 'needs_attention'];
+    if (!validStatuses.includes(approval_status)) {
+      return NextResponse.json(
+        { success: false, error: `Invalid approval status: ${approval_status}` },
+        { status: 400 }
+      );
+    }
+
+    if (!post_id || !post_type || !approval_status) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Update post caption if client edited it
+    if (edited_caption && edited_caption.trim() !== '') {
+      const tableName = post_type === 'planner_scheduled' ? 'planner_scheduled_posts' : 'scheduled_posts';
+      
+      const { error: captionUpdateError } = await supabase
+        .from(tableName)
+        .update({ 
+          caption: edited_caption,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', post_id);
+
+      if (captionUpdateError) {
+        console.error('❌ Error updating caption:', captionUpdateError);
+        return NextResponse.json(
+          { success: false, error: 'Failed to update caption' },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Update the post status
+    const tableName = post_type === 'planner_scheduled' ? 'planner_scheduled_posts' : 'scheduled_posts';
+    
+    const statusUpdate: any = {
+      approval_status,
+      updated_at: new Date().toISOString()
+    };
+
+    if (approval_status === 'needs_attention') {
+      statusUpdate.needs_attention = true;
+      statusUpdate.client_feedback = client_comments;
+    } else {
+      statusUpdate.needs_attention = false;
+      statusUpdate.client_feedback = client_comments || null;
+    }
+
+    const { error: statusUpdateError } = await supabase
+      .from(tableName)
+      .update(statusUpdate)
+      .eq('id', post_id);
+
+    if (statusUpdateError) {
+      console.error('❌ Error updating post status:', statusUpdateError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to update post status' },
+        { status: 500 }
+      );
+    }
+
+    console.log('✅ Portal approval submitted successfully');
+
+    return NextResponse.json({
+      success: true,
+      message: 'Approval submitted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Portal approval submission error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// Helper function to group posts by week
+function groupPostsByWeek(posts: any[]): any[] {
+  const weeksMap = new Map<string, any[]>();
+  
+  posts.forEach(post => {
+    // Handle different column names: scheduled_posts uses 'scheduled_time', planner_scheduled_posts uses 'scheduled_date'
+    const scheduledDate = post.scheduled_date || post.scheduled_time;
+    const date = new Date(scheduledDate);
+    const weekStart = new Date(date);
+    weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+    
+    const weekKey = weekStart.toISOString().split('T')[0];
+    
+    if (!weeksMap.has(weekKey)) {
+      weeksMap.set(weekKey, []);
+    }
+    
+    // Normalize the post data to use 'scheduled_date' for consistency
+    const normalizedPost = {
+      ...post,
+      scheduled_date: scheduledDate
+    };
+    
+    weeksMap.get(weekKey)!.push(normalizedPost);
+  });
+  
+  // Convert to array and sort by week start date
+  return Array.from(weeksMap.entries())
+    .map(([weekKey, posts]) => {
+      const weekStart = new Date(weekKey);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      
+      return {
+        weekStart,
+        weekLabel: `W/C ${weekStart.getDate()} ${weekStart.toLocaleDateString('en-GB', { month: 'short' })}`,
+        posts: posts.sort((a, b) => new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime())
+      };
+    })
+    .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
+}

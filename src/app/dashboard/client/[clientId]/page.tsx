@@ -4,7 +4,7 @@ import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
 import { Button } from 'components/ui/button'
-import { Plus, Edit3, Calendar, FileText, ArrowRight, Trash2, Upload, X } from 'lucide-react'
+import { Plus, Edit3, Calendar, FileText, ArrowRight, Trash2, Upload, X, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Image, File, RefreshCw, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import BrandInformationPanel from 'components/BrandInformationPanel'
 import { useAuth } from 'contexts/AuthContext'
@@ -50,6 +50,15 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [removingLogo, setRemovingLogo] = useState(false)
   const [isEditingLogo, setIsEditingLogo] = useState(false)
+  const [portalToken, setPortalToken] = useState<string | null>(null)
+  const [portalEnabled, setPortalEnabled] = useState(false)
+  const [portalUrl, setPortalUrl] = useState<string | null>(null)
+  const [generatingPortalLink, setGeneratingPortalLink] = useState(false)
+  const [togglingPortal, setTogglingPortal] = useState(false)
+  const [portalLinkCopied, setPortalLinkCopied] = useState(false)
+  const [contentInbox, setContentInbox] = useState<Upload[]>([])
+  const [contentInboxLoading, setContentInboxLoading] = useState(false)
+  const [contentInboxError, setContentInboxError] = useState<string | null>(null)
   
   // Refs to prevent duplicate requests
   const fetchAccountsRef = useRef(false)
@@ -63,6 +72,20 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     platform: string;
     name: string;
     accountId?: string;
+  }
+
+  interface Upload {
+    id: string;
+    client_id: string;
+    project_id: string | null;
+    file_name: string;
+    file_type: string;
+    file_size: number;
+    file_url: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
   }
 
 
@@ -166,6 +189,38 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     
     fetchBrandData()
   }, [clientId])
+
+  // Fetch content inbox
+  const fetchContentInbox = useCallback(async () => {
+    if (!clientId) return
+    
+    try {
+      setContentInboxLoading(true)
+      setContentInboxError(null)
+      
+      const response = await fetch(`/api/clients/${clientId}/uploads`)
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch content inbox: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      setContentInbox(data.uploads || [])
+      
+    } catch (err) {
+      console.error('Error fetching content inbox:', err)
+      setContentInboxError(err instanceof Error ? err.message : 'Failed to load content inbox')
+    } finally {
+      setContentInboxLoading(false)
+    }
+  }, [clientId])
+
+  // Fetch content inbox when client is loaded
+  useEffect(() => {
+    if (client) {
+      fetchContentInbox()
+    }
+  }, [client, fetchContentInbox])
 
   // Check for OAuth callback messages in URL
   useEffect(() => {
@@ -716,6 +771,139 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
   };
 
+  // Generate portal link
+  const handleGeneratePortalLink = async () => {
+    if (!client) return;
+
+    try {
+      setGeneratingPortalLink(true);
+      
+      const accessToken = getAccessToken();
+      if (!accessToken) {
+        alert('Authentication required. Please refresh the page and try again.');
+        return;
+      }
+
+      const response = await fetch(`/api/clients/${clientId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch client data: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const clientData = data.client;
+      
+      if (!clientData.portal_token) {
+        alert('No portal token found for this client. Please contact support.');
+        return;
+      }
+
+      const portalUrl = `${window.location.origin}/portal/${clientData.portal_token}`;
+      setPortalToken(clientData.portal_token);
+      setPortalUrl(portalUrl);
+      setPortalEnabled(clientData.portal_enabled || false);
+      
+      console.log('✅ Portal link generated:', portalUrl);
+      
+    } catch (err) {
+      console.error('❌ Error generating portal link:', err);
+      alert(`Failed to generate portal link: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setGeneratingPortalLink(false);
+    }
+  };
+
+  // Toggle portal access
+  const handleTogglePortalAccess = async () => {
+    if (!client) return;
+
+    try {
+      setTogglingPortal(true);
+      
+      const accessToken = getAccessToken();
+      if (!accessToken) {
+        alert('Authentication required. Please refresh the page and try again.');
+        return;
+      }
+
+      const response = await fetch(`/api/clients/${clientId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          portal_enabled: !portalEnabled
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update portal access: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setPortalEnabled(data.client.portal_enabled);
+      setClient(prev => prev ? { ...prev, portal_enabled: data.client.portal_enabled } : null);
+      
+      console.log('✅ Portal access toggled:', data.client.portal_enabled);
+      
+    } catch (err) {
+      console.error('❌ Error toggling portal access:', err);
+      alert(`Failed to toggle portal access: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setTogglingPortal(false);
+    }
+  };
+
+  // Copy portal link to clipboard
+  const handleCopyPortalLink = async () => {
+    if (!portalUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(portalUrl);
+      setPortalLinkCopied(true);
+      setTimeout(() => setPortalLinkCopied(false), 2000);
+      console.log('✅ Portal link copied to clipboard');
+    } catch (err) {
+      console.error('❌ Error copying to clipboard:', err);
+      alert('Failed to copy link to clipboard');
+    }
+  };
+
+  // Content inbox helper functions
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getFileIcon = (fileType: string) => {
+    if (fileType.startsWith('image/')) {
+      return <Image className="h-6 w-6 text-blue-600" />;
+    }
+    return <File className="h-6 w-6 text-gray-600" />;
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Completed</span>;
+      case 'failed':
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Failed</span>;
+      case 'processing':
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Processing</span>;
+      default:
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Pending</span>;
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-8">
@@ -890,7 +1078,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             {/* Create Content Button */}
             <Button 
               onClick={() => window.location.href = `/dashboard/client/${clientId}/content-suite`}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white w-64 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
+              className="bg-gray-400 hover:bg-gray-500 text-black w-64 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
               style={{ height: '177px' }}
             >
               <Plus className="w-16 h-16 mb-4" />
@@ -1175,7 +1363,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <div className="flex gap-3 justify-center">
                     <Button 
                       onClick={() => window.location.href = `/dashboard/client/${clientId}/content-suite`}
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+                      className="bg-gray-400 hover:bg-gray-500 text-black px-6 py-3 font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
                     >
                       <Plus className="w-5 h-5 mr-2" />
                       Go to Content Suite
@@ -1396,6 +1584,261 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   brandDocuments={brandDocuments}
                   websiteScrapes={websiteScrapes}
                 />
+              </div>
+
+              {/* Content Inbox Section */}
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-2xl font-bold text-gray-700 text-smooth">Content Inbox</h3>
+                  <Button
+                    onClick={fetchContentInbox}
+                    variant="outline"
+                    size="sm"
+                    disabled={contentInboxLoading}
+                  >
+                    {contentInboxLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Refresh
+                  </Button>
+                </div>
+                
+                <div className="space-y-4">
+                  {contentInboxError ? (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <p className="text-red-600 text-sm">{contentInboxError}</p>
+                    </div>
+                  ) : contentInboxLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                      <span className="ml-2 text-gray-600">Loading content...</span>
+                    </div>
+                  ) : contentInbox.length === 0 ? (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+                      <File className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h4 className="text-lg font-medium text-gray-700 mb-2">No content uploaded yet</h4>
+                      <p className="text-gray-600 text-sm">
+                        Content uploaded by the client through their portal will appear here.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {contentInbox.map((upload) => (
+                        <Card key={upload.id} className="overflow-hidden">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                {getFileIcon(upload.file_type)}
+                                <span className="text-sm font-medium text-gray-700 truncate">
+                                  {upload.file_name}
+                                </span>
+                              </div>
+                              {getStatusBadge(upload.status)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {formatFileSize(upload.file_size)} • {upload.file_type}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Uploaded {new Date(upload.created_at).toLocaleDateString()}
+                            </div>
+                          </CardHeader>
+                          
+                          <CardContent className="space-y-3">
+                            {/* Image Preview */}
+                            {upload.file_type.startsWith('image/') ? (
+                              <div className="relative">
+                                <img
+                                  src={upload.file_url}
+                                  alt={upload.file_name}
+                                  className="w-full h-32 object-cover rounded-lg border"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    target.nextElementSibling?.classList.remove('hidden');
+                                  }}
+                                />
+                                <div className="hidden w-full h-32 bg-gray-100 rounded-lg border flex items-center justify-center">
+                                  <div className="text-center">
+                                    <Image className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                                    <p className="text-xs text-gray-500">Preview unavailable</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-full h-32 bg-gray-100 rounded-lg border flex items-center justify-center">
+                                <div className="text-center">
+                                  {getFileIcon(upload.file_type)}
+                                  <p className="text-xs text-gray-500 mt-2">{upload.file_name}</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Notes */}
+                            {upload.notes && (
+                              <div className="bg-gray-50 rounded-lg p-3">
+                                <p className="text-xs font-medium text-gray-700 mb-1">Client Notes:</p>
+                                <p className="text-xs text-gray-600 whitespace-pre-wrap">
+                                  {upload.notes}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex space-x-2">
+                              <Button
+                                onClick={() => {
+                                  // Navigate to content suite with pre-loaded data
+                                  // Store image data in sessionStorage to avoid long URLs
+                                  const imageData = {
+                                    image: upload.file_url,
+                                    notes: upload.notes || '',
+                                    fileName: upload.file_name,
+                                    uploadId: upload.id
+                                  };
+                                  sessionStorage.setItem('preloadedContent', JSON.stringify(imageData));
+                                  
+                                  // Navigate with just the upload ID to keep URL short
+                                  window.location.href = `/dashboard/client/${clientId}/content-suite?uploadId=${upload.id}`;
+                                }}
+                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                                size="sm"
+                              >
+                                <Edit3 className="w-4 h-4 mr-1" />
+                                Edit
+                              </Button>
+                              {upload.file_url && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => window.open(upload.file_url, '_blank')}
+                                  className="flex-1"
+                                >
+                                  View File
+                                </Button>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Client Portal Section */}
+              <div className="border-t pt-6">
+                <h3 className="text-2xl font-bold text-gray-700 mb-4 text-smooth">Client Portal</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-700">Portal Access</h4>
+                      <p className="text-sm text-gray-600">
+                        Allow this client to access their content portal
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <span className={`text-sm font-medium ${portalEnabled ? 'text-green-600' : 'text-gray-500'}`}>
+                        {portalEnabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                      <button
+                        onClick={handleTogglePortalAccess}
+                        disabled={togglingPortal}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 ${
+                          portalEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            portalEnabled ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-700">Portal Link</h4>
+                      <p className="text-sm text-gray-600">
+                        Generate a secure link for the client to access their portal
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleGeneratePortalLink}
+                      disabled={generatingPortalLink || !portalEnabled}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      {generatingPortalLink ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <LinkIcon className="w-4 h-4 mr-2" />
+                          Generate Portal Link
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {portalUrl && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-700 mb-1">Portal URL:</p>
+                          <p className="text-sm text-gray-600 break-all">{portalUrl}</p>
+                        </div>
+                        <div className="flex items-center space-x-2 ml-4">
+                          <Button
+                            onClick={handleCopyPortalLink}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center"
+                          >
+                            {portalLinkCopied ? (
+                              <>
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Copied!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4 mr-1" />
+                                Copy
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            onClick={() => window.open(portalUrl, '_blank')}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center"
+                          >
+                            <ExternalLink className="w-4 h-4 mr-1" />
+                            Open
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!portalEnabled && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <div className="flex items-center">
+                        <div className="w-5 h-5 text-yellow-600 mr-3">
+                          <svg fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <p className="text-sm text-yellow-700">
+                          Portal access is disabled. Enable it above to generate a portal link for this client.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Delete Client Section */}

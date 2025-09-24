@@ -68,6 +68,12 @@ export default function ContentSuitePage({ params }: PageProps) {
   const [newProjectName, setNewProjectName] = useState("")
   const [newProjectDescription, setNewProjectDescription] = useState("")
   const [creatingProject, setCreatingProject] = useState(false)
+  const [preloadedContent, setPreloadedContent] = useState<{
+    image: string;
+    notes: string;
+    fileName: string;
+    uploadId: string | null;
+  } | null>(null)
 
   // Check for editPostId URL parameter
   useEffect(() => {
@@ -78,6 +84,48 @@ export default function ContentSuitePage({ params }: PageProps) {
       fetchPostForEditing(editPostId)
     }
   }, [searchParams, clientId])
+
+  // Check for content inbox pre-load parameters
+  useEffect(() => {
+    const uploadId = searchParams?.get('uploadId')
+    
+    if (uploadId) {
+      // Try to get preloaded content from sessionStorage first
+      const storedContent = sessionStorage.getItem('preloadedContent')
+      if (storedContent) {
+        try {
+          const imageData = JSON.parse(storedContent)
+          console.log('🔄 Pre-loading content from sessionStorage:', imageData)
+          setPreloadedContent({
+            image: imageData.image,
+            notes: imageData.notes || '',
+            fileName: imageData.fileName,
+            uploadId: imageData.uploadId || uploadId
+          })
+          // Clear the sessionStorage after use
+          sessionStorage.removeItem('preloadedContent')
+          return
+        } catch (error) {
+          console.error('Error parsing stored content:', error)
+        }
+      }
+      
+      // Fallback to URL parameters (for backward compatibility)
+      const image = searchParams?.get('image')
+      const notes = searchParams?.get('notes')
+      const fileName = searchParams?.get('fileName')
+      
+      if (image && fileName) {
+        console.log('🔄 Pre-loading content from URL params:', { image, notes, fileName, uploadId })
+        setPreloadedContent({
+          image,
+          notes: notes || '',
+          fileName,
+          uploadId: uploadId || null
+        })
+      }
+    }
+  }, [searchParams])
 
   // Fetch post data for editing
   const fetchPostForEditing = async (postId: string) => {
@@ -355,6 +403,8 @@ export default function ContentSuitePage({ params }: PageProps) {
         loadingPost={loadingPost}
         updatingPost={updatingPost}
         handleCancelEdit={handleCancelEdit}
+        // Preloaded content props
+        preloadedContent={preloadedContent}
       />
     </ContentStoreProvider>
   )
@@ -383,7 +433,9 @@ function ContentSuiteContent({
   editingPost,
   loadingPost,
   updatingPost,
-  handleCancelEdit
+  handleCancelEdit,
+  // Preloaded content props
+  preloadedContent
 }: {
   clientId: string
   projects: Project[]
@@ -407,6 +459,13 @@ function ContentSuiteContent({
   loadingPost: boolean
   updatingPost: boolean
   handleCancelEdit: () => void
+  // Preloaded content props
+  preloadedContent: {
+    image: string;
+    notes: string;
+    fileName: string;
+    uploadId: string | null;
+  } | null
 }) {
   const { 
     uploadedImages, 
@@ -504,6 +563,33 @@ function ContentSuiteContent({
       }
     }
   }, [isEditing, editingPost, loadingPost, setCaptions, setSelectedCaptions, setUploadedImages, setActiveImageId, setPostNotes]);
+
+  // Pre-load content from content inbox
+  useEffect(() => {
+    if (preloadedContent && !isEditing) {
+      console.log('🔄 Pre-loading content from inbox:', preloadedContent);
+      
+      // Set image
+      if (preloadedContent.image) {
+        // Create a mock file for the uploaded image
+        const mockFile = new File([], preloadedContent.fileName, { type: 'image/jpeg' });
+        const imageId = "inbox-image-1";
+        
+        setUploadedImages([{
+          id: imageId,
+          file: mockFile,
+          preview: preloadedContent.image,
+          notes: preloadedContent.notes
+        }]);
+        setActiveImageId(imageId);
+      }
+      
+      // Set post notes from client
+      if (preloadedContent.notes) {
+        setPostNotes(preloadedContent.notes);
+      }
+    }
+  }, [preloadedContent, isEditing, setUploadedImages, setActiveImageId, setPostNotes]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleAddToProject = async (post: any, projectId: string) => {
@@ -626,7 +712,12 @@ function ContentSuiteContent({
                 {isEditing ? 'Edit Post' : 'Content Suite'}
               </h1>
               <p className="text-sm text-gray-500">
-                {isEditing ? 'Edit your scheduled post content' : 'Create and manage your social media content'}
+                {isEditing 
+                  ? 'Edit your scheduled post content' 
+                  : preloadedContent 
+                    ? 'Content loaded from client inbox - ready to create post'
+                    : 'Create and manage your social media content'
+                }
               </p>
             </div>
           </div>
@@ -674,6 +765,18 @@ function ContentSuiteContent({
             <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
             <p className="text-sm text-green-800">
               <strong>Update Mode:</strong> Use the &quot;Update Post&quot; button below to save your changes. This will update the existing post in your planner.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Pre-loaded Content Banner */}
+      {preloadedContent && !isEditing && (
+        <div className="bg-blue-50 border-b border-blue-200 px-6 py-3">
+          <div className="flex items-center">
+            <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
+            <p className="text-sm text-blue-800">
+              <strong>Content Pre-loaded:</strong> Image and notes from client inbox are ready. Generate captions and add to a project to create your post.
             </p>
           </div>
         </div>
