@@ -21,9 +21,9 @@ function PortalLayoutContent({ children, token }: { children: React.ReactNode; t
   const router = useRouter();
 
   const tabs = [
-    { id: 'upload', label: 'Content Upload', icon: Upload, path: '/upload' },
-    { id: 'approvals', label: 'Approvals', icon: CheckCircle, path: '/approvals' },
     { id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar' },
+    { id: 'approvals', label: 'Approvals', icon: CheckCircle, path: '/approvals' },
+    { id: 'upload', label: 'Content Upload', icon: Upload, path: '/upload' },
   ];
 
   const handleLogout = () => {
@@ -82,40 +82,40 @@ function PortalLayoutContent({ children, token }: { children: React.ReactNode; t
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-card border-b border-border shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Client Info */}
-            <div className="flex items-center space-x-4">
-              <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-primary-foreground font-semibold text-lg">
-                  {client.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <div>
-                <h1 className="text-xl font-semibold text-card-foreground">
-                  {client.name}
-                </h1>
-                <p className="text-sm text-muted-foreground">Client Portal</p>
-              </div>
-            </div>
-
-            {/* Logout Button */}
-            <Button
-              onClick={handleLogout}
-              variant="outline"
-              size="sm"
-              className="flex items-center space-x-2"
-            >
-              <LogOut className="h-4 w-4" />
-              <span>Logout</span>
-            </Button>
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar */}
+      <div className="w-64 bg-card border-r border-border shadow-sm flex flex-col">
+        {/* Logo Section */}
+        <div className="p-6 border-b border-border">
+          <div className="flex items-center justify-center">
+            <img 
+              src="/cm-logo.png" 
+              alt="CM Logo" 
+              className="h-12 w-auto"
+            />
           </div>
+        </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex space-x-1 pb-4">
+        {/* Client Info */}
+        <div className="p-6 border-b border-border">
+          <div className="flex items-center space-x-3">
+            <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center">
+              <span className="text-primary-foreground font-semibold text-lg">
+                {client.name.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-card-foreground">
+                {client.name}
+              </h2>
+              <p className="text-sm text-muted-foreground">Client Portal</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <div className="flex-1 p-4">
+          <nav className="space-y-2">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = pathname?.includes(tab.path) ?? false;
@@ -124,7 +124,7 @@ function PortalLayoutContent({ children, token }: { children: React.ReactNode; t
                 <Button
                   key={tab.id}
                   variant={isActive ? "default" : "ghost"}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
+                  className={`w-full justify-start flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
                     isActive 
                       ? "bg-primary text-primary-foreground shadow-sm" 
                       : "hover:bg-accent hover:text-accent-foreground"
@@ -134,34 +134,45 @@ function PortalLayoutContent({ children, token }: { children: React.ReactNode; t
                     router.push(newPath);
                   }}
                 >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
+                  <Icon className="h-5 w-5" />
+                  <span>{tab.label}</span>
                 </Button>
               );
             })}
-          </div>
+          </nav>
         </div>
-      </header>
+
+        {/* Logout Button */}
+        <div className="p-4 border-t border-border">
+          <Button
+            onClick={handleLogout}
+            variant="outline"
+            className="w-full flex items-center space-x-2"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </Button>
+        </div>
+      </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-6">
-          {/* Welcome Message */}
-          <div className="bg-gradient-to-r from-primary/5 to-primary/10 rounded-xl p-6 border border-primary/20">
-            <h2 className="text-2xl font-semibold text-card-foreground mb-2">
-              Welcome to your Content Portal
-            </h2>
-            <p className="text-muted-foreground">
-              Manage your content, review approvals, and view your content calendar all in one place.
-            </p>
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <header className="bg-card border-b border-border shadow-sm">
+          <div className="px-6 py-4">
+            <h1 className="text-2xl font-semibold text-card-foreground">
+              {tabs.find(tab => pathname?.includes(tab.path))?.label || 'Content Portal'}
+            </h1>
           </div>
+        </header>
 
-          {/* Page Content */}
+        {/* Page Content */}
+        <main className="flex-1 p-6">
           <div className="min-h-[400px]">
             {children}
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

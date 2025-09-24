@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
-import { Check, X, AlertTriangle, Minus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "components/ui/card";
 import { Button } from "components/ui/button";
 
@@ -376,7 +375,7 @@ export default function PortalCalendarPage() {
                           {/* Display scheduled posts */}
                           {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => {
                             return (
-                              <div key={idx} className="mt-1">
+                              <div key={idx} className="mt-1 relative group">
                                 <div className={`flex items-center gap-1 rounded p-1 cursor-default ${
                                   post.late_status === 'scheduled' 
                                     ? 'bg-green-100 border border-green-300' 
@@ -428,31 +427,53 @@ export default function PortalCalendarPage() {
                                       >
                                         {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
                                       </span>
-                                    </div>
+                        </div>
                                     
-                                    {/* Approval Status Icons - Right aligned with proper spacing */}
-                                    <div className="flex items-center ml-2">
-                                      {post.approval_status === 'approved' && (
-                                        <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center" title="Approved">
-                                          <Check className="w-3 h-3 text-green-700" />
+          </div>
+        </div>
+
+                                {/* Hover Card */}
+                                <div className="absolute z-50 hidden group-hover:block bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-80 top-full left-0 mt-1">
+                                  <div className="space-y-3">
+                          {/* Post Image */}
+                          {post.image_url && (
+                                      <div className="w-full rounded overflow-hidden">
+                                        <LazyImage
+                              src={post.image_url}
+                                          alt="Post"
+                                          className="w-full h-48 object-cover"
+                                        />
+                                      </div>
+                                    )}
+                                    
+                                    {/* Caption */}
+                                    <div className="space-y-2">
+                                      <h4 className="font-semibold text-sm text-gray-800">Caption:</h4>
+                                      <p className="text-sm text-gray-700 leading-relaxed">
+                                        {post.caption || 'No caption provided'}
+                                      </p>
+                          </div>
+                          
+                                    {/* Time */}
+                                    <div className="text-xs text-gray-500 pt-2 border-t border-gray-100">
+                                      <span>
+                                        {post.scheduled_time && formatTimeTo12Hour(post.scheduled_time)}
+                                      </span>
+                          </div>
+                          
+                          {/* Platform Icons */}
+                          {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
+                                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                                        <span>Platforms:</span>
+                                        <div className="flex items-center gap-1">
+                                          {post.platforms_scheduled.map((platform, platformIdx) => (
+                                            <span key={platformIdx} className="px-2 py-1 bg-gray-100 rounded text-xs">
+                                  {platform}
+                                            </span>
+                              ))}
                                         </div>
-                                      )}
-                                      {post.approval_status === 'rejected' && (
-                                        <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center" title="Rejected">
-                                          <X className="w-3 h-3 text-red-700" />
-                                        </div>
-                                      )}
-                                      {post.approval_status === 'needs_attention' && (
-                                        <div className="w-5 h-5 bg-orange-100 rounded-full flex items-center justify-center" title="Needs Attention">
-                                          <AlertTriangle className="w-3 h-3 text-orange-700" />
-                                        </div>
-                                      )}
-                                      {(!post.approval_status || post.approval_status === 'pending') && (
-                                        <div className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center" title="Pending Approval">
-                                          <Minus className="w-3 h-3 text-gray-700" />
-                                        </div>
-                                      )}
-                                    </div>
+                            </div>
+                          )}
                                   </div>
                                 </div>
                               </div>
@@ -468,166 +489,6 @@ export default function PortalCalendarPage() {
           </div>
         </div>
 
-        {/* Horizontal Kanban Calendar - Weekly Rows with Daily Columns */}
-        <div className="mt-8 border-t border-gray-200 pt-8 mx-6">
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-        <div>
-                <h2 className="text-xl font-semibold text-gray-700">Scheduled Posts - Detailed View</h2>
-                <p className="text-sm text-gray-600 mt-1">Review all scheduled posts with detailed information</p>
-              </div>
-              
-              {/* Loading State for Scheduled Posts */}
-              {isLoadingScheduledPosts && (
-                <div className="flex items-center text-sm text-blue-600">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                  Loading scheduled posts...
-                </div>
-              )}
-            </div>
-          </div>
-          
-          {/* Horizontal Posts Queue */}
-          <div className="space-y-4">
-            {isLoadingScheduledPosts ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600">Loading scheduled posts...</p>
-                </div>
-              </div>
-            ) : (
-              getWeeksToDisplay().map((weekStart, weekIndex) => {
-                const weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekStart.getDate() + 6);
-                
-                // Get all posts for this week
-                const weekPosts = Object.entries(scheduledPosts)
-                  .flatMap(([date, posts]) => 
-                    posts.filter(post => {
-                      const postDate = new Date(date);
-                      return postDate >= weekStart && postDate <= weekEnd;
-                    })
-                  )
-                  .sort((a, b) => {
-                    // Sort by date, then by time
-                    const dateA = new Date(a.scheduled_date || '');
-                    const dateB = new Date(b.scheduled_date || '');
-                    if (dateA.getTime() !== dateB.getTime()) {
-                      return dateA.getTime() - dateB.getTime();
-                    }
-                    return (a.scheduled_time || '').localeCompare(b.scheduled_time || '');
-                  });
-              
-              return (
-                  <div key={weekIndex} className="bg-white border rounded-lg overflow-hidden">
-                    {/* Week Header */}
-                    <div className="bg-gray-50 p-4 border-b">
-                      <h3 className="font-semibold text-lg">
-                        {formatWeekCommencing(weekStart)}
-                        {weekOffset + weekIndex === 0 && ' (Current)'}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {weekStart.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} - 
-                        {new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
-                      </p>
-                    </div>
-                    
-                    {/* Horizontal Posts Queue */}
-                    <div className="w-full overflow-x-auto">
-                      <div className="flex space-x-4 p-4">
-                        {weekPosts.length === 0 ? (
-                          <div className="text-center text-gray-500 text-sm py-8 w-full">
-                            No posts scheduled for this week
-                      </div>
-                    ) : (
-                          weekPosts.map((post) => {
-                            // Get the date and day for this post
-                            const postDate = new Date(post.scheduled_date + 'T00:00:00');
-                            const dayName = postDate.toLocaleDateString('en-NZ', { weekday: 'long' });
-                            const dateStr = postDate.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' });
-                            
-                            return (
-                        <div
-                          key={post.id}
-                                className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow ${
-                                  post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
-                                  post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
-                                  post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
-                                  'border-gray-200 bg-white'
-                                }`}
-                              >
-                                {/* Post Title - Date and Day */}
-                                <div className="mb-3 pb-2 border-b border-gray-200">
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <h4 className="font-semibold text-sm text-gray-700">{dayName}</h4>
-                                      <p className="text-xs text-gray-600">{dateStr}</p>
-                                    </div>
-                                  </div>
-                                </div>
-
-                          {/* Post Image */}
-                          {post.image_url && (
-                                  <div className="w-full mb-2 rounded overflow-hidden">
-                                    <LazyImage
-                              src={post.image_url}
-                                      alt="Post"
-                                      className="w-full h-auto object-contain"
-                            />
-                                  </div>
-                          )}
-                          
-                          {/* Time */}
-                                <div className="text-xs text-gray-600 mb-2">
-                                  {post.scheduled_time && formatTimeTo12Hour(post.scheduled_time)}
-                          </div>
-                          
-                                {/* Caption */}
-                                <div className="flex items-start justify-between mb-2">
-                                  <p className="text-sm text-gray-700 flex-1">
-                                    {post.caption}
-                                  </p>
-                          </div>
-                          
-                                {/* Client Feedback */}
-                                {post.client_feedback && (
-                                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                                    <span className="font-medium text-gray-700">Client feedback:</span>
-                                    <p className="mt-1 text-gray-600">{post.client_feedback}</p>
-                            </div>
-                          )}
-
-                                {/* Post Actions */}
-                                <div className="mt-3 pt-2 border-t border-gray-100">
-                                  <div className="flex items-center justify-between">
-                                    {/* Status and Info */}
-                                    <div className="flex items-center space-x-2 text-xs text-gray-500">
-                                      {post.late_status && (
-                                        <span className={`px-2 py-1 rounded-full text-xs ${
-                                          post.late_status === 'scheduled' ? 'bg-green-100 text-green-700' :
-                                          post.late_status === 'published' ? 'bg-blue-100 text-blue-700' :
-                                          post.late_status === 'failed' ? 'bg-red-100 text-red-700' :
-                                          'bg-gray-100 text-gray-700'
-                                        }`}>
-                                          {post.late_status === 'scheduled' ? 'Scheduled' : post.late_status}
-                                        </span>
-                                      )}
-          </div>
-        </div>
-      </div>
-                  </div>
-                            );
-                          })
-                        )}
-                  </div>
-                  </div>
-                  </div>
-              );
-              })
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );
