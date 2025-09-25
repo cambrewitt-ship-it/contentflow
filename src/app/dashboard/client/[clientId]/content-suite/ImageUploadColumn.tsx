@@ -36,7 +36,7 @@ export function ImageUploadColumn() {
       case 'paraphrase':
         return 'Paraphrase'
       case 'use-as-inspiration':
-        return 'Use as inspiration'
+        return 'Use Inspiration'
       default:
         return 'Quote Directly'
     }
@@ -62,11 +62,7 @@ export function ImageUploadColumn() {
       case 'promotional':
         return 'Promotional'
       case 'educational':
-        return 'Educational'
-      case 'personal':
-        return 'Personal'
-      case 'testimonial':
-        return 'Testimonial'
+        return 'Formal'
       case 'engagement':
         return 'Engagement'
       default:
@@ -166,49 +162,8 @@ export function ImageUploadColumn() {
             </div>
           )}
 
-          {/* Post Notes Section */}
-          <div className="border-t border-gray-200 pt-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-22px text-gray-700">Post Notes</h3>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8 px-3">
-                    {getInterpretationDisplayText(notesInterpretation)}
-                    <ChevronDown className="w-4 h-4 ml-2" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem 
-                    onClick={() => setNotesInterpretation('quote-directly')}
-                    className={notesInterpretation === 'quote-directly' ? 'bg-accent' : ''}
-                  >
-                    Quote Directly
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => setNotesInterpretation('paraphrase')}
-                    className={notesInterpretation === 'paraphrase' ? 'bg-accent' : ''}
-                  >
-                    Paraphrase
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => setNotesInterpretation('use-as-inspiration')}
-                    className={notesInterpretation === 'use-as-inspiration' ? 'bg-accent' : ''}
-                  >
-                    Use as inspiration
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <Textarea
-              value={postNotes}
-              onChange={(e) => setPostNotes(e.target.value)}
-              placeholder="Add specific notes, context, or instructions for your post (optional)..."
-              className="min-h-[120px] resize-none"
-            />
-          </div>
-
           {/* Content Focus Section */}
-          <div className="border-t border-gray-200 pt-4">
+          <div className="border-t border-gray-200 pt-6">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-medium text-gray-700">Content Focus</h4>
               <DropdownMenu>
@@ -237,18 +192,53 @@ export function ImageUploadColumn() {
                   >
                     Background
                   </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => setContentFocus('none')}
-                    className={contentFocus === 'none' ? 'bg-accent' : ''}
-                  >
-                    None
-                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
             <p className="text-xs text-muted-foreground">
               Specify how the AI should prioritize photo analysis in caption generation.
             </p>
+          </div>
+
+          {/* Post Notes Section */}
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-22px text-gray-700">Post Notes</h3>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 px-3">
+                    {getInterpretationDisplayText(notesInterpretation)}
+                    <ChevronDown className="w-4 h-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem 
+                    onClick={() => setNotesInterpretation('quote-directly')}
+                    className={notesInterpretation === 'quote-directly' ? 'bg-accent' : ''}
+                  >
+                    Quote Directly
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setNotesInterpretation('paraphrase')}
+                    className={notesInterpretation === 'paraphrase' ? 'bg-accent' : ''}
+                  >
+                    Paraphrase
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setNotesInterpretation('use-as-inspiration')}
+                    className={notesInterpretation === 'use-as-inspiration' ? 'bg-accent' : ''}
+                  >
+                    Use Inspiration
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <Textarea
+              value={postNotes}
+              onChange={(e) => setPostNotes(e.target.value)}
+              placeholder="Add specific notes, context, or instructions for your post (optional)..."
+              className="min-h-[120px] resize-none"
+            />
           </div>
 
           {/* Copy Tone Section */}
@@ -273,19 +263,7 @@ export function ImageUploadColumn() {
                     onClick={() => setCopyTone('educational')}
                     className={copyTone === 'educational' ? 'bg-accent' : ''}
                   >
-                    Educational
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => setCopyTone('personal')}
-                    className={copyTone === 'personal' ? 'bg-accent' : ''}
-                  >
-                    Personal
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => setCopyTone('testimonial')}
-                    className={copyTone === 'testimonial' ? 'bg-accent' : ''}
-                  >
-                    Testimonial
+                    Formal
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     onClick={() => setCopyTone('engagement')}
