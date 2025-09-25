@@ -157,8 +157,16 @@ input, textarea, select {
   flex: 1;
 }
 
-/* Mobile responsive - stack columns vertically */
+/* Tablet responsive - 2 columns */
 @media (max-width: 1024px) {
+  .content-suite-columns {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+}
+
+/* Mobile responsive - stack columns vertically */
+@media (max-width: 768px) {
   .content-suite-columns {
     grid-template-columns: 1fr;
     gap: 1.5rem;

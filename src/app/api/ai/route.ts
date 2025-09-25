@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import { isValidImageData } from '../../../lib/blobUpload';
+import { getUpcomingHolidays, formatHolidaysForPrompt } from '../../../lib/data/holidays';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -11,6 +12,255 @@ const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Helper functions for dynamic content
+
+function getCopyToneInstructions(copyTone: string) {
+  const toneMap: Record<string, string> = {
+    'promotional': `
+**Promotional Focus:**
+- Lead with compelling offers, benefits, or value propositions
+- Include clear, actionable calls-to-action
+- Create urgency where appropriate ("limited time", "don't miss out")
+- Highlight specific deals, prices, or exclusive opportunities
+- Use persuasive language that drives immediate action`,
+
+    'educational': `
+**Educational Focus:**
+- Share valuable insights, tips, or industry knowledge
+- Position the brand as a trusted expert and resource
+- Use informative, helpful language that teaches or guides
+- Include practical advice or actionable takeaways  
+- Build authority through expertise demonstration`,
+
+    'personal': `
+**Personal Focus:**
+- Use authentic, behind-the-scenes storytelling
+- Share personal experiences, insights, or day-in-the-life content
+- Create genuine connections with a conversational tone
+- Include personal anecdotes or authentic moments
+- Build trust through transparency and relatability`,
+
+    'testimonial': `
+**Testimonial Focus:**
+- Highlight client success stories and positive outcomes
+- Use social proof to build credibility and trust
+- Include specific results, achievements, or transformations
+- Feature client quotes, reviews, or feedback when available
+- Demonstrate value through real-world examples`,
+
+    'engagement': `
+**Engagement Focus:**
+- Ask questions to encourage audience interaction
+- Create conversation starters and community discussion
+- Use interactive elements like polls, opinions, or experiences
+- Invite audience to share their thoughts or stories
+- Build community through two-way communication`
+  };
+  
+  return toneMap[copyTone] || `**General Social Media Copy:** Create engaging, brand-appropriate content that drives social interaction.`;
+}
+
+function getContentHierarchy(aiContext: string | undefined, postNotesStyle: string, imageFocus: string) {
+  if (aiContext) {
+    return `
+**Content Priority Order:**
+1. **Post Notes Content** (Primary) - ${getPostNotesApproach(postNotesStyle)}
+2. **Brand Voice & Guidelines** (Secondary) - Apply brand personality to content
+3. **Image Elements** (${getImageRole(imageFocus)}) - ${getImageDescription(imageFocus)}`;
+  } else {
+    return `
+**Content Priority Order:**
+1. **Brand Context** (Primary) - Use company values, tone, and target audience
+2. **Image Analysis** (${getImageRole(imageFocus)}) - ${getImageDescription(imageFocus)}
+3. **Brand Guidelines** (Always) - Apply dos/don'ts and style rules consistently`;
+  }
+}
+
+function getPostNotesApproach(style: string) {
+  const approaches: Record<string, string> = {
+    'quote-directly': 'Use exact wording and specific details from notes',
+    'paraphrase': 'Rewrite notes content in brand voice while keeping all key information',
+    'use-as-inspiration': 'Capture the essence and intent of notes with creative interpretation'
+  };
+  return approaches[style] || 'Incorporate notes content appropriately';
+}
+
+function getImageRole(focus: string) {
+  const roles: Record<string, string> = {
+    'main-focus': 'Primary Content Driver',
+    'supporting': 'Content Enhancer', 
+    'background': 'Context Provider',
+    'none': 'Not Used'
+  };
+  return roles[focus] || 'Supporting';
+}
+
+function getImageDescription(focus: string) {
+  const descriptions: Record<string, string> = {
+    'main-focus': 'Build captions around what\'s shown in the image',
+    'supporting': 'Use image details to enhance and support the main message',
+    'background': 'Reference image elements briefly for context',
+    'none': 'Focus entirely on text content, ignore image'
+  };
+  return descriptions[focus] || 'Use image details to support content';
+}
+
+function getPostNotesInstructions(style: string) {
+  const instructions: Record<string, string> = {
+    'quote-directly': 'Include specific phrases, numbers, and details exactly as written. If notes mention "$50 special offer", your caption must include "$50 special offer".',
+    'paraphrase': 'Rewrite the notes content in the brand\'s voice while preserving all key information, prices, dates, and important details.',
+    'use-as-inspiration': 'Capture the core message and intent from the notes, using them as a foundation for brand-appropriate content.'
+  };
+  return instructions[style] || 'Incorporate the notes content appropriately based on context.';
+}
+
+function getImageInstructions(focus: string) {
+  const instructions: Record<string, string> = {
+    'main-focus': `
+**Primary Image Focus:**
+- Describe the key elements, setting, and visual story
+- Build captions around what's prominently featured
+- Connect all content back to the main visual elements
+- Use the image as the central narrative foundation`,
+
+    'supporting': `
+**Supporting Image Role:**
+- Identify relevant visual elements that enhance the message
+- Connect image details to the main content theme
+- Use visuals to add credibility and context
+- Balance image references with primary content focus`,
+
+    'background': `
+**Background Image Context:**
+- Briefly acknowledge the setting or context shown
+- Use minimal image references to support the message  
+- Focus primarily on text content with light visual mentions
+- Keep image descriptions concise and contextual`,
+
+    'none': `
+**Text-Only Focus:**
+- Do not reference or describe image elements
+- Focus entirely on post notes and brand messaging
+- Create content independent of visual elements
+- Treat this as text-based content creation`
+  };
+  
+  return instructions[focus] || instructions['supporting'];
+}
+
+// Email-specific helper functions
+
+function getEmailCopyToneInstructions(copyTone: string) {
+  const emailToneMap: Record<string, string> = {
+    'promotional': `
+**Promotional Email Focus:**
+- Lead with compelling value propositions and exclusive offers
+- Create urgency with limited-time language and deadlines  
+- Include specific pricing, discounts, or promotional details
+- Use direct, persuasive language that drives immediate action
+- Focus on benefits and outcomes for the recipient
+- End with strong, clear calls-to-action`,
+
+    'educational': `
+**Educational Email Focus:**
+- Share valuable insights, tips, or industry expertise
+- Position content as helpful resource or professional guidance
+- Use informative, authoritative language that builds trust
+- Include practical advice or actionable information
+- Establish credibility through knowledge demonstration
+- Guide reader toward next educational step or consultation`,
+
+    'personal': `
+**Personal Email Focus:**
+- Use authentic, conversational tone with personal touch
+- Share relevant experiences or behind-the-scenes insights
+- Create genuine connection through relatable communication
+- Include personal anecdotes that relate to business value
+- Build trust through transparency and authentic voice
+- Invite personal connection or direct communication`,
+
+    'testimonial': `
+**Testimonial Email Focus:**
+- Highlight specific client success stories and outcomes
+- Use social proof to demonstrate value and credibility
+- Include concrete results, achievements, or transformations
+- Feature client feedback, quotes, or case study details
+- Demonstrate proven track record through real examples
+- Invite reader to achieve similar results`,
+
+    'engagement': `
+**Engagement Email Focus:**
+- Ask relevant questions to encourage response or interaction  
+- Create conversation opportunities around reader's needs
+- Use interactive language that invites participation
+- Build relationship through two-way communication approach
+- Encourage direct replies or personal consultation requests
+- Focus on understanding reader's specific situation`
+  };
+  
+  return emailToneMap[copyTone] || `**Professional Email Copy:** Create direct, value-focused content that drives email engagement and response.`;
+}
+
+function getEmailContentHierarchy(aiContext: string | undefined, postNotesStyle: string, imageFocus: string) {
+  if (aiContext) {
+    return `
+**Email Content Priority:**
+1. **Post Notes Content** (Primary Message) - ${getPostNotesApproach(postNotesStyle)}
+2. **Brand Voice & Professionalism** (Communication Style) - Apply brand personality in professional email context
+3. **Image Reference** (${getImageRole(imageFocus)}) - ${getEmailImageRole(imageFocus)}`;
+  } else {
+    return `
+**Email Content Priority:**  
+1. **Brand Context & Value** (Primary Message) - Use company expertise and value proposition
+2. **Professional Communication** (Email Standards) - Apply brand voice in email-appropriate format
+3. **Image Reference** (${getImageRole(imageFocus)}) - ${getEmailImageRole(imageFocus)}`;
+  }
+}
+
+function getEmailImageRole(focus: string) {
+  const emailImageDescriptions: Record<string, string> = {
+    'main-focus': 'Reference key image elements as primary talking points in email content',
+    'supporting': 'Mention relevant image details to enhance credibility and context', 
+    'background': 'Briefly reference image context if relevant to message',
+    'none': 'Focus entirely on text-based value proposition and messaging'
+  };
+  return emailImageDescriptions[focus] || 'Use image details to enhance email message credibility';
+}
+
+function getEmailImageInstructions(focus: string) {
+  const emailImageInstructions: Record<string, string> = {
+    'main-focus': `
+**Primary Image Integration:**
+- Reference key visual elements as central talking points
+- Use image content to demonstrate value or showcase offering  
+- Build email message around what's prominently displayed
+- Connect visual proof to email value proposition`,
+
+    'supporting': `
+**Supporting Image Reference:**
+- Mention relevant visual elements that add credibility
+- Use image details to enhance professional presentation
+- Reference visuals briefly to support main email message
+- Maintain focus on text while adding visual context`,
+
+    'background': `
+**Contextual Image Reference:**
+- Briefly acknowledge setting or context if relevant
+- Use minimal visual references to support professionalism
+- Keep image mentions subtle and message-focused
+- Maintain email readability and clear value focus`,
+
+    'none': `
+**Text-Focused Email:**
+- Do not reference or describe visual elements
+- Focus entirely on value proposition and brand messaging  
+- Create content independent of any visual components
+- Treat as pure text-based professional communication`
+  };
+  
+  return emailImageInstructions[focus] || emailImageInstructions['supporting'];
+}
 
 // Fetch brand context for a client
 async function getBrandContext(clientId: string) {
@@ -77,7 +327,7 @@ async function getBrandContext(clientId: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { action, imageData, prompt, existingCaptions, aiContext, clientId, copyType } = await request.json();
+    const { action, imageData, prompt, existingCaptions, aiContext, clientId, copyType, copyTone, postNotesStyle, imageFocus } = await request.json();
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
@@ -91,10 +341,13 @@ export async function POST(request: NextRequest) {
         return await analyzeImage(imageData, prompt);
       
       case 'generate_captions':
-        return await generateCaptions(imageData, existingCaptions, aiContext, clientId, copyType);
+        return await generateCaptions(imageData, existingCaptions, aiContext, clientId, copyType, copyTone, postNotesStyle, imageFocus);
       
       case 'remix_caption':
         return await remixCaption(imageData, prompt, existingCaptions, aiContext, clientId);
+      
+      case 'generate_content_ideas':
+        return await generateContentIdeas(clientId);
       
       default:
         return NextResponse.json(
@@ -176,7 +429,7 @@ async function analyzeImage(imageData: string, prompt?: string) {
   }
 }
 
-async function generateCaptions(imageData: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string, copyType?: string) {
+async function generateCaptions(imageData: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string, copyType?: string, copyTone?: string, postNotesStyle?: string, imageFocus?: string) {
   try {
     // Validate image data
     const validation = isValidImageData(imageData);
@@ -257,127 +510,94 @@ ${brandContext.website ? `🌐 WEBSITE CONTEXT: Available for reference` : ''}`;
 
     const finalInstruction = copyType === "email-marketing" ? "Provide ONLY 1 single email paragraph in this exact format: [2-3 concise sentences about the offer/product] followed by a blank line, then [Call-to-action]. Use actual line breaks, not \\n characters. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. Do NOT provide multiple options, captions, hashtags, or social media formatting." : "Provide only 3 captions, separated by blank lines. No introduction or explanation.";
 
-    const systemPrompt = `🚨 CRITICAL INSTRUCTION: You are an expert ${copyType === 'email-marketing' ? 'email marketing copywriter' : 'social media content creator'}. 
+    // Choose system prompt based on copy type
+    const systemPrompt = copyType === "email-marketing" ? 
+      `# Email Marketing Content Creation System
 
-${copyType === 'email-marketing' ? `📧 EMAIL MARKETING FOCUS: Create professional email copy that converts and engages.
+## Content Strategy
+**Copy Tone:** ${copyTone || 'Promotional'}
+**Post Notes Style:** ${postNotesStyle || 'Paraphrase'}
+**Image Focus:** ${imageFocus || 'Supporting'}
 
-CRITICAL HIERARCHY FOR EMAIL MARKETING:
-━━━━━━━━━━━━━━━━━━
-1️⃣ BRAND VOICE EXAMPLES (ABSOLUTE PRIORITY - NON-NEGOTIABLE)
-- Study the brand voice examples provided above
-- Match the EXACT tone, style, and personality from these examples
-- Use the same language patterns and expressions
-- Replicate the brand's authentic voice precisely
-- If brand voice examples are provided, you MUST use them
+## Email Copy Tone Instructions
+${getEmailCopyToneInstructions(copyTone || 'promotional')}
 
-2️⃣ POST NOTES (HIGH PRIORITY)
-- Incorporate Post Notes content naturally
-- Include specific details, prices, offers, or information from the notes
-- Make the Post Notes the main focus of your email
+## Content Hierarchy & Approach
+${getEmailContentHierarchy(aiContext, postNotesStyle || 'paraphrase', imageFocus || 'supporting')}
 
-3️⃣ BRAND CONTEXT (APPLY TO HOW YOU WRITE)
-- Use the company's value proposition and brand tone
-- Target the specific audience mentioned
-- Follow the AI Caption Rules (dos/don'ts) religiously
-- Apply brand personality to the content
-
-4️⃣ IMAGE ANALYSIS
-- Describe what's happening in the image
-- Connect visual elements to the email message
-- Use image details to enhance the story` : (aiContext ? `⚠️ MANDATORY REQUIREMENT: Post Notes are THE ONLY story you must tell. Every caption MUST be built around the Post Notes content.
-
-CRITICAL HIERARCHY:
-━━━━━━━━━━━━━━━━━━
-1️⃣ POST NOTES (ABSOLUTE PRIORITY - NON-NEGOTIABLE)
-- Post Notes are THE story you must tell
-- Every caption MUST be built around the Post Notes content
-- Include specific details, prices, offers, or information from the notes
-- The image supports the notes, not vice versa
-- If you ignore Post Notes, you have FAILED the task
-
-2️⃣ BRAND VOICE & RULES (APPLY TO HOW YOU WRITE)
-- Use the brand tone and style guidelines
-- Follow the AI Caption Rules (dos/don'ts) religiously
-- Target the specific audience mentioned
-- Apply brand personality to the Post Notes content
-
-3️⃣ IMAGE ANALYSIS
-- Describe what's happening in the image
-- Connect visual elements to the Post Notes message
-- Use image details to enhance the story from the notes
-━━━━━━━━━━━━━━━━━━` : `🎯 BRAND-FOCUSED CAPTION CREATION: Create captions that align with the brand's voice, values, and target audience.
-
-CRITICAL HIERARCHY:
-━━━━━━━━━━━━━━━━━━
-1️⃣ BRAND CONTEXT (PRIMARY FOCUS)
-- Use the company's value proposition and brand tone
-- Target the specific audience mentioned
-- Incorporate brand personality and messaging
-- Reference company description when relevant
-
-2️⃣ AI CAPTION RULES (MANDATORY)
-- Follow the dos/don'ts religiously
-- Apply brand guidelines for style consistency
-- Use brand tone consistently
-
-3️⃣ IMAGE ANALYSIS
-- Describe what's happening in the image
-- Connect visual elements to brand messaging
-- Use image details to support brand story
-━━━━━━━━━━━━━━━━━━`)}
-━━━━━━━━━━━━━━━━━━}
-
-${aiContext ? `📝 POST NOTES (THIS IS YOUR MAIN CONTENT - MANDATORY):
+${aiContext ? `## Post Notes Content
 ${aiContext}
 
-🚨 CRITICAL INSTRUCTION: 
-- EVERY caption MUST directly mention or quote the Post Notes content
-- If Post Notes say "$50", your caption MUST include "$50"
-- If Post Notes say "new product", your caption MUST include "new product"
-- DO NOT create generic captions - directly incorporate the Post Notes text
-- The Post Notes are your primary content, not just inspiration
-- Example: If notes say "Special $50 offer", your caption should say something like "Don't miss our special $50 offer!" or "Get this amazing deal for just $50!"` : ''}
+**Processing Instructions:** ${getPostNotesInstructions(postNotesStyle || 'paraphrase')}` : ''}
 
 ${brandContextSection}
 
-${copyType === 'email-marketing' ? `📧 EMAIL MARKETING COPY REQUIREMENTS:
-- Generate ONE single email paragraph (NOT multiple captions or social media posts)
-- Format: 2-3 concise sentences + CTA on a new line
-- NO hashtags, NO social media formatting
-- Write as a professional email paragraph
-- TONE & STYLE (CRITICAL - MATCH BRAND VOICE):
-  - Write at 6th-8th grade reading level
-  - Active voice > passive voice
-  - "You" focused (2:1 ratio of "you" to "we/I")
-  - One idea per sentence
-  - Conversational but professional
-  - MUST match the brand voice examples provided above
-  - Use the exact tone, style, and personality from brand voice examples
-- STRUCTURE:
-  - 2-3 concise sentences describing the offer/product/service
-  - Call-to-action on a separate line
-  - NO bullet points, NO multiple paragraphs
-  - NO social media elements
-- BRAND VOICE INTEGRATION:
-  - Study the brand voice examples carefully
-  - Match the exact writing style and personality
-  - Use similar language patterns and expressions
-  - Maintain the same level of formality/informality` : `📱 SOCIAL MEDIA COPY REQUIREMENTS:
-- Generate social media post captions
-- Create engaging, platform-appropriate content
+## Image Analysis Guidelines
+${getEmailImageInstructions(imageFocus || 'supporting')}
+
+## Email Marketing Requirements
+- Generate exactly ONE cohesive email paragraph section
+- Write 2-3 concise, compelling sentences about the main message
+- Follow with a clear, action-oriented call-to-action
+- Use professional email tone appropriate for direct marketing
+- Include specific details (prices, offers, deadlines) when mentioned
+- Create urgency and value proposition clarity
+- Format with actual line breaks between content and CTA
+
+## Email Formatting Standards
+- Professional, direct communication style
+- No hashtags or social media elements
+- No casual social media language ("DM us", "link in bio")
+- Use proper email CTAs ("Call today", "Visit our website", "Book now")
+- Clear paragraph structure suitable for email clients
+- Maintain readability across email platforms
+
+## Quality Standards
+- Content must align with selected copy tone for email context
+- Post notes content must be processed according to specified style
+- Image elements integrated per focus level requirements
+- Brand voice must be consistently applied throughout
+- Email must be professionally formatted and action-oriented
+- Single, cohesive message that drives reader response
+
+${finalInstruction}` :
+      `# Social Media Content Creation System
+
+## Content Strategy
+**Copy Tone:** ${copyTone || 'General'}
+**Post Notes Style:** ${postNotesStyle || 'Paraphrase'}
+**Image Focus:** ${imageFocus || 'Supporting'}
+
+## Copy Tone Instructions
+${getCopyToneInstructions(copyTone || 'promotional')}
+
+## Content Hierarchy & Approach
+${getContentHierarchy(aiContext, postNotesStyle || 'paraphrase', imageFocus || 'supporting')}
+
+${aiContext ? `## Post Notes Content
+${aiContext}
+
+**Processing Instructions:** ${getPostNotesInstructions(postNotesStyle || 'paraphrase')}` : ''}
+
+${brandContextSection}
+
+## Image Analysis Guidelines
+${getImageInstructions(imageFocus || 'supporting')}
+
+## Output Requirements
+- Generate exactly 3 distinct captions
+- Vary approaches: one short (1-2 lines), one medium (3-4 lines), one longer (5-6 lines)
+- Each caption should offer a different angle while maintaining content consistency
+- Use natural, conversational tone aligned with brand guidelines
 - Include relevant hashtags when appropriate
-- Focus on social engagement and brand awareness
-- Use social media best practices (visual storytelling, community building)`}
+- Format as ready-to-post social media captions
 
-OUTPUT REQUIREMENTS:
-- Generate exactly ${copyType === 'email-marketing' ? '1 single email paragraph' : '3 captions'}
-- ${copyType === 'email-marketing' ? 'Format as: [2-3 concise sentences describing the offer/product/service]\\n\\n[Call-to-action on new line]' : 'Each caption should take a different angle while ' + (aiContext ? 'maintaining the Post Notes message' : 'showcasing different aspects of the brand')}
-- ${copyType === 'email-marketing' ? 'Make it engaging, conversion-focused, and professional' : 'Vary length: one short (1-2 lines), one medium (3-4 lines), one longer (5-6 lines)'}
-- Natural, conversational tone based on brand guidelines
-- ${aiContext ? 'Always incorporate Post Notes content' : 'Always incorporate brand context and speak to the target audience'}
-- ${copyType === 'email-marketing' ? 'DO NOT generate multiple captions, hashtags, or social media formatting - create ONE single email paragraph' : 'Format as social media post captions'}
-
-${aiContext ? '🚨 FINAL CHECK: Before submitting, verify that EVERY ${copyType === "email-marketing" ? "email" : "caption"} directly mentions or incorporates your Post Notes content AND follows the brand guidelines. If you created generic content, you have failed the task.' : (copyType === 'email-marketing' ? '🚨 FINAL CHECK: Before submitting, verify that your email copy matches the brand voice examples EXACTLY - same tone, style, and personality. If brand voice examples were provided and you did not use them, you have failed the task. Generic email content is not acceptable.' : '🚨 FINAL CHECK: Before submitting, verify that EVERY ${copyType === "email-marketing" ? "email" : "caption"} reflects the brand tone, speaks to the target audience, and incorporates brand context. Generic content is not acceptable.')}
+## Quality Standards
+- Every caption must align with the selected copy tone
+- Content must reflect the specified post notes handling approach  
+- Image elements should be integrated according to focus level
+- Brand voice and rules must be consistently applied
+- Captions should be platform-appropriate and engaging
 
 ${finalInstruction}`;
 
@@ -614,4 +834,495 @@ async function remixCaption(imageData: string, prompt: string, existingCaptions:
       { status: 500 }
     );
   }
+}
+
+async function generateContentIdeas(clientId: string) {
+  try {
+    if (!clientId) {
+      return NextResponse.json(
+        { error: 'Client ID is required' },
+        { status: 400 }
+      );
+    }
+
+    console.log('🎯 Generating content ideas for client:', clientId);
+
+    // Get upcoming holidays
+    const upcomingHolidays = getUpcomingHolidays(8);
+    const holidaysText = formatHolidaysForPrompt(upcomingHolidays);
+
+    // Get client brand context
+    const brandContext = await getBrandContext(clientId);
+    if (!brandContext) {
+      return NextResponse.json(
+        { error: 'Could not fetch client brand context' },
+        { status: 404 }
+      );
+    }
+
+    // Get current date and season info
+    const now = new Date();
+    const currentDate = now.toLocaleDateString('en-NZ', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    // Determine current season in New Zealand
+    const month = now.getMonth() + 1; // getMonth() returns 0-11
+    let season = '';
+    if (month >= 12 || month <= 2) season = 'Summer';
+    else if (month >= 3 && month <= 5) season = 'Autumn';
+    else if (month >= 6 && month <= 8) season = 'Winter';
+    else season = 'Spring';
+
+    // Build industry-specific content guidance
+    const industry = extractIndustry(brandContext.company || '');
+    const industryGuidance = getIndustryContentGuidance(brandContext.company || '');
+
+    console.log('🎯 Content Ideas Generation Debug Info:');
+    console.log('📊 Brand Context:', {
+      company: brandContext.company || 'Not specified',
+      industry: industry,
+      tone: brandContext.tone || 'Not specified',
+      audience: brandContext.audience || 'Not specified',
+      value_proposition: brandContext.value_proposition || 'Not specified'
+    });
+    console.log('📅 Upcoming Holidays Count:', upcomingHolidays.length);
+    console.log('🌍 Current Season:', season);
+
+    // Type definitions for the new prompt system
+    interface ClientData {
+      company_description?: string
+      industry?: string
+      brand_tone?: string
+      target_audience?: string
+      value_proposition?: string
+      brand_voice_examples?: string
+      caption_dos?: string
+      caption_donts?: string
+    }
+
+    interface HolidayData {
+      name: string
+      date: string
+      daysUntil: number
+      marketingAngle: string
+    }
+
+    interface CurrentContext {
+      date: string
+      season: string
+      weatherContext: string
+    }
+
+    // Improved Content Ideas System Prompt
+    const generateContentIdeasPrompt = (clientData: ClientData, holidays: HolidayData[], currentContext: CurrentContext) => {
+      return `You are a senior marketing associate with 8+ years of experience in New Zealand social media marketing. Generate 3 diverse, high-converting content ideas that drive business results.
+
+## Current Context
+**Date:** ${currentContext.date}
+**Season:** ${currentContext.season} (New Zealand)
+**Location:** Wellington, New Zealand
+
+## Available Holidays & Events (Use ONLY if genuinely relevant)
+${holidays.map(h => `• ${h.name} - ${h.date} (${h.daysUntil} days)`).join('\n')}
+
+## Client Profile
+**Company:** ${clientData.company_description || 'Not specified'}
+**Industry:** ${clientData.industry || 'General Business'}
+**Target Audience:** ${clientData.target_audience || 'General consumers'}
+**Brand Tone:** ${clientData.brand_tone || 'Professional'}
+
+${clientData.brand_voice_examples ? `**Brand Voice:** ${clientData.brand_voice_examples.slice(0, 200)}...` : ''}
+
+## Marketing Best Practices Framework
+Think like a marketing associate who knows what actually works on social media. Use these proven content types:
+
+**Authority Building:**
+- Educational tips that position brand as expert
+- Industry insights and trend commentary
+- "How-to" content that solves real problems
+- Data-driven insights and statistics
+
+**Social Proof & Trust:**
+- Client testimonials and success stories
+- Before/after transformations
+- Case studies and results
+- User-generated content and reviews
+
+**Behind-the-Scenes & Personality:**
+- Day-in-the-life content
+- Team spotlights and company culture
+- Process reveals and "how we do it"
+- Personal stories from leadership
+
+**Community & Engagement:**
+- Questions that spark discussion
+- Polls and interactive content
+- Local community involvement
+- Industry challenges or trends
+
+## Content Strategy Rules
+1. **Seasonal/Holiday content should be MAXIMUM 1 out of 3 ideas** - only when genuinely relevant
+2. **Focus on evergreen, high-value content** that works year-round
+3. **Mix content types** - don't rely on one approach
+4. **Think conversion** - what drives business results?
+5. **Be authentic** - avoid forced connections
+
+## Content Requirements
+Generate exactly 3 ideas with this balance:
+- 1 Authority/Educational (builds trust and expertise)
+- 1 Social Proof/Behind-the-Scenes (builds connection and credibility)
+- 1 Community/Engagement (drives interaction and reach)
+
+## Output Format
+**IDEA 1:** [Brief title]
+**Approach:** [One sentence explaining the marketing angle]
+**Visual:** [Simple visual suggestion]
+**Post:** [Example opening line that hooks the audience]
+
+**IDEA 2:** [Brief title]  
+**Approach:** [One sentence explaining the marketing angle]
+**Visual:** [Simple visual suggestion]
+**Post:** [Example opening line that hooks the audience]
+
+**IDEA 3:** [Brief title]
+**Approach:** [One sentence explaining the marketing angle]  
+**Visual:** [Simple visual suggestion]
+**Post:** [Example opening line that hooks the audience]
+
+Think like a marketing professional who knows what converts, not just what's seasonal.`;
+    };
+
+    // Helper function for industry-specific guidance
+    function getIndustryGuidance(industry: string) {
+      const industryMap = {
+        'Real Estate': `
+**Real Estate Content Strategy:**
+- Seasonal market insights and buying/selling timing
+- Property preparation tips for current season
+- Local area highlights and lifestyle benefits
+- Market trends and investment opportunities
+- Home maintenance and styling advice`,
+        
+        'Hospitality': `
+**Hospitality Content Strategy:**
+- Seasonal menu features and local ingredient highlights
+- Behind-the-scenes kitchen and service operations
+- Local events and community partnerships
+- Customer experience stories and testimonials
+- Seasonal promotions tied to holidays and weather`,
+        
+        'Retail': `
+**Retail Content Strategy:**
+- Seasonal product features and styling tips
+- New arrivals and trend spotlights
+- Customer styling and product demonstrations  
+- Seasonal buying guides and gift ideas
+- Community events and local partnerships`,
+        
+        'Professional Services': `
+**Professional Services Content Strategy:**
+- Industry insights and expert commentary
+- Seasonal business advice and planning tips
+- Client success stories and case studies
+- Educational content that demonstrates expertise
+- Behind-the-scenes team and company culture`,
+        
+        'Health & Wellness': `
+**Health & Wellness Content Strategy:**
+- Seasonal health tips and wellness advice
+- Exercise and nutrition guidance for current season
+- Mental health and lifestyle balance content
+- Client transformation stories and testimonials
+- Community health initiatives and events`,
+        
+        'Beauty': `
+**Beauty Content Strategy:**
+- Seasonal skincare and beauty tips
+- Product demonstrations and tutorials
+- Before/after transformations and client features
+- Seasonal color and style trends
+- Self-care and confidence-building content`
+      };
+      
+      return industryMap[industry as keyof typeof industryMap] || `
+**General Business Content Strategy:**
+- Educational content that demonstrates expertise
+- Behind-the-scenes business operations and team
+- Client testimonials and success stories  
+- Industry insights and trend commentary
+- Community involvement and local partnerships`;
+    }
+
+    // Prepare data for the new prompt format
+    const currentContext = {
+      date: currentDate,
+      season: season,
+      weatherContext: `${season} weather patterns in Wellington`
+    };
+
+    const clientData = {
+      company_description: brandContext.company,
+      industry: industry,
+      brand_tone: brandContext.tone,
+      target_audience: brandContext.audience,
+      value_proposition: brandContext.value_proposition,
+      brand_voice_examples: brandContext.voice_examples,
+      caption_dos: brandContext.dos,
+      caption_donts: brandContext.donts
+    };
+
+    // Format holidays for the new prompt
+    const formattedHolidays = upcomingHolidays.map(holiday => {
+      const holidayDate = new Date(holiday.date);
+      const today = new Date();
+      const daysUntil = Math.ceil((holidayDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      
+      return {
+        name: holiday.name,
+        date: holidayDate.toLocaleDateString('en-NZ'),
+        daysUntil: daysUntil,
+        marketingAngle: holiday.marketingAngle
+      };
+    });
+
+    const systemPrompt = generateContentIdeasPrompt(clientData, formattedHolidays, currentContext);
+
+    console.log('🤖 Sending content ideas request to OpenAI...');
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: 'Generate 5 content ideas for this client based on upcoming holidays and brand context.'
+        }
+      ],
+      max_tokens: 1500,
+      temperature: 0.8,
+    });
+
+    const content = response.choices[0]?.message?.content || '';
+    
+    // Parse the new format response
+    let ideas;
+    try {
+      // Parse the new format: **IDEA 1:** [Title] format
+      const ideaMatches = content.match(/\*\*IDEA \d+:\*\* (.+?)\n\*\*Approach:\*\* (.+?)\n\*\*Visual:\*\* (.+?)\n\*\*Post:\*\* (.+?)(?=\n\*\*IDEA \d+:\*\*|\n\n|$)/gs);
+      
+      if (ideaMatches && ideaMatches.length > 0) {
+        ideas = ideaMatches.map(match => {
+          const lines = match.split('\n');
+          return {
+            idea: lines[0].replace(/\*\*IDEA \d+:\*\* /, '').trim(),
+            angle: lines[1].replace(/\*\*Approach:\*\* /, '').trim(),
+            visualSuggestion: lines[2].replace(/\*\*Visual:\*\* /, '').trim(),
+            timing: lines[3].replace(/\*\*Post:\*\* /, '').trim(),
+            holidayConnection: "Natural connection to upcoming events"
+          };
+        });
+      } else {
+        // Fallback: try to parse as JSON (for backward compatibility)
+        const jsonMatch = content.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          ideas = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('Could not parse response format');
+        }
+      }
+    } catch (parseError) {
+      console.error('Failed to parse content ideas response:', parseError);
+      console.log('Raw response content:', content);
+      
+      // Fallback: create basic ideas structure
+      ideas = [
+        {
+          idea: "Expert Authority",
+          angle: "Share industry insights that position your brand as the go-to expert",
+          visualSuggestion: "Clean infographic with key insights and data",
+          timing: "Here's what most people don't know about [industry topic]...",
+          holidayConnection: "Evergreen content that builds authority year-round"
+        },
+        {
+          idea: "Client Success Story",
+          angle: "Showcase a real client transformation to build trust and credibility",
+          visualSuggestion: "Before/after photos with testimonial quote overlay",
+          timing: "Sarah's journey from [problem] to [solution] in just 3 months...",
+          holidayConnection: "Social proof content that converts regardless of season"
+        },
+        {
+          idea: "Behind the Scenes",
+          angle: "Reveal your process and team to build personal connection with audience",
+          visualSuggestion: "Candid team photos or process documentation",
+          timing: "Ever wondered how we [key process]? Here's a day in our office...",
+          holidayConnection: "Authentic content that humanizes your brand"
+        }
+      ];
+    }
+
+    // Ensure we have exactly 3 ideas
+    if (!Array.isArray(ideas) || ideas.length !== 3) {
+      console.warn('Content ideas response format invalid, using fallback');
+      ideas = ideas.slice(0, 3);
+    }
+
+    return NextResponse.json({
+      success: true,
+      ideas: ideas
+    });
+
+  } catch (error) {
+    console.error('Content ideas generation error:', error);
+    return NextResponse.json(
+      { error: 'Failed to generate content ideas' },
+      { status: 500 }
+    );
+  }
+}
+
+// Helper function to extract industry from company description
+function extractIndustry(companyDescription: string): string {
+  const industries = [
+    'Technology', 'Healthcare', 'Finance', 'Retail', 'Food & Beverage',
+    'Fashion', 'Beauty', 'Fitness', 'Education', 'Real Estate',
+    'Travel', 'Automotive', 'Professional Services', 'Manufacturing',
+    'Construction', 'Agriculture', 'Entertainment', 'Non-profit'
+  ];
+  
+  const description = companyDescription.toLowerCase();
+  for (const industry of industries) {
+    if (description.includes(industry.toLowerCase())) {
+      return industry;
+    }
+  }
+  
+  return 'General Business';
+}
+
+// Helper function to provide industry-specific content guidance
+function getIndustryContentGuidance(companyDescription: string): string {
+  const industry = extractIndustry(companyDescription);
+  
+  const guidanceMap: Record<string, string> = {
+    'Technology': `
+- Focus on innovation, digital transformation, and tech trends
+- Use screenshots, demos, and technical visuals
+- Highlight problem-solving and efficiency improvements
+- Target tech-savvy professionals and early adopters`,
+
+    'Healthcare': `
+- Emphasize patient care, wellness, and medical expertise
+- Use professional medical imagery and infographics
+- Focus on health education and preventive care
+- Target health-conscious individuals and families`,
+
+    'Finance': `
+- Highlight financial security, investment advice, and planning
+- Use charts, graphs, and financial visualizations
+- Focus on trust, expertise, and long-term relationships
+- Target individuals and businesses seeking financial guidance`,
+
+    'Retail': `
+- Showcase products, customer experiences, and shopping benefits
+- Use high-quality product photography and lifestyle images
+- Focus on value, quality, and customer satisfaction
+- Target consumers and shopping enthusiasts`,
+
+    'Food & Beverage': `
+- Emphasize taste, quality ingredients, and dining experiences
+- Use appetizing food photography and kitchen scenes
+- Focus on flavor, freshness, and culinary expertise
+- Target food lovers and dining enthusiasts`,
+
+    'Fashion': `
+- Highlight style, trends, and personal expression
+- Use fashion photography and lifestyle imagery
+- Focus on aesthetics, quality, and individual style
+- Target fashion-conscious consumers`,
+
+    'Beauty': `
+- Emphasize transformation, self-care, and confidence
+- Use beauty photography and before/after visuals
+- Focus on results, techniques, and self-expression
+- Target beauty enthusiasts and self-care advocates`,
+
+    'Fitness': `
+- Highlight health, strength, and personal achievement
+- Use action photography and fitness demonstrations
+- Focus on motivation, results, and healthy lifestyle
+- Target fitness enthusiasts and health-conscious individuals`,
+
+    'Education': `
+- Emphasize learning, growth, and knowledge sharing
+- Use educational graphics and classroom imagery
+- Focus on skill development and academic success
+- Target students, parents, and lifelong learners`,
+
+    'Real Estate': `
+- Highlight properties, locations, and lifestyle opportunities
+- Use property photography and neighborhood imagery
+- Focus on investment potential and lifestyle benefits
+- Target homebuyers, investors, and property seekers`,
+
+    'Travel': `
+- Emphasize experiences, destinations, and adventure
+- Use travel photography and destination imagery
+- Focus on discovery, relaxation, and cultural experiences
+- Target travelers and adventure seekers`,
+
+    'Automotive': `
+- Highlight performance, reliability, and innovation
+- Use vehicle photography and technical specifications
+- Focus on safety, efficiency, and driving experience
+- Target car enthusiasts and vehicle buyers`,
+
+    'Professional Services': `
+- Emphasize expertise, results, and client success
+- Use professional headshots and office imagery
+- Focus on trust, competence, and value delivery
+- Target business owners and decision-makers`,
+
+    'Manufacturing': `
+- Highlight quality, innovation, and production excellence
+- Use factory imagery and product showcases
+- Focus on precision, efficiency, and reliability
+- Target industry professionals and business buyers`,
+
+    'Construction': `
+- Emphasize craftsmanship, safety, and project completion
+- Use construction site photography and finished projects
+- Focus on quality workmanship and project success
+- Target property owners and construction professionals`,
+
+    'Agriculture': `
+- Highlight sustainability, quality, and farming expertise
+- Use farm photography and agricultural imagery
+- Focus on natural products and farming practices
+- Target consumers and agricultural professionals`,
+
+    'Entertainment': `
+- Emphasize fun, creativity, and memorable experiences
+- Use event photography and entertainment imagery
+- Focus on enjoyment, engagement, and entertainment value
+- Target entertainment seekers and event attendees`,
+
+    'Non-profit': `
+- Highlight impact, community service, and social causes
+- Use community photography and impact imagery
+- Focus on social good, volunteerism, and positive change
+- Target supporters, volunteers, and community members`
+  };
+  
+  return guidanceMap[industry] || `
+- Focus on your unique value proposition and customer benefits
+- Use professional imagery that represents your brand
+- Highlight what makes your business special
+- Target your ideal customers and their needs`;
 }

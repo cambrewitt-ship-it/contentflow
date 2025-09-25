@@ -1,10 +1,16 @@
 'use client'
 
-import { useContentStore, UploadedImage } from 'lib/contentStore'
+import { useContentStore, UploadedImage, NotesInterpretation, ContentFocus, CopyTone } from 'lib/contentStore'
 import { Button } from 'components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
 import { Textarea } from 'components/ui/textarea'
-import { Upload, X, Image as ImageIcon } from 'lucide-react'
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from 'components/ui/dropdown-menu'
+import { Upload, X, Image as ImageIcon, ChevronDown } from 'lucide-react'
 
 export function ImageUploadColumn() {
   const {
@@ -15,7 +21,58 @@ export function ImageUploadColumn() {
     removeImage,
     postNotes,
     setPostNotes,
+    notesInterpretation,
+    setNotesInterpretation,
+    contentFocus,
+    setContentFocus,
+    copyTone,
+    setCopyTone,
   } = useContentStore()
+
+  const getInterpretationDisplayText = (interpretation: NotesInterpretation): string => {
+    switch (interpretation) {
+      case 'quote-directly':
+        return 'Quote Directly'
+      case 'paraphrase':
+        return 'Paraphrase'
+      case 'use-as-inspiration':
+        return 'Use as inspiration'
+      default:
+        return 'Quote Directly'
+    }
+  }
+
+  const getContentFocusDisplayText = (focus: ContentFocus): string => {
+    switch (focus) {
+      case 'main-focus':
+        return 'Main focus'
+      case 'supporting':
+        return 'Supporting'
+      case 'background':
+        return 'Background'
+      case 'none':
+        return 'None'
+      default:
+        return 'Main focus'
+    }
+  }
+
+  const getCopyToneDisplayText = (tone: CopyTone): string => {
+    switch (tone) {
+      case 'promotional':
+        return 'Promotional'
+      case 'educational':
+        return 'Educational'
+      case 'personal':
+        return 'Personal'
+      case 'testimonial':
+        return 'Testimonial'
+      case 'engagement':
+        return 'Engagement'
+      default:
+        return 'Promotional'
+    }
+  }
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
@@ -111,15 +168,136 @@ export function ImageUploadColumn() {
 
           {/* Post Notes Section */}
           <div className="border-t border-gray-200 pt-6">
-            <h3 className="text-22px text-gray-700 mb-4">Post Notes</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-22px text-gray-700">Post Notes</h3>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 px-3">
+                    {getInterpretationDisplayText(notesInterpretation)}
+                    <ChevronDown className="w-4 h-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem 
+                    onClick={() => setNotesInterpretation('quote-directly')}
+                    className={notesInterpretation === 'quote-directly' ? 'bg-accent' : ''}
+                  >
+                    Quote Directly
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setNotesInterpretation('paraphrase')}
+                    className={notesInterpretation === 'paraphrase' ? 'bg-accent' : ''}
+                  >
+                    Paraphrase
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setNotesInterpretation('use-as-inspiration')}
+                    className={notesInterpretation === 'use-as-inspiration' ? 'bg-accent' : ''}
+                  >
+                    Use as inspiration
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <Textarea
               value={postNotes}
               onChange={(e) => setPostNotes(e.target.value)}
               placeholder="Add specific notes, context, or instructions for your post (optional)..."
               className="min-h-[120px] resize-none"
             />
-            <p className="text-xs text-muted-foreground mt-2">
-              These notes will be used to generate AI captions that match your requirements. Leave empty to generate captions based on image content and brand context.
+          </div>
+
+          {/* Content Focus Section */}
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-medium text-gray-700">Content Focus</h4>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 px-3">
+                    {getContentFocusDisplayText(contentFocus)}
+                    <ChevronDown className="w-4 h-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem 
+                    onClick={() => setContentFocus('main-focus')}
+                    className={contentFocus === 'main-focus' ? 'bg-accent' : ''}
+                  >
+                    Main focus
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setContentFocus('supporting')}
+                    className={contentFocus === 'supporting' ? 'bg-accent' : ''}
+                  >
+                    Supporting
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setContentFocus('background')}
+                    className={contentFocus === 'background' ? 'bg-accent' : ''}
+                  >
+                    Background
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setContentFocus('none')}
+                    className={contentFocus === 'none' ? 'bg-accent' : ''}
+                  >
+                    None
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Specify how the AI should prioritize photo analysis in caption generation.
+            </p>
+          </div>
+
+          {/* Copy Tone Section */}
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-medium text-gray-700">Copy Tone</h4>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 px-3">
+                    {getCopyToneDisplayText(copyTone)}
+                    <ChevronDown className="w-4 h-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem 
+                    onClick={() => setCopyTone('promotional')}
+                    className={copyTone === 'promotional' ? 'bg-accent' : ''}
+                  >
+                    Promotional
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setCopyTone('educational')}
+                    className={copyTone === 'educational' ? 'bg-accent' : ''}
+                  >
+                    Educational
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setCopyTone('personal')}
+                    className={copyTone === 'personal' ? 'bg-accent' : ''}
+                  >
+                    Personal
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setCopyTone('testimonial')}
+                    className={copyTone === 'testimonial' ? 'bg-accent' : ''}
+                  >
+                    Testimonial
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setCopyTone('engagement')}
+                    className={copyTone === 'engagement' ? 'bg-accent' : ''}
+                  >
+                    Engagement
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Choose the writing style and tone for AI-generated captions.
             </p>
           </div>
         </CardContent>

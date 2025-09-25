@@ -9,6 +9,14 @@ export interface Caption {
   text: string
 }
 
+export interface ContentIdea {
+  idea: string
+  angle: string
+  visualSuggestion: string
+  timing: string
+  holidayConnection?: string
+}
+
 export interface UploadedImage {
   id: string
   file: File
@@ -29,6 +37,10 @@ export interface SerializableUploadedImage {
 }
 
 // Global store context
+export type NotesInterpretation = 'quote-directly' | 'paraphrase' | 'use-as-inspiration'
+export type ContentFocus = 'main-focus' | 'supporting' | 'background' | 'none'
+export type CopyTone = 'promotional' | 'educational' | 'personal' | 'testimonial' | 'engagement'
+
 export interface ContentStore {
   clientId: string
   uploadedImages: UploadedImage[]
@@ -37,13 +49,21 @@ export interface ContentStore {
   activeImageId: string | null
   hasHydrated: boolean
   postNotes: string
+  notesInterpretation: NotesInterpretation
+  contentFocus: ContentFocus
+  copyTone: CopyTone
   copyType: 'social-media' | 'email-marketing'
+  contentIdeas: ContentIdea[]
   setUploadedImages: (images: UploadedImage[]) => void
   setCaptions: (captions: Caption[]) => void
   setSelectedCaptions: (captions: string[]) => void
   setActiveImageId: (id: string | null) => void
   setPostNotes: (notes: string) => void
+  setNotesInterpretation: (interpretation: NotesInterpretation) => void
+  setContentFocus: (focus: ContentFocus) => void
+  setCopyTone: (tone: CopyTone) => void
   setCopyType: (copyType: 'social-media' | 'email-marketing') => void
+  setContentIdeas: (ideas: ContentIdea[]) => void
   addImage: (file: File) => Promise<void>
   removeImage: (id: string) => void
   updateImageNotes: (id: string, notes: string) => void
@@ -118,7 +138,11 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
   const [selectedCaptions, setSelectedCaptions] = useState<string[]>([])
   const [activeImageId, setActiveImageId] = useState<string | null>(null)
   const [postNotes, setPostNotes] = useState<string>('')
+  const [notesInterpretation, setNotesInterpretation] = useState<NotesInterpretation>('quote-directly')
+  const [contentFocus, setContentFocus] = useState<ContentFocus>('main-focus')
+  const [copyTone, setCopyTone] = useState<CopyTone>('promotional')
   const [copyType, setCopyType] = useState<'social-media' | 'email-marketing'>('social-media')
+  const [contentIdeas, setContentIdeas] = useState<ContentIdea[]>([])
 
   // Track if we've hydrated from localStorage
   const [hasHydrated, setHasHydrated] = useState(false)
@@ -157,6 +181,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         const savedSelectedCaptions = localStorage.getItem(getStorageKey("selectedCaptions"))
         const savedActiveImageId = localStorage.getItem(getStorageKey("activeImageId"))
         const savedPostNotes = localStorage.getItem(getStorageKey("postNotes"))
+        const savedNotesInterpretation = localStorage.getItem(getStorageKey("notesInterpretation"))
+        const savedContentFocus = localStorage.getItem(getStorageKey("contentFocus"))
+        const savedCopyTone = localStorage.getItem(getStorageKey("copyTone"))
         const savedImageMetadata = localStorage.getItem(getStorageKey("imageMetadata"))
 
         // Restore non-image data
@@ -173,6 +200,15 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         }
         if (savedPostNotes) {
           setPostNotes(savedPostNotes)
+        }
+        if (savedNotesInterpretation) {
+          setNotesInterpretation(savedNotesInterpretation as NotesInterpretation)
+        }
+        if (savedContentFocus) {
+          setContentFocus(savedContentFocus as ContentFocus)
+        }
+        if (savedCopyTone) {
+          setCopyTone(savedCopyTone as CopyTone)
         }
 
         // For images, we'll start with an empty array since we can't restore the actual image data
@@ -198,6 +234,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         localStorage.setItem(getStorageKey("selectedCaptions"), JSON.stringify(selectedCaptions))
         localStorage.setItem(getStorageKey("activeImageId"), activeImageId || "")
         localStorage.setItem(getStorageKey("postNotes"), postNotes)
+        localStorage.setItem(getStorageKey("notesInterpretation"), notesInterpretation)
+        localStorage.setItem(getStorageKey("contentFocus"), contentFocus)
+        localStorage.setItem(getStorageKey("copyTone"), copyTone)
         
         // For images, only save metadata (not the actual image data)
         const imageMetadata = uploadedImages.map(img => ({
@@ -232,7 +271,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         }
       }
     }
-  }, [hasHydrated, captions, selectedCaptions, activeImageId, postNotes, uploadedImages])
+  }, [hasHydrated, captions, selectedCaptions, activeImageId, postNotes, notesInterpretation, contentFocus, copyTone, uploadedImages])
 
   // Cleanup localStorage periodically and on unmount
   useEffect(() => {
@@ -356,6 +395,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           aiContext: notes || postNotes,
           clientId: clientId,
           copyType: copyType || 'social-media',
+          copyTone: copyTone,
+          postNotesStyle: notesInterpretation,
+          imageFocus: contentFocus,
         }),
       })
 
@@ -458,6 +500,15 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     // Clear post notes
     setPostNotes('')
     
+    // Reset notes interpretation to default
+    setNotesInterpretation('quote-directly')
+    
+    // Reset content focus to default
+    setContentFocus('main-focus')
+    
+    // Reset copy tone to default
+    setCopyTone('promotional')
+    
     // Also clear localStorage to prevent hydration from restoring old data
     if (typeof window !== "undefined") {
       localStorage.removeItem(getStorageKey("imageMetadata"))
@@ -465,6 +516,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       localStorage.removeItem(getStorageKey("selectedCaptions"))
       localStorage.removeItem(getStorageKey("activeImageId"))
       localStorage.removeItem(getStorageKey("postNotes"))
+      localStorage.removeItem(getStorageKey("notesInterpretation"))
+      localStorage.removeItem(getStorageKey("contentFocus"))
+      localStorage.removeItem(getStorageKey("copyTone"))
     }
   }
 
@@ -488,13 +542,21 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     activeImageId,
     hasHydrated,
     postNotes,
+    notesInterpretation,
+    contentFocus,
+    copyTone,
     copyType,
+    contentIdeas,
     setUploadedImages,
     setCaptions,
     setSelectedCaptions,
     setActiveImageId,
     setPostNotes,
+    setNotesInterpretation,
+    setContentFocus,
+    setCopyTone,
     setCopyType,
+    setContentIdeas,
     addImage,
     removeImage,
     updateImageNotes,
