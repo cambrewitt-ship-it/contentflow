@@ -216,7 +216,7 @@ export function ContentIdeasColumn() {
                           <Lightbulb className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-700 mb-0.5">Marketing Angle</p>
+                          <p className="text-sm font-black text-gray-700 mb-0.5">Marketing Angle</p>
                           <p className="text-sm text-gray-600">{idea.angle}</p>
                         </div>
                       </div>
@@ -228,7 +228,7 @@ export function ContentIdeasColumn() {
                           <Clock className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-700 mb-0.5">Post Example</p>
+                          <p className="text-sm font-black text-gray-700 mb-0.5">Post Example</p>
                           <p className="text-sm text-gray-600">{idea.timing}</p>
                         </div>
                       </div>

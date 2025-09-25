@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { Button } from 'components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card';
 import { Loader2, AlertCircle, CheckCircle, XCircle, AlertTriangle, Minus } from 'lucide-react';
-import { PortalKanbanCalendar } from 'components/PortalKanbanCalendar';
+import { PortalTrelloBoard } from 'components/PortalTrelloBoard';
 
 // Temporary inline types to resolve import issue
 interface WeekData {
@@ -87,6 +87,17 @@ export default function PortalApprovalsPage() {
       }
       return newSelected;
     });
+  };
+
+  const handlePostMove = async (postKey: string, newWeekIndex: number) => {
+    console.log('🔄 Post moved:', postKey, 'to week index:', newWeekIndex);
+    
+    // For now, we'll just refresh the data to show the current state
+    // In the future, this could be used to move posts between weeks
+    console.log('📅 Post moved to different week - refreshing data');
+    
+    // Refresh data to reflect the current state
+    await fetchApprovalData();
   };
 
   const handleBatchSubmit = async () => {
@@ -230,9 +241,9 @@ export default function PortalApprovalsPage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-card-foreground">Content Approvals</h1>
+              <h1 className="text-2xl font-semibold text-card-foreground">Content Approval Board</h1>
               <p className="text-muted-foreground">
-                Review and approve your scheduled content
+                Review and approve your scheduled content organized by week
                 {client && ` • ${client.name}`}
               </p>
             </div>
@@ -244,7 +255,7 @@ export default function PortalApprovalsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto py-6 px-4">
+      <div className="max-w-full mx-auto py-6 px-4">
         {/* Submit Section - Moved to top */}
         {weeks.length > 0 && (
           <div className="mb-8 p-6 bg-card border border-border rounded-lg">
@@ -331,7 +342,7 @@ export default function PortalApprovalsPage() {
             </CardContent>
           </Card>
         ) : (
-          <PortalKanbanCalendar
+          <PortalTrelloBoard
             weeks={weeks}
             selectedPosts={selectedPosts}
             comments={comments}
@@ -345,6 +356,7 @@ export default function PortalApprovalsPage() {
               ...prev,
               [postKey]: caption
             }))}
+            onPostMove={handlePostMove}
           />
         )}
 

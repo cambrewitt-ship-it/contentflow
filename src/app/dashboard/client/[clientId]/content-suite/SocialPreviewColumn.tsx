@@ -665,9 +665,24 @@ export function SocialPreviewColumn({
       {/* Content Preview */}
       <Card>
         <CardHeader>
-          <CardTitle className="card-title-26">
-            {copyType === 'email-marketing' ? 'Email Marketing Preview' : 'Social Media Preview'}
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="card-title-26">
+              {copyType === 'email-marketing' ? 'Email Marketing Preview' : 'Social Media Preview'}
+            </CardTitle>
+            {/* Confirm Post Button */}
+            {uploadedImages.length > 0 && customCaption && (
+              <Button
+                onClick={() => setUseAsSelectedCaption(!useAsSelectedCaption)}
+                className={`w-12 h-12 rounded-full p-0 ${
+                  useAsSelectedCaption
+                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    : 'bg-gray-400 hover:bg-gray-500 text-white'
+                }`}
+              >
+                <Check className="w-10 h-10" style={{ strokeWidth: 3 }} />
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -927,21 +942,6 @@ export function SocialPreviewColumn({
               </>
             )}
 
-            {/* Confirm Post Button */}
-            {uploadedImages.length > 0 && customCaption && (
-              <div className="flex justify-center">
-                <Button
-                  onClick={() => setUseAsSelectedCaption(!useAsSelectedCaption)}
-                  className={`px-6 py-2 ${
-                    useAsSelectedCaption
-                      ? 'bg-green-600 hover:bg-green-700 text-white'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
-                >
-                  {useAsSelectedCaption ? 'Confirmed ✓' : 'Confirm Post'}
-                </Button>
-              </div>
-            )}
                 
             {/* Caption Editor */}
             <div className="bg-gray-50 rounded-lg p-4">
@@ -967,40 +967,6 @@ export function SocialPreviewColumn({
         </CardContent>
       </Card>
 
-      {/* Action Buttons */}
-      {uploadedImages.length > 0 && displayCaption && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">What would you like to do?</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Your content is ready! Choose your next step.
-            </p>
-            
-            <div className="space-y-3">
-              {/* Schedule/Update Button */}
-              <Button
-                onClick={isEditing ? () => handleSendToScheduler(displayCaption, uploadedImages) : openScheduleModal}
-                disabled={updatingPost}
-                className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-              >
-                {updatingPost ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Updating...
-                  </>
-                ) : (
-                  <>
-                    <Calendar className="w-5 h-5 mr-2" />
-                    {isEditing ? 'Update Post' : 'Schedule'}
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
 
       {/* Schedule Post Modal */}

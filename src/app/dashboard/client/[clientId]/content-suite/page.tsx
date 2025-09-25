@@ -796,16 +796,24 @@ function ContentSuiteContent({
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* My Projects Section - Only show when not editing */}
+        {/* Content Ideas Section - At the top */}
+        <div className="mb-8">
+          <ContentIdeasColumn />
+        </div>
+
+        {/* My Projects and Action Buttons Section - Only show when not editing */}
         {!isEditing && (
           <div className="mb-8">
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-700">My Projects</h2>
-                <span className="text-sm text-gray-500">
-                  {projectsLoading ? 'Loading...' : `${projects.length} project${projects.length !== 1 ? 's' : ''}`}
-                </span>
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* My Projects - Takes 2 columns */}
+              <div className="lg:col-span-2">
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-gray-700">My Projects</h2>
+                    <span className="text-sm text-gray-500">
+                      {projectsLoading ? 'Loading...' : `${projects.length} project${projects.length !== 1 ? 's' : ''}`}
+                    </span>
+                  </div>
             
             {projectsLoading ? (
               <div className="flex items-center justify-center py-8">
@@ -813,15 +821,15 @@ function ContentSuiteContent({
                 <span className="ml-2 text-gray-500">Loading projects...</span>
               </div>
             ) : projects.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {projects.map((project) => (
                   <div
                     key={project.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all group"
+                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all group flex flex-col h-full"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-700 group-hover:text-blue-600 transition-colors">
+                    <div className="flex items-start justify-between flex-1">
+                      <div className="flex-1 min-w-0 pr-3">
+                        <h3 className="font-medium text-gray-700 group-hover:text-blue-600 transition-colors text-sm leading-tight break-words">
                           {project.name}
                         </h3>
                         {project.description && (
@@ -838,7 +846,7 @@ function ContentSuiteContent({
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 flex-shrink-0">
                         <Link
                           href={`/dashboard/client/${clientId}/planner?projectId=${project.id}`}
                           onClick={(e) => e.stopPropagation()}
@@ -897,9 +905,9 @@ function ContentSuiteContent({
                             }
                           >
                           {addingToProject === project.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Loader2 className="w-6 h-6 animate-spin" />
                           ) : (
-                            <Plus className="w-4 h-4" />
+                            <Plus className="w-6 h-6 font-bold" style={{ strokeWidth: 2.5 }} />
                           )}
                         </button>
                       </div>
@@ -923,6 +931,34 @@ function ContentSuiteContent({
                 </Button>
               </div>
             )}
+                </div>
+              </div>
+
+              {/* Action Buttons - Takes 1 column */}
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-lg border border-gray-200 p-6 h-full flex flex-col justify-center">
+                  <div className="space-y-3">
+                    {/* Schedule Button */}
+                    <Button
+                      onClick={handleSendToScheduler}
+                      disabled={isSendingToScheduler}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                    >
+                      {isSendingToScheduler ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          Scheduling...
+                        </>
+                      ) : (
+                        <>
+                          <Calendar className="w-5 h-5 mr-2" />
+                          Schedule
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -979,11 +1015,6 @@ function ContentSuiteContent({
             </div>
           </div>
         )}
-
-        {/* Content Ideas Section */}
-        <div className="mb-8">
-          <ContentIdeasColumn />
-        </div>
 
         <div className="content-suite-columns">
           {/* Column 1: Image Upload */}

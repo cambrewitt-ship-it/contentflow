@@ -947,10 +947,13 @@ Think like a marketing associate who knows what actually works on social media. 
 - Data-driven insights and statistics
 
 **Social Proof & Trust:**
-- Client testimonials and success stories
-- Before/after transformations
-- Case studies and results
-- User-generated content and reviews
+- Company achievements and milestones (PRIORITY)
+- Recent wins and accomplishments (PRIORITY)
+- Team successes and recognitions (PRIORITY)
+- Award wins and industry recognition (PRIORITY)
+- Business growth metrics and expansion (PRIORITY)
+- Client testimonials and success stories (use sparingly)
+- Before/after transformations (use sparingly)
 
 **Behind-the-Scenes & Personality:**
 - Day-in-the-life content
@@ -964,18 +967,54 @@ Think like a marketing associate who knows what actually works on social media. 
 - Local community involvement
 - Industry challenges or trends
 
+**Social Giveaways & Promotions:**
+- Free product/service giveaways
+- Contest entries and prize draws
+- Exclusive discounts and offers
+- Limited-time promotions
+- Social media challenges
+- User-generated content campaigns
+- Referral rewards and incentives
+
+**Company Success & Results (HIGH PRIORITY):**
+- Recent project completions and outcomes
+- Team achievements and recognitions
+- Business milestones and growth metrics
+- Award wins and industry recognition
+- Company expansion or new service launches
+- Revenue growth and business achievements
+- Team size growth and hiring milestones
+- New office locations or facility upgrades
+- Technology upgrades and process improvements
+- Industry leadership and thought leadership recognition
+
 ## Content Strategy Rules
 1. **Seasonal/Holiday content should be MAXIMUM 1 out of 3 ideas** - only when genuinely relevant
 2. **Focus on evergreen, high-value content** that works year-round
 3. **Mix content types** - don't rely on one approach
 4. **Think conversion** - what drives business results?
 5. **Be authentic** - avoid forced connections
+6. **Include company successes regularly** - feature achievements, milestones, and results
+7. **MINIMIZE client success stories** - focus on company achievements instead
+8. **Add social giveaways occasionally** - drives engagement and growth
+9. **Vary your approach** - no required themes, mix it up for maximum variety
 
 ## Content Requirements
-Generate exactly 3 ideas with this balance:
-- 1 Authority/Educational (builds trust and expertise)
-- 1 Social Proof/Behind-the-Scenes (builds connection and credibility)
-- 1 Community/Engagement (drives interaction and reach)
+Generate exactly 3 diverse ideas with NO required themes. Mix and match from these categories:
+
+**Available Content Types:**
+- Authority/Educational (builds trust and expertise)
+- Company Success/Results (showcases achievements and growth)
+- Behind-the-Scenes & Personality (builds connection)
+- Community/Engagement (drives interaction)
+- Social Giveaways & Promotions (drives engagement and growth)
+
+**Variation Guidelines:**
+- Vary content types to avoid repetition
+- Include company successes regularly (but not required)
+- Add social giveaways occasionally for engagement
+- MINIMIZE client success stories - use company achievements instead
+- Rotate between different approaches for maximum variety
 
 ## Output Guidelines
 - **Titles:** Keep under 40 characters, no colons
@@ -1000,7 +1039,42 @@ Generate exactly 3 ideas with this balance:
 **Visual:** [Simple visual suggestion - under 60 chars]
 **Post:** [Example opening line that hooks the audience - under 120 chars]
 
-Think like a marketing professional who knows what converts, not just what's seasonal.`;
+Think like a marketing professional who knows what converts, not just what's seasonal.
+
+## Content Examples by Type
+
+**Company Success Examples:**
+- "We just hit [X] milestone this quarter" (business achievement)
+- "Our team grew from [X] to [Y] this year" (growth story)
+- "We're proud to announce [X] recognition/award" (company recognition)
+- "5 years ago we started with [X], now we [Y]" (company growth)
+- "We just completed [X] projects this month" (company output)
+- "Our revenue grew [X]% this year" (business success)
+- "We're expanding to [X] new location" (company expansion)
+- "We just upgraded our [X] system" (company improvement)
+- "Our team was featured in [X] publication" (company recognition)
+- "We're hiring [X] new team members" (company growth)
+
+**Social Giveaway Examples:**
+- "Win a free [X] consultation - comment below!" (contest)
+- "First 10 people get 50% off [X] service" (limited offer)
+- "Tag a friend to enter our [X] giveaway" (social engagement)
+- "Share this post for a chance to win [X]" (viral promotion)
+- "Follow us and DM for exclusive discount code" (follower reward)
+- "Comment your best [X] tip to win [Y]" (engagement contest)
+- "Repost this for 20% off your next [X]" (sharing incentive)
+
+AVOID: Client success stories, testimonials, case studies
+FOCUS ON: Company achievements, growth metrics, team accomplishments, business milestones, social engagement
+
+## CRITICAL INSTRUCTION
+- Generate diverse content with NO required themes - mix it up!
+- Include company successes regularly (but not every time)
+- Add social giveaways occasionally for engagement
+- Minimize or avoid client success stories - they're overused
+- Vary between educational, company-focused, behind-the-scenes, and promotional content
+- Use phrases like "We achieved...", "Our team...", "We're proud to...", "We just...", "We hit...", "We grew...", "We expanded..." for company content
+- Use phrases like "Win...", "Enter to win...", "First X people...", "Comment below...", "Tag a friend..." for giveaways`;
     };
 
     // Helper function for industry-specific guidance

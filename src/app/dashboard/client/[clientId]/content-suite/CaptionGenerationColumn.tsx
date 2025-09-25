@@ -134,9 +134,73 @@ export function CaptionGenerationColumn() {
                   </p>
                 )}
                 
-                {/* Light grey brain icon positioned with equal spacing */}
-                <div className="flex justify-center" style={{ marginTop: '100px' }}>
-                  <Brain className="text-gray-300" style={{ width: '230px', height: '230px' }} />
+                {/* Light grey brain icon or generated captions */}
+                <div className="flex justify-center" style={{ marginTop: '20px' }}>
+                  {captions.length > 0 ? (
+                    <div className="w-full max-w-md">
+                      <div className="space-y-3">
+                        {captions.slice(0, 3).map((caption) => (
+                          <div
+                            key={caption.id}
+                            className={`border rounded-lg p-3 transition-all ${
+                              selectedCaptions.includes(caption.id)
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200'
+                            }`}
+                          >
+                            <div className="space-y-2">
+                              <Textarea
+                                value={caption.text}
+                                onChange={(e) => updateCaption(caption.id, e.target.value)}
+                                placeholder="Edit your caption..."
+                                className="min-h-[60px] resize-none border-0 bg-transparent focus:ring-0 focus:border-0 p-0 text-sm text-gray-700"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <div className="flex items-center justify-between">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleRemixCaption(caption.id)
+                                  }}
+                                  disabled={remixingCaption === caption.id}
+                                  className="text-xs"
+                                >
+                                  <RefreshCw className={`w-3 h-3 mr-1 ${remixingCaption === caption.id ? 'animate-spin' : ''}`} />
+                                  {remixingCaption === caption.id ? 'Remixing...' : 'Remix'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={selectedCaptions.includes(caption.id) ? "default" : "outline"}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    selectCaption(caption.id)
+                                  }}
+                                  className={`text-xs ${
+                                    selectedCaptions.includes(caption.id)
+                                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                      : 'border-blue-300 text-blue-700 hover:bg-blue-50'
+                                  }`}
+                                >
+                                  {selectedCaptions.includes(caption.id) ? (
+                                    <>
+                                      <Check className="w-3 h-3 mr-1" />
+                                      Selected
+                                    </>
+                                  ) : (
+                                    'Select'
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <Brain className="text-gray-300" style={{ width: '230px', height: '230px' }} />
+                  )}
                 </div>
               </div>
             </div>
@@ -144,87 +208,6 @@ export function CaptionGenerationColumn() {
         </CardContent>
       </Card>
 
-      {/* Generated Content */}
-      {captions.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="card-title-26">
-              Generated {copyType === 'social-media' ? 'Captions' : 'Email Copy'} ({captions.length})
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Edit any {copyType === 'social-media' ? 'caption' : 'copy'} text and click &quot;Select&quot; to choose your preferred option
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {captions.map((caption) => (
-                <div
-                  key={caption.id}
-                  className={`border rounded-lg p-3 transition-all ${
-                    selectedCaptions.includes(caption.id)
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200'
-                  }`}
-                >
-                  <div className="space-y-3">
-                    {/* Editable Caption Text */}
-                    <Textarea
-                      value={caption.text}
-                      onChange={(e) => updateCaption(caption.id, e.target.value)}
-                      placeholder="Edit your caption..."
-                      className="min-h-[80px] resize-none border-0 bg-transparent focus:ring-0 focus:border-0 p-0 text-sm text-gray-700"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    
-                    {/* Action Buttons */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleRemixCaption(caption.id)
-                          }}
-                          disabled={remixingCaption === caption.id}
-                          className="text-xs"
-                        >
-                          <RefreshCw className={`w-3 h-3 mr-1 ${remixingCaption === caption.id ? 'animate-spin' : ''}`} />
-                          {remixingCaption === caption.id ? 'Remixing...' : 'Remix'}
-                        </Button>
-                      </div>
-                      
-                      {/* Select Button */}
-                      <Button
-                        size="sm"
-                        variant={selectedCaptions.includes(caption.id) ? "default" : "outline"}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          selectCaption(caption.id)
-                        }}
-                        className={`text-xs ${
-                          selectedCaptions.includes(caption.id)
-                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                            : 'border-blue-300 text-blue-700 hover:bg-blue-50'
-                        }`}
-                      >
-                        {selectedCaptions.includes(caption.id) ? (
-                          <>
-                            <Check className="w-3 h-3 mr-1" />
-                            Selected
-                          </>
-                        ) : (
-                          'Select'
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
     </div>
   )
