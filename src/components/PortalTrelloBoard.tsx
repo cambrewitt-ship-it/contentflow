@@ -186,45 +186,36 @@ function SortableCard({
         isDragging ? 'opacity-50 scale-105' : ''
       }`}
     >
-      {/* Post Header with Date and Time */}
+      {/* Approval Status - Top Row */}
+      {(selectedStatus || post.approval_status) && (
+        <div className="mb-3">
+          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+            (selectedStatus || post.approval_status) === 'approved' ? 'bg-green-200 text-green-800' :
+            (selectedStatus || post.approval_status) === 'needs_attention' ? 'bg-orange-200 text-orange-800' :
+            (selectedStatus || post.approval_status) === 'rejected' ? 'bg-red-200 text-red-800' :
+            'bg-blue-200 text-blue-800'
+          }`}>
+            {(selectedStatus || post.approval_status) === 'approved' ? '✓ Approved' :
+             (selectedStatus || post.approval_status) === 'needs_attention' ? '⚠ Needs Attention' :
+             (selectedStatus || post.approval_status) === 'rejected' ? '✗ Rejected' :
+             'Selected'}
+          </span>
+        </div>
+      )}
+
+      {/* Date and Time - Below Status */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2 text-xs text-gray-600">
           <Calendar className="w-3 h-3" />
           <span>{formatDate(post.scheduled_date)}</span>
-          {post.scheduled_time && (
-            <>
-              <Clock className="w-3 h-3 ml-2" />
-              <span>{formatTimeTo12Hour(post.scheduled_time)}</span>
-            </>
-          )}
         </div>
         
-        {/* Status Indicator and Selection Checkbox */}
-        <div className="flex items-center gap-2">
-          {/* Status Badge - Show for both selected and existing approval status */}
-          {(selectedStatus || post.approval_status) && (
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-              (selectedStatus || post.approval_status) === 'approved' ? 'bg-green-200 text-green-800' :
-              (selectedStatus || post.approval_status) === 'needs_attention' ? 'bg-orange-200 text-orange-800' :
-              (selectedStatus || post.approval_status) === 'rejected' ? 'bg-red-200 text-red-800' :
-              'bg-blue-200 text-blue-800'
-            }`}>
-              {(selectedStatus || post.approval_status) === 'approved' ? '✓ Approved' :
-               (selectedStatus || post.approval_status) === 'needs_attention' ? '⚠ Needs Attention' :
-               (selectedStatus || post.approval_status) === 'rejected' ? '✗ Rejected' :
-               'Selected'}
-            </span>
-          )}
-          
-          {/* Selection Checkbox */}
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={(e) => onPostSelection(postKey, e.target.checked ? 'approved' : null)}
-            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+        {post.scheduled_time && (
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <Clock className="w-3 h-3" />
+            <span>{formatTimeTo12Hour(post.scheduled_time)}</span>
+          </div>
+        )}
       </div>
 
       {/* Post Image */}
@@ -240,7 +231,7 @@ function SortableCard({
 
       {/* Caption */}
       <div className="mb-3">
-        <p className="text-sm text-gray-700 line-clamp-3">
+        <p className="text-sm text-gray-700">
           {post.caption}
         </p>
       </div>

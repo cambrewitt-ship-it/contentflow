@@ -737,7 +737,7 @@ function ContentSuiteContent({
               </Button>
             ) : (
               <Link
-                href={`/dashboard/client/${clientId}`}
+                href={`/dashboard/client/${clientId}/projects`}
                 className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <FolderOpen className="w-4 h-4 mr-2" />
@@ -940,7 +940,7 @@ function ContentSuiteContent({
                   <div className="space-y-3">
                     {/* Schedule Button */}
                     <Button
-                      onClick={handleSendToScheduler}
+                      onClick={() => handleSendToScheduler('', [])}
                       disabled={isSendingToScheduler}
                       className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
                     >
