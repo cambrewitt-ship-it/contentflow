@@ -108,42 +108,38 @@ export function CaptionGenerationColumn() {
             </div>
 
             {/* AI Caption Generation */}
-            {activeImage ? (
-              <div>
-                <div className="border-t pt-4">
-                  <h3 className="text-22px mb-3">AI Caption Generation</h3>
-                  <Button
-                    onClick={handleGenerateCaptions}
-                    disabled={generatingCaptions}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    {generatingCaptions ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="w-4 h-4 mr-2" />
-                        Generate {copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy
-                      </>
-                    )}
-                  </Button>
+            <div>
+              <div className="border-t pt-4">
+                <h3 className="text-22px mb-3">AI Caption Generation</h3>
+                <Button
+                  onClick={handleGenerateCaptions}
+                  disabled={generatingCaptions || !activeImage}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {generatingCaptions ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="w-4 h-4 mr-2" />
+                      Generate {copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy
+                    </>
+                  )}
+                </Button>
+                {!activeImage && (
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    Upload an image to enable caption generation
+                  </p>
+                )}
+                
+                {/* Light grey brain icon positioned with equal spacing */}
+                <div className="flex justify-center" style={{ marginTop: '100px' }}>
+                  <Brain className="text-gray-300" style={{ width: '230px', height: '230px' }} />
                 </div>
               </div>
-            ) : (
-              <div>
-                <div className="border-t pt-4">
-                  <h3 className="text-22px mb-3">AI Caption Generation</h3>
-                  <div className="text-center py-6">
-                    <div className="text-gray-400 mb-2">
-                      <Brain className="w-12 h-12 mx-auto" />
-                    </div>
-                    <p className="text-gray-600">Upload images to start generating AI captions</p>
-                  </div>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         </CardContent>
       </Card>

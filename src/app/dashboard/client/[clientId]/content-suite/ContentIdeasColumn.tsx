@@ -121,76 +121,45 @@ export function ContentIdeasColumn() {
   return (
     <div className="space-y-6 h-full flex flex-col">
       {/* Content Ideas Generation */}
-      <Card>
-        <CardHeader>
+      <Card className="h-20">
+        <div className="h-full flex items-center justify-between px-6">
           <CardTitle className="card-title-26">Content Ideas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm text-red-800 font-medium">Error</p>
-                    <p className="text-sm text-red-700 mt-1">{error}</p>
-                    <Button
-                      onClick={handleRefreshIdeas}
-                      variant="outline"
-                      size="sm"
-                      className="mt-3 border-red-300 text-red-700 hover:bg-red-50"
-                    >
-                      <RotateCcw className="w-4 h-4 mr-2" />
-                      Try Again
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Main Action Area */}
-            {!hasGeneratedIdeas && !generatingIdeas && !error && (
-              <div className="text-center py-4">
-                <div className="text-gray-400 mb-3">
-                  <Lightbulb className="w-12 h-12 mx-auto" />
-                </div>
-                <p className="text-gray-600 mb-4">
-                  Get AI-powered content ideas based on upcoming New Zealand holidays and your brand context
-                </p>
-                <Button
-                  onClick={handleGenerateIdeas}
-                  disabled={generatingIdeas}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                >
-                  <Lightbulb className="w-4 h-4 mr-2" />
-                  💡 Get Fresh Ideas
-                </Button>
-              </div>
-            )}
-
-            {/* Loading State */}
-            {generatingIdeas && (
-              <div className="space-y-4">
-                <div className="text-center py-4">
-                  <div className="text-purple-500 mb-3">
-                    <RefreshCw className="w-12 h-12 mx-auto animate-spin" />
-                  </div>
-                  <p className="text-gray-600 mb-2">Generating content ideas...</p>
-                  <p className="text-sm text-gray-500">
-                    Analyzing your brand context and upcoming holidays
-                  </p>
-                </div>
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <SkeletonCard key={i} />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
+          <Button
+            onClick={handleGenerateIdeas}
+            disabled={generatingIdeas}
+            className="bg-purple-600 hover:bg-purple-700 text-white"
+          >
+            <Lightbulb className="w-4 h-4 mr-2" />
+            {generatingIdeas ? 'Generating...' : 'Get Fresh Ideas'}
+          </Button>
+        </div>
       </Card>
+
+      {/* Error Message - Only show when there's an error */}
+      {error && (
+        <Card>
+          <CardContent>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm text-red-800 font-medium">Error</p>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                  <Button
+                    onClick={handleRefreshIdeas}
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 border-red-300 text-red-700 hover:bg-red-50"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Try Again
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Generated Content Ideas */}
       {contentIdeas.length > 0 && (
@@ -218,13 +187,13 @@ export function ContentIdeasColumn() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {contentIdeas.map((idea, index) => (
                 <div
                   key={index}
-                  className="border rounded-lg p-4 transition-all hover:border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50"
+                  className="border rounded-lg p-3 transition-all hover:border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50"
                 >
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {/* Idea Title */}
                     <div className="flex items-start space-x-3">
                       <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
@@ -240,28 +209,18 @@ export function ContentIdeasColumn() {
                     </div>
 
                     {/* Idea Details */}
-                    <div className="space-y-3 ml-11">
+                    <div className="space-y-3 ml-2">
                       {/* Angle */}
                       <div className="flex items-start space-x-2">
                         <div className="flex-shrink-0 w-5 h-5 text-purple-500 mt-0.5">
                           <Lightbulb className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-700 mb-1">Marketing Angle</p>
+                          <p className="text-sm font-medium text-gray-700 mb-0.5">Marketing Angle</p>
                           <p className="text-sm text-gray-600">{idea.angle}</p>
                         </div>
                       </div>
 
-                      {/* Visual Suggestion */}
-                      <div className="flex items-start space-x-2">
-                        <div className="flex-shrink-0 w-5 h-5 text-blue-500 mt-0.5">
-                          <Eye className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-700 mb-1">Visual Suggestion</p>
-                          <p className="text-sm text-gray-600">{idea.visualSuggestion}</p>
-                        </div>
-                      </div>
 
                       {/* Post Example */}
                       <div className="flex items-start space-x-2">
@@ -269,23 +228,11 @@ export function ContentIdeasColumn() {
                           <Clock className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-700 mb-1">Post Example</p>
+                          <p className="text-sm font-medium text-gray-700 mb-0.5">Post Example</p>
                           <p className="text-sm text-gray-600">{idea.timing}</p>
                         </div>
                       </div>
 
-                      {/* Holiday Connection */}
-                      {idea.holidayConnection && (
-                        <div className="flex items-start space-x-2">
-                          <div className="flex-shrink-0 w-5 h-5 text-orange-500 mt-0.5">
-                            <Calendar className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-700 mb-1">Holiday Connection</p>
-                            <p className="text-sm text-gray-600">{idea.holidayConnection}</p>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>

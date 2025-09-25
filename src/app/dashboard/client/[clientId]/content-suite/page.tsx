@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Button } from 'components/ui/button'
 import { Input } from 'components/ui/input'
 import { Textarea } from 'components/ui/textarea'
-import { ArrowLeft, Loader2, Sparkles, RefreshCw, Plus, FolderOpen, Calendar, Edit3, X, ChevronDown, ChevronUp, Lightbulb } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles, RefreshCw, Plus, FolderOpen, Calendar, Edit3, X, Lightbulb } from 'lucide-react'
 import Link from 'next/link'
 import { ImageUploadColumn } from './ImageUploadColumn'
 import { CaptionGenerationColumn } from './CaptionGenerationColumn'
@@ -511,8 +511,6 @@ function ContentSuiteContent({
   const [customCaptionFromPreview, setCustomCaptionFromPreview] = useState('')
   const [isCaptionConfirmed, setIsCaptionConfirmed] = useState(false)
   
-  // State for collapsible content ideas section
-  const [isContentIdeasExpanded, setIsContentIdeasExpanded] = useState(false)
 
   // Handle custom caption changes from SocialPreviewColumn
   const handleCustomCaptionChange = (customCaption: string) => {
@@ -910,10 +908,10 @@ function ContentSuiteContent({
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-500">
-                <FolderOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <div className="text-center py-4 text-gray-500">
+                <FolderOpen className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                 <p className="text-sm">No projects yet</p>
-                <p className="text-xs text-gray-400 mt-1 mb-4">
+                <p className="text-xs text-gray-400 mt-1 mb-3">
                   Create your first project to get started
                 </p>
                 <Button
@@ -982,57 +980,9 @@ function ContentSuiteContent({
           </div>
         )}
 
-        {/* Collapsible Content Ideas Section */}
+        {/* Content Ideas Section */}
         <div className="mb-8">
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            {/* Header */}
-            <div 
-              className="px-6 py-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
-              onClick={() => setIsContentIdeasExpanded(!isContentIdeasExpanded)}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <Lightbulb className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-700">Content Ideas</h2>
-                    <p className="text-sm text-gray-500">
-                      AI-powered content suggestions based on New Zealand holidays and your brand
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  {!isContentIdeasExpanded && (
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setIsContentIdeasExpanded(true)
-                      }}
-                      className="bg-purple-600 hover:bg-purple-700 text-white"
-                    >
-                      <Lightbulb className="w-4 h-4 mr-2" />
-                      Get Ideas
-                    </Button>
-                  )}
-                  <div className="text-gray-400">
-                    {isContentIdeasExpanded ? (
-                      <ChevronUp className="w-5 h-5" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5" />
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Collapsible Content */}
-            {isContentIdeasExpanded && (
-              <div className="p-6">
-                <ContentIdeasColumn />
-              </div>
-            )}
-          </div>
+          <ContentIdeasColumn />
         </div>
 
         <div className="content-suite-columns">

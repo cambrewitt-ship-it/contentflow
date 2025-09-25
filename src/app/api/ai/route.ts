@@ -977,21 +977,28 @@ Generate exactly 3 ideas with this balance:
 - 1 Social Proof/Behind-the-Scenes (builds connection and credibility)
 - 1 Community/Engagement (drives interaction and reach)
 
+## Output Guidelines
+- **Titles:** Keep under 40 characters, no colons
+- **Approach:** Keep under 80 characters
+- **Visual:** Keep under 60 characters  
+- **Post:** Keep under 120 characters
+- Focus on punchy, scannable content
+
 ## Output Format
-**IDEA 1:** [Brief title]
-**Approach:** [One sentence explaining the marketing angle]
-**Visual:** [Simple visual suggestion]
-**Post:** [Example opening line that hooks the audience]
+**IDEA 1:** [Brief title - no colons, under 40 chars]
+**Approach:** [One sentence explaining the marketing angle - under 80 chars]
+**Visual:** [Simple visual suggestion - under 60 chars]
+**Post:** [Example opening line that hooks the audience - under 120 chars]
 
-**IDEA 2:** [Brief title]  
-**Approach:** [One sentence explaining the marketing angle]
-**Visual:** [Simple visual suggestion]
-**Post:** [Example opening line that hooks the audience]
+**IDEA 2:** [Brief title - no colons, under 40 chars]  
+**Approach:** [One sentence explaining the marketing angle - under 80 chars]
+**Visual:** [Simple visual suggestion - under 60 chars]
+**Post:** [Example opening line that hooks the audience - under 120 chars]
 
-**IDEA 3:** [Brief title]
-**Approach:** [One sentence explaining the marketing angle]  
-**Visual:** [Simple visual suggestion]
-**Post:** [Example opening line that hooks the audience]
+**IDEA 3:** [Brief title - no colons, under 40 chars]
+**Approach:** [One sentence explaining the marketing angle - under 80 chars]
+**Visual:** [Simple visual suggestion - under 60 chars]
+**Post:** [Example opening line that hooks the audience - under 120 chars]
 
 Think like a marketing professional who knows what converts, not just what's seasonal.`;
     };
