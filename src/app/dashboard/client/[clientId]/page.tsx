@@ -1049,16 +1049,25 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                       {client?.name || 'Client Dashboard'}
                     </h1>
                     
-                    {/* Edit Logo Button */}
-                    {client?.logo_url && !isEditingLogo && (
+                    {/* Logo Upload/Edit Button */}
+                    {!isEditingLogo && (
                       <Button
                         onClick={() => setIsEditingLogo(true)}
                         variant="outline"
                         size="sm"
                         className="text-xs"
                       >
-                        <Edit3 className="w-3 h-3 mr-1" />
-                        Edit
+                        {client?.logo_url ? (
+                          <>
+                            <Edit3 className="w-3 h-3 mr-1" />
+                            Edit Logo
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3 h-3 mr-1" />
+                            Upload Logo
+                          </>
+                        )}
                       </Button>
                     )}
                   </div>
@@ -1078,10 +1087,10 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             {/* Create Content Button */}
             <Button 
               onClick={() => window.location.href = `/dashboard/client/${clientId}/content-suite`}
-              className="bg-gray-400 hover:bg-gray-500 text-black w-64 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
+              className="bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white w-64 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
               style={{ height: '177px' }}
             >
-              <Plus className="w-16 h-16 mb-4" />
+              <Plus className="w-20 h-20 mb-4 stroke-[3]" />
               <span className="text-2xl font-bold">Create Content</span>
             </Button>
           </div>

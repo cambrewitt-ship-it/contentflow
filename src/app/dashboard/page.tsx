@@ -185,11 +185,21 @@ export default function Dashboard() {
           </div>
           
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            Welcome back, {profile?.username || profile?.full_name || user?.email?.split('@')[0] || 'User'}!
+            Welcome back, {(() => {
+              const fullName = profile?.full_name || '';
+              const firstName = fullName.split(' ')[0] || profile?.username || user?.email?.split('@')[0] || 'User';
+              return firstName;
+            })()}!
           </h1>
-          <p className="text-lg text-muted-foreground">
-            Select a client to get started
-          </p>
+          <div className="mt-8">
+            <div className="inline-block bg-purple-600 px-6 h-10 rounded-lg flex items-center justify-center">
+              <div className="flex items-center justify-center h-full">
+                <span className="text-lg text-white font-medium">
+                  Select a client to get started
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Spacer to push clients section halfway down */}

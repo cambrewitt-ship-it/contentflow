@@ -128,6 +128,7 @@ export function ContentIdeasColumn() {
             onClick={handleGenerateIdeas}
             disabled={generatingIdeas}
             className="bg-purple-600 hover:bg-purple-700 text-white"
+            style={{ width: '326px' }}
           >
             <Lightbulb className="w-4 h-4 mr-2" />
             {generatingIdeas ? 'Generating...' : 'Get Fresh Ideas'}
@@ -252,7 +253,7 @@ export function ContentIdeasColumn() {
               </div>
               <p className="text-gray-600 mb-2">No content ideas generated</p>
               <p className="text-sm text-gray-500 mb-4">
-                The AI couldn't generate ideas this time. This might be due to missing brand information or network issues.
+                The AI couldn&apos;t generate ideas this time. This might be due to missing brand information or network issues.
               </p>
               <Button
                 onClick={handleRefreshIdeas}

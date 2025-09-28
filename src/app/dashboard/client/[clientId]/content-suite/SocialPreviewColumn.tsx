@@ -30,6 +30,7 @@ interface ConnectedAccount {
 
 interface SocialPreviewColumnProps {
   clientId: string
+  clientLogoUrl?: string
   handleSendToScheduler: (
     selectedCaption: string,
     uploadedImages: { preview: string; id: string; file?: File }[]
@@ -46,6 +47,7 @@ interface SocialPreviewColumnProps {
 
 export function SocialPreviewColumn({
   clientId,
+  clientLogoUrl,
   handleSendToScheduler,
   isSendingToScheduler,
   isEditing = false,
@@ -53,6 +55,8 @@ export function SocialPreviewColumn({
   onCustomCaptionChange,
   onCaptionConfirmationChange,
 }: SocialPreviewColumnProps) {
+  // Debug logging
+  console.log('🔍 SocialPreviewColumn received clientLogoUrl:', clientLogoUrl)
   const {
     uploadedImages,
     captions,
@@ -389,8 +393,16 @@ export function SocialPreviewColumn({
       {/* Facebook Header */}
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center">
-          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
-            <FacebookIcon size={20} className="text-white" />
+          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center overflow-hidden">
+            {clientLogoUrl ? (
+              <img 
+                src={clientLogoUrl} 
+                alt="Client logo"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <FacebookIcon size={20} className="text-white" />
+            )}
           </div>
           <div className="ml-3">
             <div className="font-semibold text-gray-900 text-sm">
@@ -477,8 +489,16 @@ export function SocialPreviewColumn({
       {/* Instagram Header */}
       <div className="flex items-center justify-between px-3 py-3">
         <div className="flex items-center">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-            <InstagramIcon size={16} className="text-white" />
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center overflow-hidden">
+            {clientLogoUrl ? (
+              <img 
+                src={clientLogoUrl} 
+                alt="Client logo"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <InstagramIcon size={16} className="text-white" />
+            )}
           </div>
           <div className="ml-3">
             <div className="font-semibold text-gray-900 text-sm">
@@ -541,8 +561,16 @@ export function SocialPreviewColumn({
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden max-w-sm mx-auto">
       {/* Twitter Header */}
       <div className="flex items-center p-3 border-b border-gray-100">
-        <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center">
-          <TwitterIcon size={20} className="text-white" />
+        <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center overflow-hidden">
+          {clientLogoUrl ? (
+            <img 
+              src={clientLogoUrl} 
+              alt="Client logo"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <TwitterIcon size={20} className="text-white" />
+          )}
         </div>
         <div className="ml-3 flex-1">
           <div className="font-semibold text-gray-900 text-sm">
@@ -773,8 +801,16 @@ export function SocialPreviewColumn({
                       {selectedPreviewPlatform === 'facebook' && (
                         <div className="flex items-center justify-between px-4 py-3">
                           <div className="flex items-center">
-                            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
-                              <FacebookIcon size={20} className="text-white" />
+                            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center overflow-hidden">
+                              {clientLogoUrl ? (
+                                <img 
+                                  src={clientLogoUrl} 
+                                  alt="Client logo"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <FacebookIcon size={20} className="text-white" />
+                              )}
                             </div>
                             <div className="ml-3">
                               <div className="font-semibold text-gray-900 text-sm">Your Facebook</div>
@@ -791,8 +827,16 @@ export function SocialPreviewColumn({
                       {selectedPreviewPlatform === 'instagram' && (
                         <div className="flex items-center justify-between px-3 py-3">
                           <div className="flex items-center">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                              <InstagramIcon size={16} className="text-white" />
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center overflow-hidden">
+                              {clientLogoUrl ? (
+                                <img 
+                                  src={clientLogoUrl} 
+                                  alt="Client logo"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <InstagramIcon size={16} className="text-white" />
+                              )}
                             </div>
                             <div className="ml-3">
                               <div className="font-semibold text-gray-900 text-sm">your_instagram</div>
@@ -804,8 +848,16 @@ export function SocialPreviewColumn({
                       
                       {selectedPreviewPlatform === 'twitter' && (
                         <div className="flex items-center p-3 border-b border-gray-100">
-                          <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center">
-                            <TwitterIcon size={20} className="text-white" />
+                          <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center overflow-hidden">
+                            {clientLogoUrl ? (
+                              <img 
+                                src={clientLogoUrl} 
+                                alt="Client logo"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <TwitterIcon size={20} className="text-white" />
+                            )}
                           </div>
                           <div className="ml-3 flex-1">
                             <div className="font-semibold text-gray-900 text-sm">Your Twitter</div>
@@ -967,7 +1019,28 @@ export function SocialPreviewColumn({
         </CardContent>
       </Card>
 
-
+      {/* Main Action Button - Show when editing */}
+      {isEditing && (
+        <div className="mt-4">
+          <Button
+            onClick={() => handleSendToScheduler(displayCaption, uploadedImages)}
+            disabled={updatingPost || !displayCaption.trim() || uploadedImages.length === 0}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+          >
+            {updatingPost ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Updating Post...
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4 mr-2" />
+                Update Post
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Schedule Post Modal */}
       <Dialog open={showScheduleModal} onOpenChange={setShowScheduleModal}>

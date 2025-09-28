@@ -135,7 +135,7 @@ export function CaptionGenerationColumn() {
                 )}
                 
                 {/* Light grey brain icon or generated captions */}
-                <div className="flex justify-center" style={{ marginTop: '20px' }}>
+                <div className="flex justify-center" style={{ marginTop: '105px' }}>
                   {captions.length > 0 ? (
                     <div className="w-full max-w-md">
                       <div className="space-y-3">

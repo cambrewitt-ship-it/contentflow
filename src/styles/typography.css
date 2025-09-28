@@ -146,14 +146,14 @@ input, textarea, select {
   align-items: start;
 }
 
-/* Make columns 1 and 2 appear as one connected card */
-.content-suite-columns > *:nth-child(1) {
+/* Make the last 3 columns (content columns) appear as connected cards */
+.content-suite-columns > *:nth-last-child(3) {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   border-right: none;
 }
 
-.content-suite-columns > *:nth-child(2) {
+.content-suite-columns > *:nth-last-child(2) {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
   border-left: none;

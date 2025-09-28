@@ -14,6 +14,7 @@ import { SocialPreviewColumn } from './SocialPreviewColumn'
 import { ContentIdeasColumn } from './ContentIdeasColumn'
 import { generateCaptionsWithAI, remixCaptionWithAI, type AICaptionResult, type AIRemixResult } from 'lib/ai-utils'
 import { ContentStoreProvider, type Caption, type UploadedImage } from 'lib/contentStore'
+import { useAuth } from 'contexts/AuthContext'
 
 interface Project {
   id: string
@@ -42,6 +43,12 @@ interface Project {
   };
 }
 
+interface Client {
+  id: string
+  name: string
+  logo_url?: string
+}
+
 interface PageProps {
   params: Promise<{ clientId: string }>
 }
@@ -52,6 +59,7 @@ export default function ContentSuitePage({ params }: PageProps) {
   const { clientId } = use(params)
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { getAccessToken } = useAuth()
   
   // Editing state
   const [isEditing, setIsEditing] = useState(false)
@@ -75,6 +83,17 @@ export default function ContentSuitePage({ params }: PageProps) {
     fileName: string;
     uploadId: string | null;
   } | null>(null)
+  
+  // Client state
+  const [client, setClient] = useState<Client | null>(null)
+  const [clientLoading, setClientLoading] = useState(true)
+  const [clientRetryCount, setClientRetryCount] = useState(0)
+
+  // Fetch client data
+  useEffect(() => {
+    setClientRetryCount(0) // Reset retry count when clientId changes
+    fetchClient()
+  }, [clientId])
 
   // Check for editPostId URL parameter
   useEffect(() => {
@@ -127,6 +146,57 @@ export default function ContentSuitePage({ params }: PageProps) {
       }
     }
   }, [searchParams])
+
+  // Fetch client data
+  const fetchClient = async () => {
+    if (!clientId) return
+    
+    try {
+      setClientLoading(true)
+      const accessToken = getAccessToken()
+      
+      if (!accessToken) {
+        if (clientRetryCount < 5) { // Maximum 5 retries
+          console.log(`⏳ Access token not ready yet, retry ${clientRetryCount + 1}/5...`)
+          setClientRetryCount(prev => prev + 1)
+          setTimeout(() => {
+            fetchClient()
+          }, 1000) // Retry after 1 second
+          return
+        } else {
+          console.warn('⚠️ Max retries reached for access token, proceeding without client data')
+          setClient(null)
+          setClientLoading(false)
+          return
+        }
+      }
+
+      // Reset retry count on successful access token retrieval
+      setClientRetryCount(0)
+
+      const response = await fetch(`/api/clients/${clientId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch client: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      setClient(data.client)
+      console.log('✅ Client data fetched:', data.client)
+      console.log('🔍 Client logo URL:', data.client?.logo_url)
+      
+    } catch (error) {
+      console.error('❌ Error fetching client:', error)
+      // Set client to null on error so the component can still render
+      setClient(null)
+    } finally {
+      setClientLoading(false)
+    }
+  }
 
   // Fetch post data for editing
   const fetchPostForEditing = async (postId: string) => {
@@ -383,6 +453,7 @@ export default function ContentSuitePage({ params }: PageProps) {
     <ContentStoreProvider clientId={clientId}>
       <ContentSuiteContent 
         clientId={clientId}
+        client={client}
         projects={projects}
         projectsLoading={projectsLoading}
         setProjects={setProjects}
@@ -411,9 +482,42 @@ export default function ContentSuitePage({ params }: PageProps) {
   )
 }
 
+// Props interface for ContentSuiteContent
+interface ContentSuiteContentProps {
+  clientId: string
+  client: Client | null
+  projects: Project[]
+  projectsLoading: boolean
+  setProjects: (projects: Project[]) => void
+  handleSendToScheduler: (selectedCaption: string, uploadedImages: { preview: string; id: string; file?: File }[]) => Promise<void>
+  isSendingToScheduler: boolean
+  addingToProject: string | null
+  setAddingToProject: (projectId: string | null) => void
+  showNewProjectForm: boolean
+  setShowNewProjectForm: (show: boolean) => void
+  newProjectName: string
+  setNewProjectName: (name: string) => void
+  newProjectDescription: string
+  setNewProjectDescription: (description: string) => void
+  creatingProject: boolean
+  handleCreateProject: () => Promise<void>
+  isEditing: boolean
+  editingPost: any
+  loadingPost: boolean
+  updatingPost: boolean
+  handleCancelEdit: () => void
+  preloadedContent: {
+    image: string;
+    notes: string;
+    fileName: string;
+    uploadId: string | null;
+  } | null
+}
+
 // Separate component that has access to the content store context
 function ContentSuiteContent({ 
   clientId, 
+  client,
   projects, 
   projectsLoading, 
   setProjects,
@@ -437,37 +541,7 @@ function ContentSuiteContent({
   handleCancelEdit,
   // Preloaded content props
   preloadedContent
-}: {
-  clientId: string
-  projects: Project[]
-  projectsLoading: boolean
-  setProjects: (projects: Project[]) => void
-  handleSendToScheduler: (selectedCaption: string, uploadedImages: { preview: string; id: string; file?: File }[]) => Promise<void>
-  isSendingToScheduler: boolean
-  addingToProject: string | null
-  setAddingToProject: (projectId: string | null) => void
-  showNewProjectForm: boolean
-  setShowNewProjectForm: (show: boolean) => void
-  newProjectName: string
-  setNewProjectName: (name: string) => void
-  newProjectDescription: string
-  setNewProjectDescription: (description: string) => void
-  creatingProject: boolean
-  handleCreateProject: () => void
-  // Editing props
-  isEditing: boolean
-  editingPost: any
-  loadingPost: boolean
-  updatingPost: boolean
-  handleCancelEdit: () => void
-  // Preloaded content props
-  preloadedContent: {
-    image: string;
-    notes: string;
-    fileName: string;
-    uploadId: string | null;
-  } | null
-}) {
+}: ContentSuiteContentProps) {
   const { 
     uploadedImages, 
     captions, 
@@ -801,13 +875,66 @@ function ContentSuiteContent({
           <ContentIdeasColumn />
         </div>
 
+        {/* New Project Form - Only show when not editing */}
+        {!isEditing && showNewProjectForm && (
+          <div className="mb-8">
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-700">Create New Project</h2>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowNewProjectForm(false)
+                    setNewProjectName("")
+                    setNewProjectDescription("")
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Project Name *
+                  </label>
+                  <Input
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="Enter project name..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <Textarea
+                    value={newProjectDescription}
+                    onChange={(e) => setNewProjectDescription(e.target.value)}
+                    placeholder="Enter project description..."
+                    rows={3}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleCreateProject}
+                    disabled={!newProjectName.trim() || creatingProject}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {creatingProject ? 'Creating...' : 'Create Project'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* My Projects and Action Buttons Section - Only show when not editing */}
         {!isEditing && (
           <div className="mb-8">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* My Projects - Takes 2 columns */}
+            <div className="content-suite-columns">
+              {/* My Projects - Takes columns 1 and 2 combined */}
               <div className="lg:col-span-2">
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-6 h-full" style={{ width: '728px' }}>
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold text-gray-700">My Projects</h2>
                     <span className="text-sm text-gray-500">
@@ -934,9 +1061,9 @@ function ContentSuiteContent({
                 </div>
               </div>
 
-              {/* Action Buttons - Takes 1 column */}
+              {/* Action Buttons - Takes column 3 (same width as social preview) */}
               <div className="lg:col-span-1">
-                <div className="bg-white rounded-lg border border-gray-200 p-6 h-full flex flex-col justify-center">
+                <div className="bg-white rounded-lg border border-gray-200 p-6 h-full flex flex-col justify-center" style={{ width: '376px' }}>
                   <div className="space-y-3">
                     {/* Schedule Button */}
                     <Button
@@ -963,60 +1090,8 @@ function ContentSuiteContent({
           </div>
         )}
 
-        {/* New Project Form - Only show when not editing */}
-        {!isEditing && showNewProjectForm && (
-          <div className="mb-8">
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-700">Create New Project</h2>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowNewProjectForm(false)
-                    setNewProjectName("")
-                    setNewProjectDescription("")
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Project Name *
-                  </label>
-                  <Input
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                    placeholder="Enter project name..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
-                  <Textarea
-                    value={newProjectDescription}
-                    onChange={(e) => setNewProjectDescription(e.target.value)}
-                    placeholder="Enter project description..."
-                    rows={3}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={handleCreateProject}
-                    disabled={!newProjectName.trim() || creatingProject}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    {creatingProject ? 'Creating...' : 'Create Project'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="content-suite-columns">
+        {/* Content Suite Columns */}
+        <div className="content-suite-columns main-content">
           {/* Column 1: Image Upload */}
           <ImageUploadColumn />
 
@@ -1026,6 +1101,7 @@ function ContentSuiteContent({
           {/* Column 3: Social Preview */}
           <SocialPreviewColumn
             clientId={clientId}
+            clientLogoUrl={client?.logo_url}
             handleSendToScheduler={handleSendToScheduler}
             isSendingToScheduler={isSendingToScheduler || updatingPost}
             isEditing={isEditing}

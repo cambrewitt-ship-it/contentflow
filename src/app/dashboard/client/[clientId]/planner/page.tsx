@@ -119,6 +119,9 @@ export default function PlannerPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const clientId = params?.clientId as string;
+  
+  // Feature toggle for layout testing
+  const [useRowLayout, setUseRowLayout] = useState(false);
   const projectId = searchParams?.get('projectId');
   
   // Initialize Supabase client
@@ -1211,9 +1214,9 @@ export default function PlannerPage() {
           <div className="flex items-center space-x-3">
             <Link
               href={`/dashboard/client/${clientId}/content-suite`}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white rounded-md transition-all duration-300"
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-6 h-6 mr-2 stroke-[2.5]" />
               Create Content
             </Link>
           </div>
@@ -1425,62 +1428,53 @@ export default function PlannerPage() {
         <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
           <div className="p-4">
           <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => setWeekOffset(weekOffset - 1)}
+              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Previous Week
+            </button>
             <h2 className="text-lg font-semibold">
               {currentProject ? `${currentProject.name} - 4 Week View` : 'All Projects - 4 Week View'}
             </h2>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setWeekOffset(weekOffset - 1)}
-                className="p-2 rounded-md border hover:bg-gray-50"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-sm text-gray-600">
-                Week {weekOffset + 1} - {weekOffset + 4}
-              </span>
-              <button
-                onClick={() => setWeekOffset(weekOffset + 1)}
-                className="p-2 rounded-md border hover:bg-gray-50"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              onClick={() => setWeekOffset(weekOffset + 1)}
+              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
+            >
+              Next Week
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
           
-            <div className="flex items-center justify-between mb-4 pb-2">
-              <button
-                onClick={() => setWeekOffset(weekOffset - 1)}
-                className="p-2 hover:bg-gray-100 rounded"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              
+            <div className="flex items-center justify-center mb-4 pb-2">
               <div className="flex items-center gap-4">
-                <span className="font-medium">
-                  {getStartOfWeek(weekOffset).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long' })} - 
-                  {getStartOfWeek(weekOffset + 3).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </span>
                 <button
                   onClick={() => setWeekOffset(0)}
                   className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
                 >
                   Current Week
                 </button>
+                {/* Layout Toggle Button */}
+                <button
+                  onClick={() => setUseRowLayout(!useRowLayout)}
+                  className={`px-3 py-1 text-sm rounded hover:opacity-80 ${
+                    useRowLayout 
+                      ? 'bg-green-100 text-green-700' 
+                      : 'bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  {useRowLayout ? 'Row Layout' : 'Column Layout'}
+                </button>
               </div>
-              
-              <button
-                onClick={() => setWeekOffset(weekOffset + 1)}
-                className="p-2 hover:bg-gray-100 rounded"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <div className="min-w-[1000px] p-4">
-              <div className="grid grid-cols-4" style={{ gap: '16px' }}>
+          <div className={useRowLayout ? 'p-4 space-y-4' : 'overflow-x-auto'}>
+            <div className={useRowLayout ? '' : `p-4 ${useRowLayout ? 'min-w-[800px]' : 'min-w-0'}`}>
+              <div className={`${useRowLayout ? 'space-y-4' : 'grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4'}`} style={{ gap: '16px' }}>
                 {getWeeksToDisplay().map((weekStart, weekIndex) => (
-                  <div key={weekIndex} className="flex flex-col border rounded-lg bg-white min-w-64 flex-1">
+                  <div key={weekIndex} className={`border rounded-lg bg-white ${useRowLayout ? 'min-h-32' : 'min-w-0'} ${useRowLayout ? 'flex-1' : 'flex-1'}`}>
+                    {/* Week Header - Above the days */}
                     <div className="bg-gray-50 p-3 border-b">
                       <h3 className="font-semibold text-sm">
                         {formatWeekCommencing(weekStart)}
@@ -1492,8 +1486,10 @@ export default function PlannerPage() {
                       </p>
                     </div>
                     
-                    <div className="p-2 space-y-1">
-                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, dayIndex) => {
+                    <div className={`p-2 ${useRowLayout ? 'flex-1 overflow-x-auto' : 'space-y-1'}`}>
+                      {useRowLayout ? (
+                        <div className="flex space-x-1 min-w-max">
+                          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, dayIndex) => {
                         const dayDate = new Date(weekStart);
                         dayDate.setDate(weekStart.getDate() + dayIndex);
                         const isToday = dayDate.toDateString() === new Date().toDateString();
@@ -1504,7 +1500,9 @@ export default function PlannerPage() {
                         return (
                           <div
                             key={day}
-                            className={`p-2 rounded min-h-[80px] border-2 border-transparent transition-all duration-200 ${
+                            className={`p-2 rounded border-2 border-transparent transition-all duration-200 ${
+                              useRowLayout ? 'min-w-[200px] min-h-[160px] flex-shrink-0' : 'min-h-[80px]'
+                            } ${
                               isDragOver 
                                 ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300' 
                                 : isToday 
@@ -1523,9 +1521,12 @@ export default function PlannerPage() {
                               }
                             }}
                           >
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="font-medium">{day}</span>
-                              <span className="text-gray-500">{dayDate.getDate()}</span>
+                            {/* Day Header */}
+                            <div className="mb-2 pb-2 border-b border-gray-200">
+                              <div className="flex justify-between text-xs">
+                                <span className="font-medium">{day}</span>
+                                <span className="text-gray-500">{dayDate.getDate()}</span>
+                              </div>
                             </div>
                             
                             {/* Loading state for scheduled posts */}
@@ -1570,19 +1571,20 @@ export default function PlannerPage() {
                                         e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
                                         e.dataTransfer.setData('originalDate', dayDate.toLocaleDateString('en-CA')); // Keeps local timezone
                                       })()}
-                                      className={`flex items-center gap-1 rounded p-1 ${
+                                      className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow ${
                                         isDeleting 
-                                          ? 'cursor-not-allowed opacity-50 bg-red-50 border border-red-300' 
+                                          ? 'cursor-not-allowed opacity-50 bg-red-50 border-red-300' 
                                           : isScheduling
-                                            ? 'cursor-not-allowed opacity-50 bg-yellow-50 border border-yellow-300'
+                                            ? 'cursor-not-allowed opacity-50 bg-yellow-50 border-yellow-300'
                                             : isEditingTime
-                                              ? 'cursor-not-allowed opacity-50 bg-purple-50 border border-purple-300'
+                                              ? 'cursor-not-allowed opacity-50 bg-purple-50 border-purple-300'
                                               : isMoving
-                                                ? 'cursor-not-allowed opacity-50 bg-orange-50 border border-orange-300'
-                                              : `cursor-move hover:opacity-80 ${
-                                                  post.late_status === 'scheduled' 
-                                                    ? 'bg-green-100 border border-green-300' 
-                                                    : 'bg-blue-100 border border-blue-300'
+                                                ? 'cursor-not-allowed opacity-50 bg-orange-50 border-orange-300'
+                                              : `cursor-move ${
+                                                  post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
+                                                  post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
+                                                  post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
+                                                  'border-gray-200 bg-white'
                                                 }`
                                       }`}
                                     >
@@ -1608,104 +1610,150 @@ export default function PlannerPage() {
                                       </div>
                                     ) : (
                                       <>
-                                        <input
-                                          type="checkbox"
-                                          checked={selectedPosts.has(post.id) || selectedForDelete.has(post.id)}
-                                          onChange={(e) => {
-                                            e.stopPropagation();
-                                            
-                                            // Update both selection sets
-                                            const newSelectedPosts = new Set(selectedPosts);
-                                            const newSelectedDelete = new Set(selectedForDelete);
-                                            
-                                            if (e.target.checked) {
-                                              newSelectedPosts.add(post.id);
-                                              newSelectedDelete.add(post.id);
-                                            } else {
-                                              newSelectedPosts.delete(post.id);
-                                              newSelectedDelete.delete(post.id);
-                                            }
-                                            
-                                            setSelectedPosts(newSelectedPosts);
-                                            setSelectedForDelete(newSelectedDelete);
-                                          }}
-                                          className="w-3 h-3"
-                                        />
-                                        
-                                        {/* Platform Icons */}
-                                        {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
-                                          <div className="flex items-center gap-1">
-                                            {post.platforms_scheduled.map((platform, platformIdx) => (
-                                              <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
-                                                {platform === 'facebook' && <FacebookIcon size={12} className="text-blue-600" />}
-                                                {platform === 'instagram' && <InstagramIcon size={12} className="text-pink-600" />}
-                                                {platform === 'twitter' && <TwitterIcon size={12} className="text-sky-500" />}
-                                                {platform === 'linkedin' && <LinkedInIcon size={12} className="text-blue-700" />}
-                                              </div>
-                                            ))}
+                                        {/* Card Title - Day and Date */}
+                                        <div className="mb-3 pb-2 border-b border-gray-200">
+                                          <div className="flex items-center justify-between">
+                                            <div>
+                                              <h4 className="font-semibold text-sm text-gray-700">
+                                                {day}
+                                              </h4>
+                                              <p className="text-xs text-gray-600">
+                                                {dayDate.getDate()}
+                                              </p>
+                                            </div>
+                                            {/* Approval Selection Checkbox */}
+                                            <div className="flex items-center">
+                                              <input
+                                                type="checkbox"
+                                                checked={selectedPosts.has(post.id) || selectedForDelete.has(post.id)}
+                                                onChange={(e) => {
+                                                  e.stopPropagation();
+                                                  
+                                                  // Update both selection sets
+                                                  const newSelectedPosts = new Set(selectedPosts);
+                                                  const newSelectedDelete = new Set(selectedForDelete);
+                                                  
+                                                  if (e.target.checked) {
+                                                    newSelectedPosts.add(post.id);
+                                                    newSelectedDelete.add(post.id);
+                                                  } else {
+                                                    newSelectedPosts.delete(post.id);
+                                                    newSelectedDelete.delete(post.id);
+                                                  }
+                                                  
+                                                  setSelectedPosts(newSelectedPosts);
+                                                  setSelectedForDelete(newSelectedDelete);
+                                                }}
+                                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                              />
+                                            </div>
                                           </div>
-                                        )}
-                                        
-                                        {/* LATE Status Indicator */}
-                                        {post.late_status && (
-                                          <div className={`w-2 h-2 rounded-full ${
-                                            post.late_status === 'scheduled' ? 'bg-green-500' :
-                                            post.late_status === 'published' ? 'bg-green-600' :
-                                            post.late_status === 'failed' ? 'bg-red-500' :
-                                            'bg-gray-400'
-                                          }`} title={`LATE Status: ${post.late_status}`} />
-                                        )}
-                                        
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img 
-                                          src={post.image_url || '/api/placeholder/100/100'} 
-                                          alt="Post"
-                                          className="w-8 h-8 object-cover rounded"
-                                          onError={(e) => {
-                                            console.log('Scheduled post image failed to load, using placeholder for post:', post.id);
-                                            e.currentTarget.src = '/api/placeholder/100/100';
-                                          }}
-                                        />
-                                        
-                                        {/* Enhanced Status Indicator - Fixed Icon Position */}
-                                        <div className="relative flex items-center justify-between w-full">
-                                          {/* Time display */}
-                                          <div className="flex items-center justify-start flex-1">
-                                        <span 
-                                              className="text-xs text-gray-600 cursor-pointer hover:text-gray-800"
-                                              style={{ minWidth: '60px', display: 'inline-block' }}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingPostId(post.id);
-                                          }}
-                                          title="Click to edit time"
-                                        >
-                                          {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                        </span>
-                                          </div>
+                                        </div>
+
+                                        {/* Time */}
+                                        <div className="text-xs text-gray-600 mb-2">
+                                          <span 
+                                            className="cursor-pointer hover:text-gray-800"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setEditingPostId(post.id);
+                                            }}
+                                            title="Click to edit time"
+                                          >
+                                            {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                          </span>
+                                        </div>
+
+                                        {/* Edit Indicators and Approval Status */}
+                                        <div className="flex items-center justify-between mb-2">
+                                          <EditIndicators 
+                                            post={post} 
+                                            clientId={clientId}
+                                            showHistory={true}
+                                          />
                                           
-                                          {/* Approval Status Icons - Right aligned with proper spacing */}
-                                          <div className="flex items-center ml-2">
-                                            {post.approval_status === 'approved' && (
-                                              <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center" title="Approved">
-                                                <Check className="w-3 h-3 text-green-700" />
-                                              </div>
-                                            )}
-                                            {post.approval_status === 'rejected' && (
-                                              <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center" title="Rejected">
-                                                <X className="w-3 h-3 text-red-700" />
-                                              </div>
-                                            )}
-                                            {post.approval_status === 'needs_attention' && (
-                                              <div className="w-5 h-5 bg-orange-100 rounded-full flex items-center justify-center" title="Needs Attention">
-                                                <AlertTriangle className="w-3 h-3 text-orange-700" />
-                                              </div>
-                                            )}
-                                            {(!post.approval_status || post.approval_status === 'pending') && (
-                                              <div className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center" title="Pending Approval">
-                                                <Minus className="w-3 h-3 text-gray-700" />
-                                              </div>
-                                            )}
+                                          {/* Client Feedback Indicator */}
+                                          {post.client_feedback && (
+                                            <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
+                                          )}
+                                        </div>
+
+                                        {/* Post Image */}
+                                        {post.image_url && (
+                                          <div className="w-full mb-2 rounded overflow-hidden">
+                                            <img 
+                                              src={post.image_url || '/api/placeholder/100/100'} 
+                                              alt="Post"
+                                              className="w-full h-auto object-contain"
+                                              onError={(e) => {
+                                                console.log('Scheduled post image failed to load, using placeholder for post:', post.id);
+                                                e.currentTarget.src = '/api/placeholder/100/100';
+                                              }}
+                                            />
+                                          </div>
+                                        )}
+                                        
+                                        {/* Caption */}
+                                        <div className="mb-2">
+                                          <p className="text-sm text-gray-700">
+                                            {post.caption}
+                                          </p>
+                                        </div>
+                                        
+                                        {/* Client Feedback */}
+                                        {post.client_feedback && (
+                                          <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                                            <span className="font-medium text-gray-700">Client feedback:</span>
+                                            <p className="mt-1 text-gray-600">{post.client_feedback}</p>
+                                          </div>
+                                        )}
+
+                                        {/* Post Actions */}
+                                        <div className="mt-3 pt-2 border-t border-gray-100">
+                                          <div className="flex items-center justify-between">
+                                            {/* Status and Info */}
+                                            <div className="flex items-center space-x-2 text-xs text-gray-500">
+                                              {post.late_status && (
+                                                <span className={`px-2 py-1 rounded-full text-xs ${
+                                                  post.late_status === 'scheduled' ? 'bg-green-100 text-green-700' :
+                                                  post.late_status === 'published' ? 'bg-blue-100 text-blue-700' :
+                                                  post.late_status === 'failed' ? 'bg-red-100 text-red-700' :
+                                                  'bg-gray-100 text-gray-700'
+                                                }`}>
+                                                  {post.late_status === 'scheduled' ? 'Scheduled' : post.late_status}
+                                                </span>
+                                              )}
+                                            </div>
+
+                                            {/* Right side - Platform Icons and Edit Button */}
+                                            <div className="flex items-center gap-2">
+                                              {/* Platform Icons */}
+                                              {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
+                                                <div className="flex items-center gap-1">
+                                                  {post.platforms_scheduled.map((platform, platformIdx) => (
+                                                    <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
+                                                      {platform === 'facebook' && <FacebookIcon size={12} className="text-blue-600" />}
+                                                      {platform === 'instagram' && <InstagramIcon size={12} className="text-pink-600" />}
+                                                      {platform === 'twitter' && <TwitterIcon size={12} className="text-sky-500" />}
+                                                      {platform === 'linkedin' && <LinkedInIcon size={12} className="text-blue-700" />}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                              
+                                              {/* Edit Button */}
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  // Navigate to content suite with editPostId parameter in same tab
+                                                  window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
+                                                }}
+                                                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                                                title="Edit content"
+                                              >
+                                                Edit
+                                              </button>
+                                            </div>
                                           </div>
                                         </div>
                                       </>
@@ -1719,6 +1767,8 @@ export default function PlannerPage() {
                           </div>
                         );
                       })}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ))}

@@ -34,6 +34,47 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    // Check authentication
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({
+        error: 'Authentication required',
+        details: 'User must be logged in to upload client logos'
+      }, { status: 401 });
+    }
+
+    const token = authHeader.split(' ')[1];
+    
+    // Create Supabase client with the user's token
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    
+    // Get the authenticated user using the token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.error('❌ Authentication error:', authError);
+      return NextResponse.json({
+        error: 'Authentication failed',
+        details: 'Invalid or expired authentication token'
+      }, { status: 401 });
+    }
+
+    // Verify the client belongs to the authenticated user
+    const { data: existingClient, error: clientError } = await supabase
+      .from('clients')
+      .select('id, user_id')
+      .eq('id', clientId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (clientError || !existingClient) {
+      console.error('❌ Client not found or access denied:', clientError);
+      return NextResponse.json({ 
+        error: 'Access denied',
+        details: 'Client not found or you do not have permission to upload logos for this client'
+      }, { status: 403 });
+    }
     
     // Check if BLOB_READ_WRITE_TOKEN is available
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -122,6 +163,47 @@ export async function DELETE(
         { error: 'Client ID is required' },
         { status: 400 }
       );
+    }
+
+    // Check authentication
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({
+        error: 'Authentication required',
+        details: 'User must be logged in to remove client logos'
+      }, { status: 401 });
+    }
+
+    const token = authHeader.split(' ')[1];
+    
+    // Create Supabase client with the user's token
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    
+    // Get the authenticated user using the token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      console.error('❌ Authentication error:', authError);
+      return NextResponse.json({
+        error: 'Authentication failed',
+        details: 'Invalid or expired authentication token'
+      }, { status: 401 });
+    }
+
+    // Verify the client belongs to the authenticated user
+    const { data: existingClient, error: clientError } = await supabase
+      .from('clients')
+      .select('id, user_id')
+      .eq('id', clientId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (clientError || !existingClient) {
+      console.error('❌ Client not found or access denied:', clientError);
+      return NextResponse.json({ 
+        error: 'Access denied',
+        details: 'Client not found or you do not have permission to remove logos for this client'
+      }, { status: 403 });
     }
     
     // Update the client record to remove the logo URL

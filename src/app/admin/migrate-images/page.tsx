@@ -88,7 +88,7 @@ export default function MigrateImagesPage() {
                   className="rounded"
                 />
                 <label htmlFor="dryRun" className="text-sm font-medium">
-                  Dry Run (preview only, don't make changes)
+                  Dry Run (preview only, don&apos;t make changes)
                 </label>
               </div>
               
@@ -182,7 +182,7 @@ export default function MigrateImagesPage() {
               <ol className="text-sm text-yellow-700 space-y-1 list-decimal list-inside">
                 <li>Start with a dry run to see how many images need to be converted</li>
                 <li>Use a small limit (like 10) for testing</li>
-                <li>Once you're confident, uncheck "Dry Run" and run the migration</li>
+                <li>Once you&apos;re confident, uncheck &quot;Dry Run&quot; and run the migration</li>
                 <li>Monitor the results and increase the limit if needed</li>
                 <li>This migration will convert base64 images to Vercel Blob URLs</li>
               </ol>

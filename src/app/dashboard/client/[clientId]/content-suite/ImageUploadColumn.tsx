@@ -21,26 +21,12 @@ export function ImageUploadColumn() {
     removeImage,
     postNotes,
     setPostNotes,
-    notesInterpretation,
-    setNotesInterpretation,
     contentFocus,
     setContentFocus,
     copyTone,
     setCopyTone,
   } = useContentStore()
 
-  const getInterpretationDisplayText = (interpretation: NotesInterpretation): string => {
-    switch (interpretation) {
-      case 'quote-directly':
-        return 'Quote Directly'
-      case 'paraphrase':
-        return 'Paraphrase'
-      case 'use-as-inspiration':
-        return 'Use Inspiration'
-      default:
-        return 'Quote Directly'
-    }
-  }
 
   const getContentFocusDisplayText = (focus: ContentFocus): string => {
     switch (focus) {
@@ -202,36 +188,8 @@ export function ImageUploadColumn() {
 
           {/* Post Notes Section */}
           <div className="border-t border-gray-200 pt-4">
-            <div className="flex items-center justify-between mb-4">
+            <div className="mb-4">
               <h3 className="text-22px text-gray-700">Post Notes</h3>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8 px-3">
-                    {getInterpretationDisplayText(notesInterpretation)}
-                    <ChevronDown className="w-4 h-4 ml-2" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem 
-                    onClick={() => setNotesInterpretation('quote-directly')}
-                    className={notesInterpretation === 'quote-directly' ? 'bg-accent' : ''}
-                  >
-                    Quote Directly
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => setNotesInterpretation('paraphrase')}
-                    className={notesInterpretation === 'paraphrase' ? 'bg-accent' : ''}
-                  >
-                    Paraphrase
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => setNotesInterpretation('use-as-inspiration')}
-                    className={notesInterpretation === 'use-as-inspiration' ? 'bg-accent' : ''}
-                  >
-                    Use Inspiration
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
             <Textarea
               value={postNotes}
