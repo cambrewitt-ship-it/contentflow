@@ -120,8 +120,8 @@ export default function PlannerPage() {
   const searchParams = useSearchParams();
   const clientId = params?.clientId as string;
   
-  // Feature toggle for layout testing
-  const [useRowLayout, setUseRowLayout] = useState(false);
+  // Use row layout as default
+  const useRowLayout = true;
   const projectId = searchParams?.get('projectId');
   
   // Initialize Supabase client
@@ -1225,8 +1225,55 @@ export default function PlannerPage() {
 
 
 
+        {/* Post Status Boxes */}
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <h3 className="text-sm font-medium text-gray-700 mb-4">Post Status</h3>
+          <div className="grid grid-cols-4 gap-4">
+            {(() => {
+              const allPosts = Object.values(scheduledPosts).flat();
+              const approved = allPosts.filter(p => p.approval_status === 'approved').length;
+              const rejected = allPosts.filter(p => p.approval_status === 'rejected').length;
+              const needsAttention = allPosts.filter(p => p.approval_status === 'needs_attention').length;
+              const pending = allPosts.filter(p => p.approval_status === 'pending' || !p.approval_status).length;
+              
+              return (
+                <>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div className="flex items-center">
+                      <Check className="w-4 h-4 text-green-600 mr-2" />
+                      <span className="text-sm font-medium text-green-800">Approved</span>
+                    </div>
+                    <div className="text-lg font-bold text-green-900 mt-1">{approved}</div>
+                  </div>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <div className="flex items-center">
+                      <X className="w-4 h-4 text-red-600 mr-2" />
+                      <span className="text-sm font-medium text-red-800">Rejected</span>
+                    </div>
+                    <div className="text-lg font-bold text-red-900 mt-1">{rejected}</div>
+                  </div>
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                    <div className="flex items-center">
+                      <AlertTriangle className="w-4 h-4 text-orange-600 mr-2" />
+                      <span className="text-sm font-medium text-orange-800">Needs Attention</span>
+                    </div>
+                    <div className="text-lg font-bold text-orange-900 mt-1">{needsAttention}</div>
+                  </div>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div className="flex items-center">
+                      <div className="w-4 h-4 bg-gray-400 rounded-full mr-2"></div>
+                      <span className="text-sm font-medium text-gray-800">Pending</span>
+                    </div>
+                    <div className="text-lg font-bold text-gray-700 mt-1">{pending}</div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+
         {/* Posts Queue */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-gray-700">Posts in Project</h3>
             <button
@@ -1438,13 +1485,53 @@ export default function PlannerPage() {
             <h2 className="text-lg font-semibold">
               {currentProject ? `${currentProject.name} - 4 Week View` : 'All Projects - 4 Week View'}
             </h2>
-            <button
-              onClick={() => setWeekOffset(weekOffset + 1)}
-              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
-            >
-              Next Week
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Calendar Selection Controls */}
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600">
+                  {selectedCalendarPostsForApproval.size} selected
+                </span>
+                <button
+                  onClick={handleSelectAllCalendarPostsForApproval}
+                  className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={handleDeselectAllCalendarPostsForApproval}
+                  className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+                >
+                  Deselect All
+                </button>
+              </div>
+              
+              {/* Share Button */}
+              <button
+                onClick={handleCreateShareLink}
+                disabled={!selectedProject || isCreatingSession || selectedCalendarPostsForApproval.size === 0}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              >
+                {isCreatingSession ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-4 h-4 mr-2" />
+                    Share
+                  </>
+                )}
+              </button>
+              
+              <button
+                onClick={() => setWeekOffset(weekOffset + 1)}
+                className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
+              >
+                Next Week
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
           
             <div className="flex items-center justify-center mb-4 pb-2">
@@ -1455,50 +1542,15 @@ export default function PlannerPage() {
                 >
                   Current Week
                 </button>
-                {/* Layout Toggle Button */}
-                <button
-                  onClick={() => setUseRowLayout(!useRowLayout)}
-                  className={`px-3 py-1 text-sm rounded hover:opacity-80 ${
-                    useRowLayout 
-                      ? 'bg-green-100 text-green-700' 
-                      : 'bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  {useRowLayout ? 'Row Layout' : 'Column Layout'}
-                </button>
               </div>
             </div>
           </div>
-            {/* Calendar Selection Controls */}
-            <div className="mb-4 px-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600">
-                      Calendar: {selectedCalendarPostsForApproval.size} selected
-                    </span>
-                    <button
-                      onClick={handleSelectAllCalendarPostsForApproval}
-                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-                    >
-                      Select All Calendar
-                    </button>
-                    <button
-                      onClick={handleDeselectAllCalendarPostsForApproval}
-                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-                    >
-                      Deselect All Calendar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            <div className={useRowLayout ? 'p-4 space-y-4' : 'overflow-x-auto'}>
-            <div className={useRowLayout ? '' : `p-4 ${useRowLayout ? 'min-w-[800px]' : 'min-w-0'}`}>
-              <div className={`${useRowLayout ? 'space-y-4' : 'grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4'}`} style={{ gap: '16px' }}>
+            <div className="p-4 space-y-4">
+            <div className="">
+              <div className="space-y-4" style={{ gap: '16px' }}>
                 {getWeeksToDisplay().map((weekStart, weekIndex) => (
-                  <div key={weekIndex} className={`border rounded-lg bg-white ${useRowLayout ? 'min-h-32' : 'min-w-0'} ${useRowLayout ? 'flex-1' : 'flex-1'}`}>
+                  <div key={weekIndex} className="border rounded-lg bg-white min-h-32 flex-1">
                     {/* Week Header - Above the days */}
                     <div className="bg-gray-50 p-3 border-b">
                       <h3 className="font-semibold text-sm">
@@ -1511,9 +1563,8 @@ export default function PlannerPage() {
                       </p>
                     </div>
                     
-                    <div className={`p-2 ${useRowLayout ? 'flex-1 overflow-x-auto' : 'space-y-1'}`}>
-                      {useRowLayout ? (
-                        <div className="flex space-x-1 min-w-max">
+                    <div className="p-2 flex-1 overflow-x-auto">
+                      <div className="flex space-x-1 min-w-max">
                           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, dayIndex) => {
                         const dayDate = new Date(weekStart);
                         dayDate.setDate(weekStart.getDate() + dayIndex);
@@ -1525,9 +1576,7 @@ export default function PlannerPage() {
                         return (
                           <div
                             key={day}
-                            className={`p-2 rounded border-2 border-transparent transition-all duration-200 ${
-                              useRowLayout ? 'min-w-[200px] min-h-[160px] flex-shrink-0' : 'min-h-[80px]'
-                            } ${
+                            className={`p-2 rounded border-2 border-transparent transition-all duration-200 min-w-[200px] min-h-[160px] flex-shrink-0 ${
                               isDragOver 
                                 ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300' 
                                 : isToday 
@@ -1917,8 +1966,7 @@ export default function PlannerPage() {
                           </div>
                         );
                       })}
-                        </div>
-                      ) : null}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1926,103 +1974,6 @@ export default function PlannerPage() {
             </div>
           </div>
           
-          {/* Approval Summary and Share Controls */}
-          <div className="mt-8 border-t border-gray-200 pt-8 mx-6">
-            {/* Post Selection Controls */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600">
-                      {selectedCalendarPostsForApproval.size} selected
-                    </span>
-                    <button
-                      onClick={() => {
-                        handleSelectAllCalendarPostsForApproval();
-                      }}
-                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-                    >
-                      Select All
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleDeselectAllCalendarPostsForApproval();
-                      }}
-                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-                    >
-                      Deselect All
-                    </button>
-                  </div>
-                </div>
-              
-                <div className="flex items-center space-x-2">
-                {/* Share Button */}
-                <button
-                  onClick={handleCreateShareLink}
-                  disabled={!selectedProject || isCreatingSession || selectedCalendarPostsForApproval.size === 0}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
-                  {isCreatingSession ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Share2 className="w-4 h-4 mr-2" />
-                      Share
-                    </>
-                  )}
-                </button>
-                
-                </div>
-              </div>
-            </div>
-            
-            {/* Approval Summary */}
-            <div className="mb-6 grid grid-cols-4" style={{ gap: '16px' }}>
-              {(() => {
-                const allPosts = Object.values(scheduledPosts).flat();
-                const approved = allPosts.filter(p => p.approval_status === 'approved').length;
-                const rejected = allPosts.filter(p => p.approval_status === 'rejected').length;
-                const needsAttention = allPosts.filter(p => p.approval_status === 'needs_attention').length;
-                const pending = allPosts.filter(p => p.approval_status === 'pending' || !p.approval_status).length;
-                
-                return (
-                  <>
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                      <div className="flex items-center">
-                        <Check className="w-4 h-4 text-green-600 mr-2" />
-                        <span className="text-sm font-medium text-green-800">Approved</span>
-                      </div>
-                      <div className="text-lg font-bold text-green-900 mt-1">{approved}</div>
-                    </div>
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <div className="flex items-center">
-                        <X className="w-4 h-4 text-red-600 mr-2" />
-                        <span className="text-sm font-medium text-red-800">Rejected</span>
-                      </div>
-                      <div className="text-lg font-bold text-red-900 mt-1">{rejected}</div>
-                    </div>
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                      <div className="flex items-center">
-                        <AlertTriangle className="w-4 h-4 text-orange-600 mr-2" />
-                        <span className="text-sm font-medium text-orange-800">Needs Attention</span>
-                      </div>
-                      <div className="text-lg font-bold text-orange-900 mt-1">{needsAttention}</div>
-                    </div>
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center">
-                        <div className="w-4 h-4 bg-gray-400 rounded-full mr-2"></div>
-                        <span className="text-sm font-medium text-gray-800">Pending</span>
-                      </div>
-                      <div className="text-lg font-bold text-gray-700 mt-1">{pending}</div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          </div>
           
         </div>
       </div>
