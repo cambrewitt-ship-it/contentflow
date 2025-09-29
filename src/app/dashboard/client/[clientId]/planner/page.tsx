@@ -1639,15 +1639,24 @@ export default function PlannerPage() {
                                             </div>
                                           ) : (
                                             <>
-                                              {/* Card Title - Day and Date */}
+                                              {/* Card Title - Day, Date, and Time */}
                                               <div className="mb-3 pb-2 border-b border-gray-200">
                                                 <div className="flex items-center justify-between">
                                                   <div>
                                                     <h4 className="font-semibold text-sm text-gray-700">
-                                                      {day}
+                                                      {day} {dayDate.getDate()}
                                                     </h4>
                                                     <p className="text-xs text-gray-600">
-                                                      {dayDate.getDate()}
+                                                      <span 
+                                                        className="cursor-pointer hover:text-gray-800"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          setEditingPostId(post.id);
+                                                        }}
+                                                        title="Click to edit time"
+                                                      >
+                                                        {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                                      </span>
                                                     </p>
                                                   </div>
                                                   {/* Approval Selection Checkbox */}
@@ -1666,32 +1675,33 @@ export default function PlannerPage() {
                                                 </div>
                                               </div>
 
-                                              {/* Time */}
-                                              <div className="text-xs text-gray-600 mb-2">
-                                                <span 
-                                                  className="cursor-pointer hover:text-gray-800"
+                                              {/* Edit Indicators, Approval Status, and Edit Button */}
+                                              <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-2">
+                                                  <EditIndicators 
+                                                    post={post} 
+                                                    clientId={clientId}
+                                                    showHistory={true}
+                                                  />
+                                                  
+                                                  {/* Client Feedback Indicator */}
+                                                  {post.client_feedback && (
+                                                    <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
+                                                  )}
+                                                </div>
+                                                
+                                                {/* Edit Button */}
+                                                <button
                                                   onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setEditingPostId(post.id);
+                                                    // Navigate to content suite with editPostId parameter in same tab
+                                                    window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
                                                   }}
-                                                  title="Click to edit time"
+                                                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                                                  title="Edit content"
                                                 >
-                                                  {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                                </span>
-                                              </div>
-
-                                              {/* Edit Indicators and Approval Status */}
-                                              <div className="flex items-center justify-between mb-2">
-                                                <EditIndicators 
-                                                  post={post} 
-                                                  clientId={clientId}
-                                                  showHistory={true}
-                                                />
-                                                
-                                                {/* Client Feedback Indicator */}
-                                                {post.client_feedback && (
-                                                  <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
-                                                )}
+                                                  Edit
+                                                </button>
                                               </div>
 
                                               {/* Post Image */}
@@ -1724,54 +1734,19 @@ export default function PlannerPage() {
                                                 </div>
                                               )}
 
-                                              {/* Post Actions */}
-                                              <div className="mt-3 pt-2 border-t border-gray-100">
-                                                <div className="flex items-center justify-between">
-                                                  {/* Status and Info */}
-                                                  <div className="flex items-center space-x-2 text-xs text-gray-500">
-                                                    {post.late_status && (
-                                                      <span className={`px-2 py-1 rounded-full text-xs ${
-                                                        post.late_status === 'scheduled' ? 'bg-green-100 text-green-700' :
-                                                        post.late_status === 'published' ? 'bg-blue-100 text-blue-700' :
-                                                        post.late_status === 'failed' ? 'bg-red-100 text-red-700' :
-                                                        'bg-gray-100 text-gray-700'
-                                                      }`}>
-                                                        {post.late_status === 'scheduled' ? 'Scheduled' : post.late_status}
-                                                      </span>
-                                                    )}
-                                                  </div>
-
-                                                  {/* Right side - Platform Icons and Edit Button */}
-                                                  <div className="flex items-center gap-2">
-                                                    {/* Platform Icons */}
-                                                    {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
-                                                      <div className="flex items-center gap-1">
-                                                        {post.platforms_scheduled.map((platform, platformIdx) => (
-                                                          <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
-                                                            {platform === 'facebook' && <FacebookIcon size={12} className="text-blue-600" />}
-                                                            {platform === 'instagram' && <InstagramIcon size={12} className="text-pink-600" />}
-                                                            {platform === 'twitter' && <TwitterIcon size={12} className="text-sky-500" />}
-                                                            {platform === 'linkedin' && <LinkedInIcon size={12} className="text-blue-700" />}
-                                                          </div>
-                                                        ))}
-                                                      </div>
-                                                    )}
-                                                    
-                                                    {/* Edit Button */}
-                                                    <button
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        // Navigate to content suite with editPostId parameter in same tab
-                                                        window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
-                                                      }}
-                                                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
-                                                      title="Edit content"
-                                                    >
-                                                      Edit
-                                                    </button>
-                                                  </div>
+                                              {/* Platform Icons */}
+                                              {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
+                                                <div className="flex items-center gap-1 mt-2">
+                                                  {post.platforms_scheduled.map((platform, platformIdx) => (
+                                                    <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
+                                                      {platform === 'facebook' && <FacebookIcon size={12} className="text-blue-600" />}
+                                                      {platform === 'instagram' && <InstagramIcon size={12} className="text-pink-600" />}
+                                                      {platform === 'twitter' && <TwitterIcon size={12} className="text-sky-500" />}
+                                                      {platform === 'linkedin' && <LinkedInIcon size={12} className="text-blue-700" />}
+                                                    </div>
+                                                  ))}
                                                 </div>
-                                              </div>
+                                              )}
                                             </>
                                           )}
                                         </div>
@@ -1823,15 +1798,24 @@ export default function PlannerPage() {
                                       </div>
                                     ) : (
                                       <>
-                                        {/* Card Title - Day and Date */}
+                                        {/* Card Title - Day, Date, and Time */}
                                         <div className="mb-3 pb-2 border-b border-gray-200">
                                           <div className="flex items-center justify-between">
                                             <div>
                                               <h4 className="font-semibold text-sm text-gray-700">
-                                                {day}
+                                                {day} {dayDate.getDate()}
                                               </h4>
                                               <p className="text-xs text-gray-600">
-                                                {dayDate.getDate()}
+                                                <span 
+                                                  className="cursor-pointer hover:text-gray-800"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingPostId(post.id);
+                                                  }}
+                                                  title="Click to edit time"
+                                                >
+                                                  {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                                </span>
                                               </p>
                                             </div>
                                             {/* Approval Selection Checkbox */}
@@ -1850,32 +1834,33 @@ export default function PlannerPage() {
                                           </div>
                                         </div>
 
-                                        {/* Time */}
-                                        <div className="text-xs text-gray-600 mb-2">
-                                          <span 
-                                            className="cursor-pointer hover:text-gray-800"
+                                        {/* Edit Indicators, Approval Status, and Edit Button */}
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="flex items-center gap-2">
+                                            <EditIndicators 
+                                              post={post} 
+                                              clientId={clientId}
+                                              showHistory={true}
+                                            />
+                                            
+                                            {/* Client Feedback Indicator */}
+                                            {post.client_feedback && (
+                                              <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
+                                            )}
+                                          </div>
+                                          
+                                          {/* Edit Button */}
+                                          <button
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              setEditingPostId(post.id);
+                                              // Navigate to content suite with editPostId parameter in same tab
+                                              window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
                                             }}
-                                            title="Click to edit time"
+                                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                                            title="Edit content"
                                           >
-                                            {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                          </span>
-                                        </div>
-
-                                        {/* Edit Indicators and Approval Status */}
-                                        <div className="flex items-center justify-between mb-2">
-                                          <EditIndicators 
-                                            post={post} 
-                                            clientId={clientId}
-                                            showHistory={true}
-                                          />
-                                          
-                                          {/* Client Feedback Indicator */}
-                                          {post.client_feedback && (
-                                            <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
-                                          )}
+                                            Edit
+                                          </button>
                                         </div>
 
                                         {/* Post Image */}
@@ -1908,54 +1893,19 @@ export default function PlannerPage() {
                                           </div>
                                         )}
 
-                                        {/* Post Actions */}
-                                        <div className="mt-3 pt-2 border-t border-gray-100">
-                                          <div className="flex items-center justify-between">
-                                            {/* Status and Info */}
-                                            <div className="flex items-center space-x-2 text-xs text-gray-500">
-                                              {post.late_status && (
-                                                <span className={`px-2 py-1 rounded-full text-xs ${
-                                                  post.late_status === 'scheduled' ? 'bg-green-100 text-green-700' :
-                                                  post.late_status === 'published' ? 'bg-blue-100 text-blue-700' :
-                                                  post.late_status === 'failed' ? 'bg-red-100 text-red-700' :
-                                                  'bg-gray-100 text-gray-700'
-                                                }`}>
-                                                  {post.late_status === 'scheduled' ? 'Scheduled' : post.late_status}
-                                                </span>
-                                              )}
-                                            </div>
-
-                                            {/* Right side - Platform Icons and Edit Button */}
-                                            <div className="flex items-center gap-2">
-                                              {/* Platform Icons */}
-                                              {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
-                                                <div className="flex items-center gap-1">
-                                                  {post.platforms_scheduled.map((platform, platformIdx) => (
-                                                    <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
-                                                      {platform === 'facebook' && <FacebookIcon size={12} className="text-blue-600" />}
-                                                      {platform === 'instagram' && <InstagramIcon size={12} className="text-pink-600" />}
-                                                      {platform === 'twitter' && <TwitterIcon size={12} className="text-sky-500" />}
-                                                      {platform === 'linkedin' && <LinkedInIcon size={12} className="text-blue-700" />}
-                                                    </div>
-                                                  ))}
-                                                </div>
-                                              )}
-                                              
-                                              {/* Edit Button */}
-                                              <button
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  // Navigate to content suite with editPostId parameter in same tab
-                                                  window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
-                                                }}
-                                                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
-                                                title="Edit content"
-                                              >
-                                                Edit
-                                              </button>
-                                            </div>
+                                        {/* Platform Icons */}
+                                        {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
+                                          <div className="flex items-center gap-1 mt-2">
+                                            {post.platforms_scheduled.map((platform, platformIdx) => (
+                                              <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
+                                                {platform === 'facebook' && <FacebookIcon size={12} className="text-blue-600" />}
+                                                {platform === 'instagram' && <InstagramIcon size={12} className="text-pink-600" />}
+                                                {platform === 'twitter' && <TwitterIcon size={12} className="text-sky-500" />}
+                                                {platform === 'linkedin' && <LinkedInIcon size={12} className="text-blue-700" />}
+                                              </div>
+                                            ))}
                                           </div>
-                                        </div>
+                                        )}
                                       </>
                                     )}
                                   </div>
