@@ -172,6 +172,7 @@ export default function PlannerPage() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [selectedPostsForApproval, setSelectedPostsForApproval] = useState<Set<string>>(new Set());
+  const [selectedCalendarPostsForApproval, setSelectedCalendarPostsForApproval] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
 
@@ -871,6 +872,18 @@ export default function PlannerPage() {
     });
   };
 
+  const handleToggleCalendarPostForApproval = (postId: string) => {
+    setSelectedCalendarPostsForApproval(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(postId)) {
+        newSet.delete(postId);
+      } else {
+        newSet.add(postId);
+      }
+      return newSet;
+    });
+  };
+
   const handleSelectAllPostsForApproval = () => {
     const allPostIds = new Set<string>();
     
@@ -886,13 +899,31 @@ export default function PlannerPage() {
     setSelectedPostsForApproval(new Set());
   };
 
+  const handleSelectAllCalendarPostsForApproval = () => {
+    const allPostIds = new Set<string>();
+    
+    // Add all scheduled posts from calendar
+    Object.values(scheduledPosts).forEach(weekPosts => {
+      weekPosts.forEach(post => allPostIds.add(post.id));
+    });
+    
+    setSelectedCalendarPostsForApproval(allPostIds);
+  };
+
+  const handleDeselectAllCalendarPostsForApproval = () => {
+    setSelectedCalendarPostsForApproval(new Set());
+  };
+
   const handleCreateShareLink = async () => {
     if (!selectedProject) {
       alert('Please select a project first');
       return;
     }
 
-    if (selectedPostsForApproval.size === 0) {
+    // Combine both approval board and calendar selections
+    const allSelectedPosts = new Set([...selectedPostsForApproval, ...selectedCalendarPostsForApproval]);
+
+    if (allSelectedPosts.size === 0) {
       alert('Please select at least one post to share for approval');
       return;
     }
@@ -905,7 +936,7 @@ export default function PlannerPage() {
         body: JSON.stringify({
           project_id: selectedProject,
           client_id: clientId,
-          selected_post_ids: Array.from(selectedPostsForApproval)
+          selected_post_ids: Array.from(allSelectedPosts)
         })
       });
 
@@ -917,7 +948,7 @@ export default function PlannerPage() {
       
       // For now, just copy to clipboard and show alert
       await navigator.clipboard.writeText(share_url);
-      alert(`Share link copied to clipboard!\n\nLink: ${share_url}\nExpires: ${new Date(session.expires_at).toLocaleDateString()}\n\nSelected ${selectedPostsForApproval.size} posts for approval`);
+      alert(`Share link copied to clipboard!\n\nLink: ${share_url}\nExpires: ${new Date(session.expires_at).toLocaleDateString()}\n\nSelected ${allSelectedPosts.size} posts for approval`);
       
     } catch (error) {
       console.error('❌ Error creating share link:', error);
@@ -1469,7 +1500,32 @@ export default function PlannerPage() {
               </div>
             </div>
           </div>
-          <div className={useRowLayout ? 'p-4 space-y-4' : 'overflow-x-auto'}>
+            {/* Calendar Selection Controls */}
+            <div className="mb-4 px-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">
+                      Calendar: {selectedCalendarPostsForApproval.size} selected
+                    </span>
+                    <button
+                      onClick={handleSelectAllCalendarPostsForApproval}
+                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+                    >
+                      Select All Calendar
+                    </button>
+                    <button
+                      onClick={handleDeselectAllCalendarPostsForApproval}
+                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+                    >
+                      Deselect All Calendar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className={useRowLayout ? 'p-4 space-y-4' : 'overflow-x-auto'}>
             <div className={useRowLayout ? '' : `p-4 ${useRowLayout ? 'min-w-[800px]' : 'min-w-0'}`}>
               <div className={`${useRowLayout ? 'space-y-4' : 'grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4'}`} style={{ gap: '16px' }}>
                 {getWeeksToDisplay().map((weekStart, weekIndex) => (
@@ -1629,26 +1685,13 @@ export default function PlannerPage() {
                                                   <div className="flex items-center">
                                                     <input
                                                       type="checkbox"
-                                                      checked={selectedPosts.has(post.id) || selectedForDelete.has(post.id)}
+                                                      checked={selectedCalendarPostsForApproval.has(post.id)}
                                                       onChange={(e) => {
                                                         e.stopPropagation();
-                                                        
-                                                        // Update both selection sets
-                                                        const newSelectedPosts = new Set(selectedPosts);
-                                                        const newSelectedDelete = new Set(selectedForDelete);
-                                                        
-                                                        if (e.target.checked) {
-                                                          newSelectedPosts.add(post.id);
-                                                          newSelectedDelete.add(post.id);
-                                                        } else {
-                                                          newSelectedPosts.delete(post.id);
-                                                          newSelectedDelete.delete(post.id);
-                                                        }
-                                                        
-                                                        setSelectedPosts(newSelectedPosts);
-                                                        setSelectedForDelete(newSelectedDelete);
+                                                        handleToggleCalendarPostForApproval(post.id);
                                                       }}
                                                       className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                                      title="Select for client approval"
                                                     />
                                                   </div>
                                                 </div>
@@ -1826,26 +1869,13 @@ export default function PlannerPage() {
                                             <div className="flex items-center">
                                               <input
                                                 type="checkbox"
-                                                checked={selectedPosts.has(post.id) || selectedForDelete.has(post.id)}
+                                                checked={selectedCalendarPostsForApproval.has(post.id)}
                                                 onChange={(e) => {
                                                   e.stopPropagation();
-                                                  
-                                                  // Update both selection sets
-                                                  const newSelectedPosts = new Set(selectedPosts);
-                                                  const newSelectedDelete = new Set(selectedForDelete);
-                                                  
-                                                  if (e.target.checked) {
-                                                    newSelectedPosts.add(post.id);
-                                                    newSelectedDelete.add(post.id);
-                                                  } else {
-                                                    newSelectedPosts.delete(post.id);
-                                                    newSelectedDelete.delete(post.id);
-                                                  }
-                                                  
-                                                  setSelectedPosts(newSelectedPosts);
-                                                  setSelectedForDelete(newSelectedDelete);
+                                                  handleToggleCalendarPostForApproval(post.id);
                                                 }}
                                                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                                title="Select for client approval"
                                               />
                                             </div>
                                           </div>
@@ -2011,16 +2041,22 @@ export default function PlannerPage() {
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center space-x-2">
                     <span className="text-sm text-gray-600">
-                      {selectedPostsForApproval.size} selected
+                      {selectedPostsForApproval.size + selectedCalendarPostsForApproval.size} selected
                     </span>
                     <button
-                      onClick={handleSelectAllPostsForApproval}
+                      onClick={() => {
+                        handleSelectAllPostsForApproval();
+                        handleSelectAllCalendarPostsForApproval();
+                      }}
                       className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
                     >
                       Select All
                     </button>
                     <button
-                      onClick={handleDeselectAllPostsForApproval}
+                      onClick={() => {
+                        handleDeselectAllPostsForApproval();
+                        handleDeselectAllCalendarPostsForApproval();
+                      }}
                       className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
                     >
                       Deselect All
@@ -2032,7 +2068,7 @@ export default function PlannerPage() {
                 {/* Share Button */}
                 <button
                   onClick={handleCreateShareLink}
-                  disabled={!selectedProject || isCreatingSession || selectedPostsForApproval.size === 0}
+                  disabled={!selectedProject || isCreatingSession || (selectedPostsForApproval.size === 0 && selectedCalendarPostsForApproval.size === 0)}
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
                   {isCreatingSession ? (
