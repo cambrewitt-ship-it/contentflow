@@ -30,7 +30,6 @@ interface ConnectedAccount {
 
 interface SocialPreviewColumnProps {
   clientId: string
-  clientLogoUrl?: string
   handleSendToScheduler: (
     selectedCaption: string,
     uploadedImages: { preview: string; id: string; file?: File }[]
@@ -41,22 +40,16 @@ interface SocialPreviewColumnProps {
   updatingPost?: boolean
   // Custom caption change handler
   onCustomCaptionChange?: (customCaption: string) => void
-  // Caption confirmation change handler
-  onCaptionConfirmationChange?: (confirmed: boolean) => void
 }
 
 export function SocialPreviewColumn({
   clientId,
-  clientLogoUrl,
   handleSendToScheduler,
   isSendingToScheduler,
   isEditing = false,
   updatingPost = false,
   onCustomCaptionChange,
-  onCaptionConfirmationChange,
 }: SocialPreviewColumnProps) {
-  // Debug logging
-  console.log('🔍 SocialPreviewColumn received clientLogoUrl:', clientLogoUrl)
   const {
     uploadedImages,
     captions,
@@ -80,7 +73,6 @@ export function SocialPreviewColumn({
 
   // Custom caption state
   const [customCaption, setCustomCaption] = useState('')
-  const [useAsSelectedCaption, setUseAsSelectedCaption] = useState(false)
 
   // Connected accounts state
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([])
@@ -119,17 +111,11 @@ export function SocialPreviewColumn({
     }
   }, [customCaption, onCustomCaptionChange])
 
-  // Call parent component when confirmation state changes
-  useEffect(() => {
-    if (onCaptionConfirmationChange) {
-      onCaptionConfirmationChange(useAsSelectedCaption)
-    }
-  }, [useAsSelectedCaption, onCaptionConfirmationChange])
 
   // Only update content store when we're about to save/update a post
   // This prevents the custom caption from appearing in the AI captions section during live editing
   const updateContentStoreForSaving = () => {
-    if (customCaption && customCaption !== selectedCaption && useAsSelectedCaption) {
+    if (customCaption && customCaption !== selectedCaption) {
       // Update the content store with the custom caption only when saving
       const captionId = selectedCaptions[0] || 'custom-caption-1'
       const updatedCaptions = captions.map(cap => 
@@ -394,15 +380,7 @@ export function SocialPreviewColumn({
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center">
           <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center overflow-hidden">
-            {clientLogoUrl ? (
-              <img 
-                src={clientLogoUrl} 
-                alt="Client logo"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <FacebookIcon size={20} className="text-white" />
-            )}
+            <FacebookIcon size={20} className="text-white" />
           </div>
           <div className="ml-3">
             <div className="font-semibold text-gray-900 text-sm">
@@ -490,15 +468,7 @@ export function SocialPreviewColumn({
       <div className="flex items-center justify-between px-3 py-3">
         <div className="flex items-center">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center overflow-hidden">
-            {clientLogoUrl ? (
-              <img 
-                src={clientLogoUrl} 
-                alt="Client logo"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <InstagramIcon size={16} className="text-white" />
-            )}
+            <InstagramIcon size={16} className="text-white" />
           </div>
           <div className="ml-3">
             <div className="font-semibold text-gray-900 text-sm">
@@ -562,15 +532,7 @@ export function SocialPreviewColumn({
       {/* Twitter Header */}
       <div className="flex items-center p-3 border-b border-gray-100">
         <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center overflow-hidden">
-          {clientLogoUrl ? (
-            <img 
-              src={clientLogoUrl} 
-              alt="Client logo"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <TwitterIcon size={20} className="text-white" />
-          )}
+          <TwitterIcon size={20} className="text-white" />
         </div>
         <div className="ml-3 flex-1">
           <div className="font-semibold text-gray-900 text-sm">
@@ -697,19 +659,6 @@ export function SocialPreviewColumn({
             <CardTitle className="card-title-26">
               {copyType === 'email-marketing' ? 'Email Marketing Preview' : 'Social Media Preview'}
             </CardTitle>
-            {/* Confirm Post Button */}
-            {uploadedImages.length > 0 && customCaption && (
-              <Button
-                onClick={() => setUseAsSelectedCaption(!useAsSelectedCaption)}
-                className={`w-12 h-12 rounded-full p-0 ${
-                  useAsSelectedCaption
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                    : 'bg-gray-400 hover:bg-gray-500 text-white'
-                }`}
-              >
-                <Check className="w-10 h-10" style={{ strokeWidth: 3 }} />
-              </Button>
-            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -802,15 +751,7 @@ export function SocialPreviewColumn({
                         <div className="flex items-center justify-between px-4 py-3">
                           <div className="flex items-center">
                             <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center overflow-hidden">
-                              {clientLogoUrl ? (
-                                <img 
-                                  src={clientLogoUrl} 
-                                  alt="Client logo"
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <FacebookIcon size={20} className="text-white" />
-                              )}
+                              <FacebookIcon size={20} className="text-white" />
                             </div>
                             <div className="ml-3">
                               <div className="font-semibold text-gray-900 text-sm">Your Facebook</div>
@@ -828,15 +769,7 @@ export function SocialPreviewColumn({
                         <div className="flex items-center justify-between px-3 py-3">
                           <div className="flex items-center">
                             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center overflow-hidden">
-                              {clientLogoUrl ? (
-                                <img 
-                                  src={clientLogoUrl} 
-                                  alt="Client logo"
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <InstagramIcon size={16} className="text-white" />
-                              )}
+                              <InstagramIcon size={16} className="text-white" />
                             </div>
                             <div className="ml-3">
                               <div className="font-semibold text-gray-900 text-sm">your_instagram</div>
@@ -849,15 +782,7 @@ export function SocialPreviewColumn({
                       {selectedPreviewPlatform === 'twitter' && (
                         <div className="flex items-center p-3 border-b border-gray-100">
                           <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center overflow-hidden">
-                            {clientLogoUrl ? (
-                              <img 
-                                src={clientLogoUrl} 
-                                alt="Client logo"
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <TwitterIcon size={20} className="text-white" />
-                            )}
+                            <TwitterIcon size={20} className="text-white" />
                           </div>
                           <div className="ml-3 flex-1">
                             <div className="font-semibold text-gray-900 text-sm">Your Twitter</div>

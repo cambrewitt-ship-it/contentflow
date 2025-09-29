@@ -98,7 +98,7 @@ export default function Dashboard() {
     if (user) {
       fetchClients();
     }
-  }, [user]);
+  }, [user, getAccessToken]);
 
   // Update NZST time and date every minute
   useEffect(() => {
@@ -192,7 +192,7 @@ export default function Dashboard() {
             })()}!
           </h1>
           <div className="mt-8">
-            <div className="inline-block bg-purple-600 px-6 h-10 rounded-lg flex items-center justify-center">
+            <div className="inline-block bg-gradient-to-r from-purple-600 to-purple-700 opacity-90 px-6 h-10 rounded-lg flex items-center justify-center">
               <div className="flex items-center justify-center h-full">
                 <span className="text-lg text-white font-medium">
                   Select a client to get started

@@ -1546,6 +1546,8 @@ export default function PlannerPage() {
                               return (
                                 <div key={idx} className="mt-1">
                                   {editingPostId === post.id ? (
+                                    <div className="relative">
+                                      {/* Time input overlay */}
                                     <input
                                       type="time"
                                       defaultValue={post.scheduled_time?.slice(0, 5)}
@@ -1562,8 +1564,207 @@ export default function PlannerPage() {
                                         handleEditScheduledPost(post, e.target.value);
                                         setEditingPostId(null);
                                       }}
-                                      className="text-xs p-1 rounded border"
-                                    />
+                                        className="absolute top-2 left-2 z-10 text-xs p-1 rounded border bg-white shadow-lg"
+                                        autoFocus
+                                      />
+                                      {/* Full card content below - same as normal card but with opacity */}
+                                      <div className="opacity-50">
+                                        <div 
+                                          draggable={!isDeleting && !isScheduling && !isEditingTime && !isMoving}
+                                          onDragStart={(e) => !isDeleting && !isScheduling && !isEditingTime && !isMoving && (() => {
+                                            e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
+                                            e.dataTransfer.setData('originalDate', dayDate.toLocaleDateString('en-CA')); // Keeps local timezone
+                                          })()}
+                                          className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow ${
+                                            isDeleting 
+                                              ? 'cursor-not-allowed opacity-50 bg-red-50 border-red-300' 
+                                              : isScheduling
+                                                ? 'cursor-not-allowed opacity-50 bg-yellow-50 border-yellow-300'
+                                                : isEditingTime
+                                                  ? 'cursor-not-allowed opacity-50 bg-purple-50 border-purple-300'
+                                                  : isMoving
+                                                    ? 'cursor-not-allowed opacity-50 bg-orange-50 border-orange-300'
+                                                  : `cursor-move ${
+                                                      post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
+                                                      post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
+                                                      post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
+                                                      'border-gray-200 bg-white'
+                                                    }`
+                                          }`}
+                                        >
+                                          {isDeleting ? (
+                                            <div className="flex items-center gap-2">
+                                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                                              <span className="text-xs text-red-600">Deleting...</span>
+                                            </div>
+                                          ) : isScheduling ? (
+                                            <div className="flex items-center gap-2">
+                                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
+                                              <span className="text-xs text-yellow-600">Scheduling...</span>
+                                            </div>
+                                          ) : isEditingTime ? (
+                                            <div className="flex items-center gap-2">
+                                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                                              <span className="text-xs text-purple-600">Updating time...</span>
+                                            </div>
+                                          ) : isMoving ? (
+                                            <div className="flex items-center gap-2">
+                                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
+                                              <span className="text-xs text-orange-600">Moving...</span>
+                                            </div>
+                                          ) : (
+                                            <>
+                                              {/* Card Title - Day and Date */}
+                                              <div className="mb-3 pb-2 border-b border-gray-200">
+                                                <div className="flex items-center justify-between">
+                                                  <div>
+                                                    <h4 className="font-semibold text-sm text-gray-700">
+                                                      {day}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-600">
+                                                      {dayDate.getDate()}
+                                                    </p>
+                                                  </div>
+                                                  {/* Approval Selection Checkbox */}
+                                                  <div className="flex items-center">
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={selectedPosts.has(post.id) || selectedForDelete.has(post.id)}
+                                                      onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        
+                                                        // Update both selection sets
+                                                        const newSelectedPosts = new Set(selectedPosts);
+                                                        const newSelectedDelete = new Set(selectedForDelete);
+                                                        
+                                                        if (e.target.checked) {
+                                                          newSelectedPosts.add(post.id);
+                                                          newSelectedDelete.add(post.id);
+                                                        } else {
+                                                          newSelectedPosts.delete(post.id);
+                                                          newSelectedDelete.delete(post.id);
+                                                        }
+                                                        
+                                                        setSelectedPosts(newSelectedPosts);
+                                                        setSelectedForDelete(newSelectedDelete);
+                                                      }}
+                                                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                                    />
+                                                  </div>
+                                                </div>
+                                              </div>
+
+                                              {/* Time */}
+                                              <div className="text-xs text-gray-600 mb-2">
+                                                <span 
+                                                  className="cursor-pointer hover:text-gray-800"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingPostId(post.id);
+                                                  }}
+                                                  title="Click to edit time"
+                                                >
+                                                  {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                                </span>
+                                              </div>
+
+                                              {/* Edit Indicators and Approval Status */}
+                                              <div className="flex items-center justify-between mb-2">
+                                                <EditIndicators 
+                                                  post={post} 
+                                                  clientId={clientId}
+                                                  showHistory={true}
+                                                />
+                                                
+                                                {/* Client Feedback Indicator */}
+                                                {post.client_feedback && (
+                                                  <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
+                                                )}
+                                              </div>
+
+                                              {/* Post Image */}
+                                              {post.image_url && (
+                                                <div className="w-full mb-2 rounded overflow-hidden">
+                                                  <img 
+                                                    src={post.image_url || '/api/placeholder/100/100'} 
+                                                    alt="Post"
+                                                    className="w-full h-auto object-contain"
+                                                    onError={(e) => {
+                                                      console.log('Scheduled post image failed to load, using placeholder for post:', post.id);
+                                                      e.currentTarget.src = '/api/placeholder/100/100';
+                                                    }}
+                                                  />
+                                                </div>
+                                              )}
+                                              
+                                              {/* Caption */}
+                                              <div className="mb-2">
+                                                <p className="text-sm text-gray-700">
+                                                  {post.caption}
+                                                </p>
+                                              </div>
+                                              
+                                              {/* Client Feedback */}
+                                              {post.client_feedback && (
+                                                <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                                                  <span className="font-medium text-gray-700">Client feedback:</span>
+                                                  <p className="mt-1 text-gray-600">{post.client_feedback}</p>
+                                                </div>
+                                              )}
+
+                                              {/* Post Actions */}
+                                              <div className="mt-3 pt-2 border-t border-gray-100">
+                                                <div className="flex items-center justify-between">
+                                                  {/* Status and Info */}
+                                                  <div className="flex items-center space-x-2 text-xs text-gray-500">
+                                                    {post.late_status && (
+                                                      <span className={`px-2 py-1 rounded-full text-xs ${
+                                                        post.late_status === 'scheduled' ? 'bg-green-100 text-green-700' :
+                                                        post.late_status === 'published' ? 'bg-blue-100 text-blue-700' :
+                                                        post.late_status === 'failed' ? 'bg-red-100 text-red-700' :
+                                                        'bg-gray-100 text-gray-700'
+                                                      }`}>
+                                                        {post.late_status === 'scheduled' ? 'Scheduled' : post.late_status}
+                                                      </span>
+                                                    )}
+                                                  </div>
+
+                                                  {/* Right side - Platform Icons and Edit Button */}
+                                                  <div className="flex items-center gap-2">
+                                                    {/* Platform Icons */}
+                                                    {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
+                                                      <div className="flex items-center gap-1">
+                                                        {post.platforms_scheduled.map((platform, platformIdx) => (
+                                                          <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
+                                                            {platform === 'facebook' && <FacebookIcon size={12} className="text-blue-600" />}
+                                                            {platform === 'instagram' && <InstagramIcon size={12} className="text-pink-600" />}
+                                                            {platform === 'twitter' && <TwitterIcon size={12} className="text-sky-500" />}
+                                                            {platform === 'linkedin' && <LinkedInIcon size={12} className="text-blue-700" />}
+                                                          </div>
+                                                        ))}
+                                                      </div>
+                                                    )}
+                                                    
+                                                    {/* Edit Button */}
+                                                    <button
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        // Navigate to content suite with editPostId parameter in same tab
+                                                        window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
+                                                      }}
+                                                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                                                      title="Edit content"
+                                                    >
+                                                      Edit
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
                                   ) : (
                                     <div 
                                       draggable={!isDeleting && !isScheduling && !isEditingTime && !isMoving}

@@ -130,8 +130,12 @@ export function ContentIdeasColumn() {
             className="bg-purple-600 hover:bg-purple-700 text-white"
             style={{ width: '326px' }}
           >
-            <Lightbulb className="w-4 h-4 mr-2" />
-            {generatingIdeas ? 'Generating...' : 'Get Fresh Ideas'}
+            {generatingIdeas ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Lightbulb className="w-4 h-4 mr-2" />
+            )}
+            {generatingIdeas ? 'Generating Ideas' : 'Get Fresh Ideas'}
           </Button>
         </div>
       </Card>

@@ -89,7 +89,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
     return () => {
       window.removeEventListener('clientCreated', handleClientCreated);
     };
-  }, [user]);
+  }, [user, getAccessToken]);
 
   // Extract current client ID from pathname
   const currentClientId = pathname?.split('/')[2] || null;

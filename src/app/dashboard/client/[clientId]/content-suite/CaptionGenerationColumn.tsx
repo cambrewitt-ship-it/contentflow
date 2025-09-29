@@ -134,9 +134,16 @@ export function CaptionGenerationColumn() {
                   </p>
                 )}
                 
-                {/* Light grey brain icon or generated captions */}
+                {/* Light grey brain icon - always positioned at 105px */}
                 <div className="flex justify-center" style={{ marginTop: '105px' }}>
-                  {captions.length > 0 ? (
+                  {captions.length === 0 && (
+                    <Brain className="text-gray-300" style={{ width: '230px', height: '230px' }} />
+                  )}
+                </div>
+
+                {/* Generated captions - moved up 100px from brain icon position */}
+                {captions.length > 0 && (
+                  <div className="flex justify-center" style={{ marginTop: '-75px' }}>
                     <div className="w-full max-w-md">
                       <div className="space-y-3">
                         {captions.slice(0, 3).map((caption) => (
@@ -198,10 +205,8 @@ export function CaptionGenerationColumn() {
                         ))}
                       </div>
                     </div>
-                  ) : (
-                    <Brain className="text-gray-300" style={{ width: '230px', height: '230px' }} />
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

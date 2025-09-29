@@ -583,7 +583,6 @@ function ContentSuiteContent({
 
   // State to track custom caption from SocialPreviewColumn
   const [customCaptionFromPreview, setCustomCaptionFromPreview] = useState('')
-  const [isCaptionConfirmed, setIsCaptionConfirmed] = useState(false)
   
 
   // Handle custom caption changes from SocialPreviewColumn
@@ -591,10 +590,6 @@ function ContentSuiteContent({
     setCustomCaptionFromPreview(customCaption)
   }
 
-  // Handle caption confirmation changes from SocialPreviewColumn
-  const handleCaptionConfirmationChange = (confirmed: boolean) => {
-    setIsCaptionConfirmed(confirmed)
-  }
 
   // Clear all content when component mounts (reload) - but not when editing
   useEffect(() => {
@@ -986,14 +981,6 @@ function ContentSuiteContent({
                             onClick={(e) => {
                               e.stopPropagation();
                               
-                              // Check if caption is confirmed (required for custom captions)
-                              const hasCustomCaption = customCaptionFromPreview && customCaptionFromPreview.trim() !== '';
-                              const isCaptionReady = !hasCustomCaption || isCaptionConfirmed;
-                              
-                              if (!isCaptionReady) {
-                                alert('Please confirm your custom caption before adding to project');
-                                return;
-                              }
                               
                               // Create post object from current content store state
                               // Use custom caption if available, otherwise use selected caption from content store
@@ -1006,7 +993,6 @@ function ContentSuiteContent({
                               console.log('📝 Selected caption from store:', selectedCaptionText);
                               console.log('📝 Content store captions:', captions);
                               console.log('📝 Selected captions:', selectedCaptions);
-                              console.log('📝 Caption confirmed:', isCaptionConfirmed);
                               
                               const post = {
                                 clientId: clientId,
@@ -1017,19 +1003,13 @@ function ContentSuiteContent({
                               
                               handleAddToProject(post, project.id);
                             }}
-                            disabled={addingToProject === project.id || (!!customCaptionFromPreview && !isCaptionConfirmed)}
+                            disabled={addingToProject === project.id}
                             className={`p-1.5 rounded transition-colors flex items-center justify-center ${
                               addingToProject === project.id 
                                 ? 'opacity-50 cursor-not-allowed text-gray-300' 
-                                : (!!customCaptionFromPreview && !isCaptionConfirmed)
-                                ? 'opacity-50 cursor-not-allowed text-gray-300'
                                 : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'
                             }`}
-                            title={
-                              !!customCaptionFromPreview && !isCaptionConfirmed
-                                ? "Please confirm your custom caption first"
-                                : "Add current content to this project"
-                            }
+                            title="Add current content to this project"
                           >
                           {addingToProject === project.id ? (
                             <Loader2 className="w-6 h-6 animate-spin" />
@@ -1101,13 +1081,11 @@ function ContentSuiteContent({
           {/* Column 3: Social Preview */}
           <SocialPreviewColumn
             clientId={clientId}
-            clientLogoUrl={client?.logo_url}
             handleSendToScheduler={handleSendToScheduler}
             isSendingToScheduler={isSendingToScheduler || updatingPost}
             isEditing={isEditing}
             updatingPost={updatingPost}
             onCustomCaptionChange={handleCustomCaptionChange}
-            onCaptionConfirmationChange={handleCaptionConfirmationChange}
           />
         </div>
       </div>

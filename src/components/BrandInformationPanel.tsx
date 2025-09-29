@@ -498,6 +498,9 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                 <p className="text-blue-600 text-sm mt-1">
                   💡 Include snippets from your website, social media, or brand documents that show how your brand should sound
                 </p>
+                <p className="text-gray-600 text-sm mt-2">
+                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand's voice.
+                </p>
               </div>
             ) : (
               <div>
@@ -515,78 +518,6 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
         </CardContent>
       </Card>
 
-      {/* Brand Documents Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Brand Documents</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Upload Section */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-              <Upload className="mx-auto h-12 w-12 text-gray-400" />
-              <div className="mt-4">
-                <label htmlFor="file-upload" className="cursor-pointer">
-                  <span className="text-blue-600 hover:text-blue-500 font-medium">
-                    Upload a brand document
-                  </span>
-                  <span className="text-gray-500"> or drag and drop</span>
-                </label>
-                <input
-                  id="file-upload"
-                  name="file-upload"
-                  type="file"
-                  className="sr-only"
-                  accept=".pdf,.doc,.docx,.txt"
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                />
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                PDF, Word documents, and text files up to 10MB
-              </p>
-            </div>
-
-            {/* Documents List */}
-            {brandDocuments.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Uploaded Documents</h4>
-                {brandDocuments.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <FileText className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{doc.filename}</p>
-                        <p className="text-xs text-gray-500">
-                          {formatFileSize(doc.file_size)} • {doc.file_type.toUpperCase()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        doc.processing_status === 'completed' ? 'bg-green-100 text-green-800' :
-                        doc.processing_status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
-                        doc.processing_status === 'failed' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {doc.processing_status}
-                      </span>
-                      <a
-                        href={doc.file_path}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-500 text-sm"
-                      >
-                        View
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
 
 

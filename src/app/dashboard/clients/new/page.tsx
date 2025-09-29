@@ -340,7 +340,7 @@ export default function NewClientPageV2() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-green-200 p-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -382,37 +382,47 @@ export default function NewClientPageV2() {
               <CardTitle className="text-lg">Brand Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Website URL */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Website URL
-                </label>
-                {true ? (
-                  <div className="flex gap-2">
-                    <Input
-                      value={formData.website_url}
-                      onChange={(e) => handleInputChange('website_url', e.target.value)}
-                      placeholder="https://example.com"
-                      type="url"
-                    />
-                    <Button
-                      onClick={handleWebsiteScrape}
-                      disabled={scraping || !formData.website_url}
-                      size="sm"
-                    >
-                      {scraping ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Globe className="w-4 h-4 mr-2" />
-                      )}
-                      Scrape
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
-                    {formData.website_url || 'No website URL provided'}
-                  </p>
-                )}
+              {/* AI Brand Info Generation Card */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                  💡 AI Brand Info Generation
+                </h3>
+                <p className="text-blue-800 text-sm mb-4">
+                  Enter your website URL below and our AI will analyze your business to pre-fill your brand profile. Review and edit any details to ensure accuracy.
+                </p>
+                
+                {/* Website URL */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Website URL
+                  </label>
+                  {true ? (
+                    <div className="flex gap-2">
+                      <Input
+                        value={formData.website_url}
+                        onChange={(e) => handleInputChange('website_url', e.target.value)}
+                        placeholder="https://example.com"
+                        type="url"
+                      />
+                      <Button
+                        onClick={handleWebsiteScrape}
+                        disabled={scraping || !formData.website_url}
+                        size="sm"
+                      >
+                        {scraping ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Globe className="w-4 h-4 mr-2" />
+                        )}
+                        Scrape
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
+                      {formData.website_url || 'No website URL provided'}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Client Name Field */}
@@ -601,8 +611,8 @@ export default function NewClientPageV2() {
                       rows={4}
                       className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
                     />
-                    <p className="text-blue-600 text-sm mt-1">
-                      💡 Include snippets from your website, social media, or brand documents that show how your brand should sound
+                    <p className="text-gray-600 text-sm mt-2">
+                      Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand's voice.
                     </p>
                   </div>
                 ) : (
@@ -621,116 +631,41 @@ export default function NewClientPageV2() {
             </CardContent>
           </Card>
 
-          {/* Brand Documents Card - Copied from BrandInformationPanel */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Brand Documents</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* Upload Section */}
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                  <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                  <div className="mt-4">
-                    <label htmlFor="file-upload" className="cursor-pointer">
-                      <span className="text-blue-600 hover:text-blue-500 font-medium">
-                        Upload a brand document
-                      </span>
-                      <span className="text-gray-500"> or drag and drop</span>
-                    </label>
-                    <input
-                      id="file-upload"
-                      name="file-upload"
-                      type="file"
-                      className="sr-only"
-                      accept=".pdf,.doc,.docx,.txt"
-                      onChange={handleFileUpload}
-                      disabled={uploading}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    PDF, Word documents, and text files up to 10MB
-                  </p>
-                </div>
-
-                {/* Documents List */}
-                {brandDocuments.length > 0 && (
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-gray-900">Uploaded Documents</h4>
-                    {brandDocuments.map((doc) => (
-                      <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <FileText className="h-5 w-5 text-gray-400" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{doc.filename}</p>
-                            <p className="text-xs text-gray-500">
-                              {formatFileSize(doc.file_size)} • {doc.file_type.toUpperCase()}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            doc.processing_status === 'completed' ? 'bg-green-100 text-green-800' :
-                            doc.processing_status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
-                            doc.processing_status === 'failed' ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {doc.processing_status}
-                          </span>
-                          <a
-                            href={doc.file_path}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-500 text-sm"
-                          >
-                            View
-                          </a>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Create Client Button - Moved to bottom of Brand Documents card */}
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                <div className="flex justify-end">
-                  <Button 
-                    onClick={(e) => {
-                      console.log('🖱️ Create Client button clicked');
-                      console.log('🔄 Loading state:', loading);
-                      console.log('🔄 Loading stage:', loadingStage);
-                      console.log('🔄 Is submitting ref:', isSubmittingRef.current);
-                      
-                      // Additional protection against double clicks
-                      if (loading || isSubmittingRef.current) {
-                        console.log('⚠️ Button click ignored - already submitting');
-                        return;
-                      }
-                      
-                      handleSubmit(e);
-                    }}
-                    disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        {loadingStage === 'creating' ? 'Creating client...' : 
-                         loadingStage === 'setting-up-social' ? 'Setting up social media...' : 
-                         'Creating...'}
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Create New Client
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Create Client Button */}
+          <div className="flex justify-end">
+            <Button 
+              onClick={(e) => {
+                console.log('🖱️ Create Client button clicked');
+                console.log('🔄 Loading state:', loading);
+                console.log('🔄 Loading stage:', loadingStage);
+                console.log('🔄 Is submitting ref:', isSubmittingRef.current);
+                
+                // Additional protection against double clicks
+                if (loading || isSubmittingRef.current) {
+                  console.log('⚠️ Button click ignored - already submitting');
+                  return;
+                }
+                
+                handleSubmit(e);
+              }}
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {loadingStage === 'creating' ? 'Creating client...' : 
+                   loadingStage === 'setting-up-social' ? 'Setting up social media...' : 
+                   'Creating...'}
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create New Client
+                </>
+              )}
+            </Button>
+          </div>
 
           {/* Submit Error */}
           {errors.submit && (
