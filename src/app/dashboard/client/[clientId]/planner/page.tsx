@@ -171,7 +171,6 @@ export default function PlannerPage() {
   const [editingTimePostIds, setEditingTimePostIds] = useState<Set<string>>(new Set());
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const [selectedPostsForApproval, setSelectedPostsForApproval] = useState<Set<string>>(new Set());
   const [selectedCalendarPostsForApproval, setSelectedCalendarPostsForApproval] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
@@ -860,18 +859,6 @@ export default function PlannerPage() {
     }
   };
 
-  const handleTogglePostForApproval = (postId: string) => {
-    setSelectedPostsForApproval(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(postId)) {
-        newSet.delete(postId);
-      } else {
-        newSet.add(postId);
-      }
-      return newSet;
-    });
-  };
-
   const handleToggleCalendarPostForApproval = (postId: string) => {
     setSelectedCalendarPostsForApproval(prev => {
       const newSet = new Set(prev);
@@ -882,21 +869,6 @@ export default function PlannerPage() {
       }
       return newSet;
     });
-  };
-
-  const handleSelectAllPostsForApproval = () => {
-    const allPostIds = new Set<string>();
-    
-    // Add only scheduled posts (approval board should only show scheduled posts)
-    Object.values(scheduledPosts).forEach(weekPosts => {
-      weekPosts.forEach(post => allPostIds.add(post.id));
-    });
-    
-    setSelectedPostsForApproval(allPostIds);
-  };
-
-  const handleDeselectAllPostsForApproval = () => {
-    setSelectedPostsForApproval(new Set());
   };
 
   const handleSelectAllCalendarPostsForApproval = () => {
@@ -920,10 +892,7 @@ export default function PlannerPage() {
       return;
     }
 
-    // Combine both approval board and calendar selections
-    const allSelectedPosts = new Set([...selectedPostsForApproval, ...selectedCalendarPostsForApproval]);
-
-    if (allSelectedPosts.size === 0) {
+    if (selectedCalendarPostsForApproval.size === 0) {
       alert('Please select at least one post to share for approval');
       return;
     }
@@ -936,7 +905,7 @@ export default function PlannerPage() {
         body: JSON.stringify({
           project_id: selectedProject,
           client_id: clientId,
-          selected_post_ids: Array.from(allSelectedPosts)
+          selected_post_ids: Array.from(selectedCalendarPostsForApproval)
         })
       });
 
@@ -948,7 +917,7 @@ export default function PlannerPage() {
       
       // For now, just copy to clipboard and show alert
       await navigator.clipboard.writeText(share_url);
-      alert(`Share link copied to clipboard!\n\nLink: ${share_url}\nExpires: ${new Date(session.expires_at).toLocaleDateString()}\n\nSelected ${allSelectedPosts.size} posts for approval`);
+      alert(`Share link copied to clipboard!\n\nLink: ${share_url}\nExpires: ${new Date(session.expires_at).toLocaleDateString()}\n\nSelected ${selectedCalendarPostsForApproval.size} posts for approval`);
       
     } catch (error) {
       console.error('❌ Error creating share link:', error);
@@ -2007,45 +1976,18 @@ export default function PlannerPage() {
             </div>
           </div>
           
-          {/* Scheduled Posts Section - Approval Board */}
+          {/* Approval Summary and Share Controls */}
           <div className="mt-8 border-t border-gray-200 pt-8 mx-6">
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-700">Scheduled Posts - Approval Board</h2>
-                  <p className="text-sm text-gray-600 mt-1">Review approval status and client feedback for all scheduled posts</p>
-                </div>
-                
-                {/* Loading State for Scheduled Posts */}
-                {isLoadingScheduledPosts && (
-                  <div className="flex items-center text-sm text-blue-600">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                    Loading scheduled posts...
-                  </div>
-                )}
-                <Button
-                  onClick={() => fetchScheduledPosts(0, true)}
-                  variant="outline"
-                  size="sm"
-                  className="text-sm"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh Status
-                </Button>
-              </div>
-            </div>
-            
             {/* Post Selection Controls */}
             <div className="mb-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center space-x-2">
                     <span className="text-sm text-gray-600">
-                      {selectedPostsForApproval.size + selectedCalendarPostsForApproval.size} selected
+                      {selectedCalendarPostsForApproval.size} selected
                     </span>
                     <button
                       onClick={() => {
-                        handleSelectAllPostsForApproval();
                         handleSelectAllCalendarPostsForApproval();
                       }}
                       className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
@@ -2054,7 +1996,6 @@ export default function PlannerPage() {
                     </button>
                     <button
                       onClick={() => {
-                        handleDeselectAllPostsForApproval();
                         handleDeselectAllCalendarPostsForApproval();
                       }}
                       className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
@@ -2068,7 +2009,7 @@ export default function PlannerPage() {
                 {/* Share Button */}
                 <button
                   onClick={handleCreateShareLink}
-                  disabled={!selectedProject || isCreatingSession || (selectedPostsForApproval.size === 0 && selectedCalendarPostsForApproval.size === 0)}
+                  disabled={!selectedProject || isCreatingSession || selectedCalendarPostsForApproval.size === 0}
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
                   {isCreatingSession ? (
@@ -2103,7 +2044,7 @@ export default function PlannerPage() {
                       <div className="flex items-center">
                         <Check className="w-4 h-4 text-green-600 mr-2" />
                         <span className="text-sm font-medium text-green-800">Approved</span>
-    </div>
+                      </div>
                       <div className="text-lg font-bold text-green-900 mt-1">{approved}</div>
                     </div>
                     <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -2130,201 +2071,6 @@ export default function PlannerPage() {
                   </>
                 );
               })()}
-            </div>
-            
-            {/* Horizontal Kanban Calendar - Weekly Rows with Daily Columns */}
-            <div className="space-y-4">
-              {isLoadingScheduledPosts ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Loading scheduled posts...</p>
-                  </div>
-                </div>
-              ) : (
-                getWeeksToDisplay().map((weekStart, weekIndex) => {
-                const weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekStart.getDate() + 6);
-                
-                // Get all posts for this week
-                const weekPosts = Object.entries(scheduledPosts)
-                  .flatMap(([date, posts]) => 
-                    posts.filter(post => {
-                      const postDate = new Date(date);
-                      return postDate >= weekStart && postDate <= weekEnd;
-                    })
-                  )
-                  .sort((a, b) => {
-                    // Sort by date, then by time
-                    const dateA = new Date(a.scheduled_date || '');
-                    const dateB = new Date(b.scheduled_date || '');
-                    if (dateA.getTime() !== dateB.getTime()) {
-                      return dateA.getTime() - dateB.getTime();
-                    }
-                    return (a.scheduled_time || '').localeCompare(b.scheduled_time || '');
-                  });
-                
-                return (
-                  <div key={weekIndex} className="bg-white border rounded-lg overflow-hidden">
-                    {/* Week Header */}
-                    <div className="bg-gray-50 p-4 border-b">
-                      <h3 className="font-semibold text-lg">
-                        {formatWeekCommencing(weekStart)}
-                        {weekOffset + weekIndex === 0 && ' (Current)'}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {weekStart.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} - 
-                        {new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
-                      </p>
-                    </div>
-                    
-                    {/* Horizontal Posts Queue */}
-                    <div className="w-full overflow-x-auto">
-                      <div className="flex space-x-4 p-4">
-                        {weekPosts.length === 0 ? (
-                          <div className="text-center text-gray-500 text-sm py-8 w-full">
-                            No posts scheduled for this week
-                          </div>
-                        ) : (
-                          weekPosts.map((post) => {
-                            // Get the date and day for this post
-                            const postDate = new Date(post.scheduled_date + 'T00:00:00');
-                            const dayName = postDate.toLocaleDateString('en-NZ', { weekday: 'long' });
-                            const dateStr = postDate.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' });
-                            
-                            return (
-                              <div
-                                key={post.id}
-                                className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow ${
-                                  post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
-                                  post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
-                                  post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
-                                  'border-gray-200 bg-white'
-                                }`}
-                              >
-                                {/* Post Title - Date and Day */}
-                                <div className="mb-3 pb-2 border-b border-gray-200">
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <h4 className="font-semibold text-sm text-gray-700">{dayName}</h4>
-                                      <p className="text-xs text-gray-600">{dateStr}</p>
-                                    </div>
-                                    {/* Approval Selection Checkbox */}
-                                    <div className="flex items-center">
-                                      <input
-                                        type="checkbox"
-                                        checked={selectedPostsForApproval.has(post.id)}
-                                        onChange={() => handleTogglePostForApproval(post.id)}
-                                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Edit Indicators and Approval Status */}
-                                <div className="flex items-center justify-between mb-2">
-                                  <EditIndicators 
-                                    post={post} 
-                                    clientId={clientId}
-                                    showHistory={true}
-                                  />
-                                  
-                                  {/* Client Feedback Indicator */}
-                                  {post.client_feedback && (
-                                    <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
-                                  )}
-                                </div>
-
-                                {/* Post Image */}
-                                {post.image_url && (
-                                  <div className="w-full mb-2 rounded overflow-hidden">
-                                    <LazyImage
-                                      src={post.image_url}
-                                      alt="Post"
-                                      className="w-full h-auto object-contain"
-                                    />
-                                  </div>
-                                )}
-                                
-                                {/* Time */}
-                                <div className="text-xs text-gray-600 mb-2">
-                                  {post.scheduled_time && formatTimeTo12Hour(post.scheduled_time)}
-                                </div>
-                                
-                                {/* Caption */}
-                                <div className="flex items-start justify-between mb-2">
-                                  <p className="text-sm text-gray-700 flex-1">
-                                    {post.caption}
-                                  </p>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      // Navigate to content suite with editPostId parameter in same tab
-                                      window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
-                                    }}
-                                    className="ml-2 p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors flex-shrink-0"
-                                    title="Edit content"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
-                                  </button>
-                                </div>
-                                
-                                {/* Client Feedback */}
-                                {post.client_feedback && (
-                                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                                    <span className="font-medium text-gray-700">Client feedback:</span>
-                                    <p className="mt-1 text-gray-600">{post.client_feedback}</p>
-                                  </div>
-                                )}
-
-                                {/* Post Actions */}
-                                <div className="mt-3 pt-2 border-t border-gray-100">
-                                  <div className="flex items-center justify-between">
-                                    {/* Status and Info */}
-                                    <div className="flex items-center space-x-2 text-xs text-gray-500">
-                                      {post.late_status && (
-                                        <span className={`px-2 py-1 rounded-full text-xs ${
-                                          post.late_status === 'scheduled' ? 'bg-green-100 text-green-700' :
-                                          post.late_status === 'published' ? 'bg-blue-100 text-blue-700' :
-                                          post.late_status === 'failed' ? 'bg-red-100 text-red-700' :
-                                          'bg-gray-100 text-gray-700'
-                                        }`}>
-                                          {post.late_status === 'scheduled' ? 'Scheduled' : post.late_status}
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {/* Edit Button */}
-                                    {(post as any).status !== 'published' && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          // Navigate to content suite with editPostId parameter in same tab
-                                          window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
-                                        }}
-                                        className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                                        title="Edit in Content Suite"
-                                      >
-                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                        </svg>
-                                        Edit
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-              )}
             </div>
           </div>
           
