@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Plus, Upload, Image, File } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "components/ui/card";
 import { Button } from "components/ui/button";
+import { Textarea } from "components/ui/textarea";
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -75,16 +76,38 @@ interface Post {
   status?: 'draft' | 'ready' | 'scheduled' | 'published' | 'archived' | 'deleted';
 }
 
+interface Upload {
+  id: string;
+  client_id: string;
+  project_id: string | null;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  file_url: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function PortalCalendarPage() {
   const params = useParams();
   const token = params?.token as string;
   
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week
   const [scheduledPosts, setScheduledPosts] = useState<{[key: string]: Post[]}>({});
+  const [uploads, setUploads] = useState<{[key: string]: Upload[]}>({});
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingScheduledPosts, setIsLoadingScheduledPosts] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Upload states
+  const [uploading, setUploading] = useState(false);
+  const [editingNotes, setEditingNotes] = useState<string | null>(null);
+  const [tempNotes, setTempNotes] = useState<string>('');
+  const [isLoadingUploads, setIsLoadingUploads] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get NZ timezone start of week (Monday)
   const getStartOfWeek = (offset: number = 0) => {
@@ -184,13 +207,166 @@ export default function PortalCalendarPage() {
       setError(`Failed to load scheduled posts: ${errorMessage}`);
       setIsLoadingScheduledPosts(false);
     }
-  }, [token, lastFetchTime, scheduledPosts, weekOffset]);
+  }, [token, weekOffset]); // Remove problematic dependencies that cause infinite loops
 
-  useEffect(() => {
-    if (token) {
-      fetchScheduledPosts(0, true);
+  // Fetch uploads for the current date range
+  const fetchUploads = useCallback(async () => {
+    if (!token || isLoadingUploads) return; // Prevent multiple simultaneous calls
+    
+    setIsLoadingUploads(true);
+    try {
+      const response = await fetch(`/api/portal/upload?token=${encodeURIComponent(token)}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch uploads');
+      }
+
+      const data = await response.json();
+      const uploadsList = data.uploads || [];
+      
+      // Group uploads by date
+      const uploadsByDate: {[key: string]: Upload[]} = {};
+      uploadsList.forEach((upload: Upload) => {
+        const uploadDate = new Date(upload.created_at).toLocaleDateString('en-CA');
+        if (!uploadsByDate[uploadDate]) {
+          uploadsByDate[uploadDate] = [];
+        }
+        uploadsByDate[uploadDate].push(upload);
+      });
+      
+      setUploads(uploadsByDate);
+    } catch (err) {
+      console.error('Error fetching uploads:', err);
+    } finally {
+      setIsLoadingUploads(false);
     }
-  }, [token, weekOffset]);
+  }, [token, isLoadingUploads]);
+
+  // Handle file upload
+  const handleFileUpload = async (files: FileList, targetDate: string) => {
+    if (files.length === 0) return;
+
+    setUploading(true);
+
+    try {
+      for (const file of Array.from(files)) {
+        // Convert file to base64
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        // Upload to portal
+        const response = await fetch('/api/portal/upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            token,
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            fileUrl: base64,
+            notes: ''
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to upload ${file.name}`);
+        }
+      }
+
+      // Refresh uploads list
+      await fetchUploads();
+    } catch (err) {
+      console.error('Error uploading files:', err);
+      alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Handle notes editing
+  const handleEditNotes = (uploadId: string, currentNotes: string) => {
+    setEditingNotes(uploadId);
+    setTempNotes(currentNotes || '');
+  };
+
+  const handleSaveNotes = async (uploadId: string) => {
+    try {
+      const response = await fetch('/api/portal/upload', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token,
+          uploadId,
+          notes: tempNotes
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update notes');
+      }
+
+      // Update local state
+      setUploads(prev => {
+        const newUploads = { ...prev };
+        Object.keys(newUploads).forEach(date => {
+          newUploads[date] = newUploads[date].map(upload => 
+            upload.id === uploadId 
+              ? { ...upload, notes: tempNotes }
+              : upload
+          );
+        });
+        return newUploads;
+      });
+
+      setEditingNotes(null);
+      setTempNotes('');
+    } catch (err) {
+      console.error('Error updating notes:', err);
+      alert('Failed to update notes');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingNotes(null);
+    setTempNotes('');
+  };
+
+  // Format file size
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Get file icon
+  const getFileIcon = (fileType: string) => {
+    if (fileType.startsWith('image/')) {
+      return <Image className="h-8 w-8 text-blue-600" />;
+    }
+    return <File className="h-8 w-8 text-gray-600" />;
+  };
+
+  // Debounced effect to prevent rapid API calls
+  useEffect(() => {
+    if (!token) return;
+    
+    const timeoutId = setTimeout(() => {
+      fetchScheduledPosts(0, true);
+      fetchUploads();
+    }, 100); // Small delay to debounce rapid changes
+    
+    return () => clearTimeout(timeoutId);
+  }, [token, weekOffset]); // Remove function dependencies to prevent infinite loops
 
   const getWeeksToDisplay = () => {
     const weeks = [];
@@ -304,12 +480,22 @@ export default function PortalCalendarPage() {
         <div>
           <h2 className="text-2xl font-semibold text-card-foreground">Content Calendar</h2>
           <p className="text-muted-foreground">
-            View your scheduled posts and their approval status
+            View your scheduled posts, upload content, and manage your content calendar
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button onClick={() => fetchScheduledPosts(0, true)} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <Button 
+            onClick={() => {
+              if (!isLoadingScheduledPosts && !isLoadingUploads) {
+                fetchScheduledPosts(0, true);
+                fetchUploads();
+              }
+            }} 
+            disabled={isLoadingScheduledPosts || isLoadingUploads}
+            variant="outline" 
+            size="sm"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${(isLoadingScheduledPosts || isLoadingUploads) ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
@@ -418,7 +604,7 @@ export default function PortalCalendarPage() {
                     </p>
                   </div>
                   
-                  <div className="p-2 flex-1 overflow-x-auto">
+                  <div className="p-2 flex-1 overflow-x-auto overflow-y-hidden">
                     <div className="flex space-x-1 min-w-max">
                       {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, dayIndex) => {
                         const dayDate = new Date(weekStart);
@@ -451,6 +637,148 @@ export default function PortalCalendarPage() {
                               </div>
                             )}
                             
+                            {/* Upload Button */}
+                            <div className="mb-3">
+                              <Button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploading}
+                                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center gap-2"
+                                size="lg"
+                              >
+                                {uploading ? (
+                                  <>
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                    Uploading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="h-5 w-5" />
+                                    Upload Content
+                                  </>
+                                )}
+                              </Button>
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                multiple
+                                accept="image/*,.pdf,.doc,.docx,.txt"
+                                onChange={(e) => e.target.files && handleFileUpload(e.target.files, dayDate.toLocaleDateString('en-CA'))}
+                                className="hidden"
+                              />
+                            </div>
+
+                            {/* Display uploaded content */}
+                            {isLoadingUploads && (
+                              <div className="flex items-center justify-center py-2">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                <span className="ml-2 text-xs text-gray-500">Loading uploads...</span>
+                              </div>
+                            )}
+                            {!isLoadingUploads && uploads[dayDate.toLocaleDateString('en-CA')]?.map((upload: Upload, idx: number) => (
+                              <div key={`upload-${idx}`} className="mt-2">
+                                <div className="flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow border-blue-200 bg-blue-50">
+                                  {/* Upload Header */}
+                                  <div className="mb-3 pb-2 border-b border-gray-200">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        {getFileIcon(upload.file_type)}
+                                        <div>
+                                          <h4 className="font-semibold text-sm text-gray-700">
+                                            {upload.file_name}
+                                          </h4>
+                                          <p className="text-xs text-gray-600">
+                                            {formatFileSize(upload.file_size)}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Upload Image/File Display */}
+                                  {upload.file_type.startsWith('image/') ? (
+                                    <div className="w-full mb-2 rounded overflow-hidden">
+                                      <img 
+                                        src={upload.file_url} 
+                                        alt={upload.file_name}
+                                        className="w-full h-auto object-contain"
+                                        onError={(e) => {
+                                          console.log('Upload image failed to load, using placeholder for upload:', upload.id);
+                                          e.currentTarget.src = '/api/placeholder/100/100';
+                                        }}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="w-full h-32 bg-gray-100 rounded-lg border flex items-center justify-center mb-2">
+                                      <div className="text-center">
+                                        {getFileIcon(upload.file_type)}
+                                        <p className="text-sm text-gray-500 mt-2">{upload.file_name}</p>
+                                        <p className="text-xs text-gray-400">{formatFileSize(upload.file_size)}</p>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Notes Section */}
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">
+                                      Post Notes
+                                    </label>
+                                    {editingNotes === upload.id ? (
+                                      <div className="space-y-2">
+                                        <Textarea
+                                          value={tempNotes}
+                                          onChange={(e) => setTempNotes(e.target.value)}
+                                          placeholder="Add notes about this content..."
+                                          className="min-h-[60px] text-xs"
+                                        />
+                                        <div className="flex space-x-2">
+                                          <Button
+                                            size="sm"
+                                            onClick={() => handleSaveNotes(upload.id)}
+                                            className="flex-1 text-xs"
+                                          >
+                                            Save
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={handleCancelEdit}
+                                            className="flex-1 text-xs"
+                                          >
+                                            Cancel
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        <div 
+                                          className="min-h-[60px] p-2 border rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors"
+                                          onClick={() => handleEditNotes(upload.id, upload.notes || '')}
+                                        >
+                                          {upload.notes ? (
+                                            <p className="text-xs text-gray-700 whitespace-pre-wrap">
+                                              {upload.notes}
+                                            </p>
+                                          ) : (
+                                            <p className="text-xs text-gray-400 italic">
+                                              Click to add notes about this content...
+                                            </p>
+                                          )}
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleEditNotes(upload.id, upload.notes || '')}
+                                          className="w-full text-xs"
+                                        >
+                                          {upload.notes ? 'Edit Notes' : 'Add Notes'}
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+
                             {/* Display scheduled posts */}
                             {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => {
                               return (

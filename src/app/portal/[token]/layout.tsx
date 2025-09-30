@@ -82,96 +82,99 @@ function PortalLayoutContent({ children, token }: { children: React.ReactNode; t
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
-      <div className="w-64 bg-card border-r border-border shadow-sm flex flex-col">
-        {/* Logo Section */}
-        <div className="p-6 border-b border-border">
-          <div className="flex items-center justify-center">
-            <img 
-              src="/cm-logo.png" 
-              alt="CM Logo" 
-              className="h-12 w-auto"
-            />
-          </div>
-        </div>
-
-        {/* Client Info */}
-        <div className="p-6 border-b border-border">
-          <div className="flex items-center space-x-3">
-            <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-semibold text-lg">
-                {client.name.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-card-foreground">
-                {client.name}
-              </h2>
-              <p className="text-sm text-muted-foreground">Client Portal</p>
+    <div className="h-screen bg-background overflow-hidden">
+      {/* CSS Grid Layout */}
+      <div className="grid grid-cols-[256px_1fr] h-full">
+        {/* Left Sidebar - Fixed width */}
+        <div className="bg-card border-r border-border shadow-sm flex flex-col overflow-hidden">
+          {/* Logo Section */}
+          <div className="p-6 border-b border-border flex-shrink-0">
+            <div className="flex items-center justify-center">
+              <img 
+                src="/cm-logo.png" 
+                alt="CM Logo" 
+                className="h-12 w-auto"
+              />
             </div>
           </div>
-        </div>
 
-        {/* Navigation */}
-        <div className="flex-1 p-4">
-          <nav className="space-y-2">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = pathname?.includes(tab.path) ?? false;
-              
-              return (
-                <Button
-                  key={tab.id}
-                  variant={isActive ? "default" : "ghost"}
-                  className={`w-full justify-start flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
-                    isActive 
-                      ? "bg-primary text-primary-foreground shadow-sm" 
-                      : "hover:bg-accent hover:text-accent-foreground"
-                  }`}
-                  onClick={() => {
-                    const newPath = `/portal/${token}${tab.path}`;
-                    router.push(newPath);
-                  }}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span>{tab.label}</span>
-                </Button>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* Logout Button */}
-        <div className="p-4 border-t border-border">
-          <Button
-            onClick={handleLogout}
-            variant="outline"
-            className="w-full flex items-center space-x-2"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Logout</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-card border-b border-border shadow-sm">
-          <div className="px-6 py-4">
-            <h1 className="text-2xl font-semibold text-card-foreground">
-              {tabs.find(tab => pathname?.includes(tab.path))?.label || 'Content Portal'}
-            </h1>
+          {/* Client Info */}
+          <div className="p-6 border-b border-border flex-shrink-0">
+            <div className="flex items-center space-x-3">
+              <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center">
+                <span className="text-primary-foreground font-semibold text-lg">
+                  {client.name.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-card-foreground">
+                  {client.name}
+                </h2>
+                <p className="text-sm text-muted-foreground">Client Portal</p>
+              </div>
+            </div>
           </div>
-        </header>
 
-        {/* Page Content */}
-        <main className="flex-1 p-6">
-          <div className="min-h-[400px]">
-            {children}
+          {/* Navigation */}
+          <div className="flex-1 p-4 overflow-y-auto">
+            <nav className="space-y-2">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = pathname?.includes(tab.path) ?? false;
+                
+                return (
+                  <Button
+                    key={tab.id}
+                    variant={isActive ? "default" : "ghost"}
+                    className={`w-full justify-start flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
+                      isActive 
+                        ? "bg-primary text-primary-foreground shadow-sm" 
+                        : "hover:bg-accent hover:text-accent-foreground"
+                    }`}
+                    onClick={() => {
+                      const newPath = `/portal/${token}${tab.path}`;
+                      router.push(newPath);
+                    }}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span>{tab.label}</span>
+                  </Button>
+                );
+              })}
+            </nav>
           </div>
-        </main>
+
+          {/* Logout Button */}
+          <div className="p-4 border-t border-border flex-shrink-0">
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              className="w-full flex items-center space-x-2"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Logout</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Main Content Area - Always visible header */}
+        <div className="flex flex-col min-h-0 overflow-hidden">
+          {/* Header - Always visible */}
+          <header className="bg-card border-b border-border shadow-sm flex-shrink-0">
+            <div className="px-6 py-4">
+              <h1 className="text-2xl font-semibold text-card-foreground">
+                {tabs.find(tab => pathname?.includes(tab.path))?.label || 'Content Portal'}
+              </h1>
+            </div>
+          </header>
+
+          {/* Page Content - Scrollable content area only */}
+          <main className="flex-1 overflow-y-auto overflow-x-hidden">
+            <div className="p-6 min-h-[400px]">
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );
