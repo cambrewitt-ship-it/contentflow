@@ -21,6 +21,7 @@ interface Client {
   id: string;
   name: string;
   description?: string;
+  logo_url?: string;
   created_at: string;
 }
 
@@ -328,15 +329,27 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                     <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
                       <div className={`${collapsed ? '' : 'flex-1 min-w-0'}`}>
                         <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2'}`}>
-                          <div className={getThemeClasses(
-                            `rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-700 ${
-                              collapsed ? 'w-8 h-8' : 'w-6 h-6'
-                            }`,
-                            `rounded-full glass-card flex items-center justify-center text-xs font-medium glass-text-primary ${
-                              collapsed ? 'w-8 h-8' : 'w-6 h-6'
-                            }`
-                          )}>
-                            {client.name.charAt(0).toUpperCase()}
+                          <div className={`rounded-full flex items-center justify-center overflow-hidden ${
+                            client.logo_url 
+                              ? '' 
+                              : getThemeClasses(
+                                  `bg-blue-100 text-xs font-medium text-blue-700 ${
+                                    collapsed ? 'w-8 h-8' : 'w-6 h-6'
+                                  }`,
+                                  `glass-card text-xs font-medium glass-text-primary ${
+                                    collapsed ? 'w-8 h-8' : 'w-6 h-6'
+                                  }`
+                                )
+                          } ${collapsed ? 'w-8 h-8' : 'w-6 h-6'}`}>
+                            {client.logo_url ? (
+                              <img 
+                                src={client.logo_url} 
+                                alt={`${client.name} logo`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span>{client.name.charAt(0).toUpperCase()}</span>
+                            )}
                           </div>
                           {!collapsed && (
                             <span className={getThemeClasses(

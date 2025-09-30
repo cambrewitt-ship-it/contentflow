@@ -158,6 +158,7 @@ export default function PlannerPage() {
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
+  const [selectedUnscheduledPosts, setSelectedUnscheduledPosts] = useState<Set<string>>(new Set());
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);

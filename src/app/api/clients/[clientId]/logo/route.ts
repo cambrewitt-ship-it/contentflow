@@ -114,8 +114,6 @@ export async function POST(
     console.log('✅ Logo uploaded to blob:', result.url);
     
     // Update the client record with the logo URL
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    
     const { data: updatedClient, error: updateError } = await supabase
       .from('clients')
       .update({ 
@@ -207,8 +205,6 @@ export async function DELETE(
     }
     
     // Update the client record to remove the logo URL
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    
     const { data: updatedClient, error: updateError } = await supabase
       .from('clients')
       .update({ 

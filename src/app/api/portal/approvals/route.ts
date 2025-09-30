@@ -284,12 +284,27 @@ export async function POST(request: NextRequest) {
 function groupPostsByWeek(posts: any[]): any[] {
   const weeksMap = new Map<string, any[]>();
   
+  // Get current week start (Sunday)
+  const now = new Date();
+  const currentWeekStart = new Date(now);
+  currentWeekStart.setDate(now.getDate() - now.getDay()); // Start of current week (Sunday)
+  currentWeekStart.setHours(0, 0, 0, 0); // Reset time to start of day
+  
+  console.log('📅 Current week start:', currentWeekStart.toISOString().split('T')[0]);
+  
   posts.forEach(post => {
     // Handle different column names: scheduled_posts uses 'scheduled_time', planner_scheduled_posts uses 'scheduled_date'
     const scheduledDate = post.scheduled_date || post.scheduled_time;
     const date = new Date(scheduledDate);
     const weekStart = new Date(date);
     weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+    weekStart.setHours(0, 0, 0, 0); // Reset time to start of day
+    
+    // Skip posts from weeks older than current week
+    if (weekStart < currentWeekStart) {
+      console.log(`⏰ Skipping expired post from week ${weekStart.toISOString().split('T')[0]}:`, post.id);
+      return;
+    }
     
     const weekKey = weekStart.toISOString().split('T')[0];
     
@@ -307,7 +322,7 @@ function groupPostsByWeek(posts: any[]): any[] {
   });
   
   // Convert to array and sort by week start date
-  return Array.from(weeksMap.entries())
+  const weeks = Array.from(weeksMap.entries())
     .map(([weekKey, posts]) => {
       const weekStart = new Date(weekKey);
       const weekEnd = new Date(weekStart);
@@ -320,4 +335,7 @@ function groupPostsByWeek(posts: any[]): any[] {
       };
     })
     .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
+  
+  console.log(`📊 Filtered to ${weeks.length} current/future weeks (expired weeks removed)`);
+  return weeks;
 }

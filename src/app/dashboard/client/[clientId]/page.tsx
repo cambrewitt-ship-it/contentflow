@@ -697,6 +697,27 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     try {
       setUploadingLogo(true);
       
+      // Validate image dimensions to ensure it's square
+      const validateSquareImage = (file: File): Promise<boolean> => {
+        return new Promise((resolve) => {
+          const img = new window.Image();
+          img.onload = () => {
+            const isSquare = img.width === img.height;
+            resolve(isSquare);
+          };
+          img.onerror = () => resolve(false);
+          img.src = URL.createObjectURL(file);
+        });
+      };
+
+      const isSquare = await validateSquareImage(file);
+      if (!isSquare) {
+        alert('Logo must be a square image (same width and height). Please crop your image to be square before uploading.');
+        setUploadingLogo(false);
+        event.target.value = '';
+        return;
+      }
+      
       // Convert file to base64
       const reader = new FileReader();
       reader.onload = async (e) => {
@@ -706,6 +727,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getAccessToken() || ''}`,
           },
           body: JSON.stringify({
             imageData: base64Data,
@@ -749,6 +771,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       
       const response = await fetch(`/api/clients/${clientId}/logo`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${getAccessToken() || ''}`,
+        },
       });
 
       if (!response.ok) {
@@ -979,7 +1004,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               <div className="flex items-center space-x-6">
                 {/* Logo Display/Upload Section */}
                 <div className="relative">
-                  <div className="w-20 h-20 bg-gray-100 border-2 border-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                  <div className={`w-20 h-20 rounded-lg flex items-center justify-center overflow-hidden ${
+                    client?.logo_url 
+                      ? '' 
+                      : 'bg-gray-100 border-2 border-gray-200'
+                  }`}>
                     {client?.logo_url ? (
                       <img 
                         src={client.logo_url} 

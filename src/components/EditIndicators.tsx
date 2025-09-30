@@ -80,7 +80,6 @@ export function EditIndicators({ post, clientId, showHistory = true }: EditIndic
   }
 
   const hasEdits = (post.edit_count || 0) > 0
-  const needsReapproval = post.needs_reapproval
 
   return (
     <>
@@ -104,13 +103,6 @@ export function EditIndicators({ post, clientId, showHistory = true }: EditIndic
           </button>
         )}
 
-        {/* Needs Reapproval Badge */}
-        {needsReapproval && (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-            <AlertTriangle className="w-3 h-3 mr-1" />
-            Needs Reapproval
-          </span>
-        )}
 
         {/* Last Edited Info */}
         {post.last_edited_at && (

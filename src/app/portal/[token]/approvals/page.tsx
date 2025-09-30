@@ -249,6 +249,9 @@ export default function PortalApprovalsPage() {
             </div>
             <div className="text-sm text-muted-foreground">
               {totalPosts} post{totalPosts !== 1 ? 's' : ''} total
+              <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                Current & future weeks only
+              </span>
             </div>
           </div>
         </div>
@@ -339,6 +342,9 @@ export default function PortalApprovalsPage() {
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">No scheduled posts found for review.</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Only current and future weeks are shown. Past weeks have been automatically filtered out.
+              </p>
             </CardContent>
           </Card>
         ) : (

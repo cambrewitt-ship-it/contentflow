@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     // Query clients for the authenticated user only
     const { data: clients, error } = await supabase
       .from('clients')
-      .select('id, name, description, company_description, website_url, brand_tone, target_audience, industry, brand_keywords, caption_dos, caption_donts, created_at, updated_at')
+      .select('id, name, description, company_description, website_url, brand_tone, target_audience, industry, brand_keywords, caption_dos, caption_donts, logo_url, created_at, updated_at')
       .eq('user_id', user.id)
       .order('name', { ascending: true });
 

@@ -14,6 +14,7 @@ interface Client {
   company_description?: string;
   website_url?: string;
   brand_tone?: string;
+  logo_url?: string;
   created_at: string;
   updated_at: string;
 }
@@ -69,9 +70,15 @@ export default function Dashboard() {
         
         console.log('🔍 Fetching user clients for dashboard...');
         
+        const token = getAccessToken();
+        if (!token) {
+          console.log('No access token available, skipping client fetch');
+          return;
+        }
+        
         const response = await fetch('/api/clients', {
           headers: {
-            'Authorization': `Bearer ${getAccessToken() || ''}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
@@ -98,7 +105,7 @@ export default function Dashboard() {
     if (user) {
       fetchClients();
     }
-  }, [user, getAccessToken]);
+  }, [user]); // Removed getAccessToken from dependencies to prevent infinite loop
 
   // Update NZST time and date every minute
   useEffect(() => {
@@ -247,8 +254,20 @@ export default function Dashboard() {
                   <Link href={`/dashboard/client/${client.id}`}>
                     <CardHeader>
                       <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-xl font-bold text-blue-700">
-                          {client.name.charAt(0).toUpperCase()}
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${
+                          client.logo_url 
+                            ? '' 
+                            : 'bg-blue-100 text-blue-700'
+                        } overflow-hidden`}>
+                          {client.logo_url ? (
+                            <img 
+                              src={client.logo_url} 
+                              alt={`${client.name} logo`}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span>{client.name.charAt(0).toUpperCase()}</span>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <CardTitle className="text-xl font-bold break-words leading-tight">
