@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Plus, Upload, Image, File } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Plus, Upload, Image, File, GripVertical, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "components/ui/card";
 import { Button } from "components/ui/button";
 import { Textarea } from "components/ui/textarea";
@@ -107,7 +107,16 @@ export default function PortalCalendarPage() {
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [tempNotes, setTempNotes] = useState<string>('');
   const [isLoadingUploads, setIsLoadingUploads] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRefs = useRef<{[key: string]: HTMLInputElement | null}>({});
+  
+  // Drag and drop states
+  const [draggedItem, setDraggedItem] = useState<{type: 'post' | 'upload', id: string, sourceDate: string} | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [movingItems, setMovingItems] = useState<{[key: string]: boolean}>({});
+  
+  // Delete states
+  const [deletingItems, setDeletingItems] = useState<{[key: string]: boolean}>({});
 
   // Get NZ timezone start of week (Monday)
   const getStartOfWeek = (offset: number = 0) => {
@@ -247,6 +256,7 @@ export default function PortalCalendarPage() {
     if (files.length === 0) return;
 
     setUploading(true);
+    console.log(`📤 Uploading files to date: ${targetDate}`);
 
     try {
       for (const file of Array.from(files)) {
@@ -270,7 +280,8 @@ export default function PortalCalendarPage() {
             fileType: file.type,
             fileSize: file.size,
             fileUrl: base64,
-            notes: ''
+            notes: '',
+            targetDate: targetDate // Pass the target date
           })
         });
 
@@ -354,6 +365,234 @@ export default function PortalCalendarPage() {
       return <Image className="h-8 w-8 text-blue-600" />;
     }
     return <File className="h-8 w-8 text-gray-600" />;
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, type: 'post' | 'upload', id: string, sourceDate: string) => {
+    setDraggedItem({ type, id, sourceDate });
+    setIsDragging(true);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', JSON.stringify({ type, id, sourceDate }));
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetDate: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverDate(targetDate);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only clear if we're actually leaving the drop zone
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDragOverDate(null);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetDate: string) => {
+    e.preventDefault();
+    setDragOverDate(null);
+    setIsDragging(false);
+    
+    if (!draggedItem || draggedItem.sourceDate === targetDate) {
+      setDraggedItem(null);
+      return;
+    }
+
+    const itemKey = `${draggedItem.type}-${draggedItem.id}`;
+    setMovingItems(prev => ({ ...prev, [itemKey]: true }));
+
+    try {
+      if (draggedItem.type === 'upload') {
+        // Optimistic update for uploads
+        const sourceDate = draggedItem.sourceDate;
+        const targetDateTime = new Date(targetDate + 'T00:00:00.000Z');
+        
+        // Update local state immediately
+        setUploads(prev => {
+          const newUploads = { ...prev };
+          if (newUploads[sourceDate]) {
+            const uploadToMove = newUploads[sourceDate].find(upload => upload.id === draggedItem.id);
+            if (uploadToMove) {
+              // Remove from source date
+              newUploads[sourceDate] = newUploads[sourceDate].filter(upload => upload.id !== draggedItem.id);
+              // Add to target date
+              if (!newUploads[targetDate]) {
+                newUploads[targetDate] = [];
+              }
+              newUploads[targetDate] = [...newUploads[targetDate], {
+                ...uploadToMove,
+                created_at: targetDateTime.toISOString()
+              }];
+            }
+          }
+          return newUploads;
+        });
+
+        // API call
+        const response = await fetch('/api/portal/upload', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            token,
+            uploadId: draggedItem.id,
+            newDate: targetDate
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to move upload');
+        }
+      } else if (draggedItem.type === 'post') {
+        // Optimistic update for posts
+        const sourceDate = draggedItem.sourceDate;
+        
+        // Update local state immediately
+        setScheduledPosts(prev => {
+          const newPosts = { ...prev };
+          if (newPosts[sourceDate]) {
+            const postToMove = newPosts[sourceDate].find(post => post.id === draggedItem.id);
+            if (postToMove) {
+              // Remove from source date
+              newPosts[sourceDate] = newPosts[sourceDate].filter(post => post.id !== draggedItem.id);
+              // Add to target date
+              if (!newPosts[targetDate]) {
+                newPosts[targetDate] = [];
+              }
+              newPosts[targetDate] = [...newPosts[targetDate], {
+                ...postToMove,
+                scheduled_date: targetDate
+              }];
+            }
+          }
+          return newPosts;
+        });
+
+        // API call
+        const response = await fetch('/api/planner/scheduled', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            postId: draggedItem.id,
+            updates: {
+              scheduled_date: targetDate
+            }
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to move post');
+        }
+      }
+    } catch (err) {
+      console.error('Error moving item:', err);
+      alert('Failed to move item. Please try again.');
+      
+      // Revert optimistic update on error
+      if (draggedItem.type === 'upload') {
+        await fetchUploads();
+      } else if (draggedItem.type === 'post') {
+        await fetchScheduledPosts(0, true);
+      }
+    } finally {
+      setMovingItems(prev => ({ ...prev, [itemKey]: false }));
+      setDraggedItem(null);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDragOverDate(null);
+    setIsDragging(false);
+  };
+
+  // Delete handlers
+  const handleDeleteUpload = async (uploadId: string, uploadDate: string) => {
+    if (!confirm('Are you sure you want to delete this upload? This action cannot be undone.')) {
+      return;
+    }
+
+    const itemKey = `upload-${uploadId}`;
+    setDeletingItems(prev => ({ ...prev, [itemKey]: true }));
+
+    try {
+      const response = await fetch('/api/portal/upload', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token,
+          uploadId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete upload');
+      }
+
+      // Remove from local state
+      setUploads(prev => {
+        const newUploads = { ...prev };
+        if (newUploads[uploadDate]) {
+          newUploads[uploadDate] = newUploads[uploadDate].filter(upload => upload.id !== uploadId);
+          if (newUploads[uploadDate].length === 0) {
+            delete newUploads[uploadDate];
+          }
+        }
+        return newUploads;
+      });
+    } catch (err) {
+      console.error('Error deleting upload:', err);
+      alert('Failed to delete upload. Please try again.');
+    } finally {
+      setDeletingItems(prev => ({ ...prev, [itemKey]: false }));
+    }
+  };
+
+  const handleDeletePost = async (postId: string, postDate: string) => {
+    if (!confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+      return;
+    }
+
+    const itemKey = `post-${postId}`;
+    setDeletingItems(prev => ({ ...prev, [itemKey]: true }));
+
+    try {
+      const response = await fetch('/api/planner/scheduled', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          postId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete post');
+      }
+
+      // Remove from local state
+      setScheduledPosts(prev => {
+        const newPosts = { ...prev };
+        if (newPosts[postDate]) {
+          newPosts[postDate] = newPosts[postDate].filter(post => post.id !== postId);
+          if (newPosts[postDate].length === 0) {
+            delete newPosts[postDate];
+          }
+        }
+        return newPosts;
+      });
+    } catch (err) {
+      console.error('Error deleting post:', err);
+      alert('Failed to delete post. Please try again.');
+    } finally {
+      setDeletingItems(prev => ({ ...prev, [itemKey]: false }));
+    }
   };
 
   // Debounced effect to prevent rapid API calls
@@ -619,7 +858,14 @@ export default function PortalCalendarPage() {
                               isToday 
                                 ? 'bg-blue-50 border-blue-300' 
                                 : 'bg-gray-50 hover:bg-gray-100'
+                            } ${
+                              dragOverDate === dateKey 
+                                ? 'border-blue-400 bg-blue-100 border-dashed' 
+                                : ''
                             }`}
+                            onDragOver={(e) => handleDragOver(e, dateKey)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, dateKey)}
                           >
                             {/* Day Header */}
                             <div className="mb-2 pb-2 border-b border-gray-200">
@@ -637,12 +883,21 @@ export default function PortalCalendarPage() {
                               </div>
                             )}
                             
+                            {/* Drop Zone Indicator */}
+                            {isDragging && dragOverDate === dateKey && (
+                              <div className="mb-3 p-4 border-2 border-dashed border-blue-400 bg-blue-50 rounded-lg text-center">
+                                <div className="text-blue-600 font-medium text-sm">
+                                  Drop here to move to {day} {dayDate.getDate()}
+                                </div>
+                              </div>
+                            )}
+
                             {/* Upload Button */}
                             <div className="mb-3">
                               <Button
-                                onClick={() => fileInputRef.current?.click()}
+                                onClick={() => fileInputRefs.current[dateKey]?.click()}
                                 disabled={uploading}
-                                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center gap-2"
+                                className="w-full h-12 bg-gray-800/20 backdrop-blur-md border border-gray-700/30 text-white hover:bg-gray-800/30 hover:border-gray-700/40 rounded-lg flex items-center justify-center gap-2 shadow-lg transition-all duration-200"
                                 size="lg"
                               >
                                 {uploading ? (
@@ -653,16 +908,18 @@ export default function PortalCalendarPage() {
                                 ) : (
                                   <>
                                     <Plus className="h-5 w-5" />
-                                    Upload Content
+                                    Upload
                                   </>
                                 )}
                               </Button>
                               <input
-                                ref={fileInputRef}
+                                ref={(el) => {
+                                  fileInputRefs.current[dateKey] = el;
+                                }}
                                 type="file"
                                 multiple
                                 accept="image/*,.pdf,.doc,.docx,.txt"
-                                onChange={(e) => e.target.files && handleFileUpload(e.target.files, dayDate.toLocaleDateString('en-CA'))}
+                                onChange={(e) => e.target.files && handleFileUpload(e.target.files, dateKey)}
                                 className="hidden"
                               />
                             </div>
@@ -674,23 +931,57 @@ export default function PortalCalendarPage() {
                                 <span className="ml-2 text-xs text-gray-500">Loading uploads...</span>
                               </div>
                             )}
-                            {!isLoadingUploads && uploads[dayDate.toLocaleDateString('en-CA')]?.map((upload: Upload, idx: number) => (
-                              <div key={`upload-${idx}`} className="mt-2">
-                                <div className="flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow border-blue-200 bg-blue-50">
-                                  {/* Upload Header */}
+                            {!isLoadingUploads && uploads[dayDate.toLocaleDateString('en-CA')]?.map((upload: Upload, idx: number) => {
+                              const itemKey = `upload-${upload.id}`;
+                              const isMoving = movingItems[itemKey];
+                              
+                              return (
+                                <div key={`upload-${idx}`} className="mt-2">
+                                  <div 
+                                    className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow border-blue-200 bg-blue-50 cursor-move ${
+                                      draggedItem?.type === 'upload' && draggedItem?.id === upload.id 
+                                        ? 'opacity-50 scale-95' 
+                                        : ''
+                                    } ${isMoving ? 'opacity-75' : ''}`}
+                                    draggable={!isMoving}
+                                    onDragStart={(e) => !isMoving && handleDragStart(e, 'upload', upload.id, dayDate.toLocaleDateString('en-CA'))}
+                                    onDragEnd={handleDragEnd}
+                                  >
+                                    {/* Loading indicator for moving items */}
+                                    {isMoving && (
+                                      <div className="absolute inset-0 bg-blue-100 bg-opacity-75 flex items-center justify-center rounded-lg">
+                                        <div className="flex items-center gap-2 text-blue-600">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                          <span className="text-sm font-medium">Moving...</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Upload Header */}
                                   <div className="mb-3 pb-2 border-b border-gray-200">
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-2">
+                                        <GripVertical className="h-4 w-4 text-gray-400" />
                                         {getFileIcon(upload.file_type)}
                                         <div>
-                                          <h4 className="font-semibold text-sm text-gray-700">
-                                            {upload.file_name}
-                                          </h4>
                                           <p className="text-xs text-gray-600">
                                             {formatFileSize(upload.file_size)}
                                           </p>
                                         </div>
                                       </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteUpload(upload.id, dayDate.toLocaleDateString('en-CA'))}
+                                        disabled={deletingItems[`upload-${upload.id}`]}
+                                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-100"
+                                      >
+                                        {deletingItems[`upload-${upload.id}`] ? (
+                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                        ) : (
+                                          <Trash2 className="h-3 w-3" />
+                                        )}
+                                      </Button>
                                     </div>
                                   </div>
 
@@ -711,8 +1002,7 @@ export default function PortalCalendarPage() {
                                     <div className="w-full h-32 bg-gray-100 rounded-lg border flex items-center justify-center mb-2">
                                       <div className="text-center">
                                         {getFileIcon(upload.file_type)}
-                                        <p className="text-sm text-gray-500 mt-2">{upload.file_name}</p>
-                                        <p className="text-xs text-gray-400">{formatFileSize(upload.file_size)}</p>
+                                        <p className="text-xs text-gray-400 mt-2">{formatFileSize(upload.file_size)}</p>
                                       </div>
                                     </div>
                                   )}
@@ -777,31 +1067,67 @@ export default function PortalCalendarPage() {
                                   </div>
                                 </div>
                               </div>
-                            ))}
-
+                            );
+                            })}
+                            
                             {/* Display scheduled posts */}
                             {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => {
+                              const itemKey = `post-${post.id}`;
+                              const isMoving = movingItems[itemKey];
+                              
                               return (
                                 <div key={idx} className="mt-1">
                                   <div 
-                                    className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow ${
+                                    className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow cursor-move relative ${
                                       post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
                                       post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
                                       post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
                                       'border-gray-200 bg-white'
-                                    }`}
+                                    } ${
+                                      draggedItem?.type === 'post' && draggedItem?.id === post.id 
+                                        ? 'opacity-50 scale-95' 
+                                        : ''
+                                    } ${isMoving ? 'opacity-75' : ''}`}
+                                    draggable={!isMoving}
+                                    onDragStart={(e) => !isMoving && handleDragStart(e, 'post', post.id, dayDate.toLocaleDateString('en-CA'))}
+                                    onDragEnd={handleDragEnd}
                                   >
+                                    {/* Loading indicator for moving items */}
+                                    {isMoving && (
+                                      <div className="absolute inset-0 bg-gray-100 bg-opacity-75 flex items-center justify-center rounded-lg z-10">
+                                        <div className="flex items-center gap-2 text-gray-600">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                          <span className="text-sm font-medium">Moving...</span>
+                                        </div>
+                                      </div>
+                                    )}
                                     {/* Card Title - Day, Date, and Time */}
                                     <div className="mb-3 pb-2 border-b border-gray-200">
                                       <div className="flex items-center justify-between">
-                                        <div>
-                                          <h4 className="font-semibold text-sm text-gray-700">
-                                            {day} {dayDate.getDate()}
-                                          </h4>
-                                          <p className="text-xs text-gray-600">
-                                            {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                          </p>
+                                        <div className="flex items-center gap-2">
+                                          <GripVertical className="h-4 w-4 text-gray-400" />
+                                          <div>
+                                            <h4 className="font-semibold text-sm text-gray-700">
+                                              {day} {dayDate.getDate()}
+                                            </h4>
+                                            <p className="text-xs text-gray-600">
+                                              {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                            </p>
+                                          </div>
                                         </div>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleDeletePost(post.id, dayDate.toLocaleDateString('en-CA'))}
+                                          disabled={deletingItems[`post-${post.id}`]}
+                                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-100"
+                                        >
+                                          {deletingItems[`post-${post.id}`] ? (
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                          ) : (
+                                            <Trash2 className="h-3 w-3" />
+                                          )}
+                                        </Button>
                                       </div>
                                     </div>
 

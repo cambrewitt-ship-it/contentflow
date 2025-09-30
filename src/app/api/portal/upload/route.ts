@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { token, fileName, fileType, fileSize, fileUrl, notes } = await request.json();
+    const { token, fileName, fileType, fileSize, fileUrl, notes, targetDate } = await request.json();
 
     if (!token || !fileName || !fileUrl) {
       return NextResponse.json(
@@ -114,19 +114,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create upload record
+    // Create upload record with target date
+    const uploadData: any = {
+      client_id: client.id,
+      project_id: null, // Will be set when content is processed
+      file_name: fileName,
+      file_type: fileType || 'unknown',
+      file_size: fileSize || 0,
+      file_url: fileUrl,
+      status: 'pending',
+      notes: notes || null
+    };
+
+    // If targetDate is provided, set the created_at to that date
+    if (targetDate) {
+      const targetDateTime = new Date(targetDate + 'T00:00:00.000Z');
+      uploadData.created_at = targetDateTime.toISOString();
+    }
+
     const { data: upload, error: uploadError } = await supabase
       .from('client_uploads')
-      .insert({
-        client_id: client.id,
-        project_id: null, // Will be set when content is processed
-        file_name: fileName,
-        file_type: fileType || 'unknown',
-        file_size: fileSize || 0,
-        file_url: fileUrl,
-        status: 'pending',
-        notes: notes || null
-      })
+      .insert(uploadData)
       .select()
       .single();
 
@@ -154,7 +162,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { token, uploadId, notes } = await request.json();
+    const { token, uploadId, notes, newDate } = await request.json();
 
     if (!token || !uploadId) {
       return NextResponse.json(
@@ -185,13 +193,24 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Update upload notes
+    // Update upload notes and/or date
+    const updateData: any = {
+      updated_at: new Date().toISOString()
+    };
+    
+    if (notes !== undefined) {
+      updateData.notes = notes || null;
+    }
+    
+    if (newDate) {
+      // Convert the date string to a proper date for the created_at field
+      const targetDate = new Date(newDate + 'T00:00:00.000Z');
+      updateData.created_at = targetDate.toISOString();
+    }
+
     const { data: upload, error: updateError } = await supabase
       .from('client_uploads')
-      .update({
-        notes: notes || null,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', uploadId)
       .eq('client_id', client.id) // Ensure client can only update their own uploads
       .select()
@@ -219,6 +238,67 @@ export async function PATCH(request: NextRequest) {
 
   } catch (error) {
     console.error('Portal upload notes update error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { token, uploadId } = await request.json();
+
+    if (!token || !uploadId) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Get client info from portal token
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('id, portal_enabled')
+      .eq('portal_token', token)
+      .single();
+
+    if (clientError || !client) {
+      return NextResponse.json(
+        { error: 'Invalid portal token' },
+        { status: 401 }
+      );
+    }
+
+    // Check if portal is enabled
+    if (!client.portal_enabled) {
+      return NextResponse.json(
+        { error: 'Portal access is disabled' },
+        { status: 401 }
+      );
+    }
+
+    // Delete upload
+    const { error: deleteError } = await supabase
+      .from('client_uploads')
+      .delete()
+      .eq('id', uploadId)
+      .eq('client_id', client.id); // Ensure client can only delete their own uploads
+
+    if (deleteError) {
+      console.error('Error deleting upload:', deleteError);
+      return NextResponse.json(
+        { error: 'Failed to delete upload' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true
+    });
+
+  } catch (error) {
+    console.error('Portal upload deletion error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
