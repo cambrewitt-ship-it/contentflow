@@ -59,6 +59,9 @@ export async function GET(request: NextRequest) {
         scheduled_time,
         late_status,
         platforms_scheduled,
+        approval_status,
+        needs_attention,
+        client_feedback,
         created_at,
         updated_at
       `)
@@ -75,26 +78,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get approval status for each post
-    const postsWithApprovals = await Promise.all(
-      scheduledPosts.map(async (post) => {
-        const { data: approval } = await supabase
-          .from('post_approvals')
-          .select('approval_status, client_comments')
-          .eq('post_id', post.id)
-          .eq('post_type', 'planner_scheduled')
-          .single();
-
-        return {
-          ...post,
-          approval_status: approval?.approval_status || 'pending',
-          client_comments: approval?.client_comments || null
-        };
-      })
-    );
+    // Debug: Log approval status of posts
+    if (scheduledPosts && scheduledPosts.length > 0) {
+      console.log('📊 Portal calendar - Approval status debug:');
+      scheduledPosts.slice(0, 3).forEach((post: any, index: number) => {
+        console.log(`  Post ${post.id?.substring(0, 8)}... - Status: ${post.approval_status || 'NO STATUS'} - Caption: "${post.caption || 'NO CAPTION'}"`);
+      });
+    }
 
     // Group posts by date
-    const postsByDate = postsWithApprovals.reduce((acc, post) => {
+    const postsByDate = scheduledPosts.reduce((acc, post) => {
       const date = post.scheduled_date;
       if (!acc[date]) {
         acc[date] = [];
@@ -106,7 +99,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       client,
       posts: postsByDate,
-      totalPosts: postsWithApprovals.length
+      totalPosts: scheduledPosts.length
     });
 
   } catch (error) {

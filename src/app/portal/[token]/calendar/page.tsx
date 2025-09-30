@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "components/ui/card";
 import { Button } from "components/ui/button";
 
@@ -230,6 +230,50 @@ export default function PortalCalendarPage() {
     return `${hour12}:${minutes} ${ampm}`;
   };
 
+  // Helper function to get approval status badge
+  const getApprovalStatusBadge = (post: Post) => {
+    const status = post.approval_status || 'pending';
+    const baseClasses = "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium";
+    
+    switch (status) {
+      case 'approved':
+        return (
+          <span className={`${baseClasses} bg-green-100 text-green-800`}>
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Approved
+          </span>
+        );
+      case 'rejected':
+        return (
+          <span className={`${baseClasses} bg-red-100 text-red-800`}>
+            <XCircle className="w-3 h-3 mr-1" />
+            Rejected
+          </span>
+        );
+      case 'needs_attention':
+        return (
+          <span className={`${baseClasses} bg-orange-100 text-orange-800`}>
+            <AlertTriangle className="w-3 h-3 mr-1" />
+            Needs Attention
+          </span>
+        );
+      case 'draft':
+        return (
+          <span className={`${baseClasses} bg-gray-100 text-gray-800`}>
+            <FileText className="w-3 h-3 mr-1" />
+            Draft
+          </span>
+        );
+      default:
+        return (
+          <span className={`${baseClasses} bg-yellow-100 text-yellow-800`}>
+            <Minus className="w-3 h-3 mr-1" />
+            Pending
+          </span>
+        );
+    }
+  };
+
   if (isLoadingScheduledPosts && Object.keys(scheduledPosts).length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -271,45 +315,82 @@ export default function PortalCalendarPage() {
         </div>
       </div>
 
+      {/* Approval Status Summary */}
+      {Object.keys(scheduledPosts).length > 0 && (
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <h3 className="text-lg font-semibold mb-4">Approval Status Summary</h3>
+          <div className="grid grid-cols-4 gap-4">
+            {(() => {
+              const allPosts = Object.values(scheduledPosts).flat();
+              const approved = allPosts.filter(p => p.approval_status === 'approved').length;
+              const rejected = allPosts.filter(p => p.approval_status === 'rejected').length;
+              const needsAttention = allPosts.filter(p => p.approval_status === 'needs_attention').length;
+              const pending = allPosts.filter(p => p.approval_status === 'pending' || !p.approval_status).length;
+              
+              return (
+                <>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div className="flex items-center">
+                      <Check className="w-4 h-4 text-green-600 mr-2" />
+                      <span className="text-sm font-medium text-green-800">Approved</span>
+                    </div>
+                    <div className="text-lg font-bold text-green-900 mt-1">{approved}</div>
+                  </div>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <div className="flex items-center">
+                      <X className="w-4 h-4 text-red-600 mr-2" />
+                      <span className="text-sm font-medium text-red-800">Rejected</span>
+                    </div>
+                    <div className="text-lg font-bold text-red-900 mt-1">{rejected}</div>
+                  </div>
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                    <div className="flex items-center">
+                      <AlertTriangle className="w-4 h-4 text-orange-600 mr-2" />
+                      <span className="text-sm font-medium text-orange-800">Needs Attention</span>
+                    </div>
+                    <div className="text-lg font-bold text-orange-900 mt-1">{needsAttention}</div>
+                  </div>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <div className="flex items-center">
+                      <Minus className="w-4 h-4 text-yellow-600 mr-2" />
+                      <span className="text-sm font-medium text-yellow-800">Pending</span>
+                    </div>
+                    <div className="text-lg font-bold text-yellow-900 mt-1">{pending}</div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* Calendar */}
       <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => setWeekOffset(weekOffset - 1)}
+              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Previous Week
+            </button>
             <h2 className="text-lg font-semibold">
               Content Calendar - 4 Week View
             </h2>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setWeekOffset(weekOffset - 1)}
-                className="p-2 rounded-md border hover:bg-gray-50"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-sm text-gray-600">
-                Week {weekOffset + 1} - {weekOffset + 4}
-              </span>
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setWeekOffset(weekOffset + 1)}
-                className="p-2 rounded-md border hover:bg-gray-50"
+                className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
               >
+                Next Week
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
           
-          <div className="flex items-center justify-between mb-4 pb-2">
-            <button
-              onClick={() => setWeekOffset(weekOffset - 1)}
-              className="p-2 hover:bg-gray-100 rounded"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            
+          <div className="flex items-center justify-center mb-4 pb-2">
             <div className="flex items-center gap-4">
-              <span className="font-medium">
-                {getStartOfWeek(weekOffset).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long' })} - 
-                {getStartOfWeek(weekOffset + 3).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </span>
               <button
                 onClick={() => setWeekOffset(0)}
                 className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
@@ -317,171 +398,141 @@ export default function PortalCalendarPage() {
                 Current Week
               </button>
             </div>
-            
-            <button
-              onClick={() => setWeekOffset(weekOffset + 1)}
-              className="p-2 hover:bg-gray-100 rounded"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
           </div>
         </div>
         
-        <div className="overflow-x-auto">
-          <div className="min-w-[1000px] p-4">
-            <div className="grid grid-cols-4" style={{ gap: '16px' }}>
+        <div className="p-4 space-y-4">
+          <div className="">
+            <div className="space-y-4" style={{ gap: '16px' }}>
               {getWeeksToDisplay().map((weekStart, weekIndex) => (
-                <div key={weekIndex} className="flex flex-col border rounded-lg bg-white min-w-64 flex-1">
+                <div key={weekIndex} className="border rounded-lg bg-white min-h-32 flex-1">
+                  {/* Week Header - Above the days */}
                   <div className="bg-gray-50 p-3 border-b">
                     <h3 className="font-semibold text-sm">
                       {formatWeekCommencing(weekStart)}
                       {weekOffset + weekIndex === 0 && ' (Current)'}
-            </h3>
+                    </h3>
                     <p className="text-xs text-gray-600">
                       {weekStart.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} - 
                       {new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
                     </p>
-                    </div>
+                  </div>
                   
-                  <div className="p-2 space-y-1">
-                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, dayIndex) => {
-                      const dayDate = new Date(weekStart);
-                      dayDate.setDate(weekStart.getDate() + dayIndex);
-                      const isToday = dayDate.toDateString() === new Date().toDateString();
-                      const dateKey = dayDate.toLocaleDateString('en-CA');
-                      
-                      return (
-                        <div
-                          key={day}
-                          className={`p-2 rounded min-h-[80px] border-2 border-transparent transition-all duration-200 ${
-                            isToday 
-                              ? 'bg-blue-50 border-blue-300' 
-                              : 'bg-gray-50 hover:bg-gray-100'
-                          }`}
-                        >
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="font-medium">{day}</span>
-                            <span className="text-gray-500">{dayDate.getDate()}</span>
-                          </div>
-                          
-                          {/* Loading state for scheduled posts */}
-                          {isLoadingScheduledPosts && (
-                            <div className="flex items-center justify-center py-2">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                              <span className="ml-2 text-xs text-gray-500">Loading...</span>
-                          </div>
-                          )}
-                          
-                          {/* Display scheduled posts */}
-                          {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => {
-                            return (
-                              <div key={idx} className="mt-1 relative group">
-                                <div className={`flex items-center gap-1 rounded p-1 cursor-default ${
-                                  post.late_status === 'scheduled' 
-                                    ? 'bg-green-100 border border-green-300' 
-                                    : 'bg-blue-100 border border-blue-300'
-                                }`}>
-                          {/* Platform Icons */}
-                          {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
-                                    <div className="flex items-center gap-1">
-                                      {post.platforms_scheduled.map((platform, platformIdx) => (
-                                        <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
-                                          {platform === 'facebook' && <div className="w-3 h-3 bg-blue-600 rounded-sm" />}
-                                          {platform === 'instagram' && <div className="w-3 h-3 bg-pink-600 rounded-sm" />}
-                                          {platform === 'twitter' && <div className="w-3 h-3 bg-sky-500 rounded-sm" />}
-                                          {platform === 'linkedin' && <div className="w-3 h-3 bg-blue-700 rounded-sm" />}
-                                        </div>
-                              ))}
+                  <div className="p-2 flex-1 overflow-x-auto">
+                    <div className="flex space-x-1 min-w-max">
+                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, dayIndex) => {
+                        const dayDate = new Date(weekStart);
+                        dayDate.setDate(weekStart.getDate() + dayIndex);
+                        const isToday = dayDate.toDateString() === new Date().toDateString();
+                        const dateKey = dayDate.toLocaleDateString('en-CA');
+                        
+                        return (
+                          <div
+                            key={day}
+                            className={`p-2 rounded border-2 border-transparent transition-all duration-200 min-w-[200px] min-h-[160px] flex-shrink-0 ${
+                              isToday 
+                                ? 'bg-blue-50 border-blue-300' 
+                                : 'bg-gray-50 hover:bg-gray-100'
+                            }`}
+                          >
+                            {/* Day Header */}
+                            <div className="mb-2 pb-2 border-b border-gray-200">
+                              <div className="flex justify-between text-xs">
+                                <span className="font-medium">{day}</span>
+                                <span className="text-gray-500">{dayDate.getDate()}</span>
+                              </div>
                             </div>
-                          )}
-                                  
-                                  {/* LATE Status Indicator */}
-                                  {post.late_status && (
-                                    <div className={`w-2 h-2 rounded-full ${
-                                      post.late_status === 'scheduled' ? 'bg-green-500' :
-                                      post.late_status === 'published' ? 'bg-green-600' :
-                                      post.late_status === 'failed' ? 'bg-red-500' :
-                                      'bg-gray-400'
-                                    }`} title={`LATE Status: ${post.late_status}`} />
-                                  )}
-                                  
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img 
-                                    src={post.image_url || '/api/placeholder/100/100'} 
-                                    alt="Post"
-                                    className="w-8 h-8 object-cover rounded"
-                                    onError={(e) => {
-                                      console.log('Scheduled post image failed to load, using placeholder for post:', post.id);
-                                      e.currentTarget.src = '/api/placeholder/100/100';
-                                    }}
-                                  />
-                                  
-                                  {/* Enhanced Status Indicator - Fixed Icon Position */}
-                                  <div className="relative flex items-center justify-between w-full">
-                                    {/* Time display */}
-                                    <div className="flex items-center justify-start flex-1">
-                                      <span 
-                                        className="text-xs text-gray-600"
-                                        style={{ minWidth: '60px', display: 'inline-block' }}
-                                        title="Scheduled time"
-                                      >
-                                        {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                      </span>
-                        </div>
-                                    
-          </div>
-        </div>
+                            
+                            {/* Loading state for scheduled posts */}
+                            {isLoadingScheduledPosts && (
+                              <div className="flex items-center justify-center py-2">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                <span className="ml-2 text-xs text-gray-500">Loading...</span>
+                              </div>
+                            )}
+                            
+                            {/* Display scheduled posts */}
+                            {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => {
+                              return (
+                                <div key={idx} className="mt-1">
+                                  <div 
+                                    className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow ${
+                                      post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
+                                      post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
+                                      post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
+                                      'border-gray-200 bg-white'
+                                    }`}
+                                  >
+                                    {/* Card Title - Day, Date, and Time */}
+                                    <div className="mb-3 pb-2 border-b border-gray-200">
+                                      <div className="flex items-center justify-between">
+                                        <div>
+                                          <h4 className="font-semibold text-sm text-gray-700">
+                                            {day} {dayDate.getDate()}
+                                          </h4>
+                                          <p className="text-xs text-gray-600">
+                                            {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
 
-                                {/* Hover Card */}
-                                <div className="absolute z-50 hidden group-hover:block bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-80 top-full left-0 mt-1">
-                                  <div className="space-y-3">
-                          {/* Post Image */}
-                          {post.image_url && (
-                                      <div className="w-full rounded overflow-hidden">
-                                        <LazyImage
-                              src={post.image_url}
+                                    {/* Approval Status Badge */}
+                                    <div className="mb-2">
+                                      {getApprovalStatusBadge(post)}
+                                    </div>
+
+                                    {/* Post Image */}
+                                    {post.image_url && (
+                                      <div className="w-full mb-2 rounded overflow-hidden">
+                                        <img 
+                                          src={post.image_url || '/api/placeholder/100/100'} 
                                           alt="Post"
-                                          className="w-full h-48 object-cover"
+                                          className="w-full h-auto object-contain"
+                                          onError={(e) => {
+                                            console.log('Scheduled post image failed to load, using placeholder for post:', post.id);
+                                            e.currentTarget.src = '/api/placeholder/100/100';
+                                          }}
                                         />
                                       </div>
                                     )}
                                     
                                     {/* Caption */}
-                                    <div className="space-y-2">
-                                      <h4 className="font-semibold text-sm text-gray-800">Caption:</h4>
-                                      <p className="text-sm text-gray-700 leading-relaxed">
-                                        {post.caption || 'No caption provided'}
+                                    <div className="mb-2">
+                                      <p className="text-sm text-gray-700">
+                                        {post.caption}
                                       </p>
-                          </div>
-                          
-                                    {/* Time */}
-                                    <div className="text-xs text-gray-500 pt-2 border-t border-gray-100">
-                                      <span>
-                                        {post.scheduled_time && formatTimeTo12Hour(post.scheduled_time)}
-                                      </span>
-                          </div>
-                          
-                          {/* Platform Icons */}
-                          {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
-                                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                                        <span>Platforms:</span>
-                                        <div className="flex items-center gap-1">
-                                          {post.platforms_scheduled.map((platform, platformIdx) => (
-                                            <span key={platformIdx} className="px-2 py-1 bg-gray-100 rounded text-xs">
-                                  {platform}
-                                            </span>
-                              ))}
-                                        </div>
-                            </div>
-                          )}
+                                    </div>
+                                    
+                                    {/* Client Feedback */}
+                                    {post.client_feedback && (
+                                      <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                                        <span className="font-medium text-gray-700">Client feedback:</span>
+                                        <p className="mt-1 text-gray-600">{post.client_feedback}</p>
+                                      </div>
+                                    )}
+
+                                    {/* Platform Icons */}
+                                    {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
+                                      <div className="flex items-center gap-1 mt-2">
+                                        {post.platforms_scheduled.map((platform, platformIdx) => (
+                                          <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
+                                            {platform === 'facebook' && <div className="w-3 h-3 bg-blue-600 rounded-sm" />}
+                                            {platform === 'instagram' && <div className="w-3 h-3 bg-pink-600 rounded-sm" />}
+                                            {platform === 'twitter' && <div className="w-3 h-3 bg-sky-500 rounded-sm" />}
+                                            {platform === 'linkedin' && <div className="w-3 h-3 bg-blue-700 rounded-sm" />}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-              );
-            })}
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               ))}
