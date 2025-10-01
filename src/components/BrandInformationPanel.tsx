@@ -489,9 +489,9 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
             {isEditing ? (
               <div>
                 <Textarea
-    brand_voice_examples: client?.brand_voice_examples || '',
-    brand_voice_examples: client?.brand_voice_examples || '',
-    brand_voice_examples: client?.brand_voice_examples || '',
+                  value={formData.brand_voice_examples}
+                  onChange={(e) => setFormData({...formData, brand_voice_examples: e.target.value})}
+                  placeholder="Paste examples of your brand's voice from website content, social media posts, or brand documents. These will help AI understand your writing style and tone."
                   rows={4}
                   className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -499,7 +499,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                   💡 Include snippets from your website, social media, or brand documents that show how your brand should sound
                 </p>
                 <p className="text-gray-600 text-sm mt-2">
-    brand_voice_examples: client?.brand_voice_examples || '',
+                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand&apos;s voice.
                 </p>
               </div>
             ) : (

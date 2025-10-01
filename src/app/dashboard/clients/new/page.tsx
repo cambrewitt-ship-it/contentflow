@@ -605,26 +605,24 @@ export default function NewClientPageV2() {
                 {true ? (
                   <div>
                     <Textarea
-    brand_voice_examples: "",
-    brand_voice_examples: "",
-    brand_voice_examples: "",
+                      value={formData.brand_voice_examples}
+                      onChange={(e) => setFormData({...formData, brand_voice_examples: e.target.value})}
+                      placeholder="Paste examples of your brand's voice from website content, social media posts, or brand documents. These will help AI understand your writing style and tone."
                       rows={4}
                       className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
                     />
                     <p className="text-gray-600 text-sm mt-2">
-    brand_voice_examples: "",
+                      Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand&apos;s voice.
                     </p>
                   </div>
                 ) : (
                   <div>
                     <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
-    brand_voice_examples: "",
+                      {formData.brand_voice_examples || "No brand voice examples provided yet."}
                     </p>
-    brand_voice_examples: "",
-                      <p className="text-blue-600 text-sm mt-1">
-    brand_voice_examples: "",
-                      </p>
-                    )}
+                    <p className="text-blue-600 text-sm mt-1">
+                      💡 Include snippets from your website, social media, or brand documents that show how your brand should sound
+                    </p>
                   </div>
                 )}
               </div>
