@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const { dryRun = false, limit = 10 } = await request.json().catch(() => ({}));
     
     // Get all posts with base64 images from both tables
-    const tables = ['planner_unscheduled_posts', 'planner_scheduled_posts', 'scheduled_posts'];
+    const tables = ['calendar_unscheduled_posts', 'calendar_scheduled_posts', 'scheduled_posts'];
     let totalConverted = 0;
     let totalFound = 0;
     const results = [];

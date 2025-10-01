@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     
     // Get all posts with base64 images
     const { data: posts, error } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .select('id, image_url')
       .like('image_url', 'data:image%')
       .limit(5); // Process 5 at a time to avoid timeouts
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         
         // Update database with blob URL
         const { error: updateError } = await supabase
-          .from('planner_scheduled_posts')
+          .from('calendar_scheduled_posts')
           .update({ image_url: blobUrl })
           .eq('id', post.id);
 

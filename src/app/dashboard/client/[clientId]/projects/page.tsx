@@ -290,11 +290,11 @@ export default function ProjectsPage({ params }: PageProps) {
                   
                   <div className="flex items-center space-x-2 flex-shrink-0">
                     <Link
-                      href={`/dashboard/client/${clientId}/planner?projectId=${project.id}`}
+                      href={`/dashboard/client/${clientId}/calendar?projectId=${project.id}`}
                       className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
                       <Calendar className="w-4 h-4 mr-2" />
-                      View Planner
+                      View Calendar
                     </Link>
                     <Link
                       href={`/dashboard/client/${clientId}/content-suite`}

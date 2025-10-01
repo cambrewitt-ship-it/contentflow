@@ -8,21 +8,33 @@ const supabase = createClient(
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const clientId = searchParams.get('clientId');
   const projectId = searchParams.get('projectId');
+  const filterUntagged = searchParams.get('filterUntagged') === 'true';
   
-  // Validate projectId
-  if (!projectId) {
-    return NextResponse.json({ error: 'projectId is required' }, { status: 400 });
+  // Validate clientId
+  if (!clientId) {
+    return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
   }
   
   try {
-    console.log(`🔍 OPTIMIZED QUERY - Fetching unscheduled posts for project ${projectId}`);
+    console.log(`🔍 OPTIMIZED QUERY - Fetching unscheduled posts for client ${clientId} (project: ${projectId || 'all'}, untagged: ${filterUntagged})`);
     
-    // OPTIMIZED QUERY - Same structure as scheduled posts with LIMIT
-    const { data, error } = await supabase
-      .from('planner_unscheduled_posts')
+    // Build query based on filter type
+    let query = supabase
+      .from('calendar_unscheduled_posts')
       .select('*') // Simple: select all columns
-      .eq('project_id', projectId) // Simple: single WHERE clause
+      .eq('client_id', clientId); // Filter by client
+    
+    // Apply project filter
+    if (filterUntagged) {
+      query = query.is('project_id', null);
+    } else if (projectId) {
+      query = query.eq('project_id', projectId);
+    }
+    // If neither filterUntagged nor projectId, return all posts for client
+    
+    const { data, error } = await query
       .order('created_at', { ascending: false }) // Simple: single ORDER BY
       .limit(20); // CRITICAL: Limit to prevent timeout
     
@@ -78,7 +90,7 @@ export async function POST(request: Request) {
     };
     
     const { data, error } = await supabase
-      .from('planner_unscheduled_posts')
+      .from('calendar_unscheduled_posts')
       .insert(postData)
       .select()
       .single();
@@ -104,7 +116,7 @@ export async function DELETE(request: Request) {
     console.log(`🗑️ Deleting unscheduled post: ${postId}`);
     
     const { error } = await supabase
-      .from('planner_unscheduled_posts')
+      .from('calendar_unscheduled_posts')
       .delete()
       .eq('id', postId);
     

@@ -15,9 +15,9 @@ export async function GET(
     
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
-    console.log('🔍 Querying planner_scheduled_posts table with project_id:', projectId);
+    console.log('🔍 Querying calendar_scheduled_posts table with project_id:', projectId);
     const { data, error } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .select('*')
       .eq('project_id', projectId)
       .order('scheduled_date', { ascending: true });
@@ -64,7 +64,7 @@ export async function POST(
     
     // Start a transaction
     const { data: scheduledPost, error: scheduleError } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .insert(scheduledPostData)
       .select()
       .single();
@@ -77,7 +77,7 @@ export async function POST(
     // Delete the unscheduled post
     if (body.unscheduledPostId) {
       const { error: deleteError } = await supabase
-        .from('planner_unscheduled_posts')
+        .from('calendar_unscheduled_posts')
         .delete()
         .eq('id', body.unscheduledPostId);
       
@@ -110,7 +110,7 @@ export async function PATCH(
     
     // First check if the post exists
     const { data: existingPost, error: checkError } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .select('id, image_url') // Include image_url to preserve it
       .eq('id', body.postId)
       .eq('project_id', projectId)
@@ -129,7 +129,7 @@ export async function PATCH(
     };
     
     const { data, error } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .update(updateData)
       .eq('id', body.postId)
       .eq('project_id', projectId)
@@ -169,7 +169,7 @@ export async function DELETE(
     
     // Get the post data before deleting to preserve image_url
     const { data: postToDelete, error: fetchError } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .select('*')
       .eq('id', postId)
       .eq('project_id', projectId)
@@ -182,7 +182,7 @@ export async function DELETE(
     
     // Delete the scheduled post
     const { error } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .delete()
       .eq('id', postId)
       .eq('project_id', projectId);
@@ -195,7 +195,7 @@ export async function DELETE(
     // Move back to unscheduled posts table with image_url preserved
     if (postToDelete) {
       const { error: moveError } = await supabase
-        .from('planner_unscheduled_posts')
+        .from('calendar_unscheduled_posts')
         .insert({
           project_id: projectId,
           post_data: postToDelete.post_data,

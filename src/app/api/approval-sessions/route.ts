@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       // Get all posts from both tables to determine their types
       const [scheduledPosts, otherScheduledPosts] = await Promise.all([
         supabase
-          .from('planner_scheduled_posts')
+          .from('calendar_scheduled_posts')
           .select('id')
           .eq('project_id', project_id)
           .in('id', selected_post_ids),
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       const scheduledPostIds = scheduledPosts.data?.map(p => p.id) || [];
       const otherScheduledPostIds = otherScheduledPosts.data?.map(p => p.id) || [];
 
-      // Create post approvals for planner_scheduled_posts
+      // Create post approvals for calendar_scheduled_posts
       if (scheduledPostIds.length > 0) {
         const plannerApprovals = scheduledPostIds.map(post_id => ({
           session_id: session.id,

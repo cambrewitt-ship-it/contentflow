@@ -19,7 +19,7 @@ export async function PATCH(
     
     // Update the post with confirmation status
     const { data, error } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .update({
         scheduled_date: body.scheduledDate,
         scheduled_time: body.scheduledTime,

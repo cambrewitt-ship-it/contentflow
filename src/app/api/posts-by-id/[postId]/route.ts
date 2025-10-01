@@ -76,27 +76,27 @@ export async function PUT(
     if (fetchError && fetchError.code === 'PGRST116') {
       console.log('🔍 Post not found in posts table, checking planner tables...');
       
-      // Check planner_scheduled_posts
+      // Check calendar_scheduled_posts
       const { data: scheduledPost, error: scheduledError } = await supabase
-        .from('planner_scheduled_posts')
+        .from('calendar_scheduled_posts')
         .select('*')
         .eq('id', postId)
         .single();
       
       if (scheduledPost && !scheduledError) {
-        console.log('✅ Found post in planner_scheduled_posts');
+        console.log('✅ Found post in calendar_scheduled_posts');
         currentPost = scheduledPost;
         fetchError = null;
       } else {
-        // Check planner_unscheduled_posts
+        // Check calendar_unscheduled_posts
         const { data: unscheduledPost, error: unscheduledError } = await supabase
-          .from('planner_unscheduled_posts')
+          .from('calendar_unscheduled_posts')
           .select('*')
           .eq('id', postId)
           .single();
         
         if (unscheduledPost && !unscheduledError) {
-          console.log('✅ Found post in planner_unscheduled_posts');
+          console.log('✅ Found post in calendar_unscheduled_posts');
           currentPost = unscheduledPost;
           fetchError = null;
         }
@@ -338,9 +338,9 @@ export async function PUT(
     // Determine which table to update based on where the post was found
     let tableName = 'posts';
     if (currentPost.scheduled_date) {
-      tableName = 'planner_scheduled_posts';
+      tableName = 'calendar_scheduled_posts';
     } else if (currentPost.project_id && !currentPost.scheduled_date) {
-      tableName = 'planner_unscheduled_posts';
+      tableName = 'calendar_unscheduled_posts';
     }
     
     console.log(`📝 Updating post in table: ${tableName}`);
@@ -427,27 +427,27 @@ export async function GET(
     if (error && error.code === 'PGRST116') {
       console.log('🔍 Post not found in posts table, checking planner tables...');
       
-      // Check planner_scheduled_posts
+      // Check calendar_scheduled_posts
       const { data: scheduledPost, error: scheduledError } = await supabase
-        .from('planner_scheduled_posts')
+        .from('calendar_scheduled_posts')
         .select('*')
         .eq('id', postId)
         .single();
       
       if (scheduledPost && !scheduledError) {
-        console.log('✅ Found post in planner_scheduled_posts');
+        console.log('✅ Found post in calendar_scheduled_posts');
         post = scheduledPost;
         error = null;
       } else {
-        // Check planner_unscheduled_posts
+        // Check calendar_unscheduled_posts
         const { data: unscheduledPost, error: unscheduledError } = await supabase
-          .from('planner_unscheduled_posts')
+          .from('calendar_unscheduled_posts')
           .select('*')
           .eq('id', postId)
           .single();
         
         if (unscheduledPost && !unscheduledError) {
-          console.log('✅ Found post in planner_unscheduled_posts');
+          console.log('✅ Found post in calendar_unscheduled_posts');
           post = unscheduledPost;
           error = null;
         } else {

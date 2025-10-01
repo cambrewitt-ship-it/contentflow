@@ -16,7 +16,7 @@ export async function GET(
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     const { data, error } = await supabase
-      .from('planner_unscheduled_posts')
+      .from('calendar_unscheduled_posts')
       .select('*')
       .eq('project_id', projectId)
       .order('created_at', { ascending: false });
@@ -55,7 +55,7 @@ export async function POST(
     };
     
     const { data, error } = await supabase
-      .from('planner_unscheduled_posts')
+      .from('calendar_unscheduled_posts')
       .insert(postData)
       .select()
       .single();

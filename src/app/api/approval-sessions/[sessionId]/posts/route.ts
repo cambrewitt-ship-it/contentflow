@@ -104,9 +104,9 @@ export async function GET(
 
     // OPTIMIZED: Use Promise.all for parallel queries (safe version)
     const [scheduledResult, otherScheduledResult] = await Promise.all([
-      // Fetch only selected scheduled posts from planner_scheduled_posts
+      // Fetch only selected scheduled posts from calendar_scheduled_posts
       selectedPlannerPostIds.length > 0 ? supabase
-        .from('planner_scheduled_posts')
+        .from('calendar_scheduled_posts')
         .select(`
           id,
           caption,

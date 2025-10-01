@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
         .order('scheduled_time', { ascending: true }),
       
       supabase
-        .from('planner_scheduled_posts')
+        .from('calendar_scheduled_posts')
         .select(`
           id,
           caption,
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
 
     // Update post caption if client edited it
     if (edited_caption && edited_caption.trim() !== '') {
-      const tableName = post_type === 'planner_scheduled' ? 'planner_scheduled_posts' : 'scheduled_posts';
+      const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
       
       const { error: captionUpdateError } = await supabase
         .from(tableName)
@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the post status
-    const tableName = post_type === 'planner_scheduled' ? 'planner_scheduled_posts' : 'scheduled_posts';
+    const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
     
     const statusUpdate: any = {
       approval_status,
@@ -293,7 +293,7 @@ function groupPostsByWeek(posts: any[]): any[] {
   console.log('📅 Current week start:', currentWeekStart.toISOString().split('T')[0]);
   
   posts.forEach(post => {
-    // Handle different column names: scheduled_posts uses 'scheduled_time', planner_scheduled_posts uses 'scheduled_date'
+    // Handle different column names: scheduled_posts uses 'scheduled_time', calendar_scheduled_posts uses 'scheduled_date'
     const scheduledDate = post.scheduled_date || post.scheduled_time;
     const date = new Date(scheduledDate);
     const weekStart = new Date(date);

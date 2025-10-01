@@ -72,6 +72,7 @@ export default function ContentSuitePage({ params }: PageProps) {
   const [isSendingToScheduler, setIsSendingToScheduler] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsLoading, setProjectsLoading] = useState(false)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null) // For tagging posts with project
   const [addingToProject, setAddingToProject] = useState<string | null>(null)
   const [showNewProjectForm, setShowNewProjectForm] = useState(false)
   const [newProjectName, setNewProjectName] = useState("")
@@ -226,7 +227,7 @@ export default function ContentSuitePage({ params }: PageProps) {
       console.error('❌ Error fetching post for editing:', error)
       alert(`Failed to load post for editing: ${error instanceof Error ? error.message : String(error)}`)
       // Redirect back to planner on error
-      router.push(`/dashboard/client/${clientId}/planner`)
+      router.push(`/dashboard/client/${clientId}/calendar`)
     } finally {
       setLoadingPost(false)
     }
@@ -408,8 +409,8 @@ export default function ContentSuitePage({ params }: PageProps) {
       const data = await response.json()
       console.log('✅ Post updated successfully:', data)
       
-      // Redirect back to planner with success message and refresh flag
-      router.push(`/dashboard/client/${clientId}/planner?projectId=${editingPost?.project_id}&success=Post updated successfully&refresh=true`)
+      // Redirect back to calendar with success message and refresh flag
+      router.push(`/dashboard/client/${clientId}/calendar?projectId=${editingPost?.project_id}&success=Post updated successfully&refresh=true`)
       
     } catch (error) {
       console.error('❌ Error updating post:', error)
@@ -422,9 +423,9 @@ export default function ContentSuitePage({ params }: PageProps) {
   // Handle canceling edit
   const handleCancelEdit = () => {
     if (editingPost?.project_id) {
-      router.push(`/dashboard/client/${clientId}/planner?projectId=${editingPost.project_id}`)
+      router.push(`/dashboard/client/${clientId}/calendar?projectId=${editingPost.project_id}`)
     } else {
-      router.push(`/dashboard/client/${clientId}/planner`)
+      router.push(`/dashboard/client/${clientId}/calendar`)
     }
   }
 
@@ -438,15 +439,63 @@ export default function ContentSuitePage({ params }: PageProps) {
       return
     }
     
-    // TODO: Implement scheduler functionality for new posts
-    console.log('Sending to scheduler - caption length:', selectedCaption?.length || 0, 'images count:', uploadedImages.length)
+    console.log('Adding to calendar - caption length:', selectedCaption?.length || 0, 'images count:', uploadedImages.length, 'project_id:', selectedProjectId)
+    
+    // Validate we have required content
+    if (!selectedCaption || selectedCaption.trim() === '') {
+      alert('Please provide a caption for your post')
+      return
+    }
+    
+    if (uploadedImages.length === 0) {
+      alert('Please upload an image for your post')
+      return
+    }
+    
     setIsSendingToScheduler(true)
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Get the active image
+      const activeImage = uploadedImages[0] // Use first image for now
+      
+      // Create post data
+      const postData = {
+        client_id: clientId,
+        project_id: selectedProjectId, // Include the selected project_id (or null)
+        caption: selectedCaption,
+        image_url: activeImage.preview, // The base64 or blob URL
+        post_notes: '', // Add post notes if you have them in your store
+      }
+      
+      console.log('Sending post to calendar API:', { 
+        ...postData, 
+        image_url: activeImage.preview?.substring(0, 50) + '...' 
+      })
+      
+      // Add to calendar_unscheduled_posts via API
+      const response = await fetch('/api/calendar/unscheduled', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(postData)
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `Failed to add to calendar: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      console.log('✅ Post added to calendar:', result)
+      
+      // Redirect to calendar
+      router.push(`/dashboard/client/${clientId}/calendar`)
+      
+    } catch (error) {
+      console.error('❌ Error adding to calendar:', error)
+      alert(`Failed to add post to calendar: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
       setIsSendingToScheduler(false)
-      alert('Scheduler functionality coming soon!')
-    }, 1000)
+    }
   }
 
   return (
@@ -457,6 +506,8 @@ export default function ContentSuitePage({ params }: PageProps) {
         projects={projects}
         projectsLoading={projectsLoading}
         setProjects={setProjects}
+        selectedProjectId={selectedProjectId}
+        setSelectedProjectId={setSelectedProjectId}
         handleSendToScheduler={handleSendToScheduler}
         isSendingToScheduler={isSendingToScheduler}
         addingToProject={addingToProject}
@@ -489,6 +540,8 @@ interface ContentSuiteContentProps {
   projects: Project[]
   projectsLoading: boolean
   setProjects: (projects: Project[]) => void
+  selectedProjectId: string | null
+  setSelectedProjectId: (projectId: string | null) => void
   handleSendToScheduler: (selectedCaption: string, uploadedImages: { preview: string; id: string; file?: File }[]) => Promise<void>
   isSendingToScheduler: boolean
   addingToProject: string | null
@@ -515,12 +568,14 @@ interface ContentSuiteContentProps {
 }
 
 // Separate component that has access to the content store context
-function ContentSuiteContent({ 
-  clientId, 
+function ContentSuiteContent({
+  clientId,
   client,
-  projects, 
-  projectsLoading, 
+  projects,
+  projectsLoading,
   setProjects,
+  selectedProjectId,
+  setSelectedProjectId,
   handleSendToScheduler,
   isSendingToScheduler,
   addingToProject,
@@ -555,6 +610,15 @@ function ContentSuiteContent({
     setPostNotes,
     setActiveImageId
   } = useContentStore()
+
+  // Helper function to get selected caption from store
+  const getSelectedCaption = () => {
+    if (selectedCaptions.length > 0) {
+      const selectedCaption = captions.find(cap => cap.id === selectedCaptions[0])
+      return selectedCaption?.text || ''
+    }
+    return ''
+  }
 
   // Function to update content store with custom caption before saving
   const updateContentStoreForSaving = (customCaption?: string) => {
@@ -970,12 +1034,12 @@ function ContentSuiteContent({
                       </div>
                       <div className="flex items-center space-x-2 flex-shrink-0">
                         <Link
-                          href={`/dashboard/client/${clientId}/planner?projectId=${project.id}`}
+                          href={`/dashboard/client/${clientId}/calendar?projectId=${project.id}`}
                           onClick={(e) => e.stopPropagation()}
                           className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
                           <Calendar className="w-3 h-3 mr-1.5" />
-                          Planner
+                          Calendar
                         </Link>
                                                                              <button
                             onClick={(e) => {
@@ -1045,21 +1109,43 @@ function ContentSuiteContent({
               <div className="lg:col-span-1">
                 <div className="bg-white rounded-lg border border-gray-200 p-6 h-full flex flex-col justify-center" style={{ width: '376px' }}>
                   <div className="space-y-3">
-                    {/* Schedule Button */}
+                    {/* Project Selector */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Tag with Project (Optional)
+                      </label>
+                      <select
+                        value={selectedProjectId || ''}
+                        onChange={(e) => setSelectedProjectId(e.target.value || null)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">No Project</option>
+                        {projects.map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {project.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* Add to Calendar Button */}
                     <Button
-                      onClick={() => handleSendToScheduler('', [])}
+                      onClick={() => {
+                        const caption = getSelectedCaption()
+                        handleSendToScheduler(caption, uploadedImages)
+                      }}
                       disabled={isSendingToScheduler}
                       className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
                     >
                       {isSendingToScheduler ? (
                         <>
                           <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Scheduling...
+                          Adding...
                         </>
                       ) : (
                         <>
                           <Calendar className="w-5 h-5 mr-2" />
-                          Schedule
+                          Add to Calendar
                         </>
                       )}
                     </Button>

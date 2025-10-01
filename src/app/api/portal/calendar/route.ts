@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
     // Get scheduled posts for the client
     const { data: scheduledPosts, error: scheduledError } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .select(`
         id,
         caption,

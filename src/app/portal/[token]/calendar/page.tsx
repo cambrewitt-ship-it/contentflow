@@ -470,7 +470,7 @@ export default function PortalCalendarPage() {
         });
 
         // API call
-        const response = await fetch('/api/planner/scheduled', {
+        const response = await fetch('/api/calendar/scheduled', {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -562,7 +562,7 @@ export default function PortalCalendarPage() {
     setDeletingItems(prev => ({ ...prev, [itemKey]: true }));
 
     try {
-      const response = await fetch('/api/planner/scheduled', {
+      const response = await fetch('/api/calendar/scheduled', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

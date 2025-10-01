@@ -91,7 +91,7 @@ export async function POST(request: Request) {
     
     console.log('✅ Posts created successfully in posts table:', postsData);
     
-    // CRITICAL STEP: Also create entries in planner_unscheduled_posts table to ensure they appear in the planner
+    // CRITICAL STEP: Also create entries in calendar_unscheduled_posts table to ensure they appear in the planner
     if (postsData && postsData.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const plannerPosts = postsData.map((post: any) => ({
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
       }));
       
       const { data: plannerData, error: plannerError } = await supabase
-        .from('planner_unscheduled_posts')
+        .from('calendar_unscheduled_posts')
         .insert(plannerPosts)
         .select();
       

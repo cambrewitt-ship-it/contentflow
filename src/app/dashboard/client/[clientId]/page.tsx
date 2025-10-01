@@ -1122,6 +1122,16 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               <Plus className="w-20 h-20 mb-4 stroke-[3]" />
               <span className="text-2xl font-bold">Create Content</span>
             </Button>
+            
+            {/* Calendar Button */}
+            <Button 
+              onClick={() => window.location.href = `/dashboard/client/${clientId}/calendar`}
+              className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 hover:from-blue-600 hover:via-blue-700 hover:to-blue-800 text-white w-64 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
+              style={{ height: '177px' }}
+            >
+              <Calendar className="w-20 h-20 mb-4 stroke-[3]" />
+              <span className="text-2xl font-bold">Calendar</span>
+            </Button>
           </div>
         </div>
 
@@ -1375,7 +1385,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         
                         <div className="flex gap-2">
                           <Link 
-                            href={`/dashboard/client/${clientId}/planner?projectId=${project.id}`}
+                            href={`/dashboard/client/${clientId}/calendar?projectId=${project.id}`}
                             className="flex-1"
                           >
                             <Button 
@@ -1383,7 +1393,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                               className="w-full"
                             >
                               <Calendar className="w-4 h-4 mr-2" />
-                              Planner
+                              Calendar
                             </Button>
                           </Link>
                         </div>

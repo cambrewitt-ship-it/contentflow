@@ -115,7 +115,7 @@ interface ConnectedAccount {
   accountId?: string;
 }
 
-export default function PlannerPage() {
+export default function CalendarPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const clientId = params?.clientId as string;
@@ -130,7 +130,7 @@ export default function PlannerPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
   
-  console.log('📍 PlannerPage render - clientId:', clientId, 'projectId:', projectId);
+  console.log('📍 CalendarPage render - clientId:', clientId, 'projectId:', projectId);
 
   // Log user's actual timezone
   useEffect(() => {
@@ -1202,7 +1202,7 @@ export default function PlannerPage() {
             </Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-700">
-                {currentProject ? `${currentProject.name} Planner` : 'Content Planner'}
+                {currentProject ? `${currentProject.name} Calendar` : 'Content Calendar'}
               </h1>
               {currentProject && (
                 <p className="text-sm text-gray-500 mt-1">

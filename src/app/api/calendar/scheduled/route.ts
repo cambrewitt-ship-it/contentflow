@@ -8,27 +8,40 @@ const supabase = createClient(
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const clientId = searchParams.get('clientId');
   const projectId = searchParams.get('projectId');
+  const filterUntagged = searchParams.get('filterUntagged') === 'true';
   const limit = parseInt(searchParams.get('limit') || '50');
   const includeImageData = searchParams.get('includeImageData') === 'true';
   
-  // Validate projectId
-  if (!projectId) {
-    return NextResponse.json({ error: 'projectId is required' }, { status: 400 });
+  // Validate clientId
+  if (!clientId) {
+    return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
   }
   
   try {
     const startTime = Date.now();
-    console.log(`🔍 OPTIMIZED FETCH - Scheduled posts for project ${projectId} (limit: ${limit}, images: ${includeImageData})`);
+    console.log(`🔍 OPTIMIZED FETCH - Scheduled posts for client ${clientId} (project: ${projectId || 'all'}, untagged: ${filterUntagged}, limit: ${limit}, images: ${includeImageData})`);
     
     // Optimized query - only select fields needed for approval board
     const baseFields = 'id, project_id, caption, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, late_status, late_post_id, platforms_scheduled, created_at, updated_at, last_edited_at, edit_count, needs_reapproval, original_caption';
     const selectFields = includeImageData ? `${baseFields}, image_url` : baseFields;
     
-    const { data, error } = await supabase
-      .from('planner_scheduled_posts')
+    // Build query based on filter type
+    let query = supabase
+      .from('calendar_scheduled_posts')
       .select(selectFields)
-      .eq('project_id', projectId)
+      .eq('client_id', clientId);
+    
+    // Apply project filter
+    if (filterUntagged) {
+      query = query.is('project_id', null);
+    } else if (projectId) {
+      query = query.eq('project_id', projectId);
+    }
+    // If neither filterUntagged nor projectId, return all posts for client
+    
+    const { data, error } = await query
       .order('scheduled_date', { ascending: true })
       .limit(limit);
     
@@ -95,10 +108,11 @@ export async function POST(request: Request) {
     console.log('  - unscheduledId:', body.unscheduledId);
     console.log('  - scheduledPost.image_url:', body.scheduledPost.image_url ? 'Present' : 'Missing');
     
-    // Ensure image_url is included in the scheduled post data
+    // Ensure image_url and client_id are included in the scheduled post data
     const scheduledPostData = {
       ...body.scheduledPost,
-      image_url: body.scheduledPost.image_url || null // Ensure image_url field is present
+      image_url: body.scheduledPost.image_url || null, // Ensure image_url field is present
+      client_id: body.scheduledPost.client_id // Ensure client_id is preserved
     };
     
     console.log('🔧 STEP 2 - PREPARING INSERT DATA:');
@@ -106,9 +120,9 @@ export async function POST(request: Request) {
     console.log('  - Data size (chars):', JSON.stringify(scheduledPostData).length);
     
     // Move from unscheduled to scheduled
-    console.log('🔧 STEP 3 - INSERTING INTO planner_scheduled_posts:');
+    console.log('🔧 STEP 3 - INSERTING INTO calendar_scheduled_posts:');
     const { data: scheduled, error: scheduleError } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .insert(scheduledPostData)
       .select()
       .single();
@@ -126,11 +140,11 @@ export async function POST(request: Request) {
     console.log('  - Inserted post keys:', Object.keys(scheduled));
     
     // Delete from unscheduled
-    console.log('🔧 STEP 5 - DELETING FROM planner_unscheduled_posts:');
+    console.log('🔧 STEP 5 - DELETING FROM calendar_unscheduled_posts:');
     console.log('  - Deleting unscheduledId:', body.unscheduledId);
     
     const { error: deleteError } = await supabase
-      .from('planner_unscheduled_posts')
+      .from('calendar_unscheduled_posts')
       .delete()
       .eq('id', body.unscheduledId);
     
@@ -173,7 +187,7 @@ export async function PATCH(request: Request) {
     };
     
     const { data, error } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .update(updateData)
       .eq('id', postId);
     
@@ -191,7 +205,7 @@ export async function DELETE(request: Request) {
     const { postId } = await request.json();
     
     const { error } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .delete()
       .eq('id', postId);
     

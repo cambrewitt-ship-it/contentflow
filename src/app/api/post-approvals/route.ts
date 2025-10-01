@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     // Update post caption if client edited it
     if (edited_caption && edited_caption.trim() !== '') {
-      const tableName = post_type === 'planner_scheduled' ? 'planner_scheduled_posts' : 'scheduled_posts';
+      const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
       
       const { error: captionUpdateError } = await supabase
         .from(tableName)
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Also update the post status in the same table
-    const tableName = post_type === 'planner_scheduled' ? 'planner_scheduled_posts' : 'scheduled_posts';
+    const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
     console.log(`📝 Updating ${tableName} for post ${post_id} with status ${approval_status}`);
 
     const statusUpdate: any = {

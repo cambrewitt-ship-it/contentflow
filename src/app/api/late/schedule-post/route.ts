@@ -122,9 +122,9 @@ export async function POST(request: Request) {
     const latePostId = lateData.post?._id || lateData.post?.id || lateData._id || lateData.id;
     console.log('Extracted LATE post ID:', latePostId);
     
-    // Update the planner_scheduled_posts table with LATE information
+    // Update the calendar_scheduled_posts table with LATE information
     const { error: updateError } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .update({ 
         late_status: 'scheduled',
         late_post_id: latePostId,
@@ -136,9 +136,9 @@ export async function POST(request: Request) {
       console.error('Database update error:', updateError);
     }
     
-    // Get the post data from planner_scheduled_posts to preserve image_url
+    // Get the post data from calendar_scheduled_posts to preserve image_url
     const { data: plannerPost, error: fetchError } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .select('image_url')
       .eq('id', postId)
       .single();

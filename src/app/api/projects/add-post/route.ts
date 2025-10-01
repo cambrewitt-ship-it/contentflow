@@ -59,8 +59,8 @@ export async function POST(request: Request) {
       console.log('✅ Valid image URL detected:', validation.type);
     }
     
-    // Insert into planner_unscheduled_posts (not planner_posts)
-    console.log('💾 Inserting into planner_unscheduled_posts table...');
+    // Insert into calendar_unscheduled_posts (not planner_posts)
+    console.log('💾 Inserting into calendar_unscheduled_posts table...');
     
     // Get the user ID from the request headers (passed from the frontend)
     const authHeader = request.headers.get('authorization');
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
     });
     
     const { data, error } = await supabase
-      .from('planner_unscheduled_posts')
+      .from('calendar_unscheduled_posts')
       .insert(insertData)
       .select()
       .single();

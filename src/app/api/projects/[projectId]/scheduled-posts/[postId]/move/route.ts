@@ -20,7 +20,7 @@ export async function PATCH(
     // Update the post with new date
     // Note: week_index and day_index columns don't exist in the actual table schema
     const { data, error } = await supabase
-      .from('planner_scheduled_posts')
+      .from('calendar_scheduled_posts')
       .update({
         scheduled_date: body.newScheduledDate,
         updated_at: new Date().toISOString()
