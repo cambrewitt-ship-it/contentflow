@@ -1724,8 +1724,122 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         <div className="mt-8">
           <Card className="shadow-md hover:shadow-lg transition-all" style={{ borderRadius: '16px' }}>
             <CardContent className="p-8 space-y-10">
-              {/* Social Media Platforms Section */}
+              {/* Client Portal Section */}
               <div>
+                <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Client Portal</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-700">Portal Access</h4>
+                      <p className="text-sm text-gray-600">
+                        Allow this client to access their content portal
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <span className={`text-sm font-medium ${portalEnabled ? 'text-green-600' : 'text-gray-500'}`}>
+                        {portalEnabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                      <button
+                        onClick={handleTogglePortalAccess}
+                        disabled={togglingPortal}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 ${
+                          portalEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            portalEnabled ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-700">Portal Link</h4>
+                      <p className="text-sm text-gray-600">
+                        Generate a secure link for the client to access their portal
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleGeneratePortalLink}
+                      disabled={generatingPortalLink || !portalEnabled}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      {generatingPortalLink ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <LinkIcon className="w-4 h-4 mr-2" />
+                          Generate Portal Link
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {portalUrl && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-700 mb-1">Portal URL:</p>
+                          <p className="text-sm text-gray-600 break-all">{portalUrl}</p>
+                        </div>
+                        <div className="flex items-center space-x-2 ml-4">
+                          <Button
+                            onClick={handleCopyPortalLink}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center"
+                          >
+                            {portalLinkCopied ? (
+                              <>
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Copied!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4 mr-1" />
+                                Copy
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            onClick={() => window.open(portalUrl, '_blank')}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center"
+                          >
+                            <ExternalLink className="w-4 h-4 mr-1" />
+                            Open
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!portalEnabled && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <div className="flex items-center">
+                        <div className="w-5 h-5 text-yellow-600 mr-3">
+                          <svg fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <p className="text-sm text-yellow-700">
+                          Portal access is disabled. Enable it above to generate a portal link for this client.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Social Media Platforms Section */}
+              <div className="border-t-2 pt-8">
                 <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Social Media Platforms</h3>
                 
                 {/* OAuth Success/Error Messages */}
@@ -1912,7 +2026,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               </div>
 
               {/* Brand Information Section */}
-              <div className="border-t pt-8">
+              <div className="border-t-2 pt-8">
                 <BrandInformationPanel 
                   clientId={clientId} 
                   client={client} 
@@ -1920,261 +2034,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   brandDocuments={brandDocuments}
                   websiteScrapes={websiteScrapes}
                 />
-              </div>
-
-              {/* Content Inbox Section */}
-              <div className="border-t-2 pt-8">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-2xl font-bold text-gray-800" style={{ fontSize: '24px' }}>Content Inbox</h3>
-                  <Button
-                    onClick={fetchContentInbox}
-                    variant="outline"
-                    size="sm"
-                    disabled={contentInboxLoading}
-                  >
-                    {contentInboxLoading ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                    )}
-                    Refresh
-                  </Button>
-                </div>
-                
-                <div className="space-y-4">
-                  {contentInboxError ? (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <p className="text-red-600 text-sm">{contentInboxError}</p>
-                    </div>
-                  ) : contentInboxLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                      <span className="ml-2 text-gray-600">Loading content...</span>
-                    </div>
-                  ) : contentInbox.length === 0 ? (
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-                      <File className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                      <h4 className="text-lg font-medium text-gray-700 mb-2">No content uploaded yet</h4>
-                      <p className="text-gray-600 text-sm">
-                        Content uploaded by the client through their portal will appear here.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {contentInbox.map((upload) => (
-                        <Card key={upload.id} className="rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all">
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-2">
-                                {getFileIcon(upload.file_type)}
-                                <span className="text-sm font-medium text-gray-700 truncate">
-                                  {upload.file_name}
-                                </span>
-                              </div>
-                              {getStatusBadge(upload.status)}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {formatFileSize(upload.file_size)} • {upload.file_type}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              Uploaded {new Date(upload.created_at).toLocaleDateString()}
-                            </div>
-                          </CardHeader>
-                          
-                          <CardContent className="space-y-3">
-                            {/* Image Preview */}
-                            {upload.file_type.startsWith('image/') ? (
-                              <div className="relative">
-                                <img
-                                  src={upload.file_url}
-                                  alt={upload.file_name}
-                                  className="w-full h-32 object-cover rounded-lg border"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.style.display = 'none';
-                                    target.nextElementSibling?.classList.remove('hidden');
-                                  }}
-                                />
-                                <div className="hidden w-full h-32 bg-gray-100 rounded-lg border flex items-center justify-center">
-                                  <div className="text-center">
-                                    <Image className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                                    <p className="text-xs text-gray-500">Preview unavailable</p>
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="w-full h-32 bg-gray-100 rounded-lg border flex items-center justify-center">
-                                <div className="text-center">
-                                  {getFileIcon(upload.file_type)}
-                                  <p className="text-xs text-gray-500 mt-2">{upload.file_name}</p>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Notes */}
-                            {upload.notes && (
-                              <div className="bg-gray-50 rounded-lg p-3">
-                                <p className="text-xs font-medium text-gray-700 mb-1">Client Notes:</p>
-                                <p className="text-xs text-gray-600 whitespace-pre-wrap">
-                                  {upload.notes}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Actions */}
-                            <div className="flex space-x-2">
-                              <Button
-                                onClick={() => {
-                                  // Navigate to content suite with pre-loaded data
-                                  // Store image data in sessionStorage to avoid long URLs
-                                  const imageData = {
-                                    image: upload.file_url,
-                                    notes: upload.notes || '',
-                                    fileName: upload.file_name,
-                                    uploadId: upload.id
-                                  };
-                                  sessionStorage.setItem('preloadedContent', JSON.stringify(imageData));
-                                  
-                                  // Navigate with just the upload ID to keep URL short
-                                  window.location.href = `/dashboard/client/${clientId}/content-suite?uploadId=${upload.id}`;
-                                }}
-                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                                size="sm"
-                              >
-                                <Edit3 className="w-4 h-4 mr-1" />
-                                Edit
-                              </Button>
-                              {upload.file_url && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => window.open(upload.file_url, '_blank')}
-                                  className="flex-1"
-                                >
-                                  View File
-                                </Button>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Client Portal Section */}
-              <div className="border-t-2 pt-8">
-                <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Client Portal</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-lg font-semibold text-gray-700">Portal Access</h4>
-                      <p className="text-sm text-gray-600">
-                        Allow this client to access their content portal
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <span className={`text-sm font-medium ${portalEnabled ? 'text-green-600' : 'text-gray-500'}`}>
-                        {portalEnabled ? 'Enabled' : 'Disabled'}
-                      </span>
-                      <button
-                        onClick={handleTogglePortalAccess}
-                        disabled={togglingPortal}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 ${
-                          portalEnabled ? 'bg-blue-600' : 'bg-gray-200'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            portalEnabled ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-lg font-semibold text-gray-700">Portal Link</h4>
-                      <p className="text-sm text-gray-600">
-                        Generate a secure link for the client to access their portal
-                      </p>
-                    </div>
-                    <Button
-                      onClick={handleGeneratePortalLink}
-                      disabled={generatingPortalLink || !portalEnabled}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      {generatingPortalLink ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <LinkIcon className="w-4 h-4 mr-2" />
-                          Generate Portal Link
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  {portalUrl && (
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-700 mb-1">Portal URL:</p>
-                          <p className="text-sm text-gray-600 break-all">{portalUrl}</p>
-                        </div>
-                        <div className="flex items-center space-x-2 ml-4">
-                          <Button
-                            onClick={handleCopyPortalLink}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center"
-                          >
-                            {portalLinkCopied ? (
-                              <>
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                Copied!
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-4 h-4 mr-1" />
-                                Copy
-                              </>
-                            )}
-                          </Button>
-                          <Button
-                            onClick={() => window.open(portalUrl, '_blank')}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center"
-                          >
-                            <ExternalLink className="w-4 h-4 mr-1" />
-                            Open
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {!portalEnabled && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                      <div className="flex items-center">
-                        <div className="w-5 h-5 text-yellow-600 mr-3">
-                          <svg fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <p className="text-sm text-yellow-700">
-                          Portal access is disabled. Enable it above to generate a portal link for this client.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Delete Client Section */}
