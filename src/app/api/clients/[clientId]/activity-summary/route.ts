@@ -129,7 +129,7 @@ export async function GET(
           lateStatus: nextPost.late_status,
           platforms: nextPost.platforms_scheduled || []
         } : null,
-        pendingApproval: pendingPosts?.count || 0
+        pendingApproval: pendingPosts?.length || 0
       },
       details: {
         recentUploads: recentUploads?.slice(0, 5).map(upload => ({
