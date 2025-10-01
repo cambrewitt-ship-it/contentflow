@@ -512,8 +512,6 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                 </p>
               </div>
             )}
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
