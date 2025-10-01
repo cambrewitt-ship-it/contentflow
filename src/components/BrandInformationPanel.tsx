@@ -505,13 +505,13 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
             ) : (
               <div>
                 <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
-    brand_voice_examples: client?.brand_voice_examples || '',
+                  {formData.brand_voice_examples || "No brand voice examples provided yet."}
                 </p>
-    brand_voice_examples: client?.brand_voice_examples || '',
-                  <p className="text-blue-600 text-sm mt-1">
-    brand_voice_examples: client?.brand_voice_examples || '',
-                  </p>
-                )}
+                <p className="text-blue-600 text-sm mt-1">
+                  💡 Include snippets from your website, social media, or brand documents that show how your brand should sound
+                </p>
+              </div>
+            )}
               </div>
             )}
           </div>
