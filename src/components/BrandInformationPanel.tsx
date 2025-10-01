@@ -499,7 +499,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                   💡 Include snippets from your website, social media, or brand documents that show how your brand should sound
                 </p>
                 <p className="text-gray-600 text-sm mt-2">
-                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brandbrand's voiceapos;s voice.
+                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brandbrandbrand's voiceapos;s voiceapos;s voice.
                 </p>
               </div>
             ) : (
