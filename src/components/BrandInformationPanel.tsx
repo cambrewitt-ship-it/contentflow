@@ -44,7 +44,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
     value_proposition: client?.value_proposition || '',
     caption_dos: client?.caption_dos || '',
     caption_donts: client?.caption_donts || '',
-    brand_voice_examples: client?.brand_voice_examples || ''
+                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand    brand_voice_examples: client?.brand_voice_examples || ''apos;s voice.
   });
 
   // Update formData when client prop changes
@@ -58,7 +58,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
       value_proposition: client?.value_proposition || '',
       caption_dos: client?.caption_dos || '',
       caption_donts: client?.caption_donts || '',
-      brand_voice_examples: client?.brand_voice_examples || ''
+                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand      brand_voice_examples: client?.brand_voice_examples || ''apos;s voice.
     });
   }, [client]);
 
@@ -489,9 +489,9 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
             {isEditing ? (
               <div>
                 <Textarea
-                  value={formData.brand_voice_examples}
-                  onChange={(e) => handleInputChange('brand_voice_examples', e.target.value)}
-                  placeholder="Paste examples of your brand&apos;s voice from website content, social media posts, or brand documents. These will help AI understand your writing style and tone."
+                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand                  value={formData.brand_voice_examples}apos;s voice.
+                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand                  onChange={(e) => handleInputChange('brand_voice_examples', e.target.value)}apos;s voice.
+                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand                  placeholder="Paste examples of your brand&apos;s voice from website content, social media posts, or brand documents. These will help AI understand your writing style and tone."apos;s voice.
                   rows={4}
                   className="border-blue-300 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -499,17 +499,17 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                   💡 Include snippets from your website, social media, or brand documents that show how your brand should sound
                 </p>
                 <p className="text-gray-600 text-sm mt-2">
-                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brandbrandbrandbrand's voiceapos;s voiceapos;s voiceapos;s voice.
+                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brandbrandbrandbrand's voiceapos;s voiceapos;s voiceapos;s voice.apos;s voice.
                 </p>
               </div>
             ) : (
               <div>
                 <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
-                  {client?.brand_voice_examples || 'No brand voice examples provided'}
+                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand                  {client?.brand_voice_examples || 'No brand voice examples provided'}apos;s voice.
                 </p>
-                {client?.brand_voice_examples && (
+                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand                {client?.brand_voice_examples && (apos;s voice.
                   <p className="text-blue-600 text-sm mt-1">
-                    These examples will guide AI caption generation to match your brand&apos;s voice
+                  Choose 5-10 of your best captions - quality over quantity. These examples will guide AI copy generation to match your brand                    These examples will guide AI caption generation to match your brand&apos;s voiceapos;s voice.
                   </p>
                 )}
               </div>
