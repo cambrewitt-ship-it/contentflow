@@ -65,8 +65,23 @@ export async function GET(request: Request) {
       });
     }
     
+    // Fetch client uploads (content from portal)
+    const { data: uploadsData, error: uploadsError } = await supabase
+      .from('client_uploads')
+      .select('id, client_id, project_id, file_name, file_type, file_size, file_url, status, notes, created_at, updated_at')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false });
+    
+    if (uploadsError) {
+      console.error('⚠️ Error fetching client uploads:', uploadsError);
+      // Don't fail the whole request, just log the error
+    }
+    
+    console.log(`📤 Retrieved ${uploadsData?.length || 0} client uploads`);
+    
     return NextResponse.json({ 
       posts: data || [],
+      uploads: uploadsData || [],
       performance: {
         queryDuration,
         optimized: queryDuration < 1000, // Consider optimized if under 1 second

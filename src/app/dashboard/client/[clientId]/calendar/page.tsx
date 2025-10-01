@@ -108,6 +108,20 @@ interface Post {
   status?: 'draft' | 'ready' | 'scheduled' | 'published' | 'archived' | 'deleted';
 }
 
+interface ClientUpload {
+  id: string;
+  client_id: string;
+  project_id: string | null;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  file_url: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface ConnectedAccount {
   _id: string;
   platform: string;
@@ -148,6 +162,7 @@ export default function CalendarPage() {
   
   const [projectPosts, setProjectPosts] = useState<Post[]>([]);
   const [scheduledPosts, setScheduledPosts] = useState<{[key: string]: Post[]}>({});
+  const [clientUploads, setClientUploads] = useState<{[key: string]: ClientUpload[]}>({});
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
@@ -288,8 +303,9 @@ export default function CalendarPage() {
       
       const data = await response.json();
       const posts = data.posts || [];
+      const uploads = data.uploads || [];
       
-      console.log(`✅ Retrieved ${posts.length} scheduled posts`);
+      console.log(`✅ Retrieved ${posts.length} scheduled posts and ${uploads.length} client uploads`);
       
       // Map posts by date
       const mapped: {[key: string]: Post[]} = {};
@@ -299,10 +315,19 @@ export default function CalendarPage() {
         if (dateKey) mapped[dateKey].push(post);
       });
       
+      // Map uploads by date (using created_at date)
+      const uploadsMapped: {[key: string]: ClientUpload[]} = {};
+      uploads.forEach((upload: ClientUpload) => {
+        const uploadDate = new Date(upload.created_at).toLocaleDateString('en-CA');
+        if (!uploadsMapped[uploadDate]) uploadsMapped[uploadDate] = [];
+        uploadsMapped[uploadDate].push(upload);
+      });
+      
       setScheduledPosts(mapped);
+      setClientUploads(uploadsMapped);
       setIsLoadingScheduledPosts(false);
       setRefreshKey(prev => prev + 1); // Force re-render
-      console.log('Scheduled posts loaded - dates:', Object.keys(mapped).length);
+      console.log('Scheduled posts loaded - dates:', Object.keys(mapped).length, 'Uploads dates:', Object.keys(uploadsMapped).length);
       
     } catch (error) {
       if (retryCount === 0) {
@@ -1978,6 +2003,66 @@ export default function CalendarPage() {
                               </div>
                               );
                             })}
+
+                            {/* Display client uploads */}
+                            {!isLoadingScheduledPosts && clientUploads[dayDate.toLocaleDateString('en-CA')]?.map((upload: ClientUpload, idx: number) => (
+                              <div key={`upload-${idx}`} className="mt-2">
+                                <div className="flex-shrink-0 w-64 border-2 border-blue-300 rounded-lg p-3 bg-blue-50 hover:shadow-md transition-shadow">
+                                  {/* Upload Header */}
+                                  <div className="mb-2 pb-2 border-b border-blue-200">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                        </svg>
+                                        <span className="text-xs font-semibold text-blue-700">Client Upload</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Upload Image */}
+                                  {upload.file_type?.startsWith('image/') ? (
+                                    <div className="w-full mb-2 rounded overflow-hidden border border-blue-200">
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img 
+                                        src={upload.file_url || '/api/placeholder/100/100'} 
+                                        alt={upload.file_name}
+                                        className="w-full h-auto object-contain"
+                                        onError={(e) => {
+                                          console.log('Upload image failed to load, using placeholder for upload:', upload.id);
+                                          e.currentTarget.src = '/api/placeholder/100/100';
+                                        }}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="w-full h-32 bg-blue-100 rounded-lg border border-blue-200 flex items-center justify-center mb-2">
+                                      <div className="text-center">
+                                        <svg className="w-8 h-8 text-blue-600 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        <p className="text-xs text-blue-600 mt-2">{upload.file_name}</p>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Notes */}
+                                  {upload.notes && (
+                                    <div className="mb-2 p-2 bg-white rounded border border-blue-200">
+                                      <span className="text-xs font-medium text-blue-700">Notes:</span>
+                                      <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
+                                        {upload.notes}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* File info */}
+                                  <div className="flex items-center justify-between text-xs text-blue-600">
+                                    <span>{new Date(upload.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span className="bg-blue-200 px-2 py-0.5 rounded">{upload.status}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
 
                           </div>
                         );
