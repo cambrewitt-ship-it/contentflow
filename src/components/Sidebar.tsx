@@ -39,7 +39,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
   const { getThemeClasses } = useUIThemeStyles();
   const { user, getAccessToken } = useAuth();
 
-  // Fetch all clients from Supabase
+  // Fetch all clients from Supabase - ONLY on mount
   useEffect(() => {
     async function fetchClients() {
       if (!user) {
@@ -90,7 +90,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
     return () => {
       window.removeEventListener('clientCreated', handleClientCreated);
     };
-  }, [user]); // Removed getAccessToken to prevent infinite loop
+  }, [user?.id]); // ✅ Only depend on user ID, not entire user object
 
   // Extract current client ID from pathname
   const currentClientId = pathname?.split('/')[2] || null;

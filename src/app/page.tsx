@@ -23,7 +23,7 @@ export default function Home() {
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
-  // Fetch user profile
+  // Fetch user profile - ONLY on mount or when user ID changes
   useEffect(() => {
     async function fetchProfile() {
       if (!user) return;
@@ -43,7 +43,7 @@ export default function Home() {
     }
 
     fetchProfile();
-  }, [user]);
+  }, [user?.id]); // ✅ Only depend on user ID, not entire user object
 
   return (
     <div className="min-h-screen bg-background">

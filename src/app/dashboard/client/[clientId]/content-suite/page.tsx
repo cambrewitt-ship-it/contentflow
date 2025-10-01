@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Button } from 'components/ui/button'
 import { Input } from 'components/ui/input'
 import { Textarea } from 'components/ui/textarea'
-import { ArrowLeft, Loader2, Sparkles, RefreshCw, Plus, FolderOpen, Calendar, Edit3, X, Lightbulb } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles, RefreshCw, Plus, FolderOpen, Calendar, Edit3, X, Lightbulb, User, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { ImageUploadColumn } from './ImageUploadColumn'
 import { CaptionGenerationColumn } from './CaptionGenerationColumn'
@@ -83,6 +83,8 @@ export default function ContentSuitePage({ params }: PageProps) {
     notes: string;
     fileName: string;
     uploadId: string | null;
+    scheduledDate?: string;
+    scheduledTime?: string;
   } | null>(null)
   
   // Client state
@@ -121,7 +123,9 @@ export default function ContentSuitePage({ params }: PageProps) {
             image: imageData.image,
             notes: imageData.notes || '',
             fileName: imageData.fileName,
-            uploadId: imageData.uploadId || uploadId
+            uploadId: imageData.uploadId || uploadId,
+            scheduledDate: imageData.scheduledDate,
+            scheduledTime: imageData.scheduledTime
           })
           // Clear the sessionStorage after use
           sessionStorage.removeItem('preloadedContent')
@@ -458,37 +462,98 @@ export default function ContentSuitePage({ params }: PageProps) {
       // Get the active image
       const activeImage = uploadedImages[0] // Use first image for now
       
-      // Create post data
-      const postData = {
-        client_id: clientId,
-        project_id: selectedProjectId, // Include the selected project_id (or null)
-        caption: selectedCaption,
-        image_url: activeImage.preview, // The base64 or blob URL
-        post_notes: '', // Add post notes if you have them in your store
+      // Check if this upload came from a specific date in the calendar
+      const hasScheduledDate = preloadedContent?.scheduledDate && preloadedContent?.scheduledTime
+      
+      if (hasScheduledDate) {
+        // Add to scheduled posts (replacing the client upload on the same day)
+        console.log('Adding to scheduled posts on date:', preloadedContent.scheduledDate)
+        
+        const scheduledPostData = {
+          client_id: clientId,
+          project_id: selectedProjectId,
+          caption: selectedCaption,
+          image_url: activeImage.preview,
+          scheduled_date: preloadedContent.scheduledDate,
+          scheduled_time: preloadedContent.scheduledTime,
+          post_notes: '',
+        }
+        
+        console.log('Sending scheduled post to calendar API:', { 
+          ...scheduledPostData, 
+          image_url: activeImage.preview?.substring(0, 50) + '...' 
+        })
+        
+        // Add to calendar_scheduled_posts via API
+        const response = await fetch('/api/calendar/scheduled', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scheduledPost: scheduledPostData
+          })
+        })
+        
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || `Failed to add scheduled post: ${response.status}`)
+        }
+        
+        const result = await response.json()
+        console.log('✅ Post added to scheduled calendar:', result)
+      } else {
+        // Add to unscheduled posts (default behavior)
+        console.log('Adding to unscheduled posts')
+        
+        const postData = {
+          client_id: clientId,
+          project_id: selectedProjectId,
+          caption: selectedCaption,
+          image_url: activeImage.preview,
+          post_notes: '',
+        }
+        
+        console.log('Sending post to calendar API:', { 
+          ...postData, 
+          image_url: activeImage.preview?.substring(0, 50) + '...' 
+        })
+        
+        // Add to calendar_unscheduled_posts via API
+        const response = await fetch('/api/calendar/unscheduled', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(postData)
+        })
+        
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || `Failed to add to calendar: ${response.status}`)
+        }
+        
+        const result = await response.json()
+        console.log('✅ Post added to unscheduled calendar:', result)
       }
       
-      console.log('Sending post to calendar API:', { 
-        ...postData, 
-        image_url: activeImage.preview?.substring(0, 50) + '...' 
-      })
-      
-      // Add to calendar_unscheduled_posts via API
-      const response = await fetch('/api/calendar/unscheduled', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(postData)
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `Failed to add to calendar: ${response.status}`)
+      // If this was created from a client upload, delete the upload
+      if (preloadedContent?.uploadId) {
+        try {
+          console.log('🗑️ Deleting processed client upload:', preloadedContent.uploadId)
+          const deleteResponse = await fetch(`/api/clients/${clientId}/uploads/${preloadedContent.uploadId}`, {
+            method: 'DELETE'
+          })
+          
+          if (deleteResponse.ok) {
+            console.log('✅ Client upload deleted successfully')
+          } else {
+            console.error('⚠️ Failed to delete client upload, but post was added to calendar')
+          }
+        } catch (error) {
+          console.error('⚠️ Error deleting client upload:', error)
+          // Don't fail the whole operation if delete fails
+        }
       }
-      
-      const result = await response.json()
-      console.log('✅ Post added to calendar:', result)
       
       // Redirect to calendar
-      router.push(`/dashboard/client/${clientId}/calendar`)
+      router.push(`/dashboard/client/${clientId}/calendar?refresh=true`)
       
     } catch (error) {
       console.error('❌ Error adding to calendar:', error)
@@ -610,6 +675,8 @@ function ContentSuiteContent({
     setPostNotes,
     setActiveImageId
   } = useContentStore()
+  
+  const { user } = useAuth()
 
   // Helper function to get selected caption from store
   const getSelectedCaption = () => {
@@ -832,17 +899,19 @@ function ContentSuiteContent({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Merged Header - Single Navigation Bar */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
+          {/* Left Section - Back Button + Title */}
           <div className="flex items-center space-x-4">
             <Link
               href={`/dashboard/client/${clientId}`}
-              className="text-gray-500 hover:text-gray-700 transition-colors"
+              className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
             </Link>
-            <div>
+            <div className="border-l border-gray-300 pl-4">
               <h1 className="text-2xl font-bold text-gray-700">
                 {isEditing ? 'Edit Post' : 'Content Suite'}
               </h1>
@@ -857,8 +926,9 @@ function ContentSuiteContent({
             </div>
           </div>
           
-          {/* Action Buttons */}
-          <div className="flex items-center space-x-3">
+          {/* Right Section - Action Buttons + User Profile */}
+          <div className="flex items-center space-x-4">
+            {/* Action Button */}
             {isEditing ? (
               <Button
                 onClick={handleCancelEdit}
@@ -870,13 +940,42 @@ function ContentSuiteContent({
               </Button>
             ) : (
               <Link
-                href={`/dashboard/client/${clientId}/projects`}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                href={`/dashboard/client/${clientId}/calendar`}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-sm hover:shadow-md transition-all duration-300"
               >
-                <FolderOpen className="w-4 h-4 mr-2" />
-                View All Projects
+                <Calendar className="w-4 h-4 mr-2" />
+                View Calendar
               </Link>
             )}
+            
+            {/* User Profile Info */}
+            <div className="flex items-center space-x-3 border-l border-gray-300 pl-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <User className="w-4 h-4 text-blue-700" />
+                </div>
+                <div className="hidden sm:block">
+                  <p className="text-sm font-medium text-gray-900">
+                    {user?.email?.split('@')[0] || 'User'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {user?.email || ''}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Profile Settings Button */}
+              <Link href="/profile">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  title="Profile Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -987,175 +1086,6 @@ function ContentSuiteContent({
           </div>
         )}
 
-        {/* My Projects and Action Buttons Section - Only show when not editing */}
-        {!isEditing && (
-          <div className="mb-8">
-            <div className="content-suite-columns">
-              {/* My Projects - Takes columns 1 and 2 combined */}
-              <div className="lg:col-span-2">
-                <div className="bg-white rounded-lg border border-gray-200 p-6 h-full" style={{ width: '728px' }}>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-700">My Projects</h2>
-                    <span className="text-sm text-gray-500">
-                      {projectsLoading ? 'Loading...' : `${projects.length} project${projects.length !== 1 ? 's' : ''}`}
-                    </span>
-                  </div>
-            
-            {projectsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                <span className="ml-2 text-gray-500">Loading projects...</span>
-              </div>
-            ) : projects.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {projects.map((project) => (
-                  <div
-                    key={project.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all group flex flex-col h-full"
-                  >
-                    <div className="flex items-start justify-between flex-1">
-                      <div className="flex-1 min-w-0 pr-3">
-                        <h3 className="font-medium text-gray-700 group-hover:text-blue-600 transition-colors text-sm leading-tight break-words">
-                          {project.name}
-                        </h3>
-                        {project.description && (
-                          <p className="text-sm text-gray-500 mt-1 line-clamp-2">
-                            {project.description}
-                          </p>
-                        )}
-                        <div className="flex items-center mt-2 text-xs text-gray-400">
-                          <span>Created {new Date(project.created_at).toLocaleDateString()}</span>
-                          {project.content_metadata?.posts && project.content_metadata.posts.length > 0 && (
-                            <span className="ml-2">
-                              • {project.content_metadata.posts.length} post{project.content_metadata.posts.length !== 1 ? 's' : ''}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2 flex-shrink-0">
-                        <Link
-                          href={`/dashboard/client/${clientId}/calendar?projectId=${project.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        >
-                          <Calendar className="w-3 h-3 mr-1.5" />
-                          Calendar
-                        </Link>
-                                                                             <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              
-                              
-                              // Create post object from current content store state
-                              // Use custom caption if available, otherwise use selected caption from content store
-                              const selectedCaptionText = captions.find(c => c.id === selectedCaptions[0])?.text || '';
-                              const finalCaption = customCaptionFromPreview || selectedCaptionText;
-                              const currentImage = uploadedImages.find(img => img.id === activeImageId) || uploadedImages[0];
-                              
-                              console.log('📝 Adding to project - Final Caption:', finalCaption);
-                              console.log('📝 Custom caption from preview:', customCaptionFromPreview);
-                              console.log('📝 Selected caption from store:', selectedCaptionText);
-                              console.log('📝 Content store captions:', captions);
-                              console.log('📝 Selected captions:', selectedCaptions);
-                              
-                              const post = {
-                                clientId: clientId,
-                                caption: finalCaption,
-                                generatedImage: currentImage?.preview || '',
-                                notes: postNotes || ''
-                              };
-                              
-                              handleAddToProject(post, project.id);
-                            }}
-                            disabled={addingToProject === project.id}
-                            className={`p-1.5 rounded transition-colors flex items-center justify-center ${
-                              addingToProject === project.id 
-                                ? 'opacity-50 cursor-not-allowed text-gray-300' 
-                                : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'
-                            }`}
-                            title="Add current content to this project"
-                          >
-                          {addingToProject === project.id ? (
-                            <Loader2 className="w-6 h-6 animate-spin" />
-                          ) : (
-                            <Plus className="w-6 h-6 font-bold" style={{ strokeWidth: 2.5 }} />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-4 text-gray-500">
-                <FolderOpen className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                <p className="text-sm">No projects yet</p>
-                <p className="text-xs text-gray-400 mt-1 mb-3">
-                  Create your first project to get started
-                </p>
-                <Button
-                  onClick={() => setShowNewProjectForm(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Project
-                </Button>
-              </div>
-            )}
-                </div>
-              </div>
-
-              {/* Action Buttons - Takes column 3 (same width as social preview) */}
-              <div className="lg:col-span-1">
-                <div className="bg-white rounded-lg border border-gray-200 p-6 h-full flex flex-col justify-center" style={{ width: '376px' }}>
-                  <div className="space-y-3">
-                    {/* Project Selector */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tag with Project (Optional)
-                      </label>
-                      <select
-                        value={selectedProjectId || ''}
-                        onChange={(e) => setSelectedProjectId(e.target.value || null)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">No Project</option>
-                        {projects.map((project) => (
-                          <option key={project.id} value={project.id}>
-                            {project.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    {/* Add to Calendar Button */}
-                    <Button
-                      onClick={() => {
-                        const caption = getSelectedCaption()
-                        handleSendToScheduler(caption, uploadedImages)
-                      }}
-                      disabled={isSendingToScheduler}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-                    >
-                      {isSendingToScheduler ? (
-                        <>
-                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Adding...
-                        </>
-                      ) : (
-                        <>
-                          <Calendar className="w-5 h-5 mr-2" />
-                          Add to Calendar
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Content Suite Columns */}
         <div className="content-suite-columns main-content">
           {/* Column 1: Image Upload */}
@@ -1164,15 +1094,66 @@ function ContentSuiteContent({
           {/* Column 2: Caption Generation */}
           <CaptionGenerationColumn />
 
-          {/* Column 3: Social Preview */}
-          <SocialPreviewColumn
-            clientId={clientId}
-            handleSendToScheduler={handleSendToScheduler}
-            isSendingToScheduler={isSendingToScheduler || updatingPost}
-            isEditing={isEditing}
-            updatingPost={updatingPost}
-            onCustomCaptionChange={handleCustomCaptionChange}
-          />
+          {/* Column 3: Action Buttons + Social Preview */}
+          <div className="space-y-4">
+            {/* Action Buttons Section - Only show when not editing */}
+            {!isEditing && (
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="space-y-3">
+                  {/* Project Selector */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tag with Project (Optional)
+                    </label>
+                    <select
+                      value={selectedProjectId || ''}
+                      onChange={(e) => setSelectedProjectId(e.target.value || null)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">No Project</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Add to Calendar Button */}
+                  <Button
+                    onClick={() => {
+                      const caption = getSelectedCaption()
+                      handleSendToScheduler(caption, uploadedImages)
+                    }}
+                    disabled={isSendingToScheduler}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                  >
+                    {isSendingToScheduler ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      <>
+                        <Calendar className="w-5 h-5 mr-2" />
+                        Add to Calendar
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+            
+            {/* Social Preview */}
+            <SocialPreviewColumn
+              clientId={clientId}
+              handleSendToScheduler={handleSendToScheduler}
+              isSendingToScheduler={isSendingToScheduler || updatingPost}
+              isEditing={isEditing}
+              updatingPost={updatingPost}
+              onCustomCaptionChange={handleCustomCaptionChange}
+            />
+          </div>
         </div>
       </div>
     </div>

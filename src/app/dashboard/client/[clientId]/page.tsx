@@ -4,9 +4,10 @@ import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
 import { Button } from 'components/ui/button'
-import { Plus, Edit3, Calendar, FileText, ArrowRight, Trash2, Upload, X, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Image, File, RefreshCw, Loader2 } from 'lucide-react'
+import { Plus, Edit3, Calendar, FileText, ArrowRight, Trash2, Upload, X, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Image, File, RefreshCw, Loader2, Check, AlertTriangle, Minus } from 'lucide-react'
 import Link from 'next/link'
 import BrandInformationPanel from 'components/BrandInformationPanel'
+import { MonthViewCalendar } from 'components/MonthViewCalendar'
 import { useAuth } from 'contexts/AuthContext'
 import { Client, Project, DebugInfo, BrandDocument, WebsiteScrape, OAuthMessage } from 'types/api'
 import { 
@@ -59,6 +60,10 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [contentInbox, setContentInbox] = useState<Upload[]>([])
   const [contentInboxLoading, setContentInboxLoading] = useState(false)
   const [contentInboxError, setContentInboxError] = useState<string | null>(null)
+  const [scheduledPosts, setScheduledPosts] = useState<Post[]>([])
+  const [scheduledPostsLoading, setScheduledPostsLoading] = useState(false)
+  const [activitySummary, setActivitySummary] = useState<ActivitySummary | null>(null)
+  const [activityLoading, setActivityLoading] = useState(false)
   
   // Refs to prevent duplicate requests
   const fetchAccountsRef = useRef(false)
@@ -86,6 +91,50 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     notes: string | null;
     created_at: string;
     updated_at: string;
+  }
+
+  interface Post {
+    id: string;
+    project_id: string | null;
+    caption: string;
+    image_url: string;
+    scheduled_time: string | null;
+    scheduled_date?: string;
+    approval_status?: 'pending' | 'approved' | 'rejected' | 'needs_attention' | 'draft';
+    needs_attention?: boolean;
+    client_feedback?: string;
+  }
+
+  interface ActivitySummary {
+    recentActivity: {
+      uploads: number;
+      approvals: number;
+      portalVisits: number;
+    };
+    upcomingPosts: {
+      thisWeek: number;
+      nextPost: {
+        id: string;
+        date: string;
+        time: string;
+        caption: string;
+        lateStatus?: string;
+        platforms?: string[];
+      } | null;
+      pendingApproval: number;
+    };
+    details: {
+      recentUploads: Array<{
+        id: string;
+        fileName: string;
+        createdAt: string;
+      }>;
+      recentApprovals: Array<{
+        id: string;
+        caption: string;
+        approvedAt: string;
+      }>;
+    };
   }
 
 
@@ -157,7 +206,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
 
     fetchClient()
-  }, [clientId, getAccessToken])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]) // ✅ Only depend on clientId, not getAccessToken (which is not memoized)
 
   // Fetch brand data separately to prevent infinite loops
   useEffect(() => {
@@ -215,12 +265,60 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
   }, [clientId])
 
-  // Fetch content inbox when client is loaded
+  // Fetch scheduled posts for post status
+  const fetchScheduledPosts = useCallback(async () => {
+    if (!clientId) return
+    
+    try {
+      setScheduledPostsLoading(true)
+      
+      const response = await fetch(`/api/calendar/scheduled?clientId=${clientId}&limit=500`)
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch scheduled posts: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      setScheduledPosts(data.posts || [])
+      
+    } catch (err) {
+      console.error('Error fetching scheduled posts:', err)
+    } finally {
+      setScheduledPostsLoading(false)
+    }
+  }, [clientId])
+
+  // Fetch activity summary
+  const fetchActivitySummary = useCallback(async () => {
+    if (!clientId) return
+    
+    try {
+      setActivityLoading(true)
+      
+      const response = await fetch(`/api/clients/${clientId}/activity-summary`)
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch activity summary: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      setActivitySummary(data.summary || null)
+      
+    } catch (err) {
+      console.error('Error fetching activity summary:', err)
+    } finally {
+      setActivityLoading(false)
+    }
+  }, [clientId])
+
+  // Fetch content inbox, scheduled posts, and activity summary when client is loaded
   useEffect(() => {
     if (client) {
       fetchContentInbox()
+      fetchScheduledPosts()
+      fetchActivitySummary()
     }
-  }, [client, fetchContentInbox])
+  }, [client, fetchContentInbox, fetchScheduledPosts, fetchActivitySummary])
 
   // Check for OAuth callback messages in URL
   useEffect(() => {
@@ -975,7 +1073,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       <div className="max-w-7xl mx-auto">
         {/* Header with Quick Actions */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             {/* Quick Actions when Projects Failed */}
             {projectsFailed && (
               <div className="flex gap-3">
@@ -996,142 +1094,143 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             )}
           </div>
           
-          {/* Client Details Card and Create Content Button */}
-          <div className="flex items-center gap-6">
-          {/* Client Details Card */}
-            <Card className="flex-1">
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-6">
-                {/* Logo Display/Upload Section */}
-                <div className="relative">
-                  <div className={`w-20 h-20 rounded-lg flex items-center justify-center overflow-hidden ${
-                    client?.logo_url 
-                      ? '' 
-                      : 'bg-gray-100 border-2 border-gray-200'
-                  }`}>
-                    {client?.logo_url ? (
-                      <img 
-                        src={client.logo_url} 
-                        alt={`${client.name} logo`}
-                        className="max-w-full max-h-full object-contain"
-                      />
-                    ) : (
-                      <span className="text-2xl font-bold text-gray-600">
-                        {client?.name ? client.name.charAt(0).toUpperCase() : 'C'}
-                      </span>
-                    )}
-                  </div>
-                  
-                  {/* Logo Upload Button - Only show when editing */}
-                  {isEditingLogo && (
-                    <div className="absolute -bottom-1 -right-1">
-                      <label htmlFor="logo-upload" className="cursor-pointer">
-                        <div className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-1.5 shadow-lg transition-colors">
-                          {uploadingLogo ? (
-                            <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                          ) : (
-                            <Upload className="w-4 h-4" />
-                          )}
-                        </div>
-                      </label>
-                      <input
-                        id="logo-upload"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLogoUpload}
-                        className="hidden"
-                        disabled={uploadingLogo}
-                      />
-                    </div>
-                  )}
-                  
-                  {/* Logo Remove Button - Only show when editing */}
-                  {client?.logo_url && isEditingLogo && (
-                    <button
-                      onClick={handleLogoRemove}
-                      disabled={removingLogo}
-                      className="absolute -top-1 -right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-1 shadow-lg transition-colors disabled:opacity-50"
-                    >
-                      {removingLogo ? (
-                        <div className="w-3 h-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+          {/* Client Details Card and Action Buttons - Full Width Layout */}
+          <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+            {/* Client Details Card - Takes remaining space */}
+            <Card className="flex-1 shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
+              <CardContent className="p-6 h-full">
+                <div className="flex items-center space-x-6 h-full">
+                  {/* Logo Display/Upload Section */}
+                  <div className="relative">
+                    <div className={`w-24 h-24 rounded-xl flex items-center justify-center overflow-hidden ${
+                      client?.logo_url 
+                        ? 'shadow-sm' 
+                        : 'bg-gradient-to-br from-gray-100 to-gray-200 border-2 border-gray-300'
+                    }`}>
+                      {client?.logo_url ? (
+                        <img 
+                          src={client.logo_url} 
+                          alt={`${client.name} logo`}
+                          className="max-w-full max-h-full object-contain"
+                        />
                       ) : (
-                        <X className="w-3 h-3" />
+                        <span className="text-3xl font-bold text-gray-600">
+                          {client?.name ? client.name.charAt(0).toUpperCase() : 'C'}
+                        </span>
                       )}
-                    </button>
-                  )}
-                  
-                  {/* Cancel Edit Button - Only show when editing */}
-                  {isEditingLogo && (
-                    <button
-                      onClick={() => setIsEditingLogo(false)}
-                      className="absolute -top-1 -left-1 bg-gray-600 hover:bg-gray-700 text-white rounded-full p-1 shadow-lg transition-colors"
-                      title="Cancel editing"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-                
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h1 className="font-bold text-gray-700 mb-3 text-smooth" style={{ fontSize: '24px' }}>
-                      {client?.name || 'Client Dashboard'}
-                    </h1>
+                    </div>
                     
-                    {/* Logo Upload/Edit Button */}
-                    {!isEditingLogo && (
-                      <Button
-                        onClick={() => setIsEditingLogo(true)}
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
+                    {/* Logo Upload Button - Only show when editing */}
+                    {isEditingLogo && (
+                      <div className="absolute -bottom-1 -right-1">
+                        <label htmlFor="logo-upload" className="cursor-pointer">
+                          <div className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 shadow-lg transition-colors">
+                            {uploadingLogo ? (
+                              <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                            ) : (
+                              <Upload className="w-4 h-4" />
+                            )}
+                          </div>
+                        </label>
+                        <input
+                          id="logo-upload"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                          disabled={uploadingLogo}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Logo Remove Button - Only show when editing */}
+                    {client?.logo_url && isEditingLogo && (
+                      <button
+                        onClick={handleLogoRemove}
+                        disabled={removingLogo}
+                        className="absolute -top-1 -right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow-lg transition-colors disabled:opacity-50"
                       >
-                        {client?.logo_url ? (
-                          <>
-                            <Edit3 className="w-3 h-3 mr-1" />
-                            Edit Logo
-                          </>
+                        {removingLogo ? (
+                          <div className="w-3 h-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
                         ) : (
-                          <>
-                            <Upload className="w-3 h-3 mr-1" />
-                            Upload Logo
-                          </>
+                          <X className="w-3 h-3" />
                         )}
-                      </Button>
+                      </button>
+                    )}
+                    
+                    {/* Cancel Edit Button - Only show when editing */}
+                    {isEditingLogo && (
+                      <button
+                        onClick={() => setIsEditingLogo(false)}
+                        className="absolute -top-1 -left-1 bg-gray-600 hover:bg-gray-700 text-white rounded-full p-1.5 shadow-lg transition-colors"
+                        title="Cancel editing"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
                     )}
                   </div>
-                  <div className="flex items-center space-x-4 text-gray-600">
-                    <div className="flex items-center space-x-2">
+                  
+                  <div className="flex-1 flex flex-col justify-center">
+                    <div className="flex items-center justify-between mb-3">
+                      <h1 className="text-3xl font-bold text-gray-800">
+                        {client?.name || 'Client Dashboard'}
+                      </h1>
+                      
+                      {/* Logo Upload/Edit Button */}
+                      {!isEditingLogo && (
+                        <Button
+                          onClick={() => setIsEditingLogo(true)}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs hover:bg-gray-50"
+                        >
+                          {client?.logo_url ? (
+                            <>
+                              <Edit3 className="w-3 h-3 mr-1" />
+                              Edit Logo
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-3 h-3 mr-1" />
+                              Upload Logo
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2 text-gray-600">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                       </svg>
-                      <span>{website || 'No website set'}</span>
+                      <span className="text-base">{website || 'No website set'}</span>
                     </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
             
-            {/* Create Content Button */}
-            <Button 
-              onClick={() => window.location.href = `/dashboard/client/${clientId}/content-suite`}
-              className="bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white w-64 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
-              style={{ height: '177px' }}
-            >
-              <Plus className="w-20 h-20 mb-4 stroke-[3]" />
-              <span className="text-2xl font-bold">Create Content</span>
-            </Button>
-            
-            {/* Calendar Button */}
-            <Button 
-              onClick={() => window.location.href = `/dashboard/client/${clientId}/calendar`}
-              className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 hover:from-blue-600 hover:via-blue-700 hover:to-blue-800 text-white w-64 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
-              style={{ height: '177px' }}
-            >
-              <Calendar className="w-20 h-20 mb-4 stroke-[3]" />
-              <span className="text-2xl font-bold">Calendar</span>
-            </Button>
+            {/* Action Buttons Container - Equal Width */}
+            <div className="flex gap-6">
+              {/* Create Content Button */}
+              <Button 
+                onClick={() => window.location.href = `/dashboard/client/${clientId}/content-suite`}
+                className="bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white w-48 font-bold shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
+                style={{ height: '177px', borderRadius: '16px' }}
+              >
+                <Plus className="w-16 h-16 mb-3 stroke-[3]" />
+                <span className="text-xl font-bold">Create Content</span>
+              </Button>
+              
+              {/* Calendar Button */}
+              <Button 
+                onClick={() => window.location.href = `/dashboard/client/${clientId}/calendar`}
+                className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 hover:from-blue-600 hover:via-blue-700 hover:to-blue-800 text-white w-48 font-bold shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
+                style={{ height: '177px', borderRadius: '16px' }}
+              >
+                <Calendar className="w-16 h-16 mb-3 stroke-[3]" />
+                <span className="text-xl font-bold">Calendar</span>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -1159,29 +1258,217 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           </div>
         )}
 
+        {/* Activity Hub & Month Calendar - Two Column Layout (40/60) */}
+        <div className="mb-8 grid grid-cols-1 lg:grid-cols-[40%_60%] gap-6">
+          {/* Client Activity Hub - Takes 40% */}
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Client Activity Hub</h2>
+            
+            {activityLoading ? (
+              <Card className="shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mr-3"></div>
+                    <span className="text-gray-600">Loading activity...</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : activitySummary ? (
+              <Card className="bg-white shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
+                <CardContent className="p-6">
+                  <div className="space-y-8">
+                    {/* Recent Activity Section */}
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center" style={{ fontSize: '18px' }}>
+                        <div className="w-2.5 h-2.5 bg-blue-600 rounded-full mr-3"></div>
+                        Recent Activity (Last 7 Days)
+                      </h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-4 bg-blue-50 border-2 border-blue-200 rounded-xl hover:shadow-sm transition-shadow">
+                          <div className="flex items-center flex-1 min-w-0">
+                            <Upload className="w-5 h-5 text-blue-600 mr-3 flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-800">Content Uploads</p>
+                              <p className="text-xs text-gray-600">Client uploaded new content</p>
+                            </div>
+                          </div>
+                          <div className="text-3xl font-bold text-blue-600 ml-4 text-right">
+                            {activitySummary.recentActivity.uploads}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between p-4 bg-green-50 border-2 border-green-200 rounded-xl hover:shadow-sm transition-shadow">
+                          <div className="flex items-center flex-1 min-w-0">
+                            <CheckCircle className="w-5 h-5 text-green-600 mr-3 flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-800">Approvals</p>
+                              <p className="text-xs text-gray-600">Posts approved by client</p>
+                            </div>
+                          </div>
+                          <div className="text-3xl font-bold text-green-600 ml-4 text-right">
+                            {activitySummary.recentActivity.approvals}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Upcoming Posts Section */}
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center" style={{ fontSize: '18px' }}>
+                        <div className="w-2.5 h-2.5 bg-orange-600 rounded-full mr-3"></div>
+                        Upcoming Posts
+                      </h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-4 bg-orange-50 border-2 border-orange-200 rounded-xl hover:shadow-sm transition-shadow">
+                          <div className="flex items-center flex-1 min-w-0">
+                            <Calendar className="w-5 h-5 text-orange-600 mr-3 flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-800">This Week</p>
+                              <p className="text-xs text-gray-600">Posts scheduled this week</p>
+                            </div>
+                          </div>
+                          <div className="text-3xl font-bold text-orange-600 ml-4 text-right">
+                            {activitySummary.upcomingPosts.thisWeek}
+                          </div>
+                        </div>
+                        
+                        {/* Next Scheduled Post */}
+                        {activitySummary.upcomingPosts.nextPost ? (
+                          <div className="p-5 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl hover:shadow-sm transition-shadow">
+                            <div className="flex items-start">
+                              <Calendar className="w-5 h-5 text-blue-600 mr-3 mt-1 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-gray-800 mb-2">Next Post Goes Live</p>
+                                <div className="flex items-center space-x-2 mb-2">
+                                  <span className="text-lg font-bold text-blue-600">
+                                    {new Date(activitySummary.upcomingPosts.nextPost.date).toLocaleDateString('en-US', { 
+                                      month: 'short', 
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    })}
+                                  </span>
+                                  <span className="text-sm text-gray-500">at</span>
+                                  <span className="text-lg font-bold text-purple-600">
+                                    {activitySummary.upcomingPosts.nextPost.time}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-700 truncate mb-2">
+                                  {activitySummary.upcomingPosts.nextPost.caption}
+                                </p>
+                                {activitySummary.upcomingPosts.nextPost.platforms && 
+                                 activitySummary.upcomingPosts.nextPost.platforms.length > 0 && (
+                                  <div className="flex items-center space-x-1">
+                                    <span className="text-xs text-gray-600 font-medium">Platforms:</span>
+                                    <div className="flex space-x-1">
+                                      {activitySummary.upcomingPosts.nextPost.platforms.map((platform, idx) => (
+                                        <span key={idx} className="text-xs bg-white px-2 py-1 rounded-md border border-gray-300 font-medium">
+                                          {platform}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-5 bg-gray-50 border-2 border-gray-200 rounded-xl text-center">
+                            <Calendar className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                            <p className="text-sm font-medium text-gray-600">No upcoming posts scheduled</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+          
+          {/* Month View Calendar with Post Status - Takes 60% */}
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Content Calendar</h2>
+            <Card className="bg-white shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
+              <CardContent className="p-6">
+                {/* Post Status Grid - Single Row Layout */}
+                <div className="mb-6">
+                  <div className="grid grid-cols-4 gap-3">
+                    {(() => {
+                      const approved = scheduledPosts.filter(p => p.approval_status === 'approved').length;
+                      const rejected = scheduledPosts.filter(p => p.approval_status === 'rejected').length;
+                      const needsAttention = scheduledPosts.filter(p => p.approval_status === 'needs_attention').length;
+                      const pending = scheduledPosts.filter(p => p.approval_status === 'pending' || !p.approval_status).length;
+                      
+                      return (
+                        <>
+                          <div className="bg-green-50 border-2 border-green-300 rounded-xl p-3 hover:shadow-md transition-all flex flex-col justify-between">
+                            <div className="flex items-center mb-2">
+                              <Check className="w-4 h-4 text-green-600 mr-1.5" />
+                              <span className="text-xs font-bold text-green-800">Approved</span>
+                            </div>
+                            <div className="text-2xl font-bold text-green-900 text-right">{approved}</div>
+                          </div>
+                          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-3 hover:shadow-md transition-all flex flex-col justify-between">
+                            <div className="flex items-center mb-2">
+                              <X className="w-4 h-4 text-red-600 mr-1.5" />
+                              <span className="text-xs font-bold text-red-800">Rejected</span>
+                            </div>
+                            <div className="text-2xl font-bold text-red-900 text-right">{rejected}</div>
+                          </div>
+                          <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-3 hover:shadow-md transition-all flex flex-col justify-between">
+                            <div className="flex items-center mb-2">
+                              <AlertTriangle className="w-4 h-4 text-orange-600 mr-1.5" />
+                              <span className="text-xs font-bold text-orange-800">Needs Attention</span>
+                            </div>
+                            <div className="text-2xl font-bold text-orange-900 text-right">{needsAttention}</div>
+                          </div>
+                          <div className="bg-gray-50 border-2 border-gray-300 rounded-xl p-3 hover:shadow-md transition-all flex flex-col justify-between">
+                            <div className="flex items-center mb-2">
+                              <div className="w-4 h-4 bg-gray-400 rounded-full mr-1.5"></div>
+                              <span className="text-xs font-bold text-gray-800">Pending</span>
+                            </div>
+                            <div className="text-2xl font-bold text-gray-700 text-right">{pending}</div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+                
+                {/* Month Calendar */}
+                <div className="-mx-6 -mb-6">
+                  <MonthViewCalendar 
+                    posts={scheduledPosts} 
+                    loading={scheduledPostsLoading}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
         {/* Projects Section */}
         <div className="mt-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-700 text-smooth">Projects</h2>
-            <div className="flex gap-2">
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-800" style={{ fontSize: '24px' }}>Projects</h2>
               {!projectsFailed && (
                 <Button 
                   onClick={() => setShowNewProjectForm(true)}
-                  className="bg-gray-700 hover:bg-gray-800 text-white"
-                  style={{ width: '255px' }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm hover:shadow-md transition-all"
+                  style={{ borderRadius: '12px' }}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   New Project
                 </Button>
               )}
             </div>
-          </div>
 
           {/* Projects Failed Message */}
           {projectsFailed && (
-            <Card className="mb-6 border-yellow-200 bg-yellow-50">
-              <CardHeader>
-                <CardTitle className="card-title-26 text-yellow-800">Projects Temporarily Unavailable</CardTitle>
+            <Card className="mb-6 rounded-lg shadow-sm border-yellow-200 bg-yellow-50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xl font-bold text-yellow-800">Projects Temporarily Unavailable</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -1216,9 +1503,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
           {/* Debug Information */}
           {debugInfo && (
-            <Card className="mb-6 border-orange-200 bg-orange-50">
-              <CardHeader>
-                <CardTitle className="card-title-26 text-orange-800">Database Debug Information</CardTitle>
+            <Card className="mb-6 rounded-lg shadow-sm border-orange-200 bg-orange-50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xl font-bold text-orange-800">Database Debug Information</CardTitle>
               </CardHeader>
               <CardContent>
                 <pre className="text-xs bg-white p-3 rounded border overflow-auto max-h-96">
@@ -1246,9 +1533,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
           {/* New Project Form - Only show if projects haven't failed */}
           {!projectsFailed && showNewProjectForm && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="card-title-26">Create New Project</CardTitle>
+            <Card className="mb-6 shadow-md hover:shadow-lg transition-all" style={{ borderRadius: '16px' }}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xl font-bold text-gray-800">Create New Project</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -1299,9 +1586,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
           {/* Project Selection Modal - Only show if projects haven't failed */}
           {!projectsFailed && showProjectSelection && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="card-title-26">Choose Project for Content Creation</CardTitle>
+            <Card className="mb-6 rounded-lg shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xl font-bold text-gray-700">Choose Project for Content Creation</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -1368,13 +1655,13 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <p className="mt-2 text-gray-600">Loading projects...</p>
                 </div>
               ) : projects.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
                   {projects.map((project) => (
-                    <Card key={project.id} className="hover:shadow-md transition-shadow">
-                      <CardHeader>
-                        <CardTitle className="card-title-26">{project.name}</CardTitle>
+                    <Card key={project.id} className="shadow-md hover:shadow-lg transition-all" style={{ borderRadius: '16px' }}>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-xl font-bold text-gray-800">{project.name}</CardTitle>
                         {project.description && (
-                          <p className="text-sm text-gray-600">{project.description}</p>
+                          <p className="text-sm text-gray-600 mt-2">{project.description}</p>
                         )}
                       </CardHeader>
                       <CardContent className="space-y-3">
@@ -1393,7 +1680,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                               className="w-full"
                             >
                               <Calendar className="w-4 h-4 mr-2" />
-                              Calendar
+                              View Calendar
                             </Button>
                           </Link>
                         </div>
@@ -1430,15 +1717,16 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               )}
             </>
           )}
+          </div>
         </div>
 
         {/* Unified Card - Everything Below Projects */}
         <div className="mt-8">
-          <Card>
-            <CardContent className="p-6 space-y-8">
+          <Card className="shadow-md hover:shadow-lg transition-all" style={{ borderRadius: '16px' }}>
+            <CardContent className="p-8 space-y-10">
               {/* Social Media Platforms Section */}
               <div>
-                <h3 className="text-2xl font-bold text-gray-700 mb-4 text-smooth">Social Media Platforms</h3>
+                <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Social Media Platforms</h3>
                 
                 {/* OAuth Success/Error Messages */}
                 {oauthMessage && (
@@ -1624,7 +1912,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               </div>
 
               {/* Brand Information Section */}
-              <div className="border-t pt-6">
+              <div className="border-t pt-8">
                 <BrandInformationPanel 
                   clientId={clientId} 
                   client={client} 
@@ -1635,9 +1923,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               </div>
 
               {/* Content Inbox Section */}
-              <div className="border-t pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-2xl font-bold text-gray-700 text-smooth">Content Inbox</h3>
+              <div className="border-t-2 pt-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-2xl font-bold text-gray-800" style={{ fontSize: '24px' }}>Content Inbox</h3>
                   <Button
                     onClick={fetchContentInbox}
                     variant="outline"
@@ -1672,9 +1960,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {contentInbox.map((upload) => (
-                        <Card key={upload.id} className="overflow-hidden">
+                        <Card key={upload.id} className="rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all">
                           <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center space-x-2">
@@ -1776,8 +2064,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               </div>
 
               {/* Client Portal Section */}
-              <div className="border-t pt-6">
-                <h3 className="text-2xl font-bold text-gray-700 mb-4 text-smooth">Client Portal</h3>
+              <div className="border-t-2 pt-8">
+                <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Client Portal</h3>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1890,11 +2178,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               </div>
 
               {/* Delete Client Section */}
-              <div className="border-t pt-6">
+              <div className="border-t-2 pt-8">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-2xl font-bold text-red-900">Delete Client</h3>
-                    <p className="text-sm text-red-700 mt-1">
+                    <h3 className="text-2xl font-bold text-red-900" style={{ fontSize: '24px' }}>Delete Client</h3>
+                    <p className="text-sm text-red-700 mt-2">
                       Permanently delete this client and all associated data. This action cannot be undone.
                     </p>
                   </div>

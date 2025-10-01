@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Share2, Loader2, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Share2, Loader2, RefreshCw, User, Settings } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from 'components/EditIndicators';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { Button } from 'components/ui/button';
 import { FacebookIcon, InstagramIcon, TwitterIcon, LinkedInIcon } from 'components/social-icons';
+import { useAuth } from 'contexts/AuthContext';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -132,6 +133,7 @@ interface ConnectedAccount {
 export default function CalendarPage() {
   const params = useParams();
   const clientId = params?.clientId as string;
+  const { user } = useAuth();
   
   // Initialize Supabase client
   const supabase = createClient(
@@ -1198,33 +1200,35 @@ export default function CalendarPage() {
       )}
 
 
-      {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4 mb-6 rounded-lg shadow">
+      {/* Merged Header - Single Navigation Bar */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4 mb-6 rounded-lg shadow">
         <div className="flex items-center justify-between">
+          {/* Left Section - Back Button + Title */}
           <div className="flex items-center space-x-4">
             <Link
               href={`/dashboard/client/${clientId}`}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Dashboard
             </Link>
-            <div>
+            <div className="border-l border-gray-300 pl-4">
               <h1 className="text-2xl font-bold text-gray-700">
                 Content Calendar
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500">
                 Plan and schedule your content
               </p>
             </div>
           </div>
           
-          <div className="flex items-center space-x-3">
+          {/* Right Section - Dropdown + Create Button + User Profile */}
+          <div className="flex items-center space-x-4">
             {/* Project Filter Dropdown */}
             <select
               value={selectedProjectFilter}
               onChange={(e) => setSelectedProjectFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
             >
               <option value="all">All Projects</option>
               <option value="untagged">Untagged</option>
@@ -1235,66 +1239,46 @@ export default function CalendarPage() {
               ))}
             </select>
             
+            {/* Create Content Button */}
             <Link
               href={`/dashboard/client/${clientId}/content-suite`}
-              className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white rounded-md transition-all duration-300"
+              className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white rounded-md shadow-sm hover:shadow-md transition-all duration-300"
             >
-              <Plus className="w-6 h-6 mr-2 stroke-[2.5]" />
+              <Plus className="w-5 h-5 mr-2 stroke-[2.5]" />
               Create Content
             </Link>
+            
+            {/* User Profile Info */}
+            <div className="flex items-center space-x-3 border-l border-gray-300 pl-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <User className="w-4 h-4 text-blue-700" />
+                </div>
+                <div className="hidden sm:block">
+                  <p className="text-sm font-medium text-gray-900">
+                    {user?.email?.split('@')[0] || 'User'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {user?.email || ''}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Profile Settings Button */}
+              <Link href="/profile">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  title="Profile Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
-
-
-
-        {/* Post Status Boxes */}
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <h3 className="text-sm font-medium text-gray-700 mb-4">Post Status</h3>
-          <div className="grid grid-cols-4 gap-4">
-            {(() => {
-              const allPosts = Object.values(scheduledPosts).flat();
-              const approved = allPosts.filter(p => p.approval_status === 'approved').length;
-              const rejected = allPosts.filter(p => p.approval_status === 'rejected').length;
-              const needsAttention = allPosts.filter(p => p.approval_status === 'needs_attention').length;
-              const pending = allPosts.filter(p => p.approval_status === 'pending' || !p.approval_status).length;
-              
-              return (
-                <>
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <div className="flex items-center">
-                      <Check className="w-4 h-4 text-green-600 mr-2" />
-                      <span className="text-sm font-medium text-green-800">Approved</span>
-                    </div>
-                    <div className="text-lg font-bold text-green-900 mt-1">{approved}</div>
-                  </div>
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                    <div className="flex items-center">
-                      <X className="w-4 h-4 text-red-600 mr-2" />
-                      <span className="text-sm font-medium text-red-800">Rejected</span>
-                    </div>
-                    <div className="text-lg font-bold text-red-900 mt-1">{rejected}</div>
-                  </div>
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                    <div className="flex items-center">
-                      <AlertTriangle className="w-4 h-4 text-orange-600 mr-2" />
-                      <span className="text-sm font-medium text-orange-800">Needs Attention</span>
-                    </div>
-                    <div className="text-lg font-bold text-orange-900 mt-1">{needsAttention}</div>
-                  </div>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center">
-                      <div className="w-4 h-4 bg-gray-400 rounded-full mr-2"></div>
-                      <span className="text-sm font-medium text-gray-800">Pending</span>
-                    </div>
-                    <div className="text-lg font-bold text-gray-700 mt-1">{pending}</div>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-
         {/* Posts Queue */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <div className="flex items-center justify-between mb-3">
@@ -1735,6 +1719,16 @@ export default function CalendarPage() {
                                                       </span>
                                                     </p>
                                                   </div>
+                                                  
+                                                  {/* Project Badge - Centered */}
+                                                  <div className="flex items-center justify-center flex-1">
+                                                    {post.project_id && projects.find(p => p.id === post.project_id) && (
+                                                      <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
+                                                        {projects.find(p => p.id === post.project_id)?.name}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  
                                                   {/* Approval Selection Checkbox */}
                                                   <div className="flex items-center">
                                                     <input
@@ -1763,13 +1757,6 @@ export default function CalendarPage() {
                                                   {/* Client Feedback Indicator */}
                                                   {post.client_feedback && (
                                                     <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
-                                                  )}
-                                                  
-                                                  {/* Project Badge */}
-                                                  {post.project_id && projects.find(p => p.id === post.project_id) && (
-                                                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
-                                                      {projects.find(p => p.id === post.project_id)?.name}
-                                                    </span>
                                                   )}
                                                 </div>
                                                 
@@ -1901,6 +1888,16 @@ export default function CalendarPage() {
                                                 </span>
                                               </p>
                                             </div>
+                                            
+                                            {/* Project Badge - Centered */}
+                                            <div className="flex items-center justify-center flex-1">
+                                              {post.project_id && projects.find(p => p.id === post.project_id) && (
+                                                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
+                                                  {projects.find(p => p.id === post.project_id)?.name}
+                                                </span>
+                                              )}
+                                            </div>
+                                            
                                             {/* Approval Selection Checkbox */}
                                             <div className="flex items-center">
                                               <input
@@ -1929,13 +1926,6 @@ export default function CalendarPage() {
                                             {/* Client Feedback Indicator */}
                                             {post.client_feedback && (
                                               <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
-                                            )}
-                                            
-                                            {/* Project Badge */}
-                                            {post.project_id && projects.find(p => p.id === post.project_id) && (
-                                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
-                                                {projects.find(p => p.id === post.project_id)?.name}
-                                              </span>
                                             )}
                                           </div>
                                           
@@ -2055,11 +2045,35 @@ export default function CalendarPage() {
                                     </div>
                                   )}
 
-                                  {/* File info */}
-                                  <div className="flex items-center justify-between text-xs text-blue-600">
+                                  {/* File info and Edit button */}
+                                  <div className="flex items-center justify-between text-xs text-blue-600 mb-2">
                                     <span>{new Date(upload.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}</span>
                                     <span className="bg-blue-200 px-2 py-0.5 rounded">{upload.status}</span>
                                   </div>
+
+                                  {/* Edit Button */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // Store upload data in sessionStorage to pre-fill content suite
+                                      const uploadData = {
+                                        image: upload.file_url,
+                                        notes: upload.notes || '',
+                                        fileName: upload.file_name,
+                                        uploadId: upload.id,
+                                        scheduledDate: dayDate.toLocaleDateString('en-CA'), // Store the date this upload was on
+                                        scheduledTime: '12:00:00' // Default time for the new post
+                                      };
+                                      sessionStorage.setItem('preloadedContent', JSON.stringify(uploadData));
+                                      
+                                      // Navigate to content suite with uploadId parameter
+                                      window.location.href = `/dashboard/client/${clientId}/content-suite?uploadId=${upload.id}`;
+                                    }}
+                                    className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors font-medium"
+                                    title="Edit in Content Suite"
+                                  >
+                                    Edit
+                                  </button>
                                 </div>
                               </div>
                             ))}

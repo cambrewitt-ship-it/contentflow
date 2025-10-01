@@ -38,7 +38,7 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
 
-  // Fetch user profile
+  // Fetch user profile - ONLY on mount or when user ID changes
   useEffect(() => {
     async function fetchProfile() {
       if (!user) return;
@@ -59,9 +59,9 @@ export default function Dashboard() {
     }
 
     fetchProfile();
-  }, [user]);
+  }, [user?.id]); // ✅ Only depend on user ID, not entire user object
 
-  // Fetch user's clients
+  // Fetch user's clients - ONLY on mount or when user ID changes
   useEffect(() => {
     async function fetchClients() {
       try {
@@ -105,7 +105,7 @@ export default function Dashboard() {
     if (user) {
       fetchClients();
     }
-  }, [user]); // Removed getAccessToken from dependencies to prevent infinite loop
+  }, [user?.id]); // ✅ Only depend on user ID, not entire user object
 
   // Update NZST time and date every minute
   useEffect(() => {

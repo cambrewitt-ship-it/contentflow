@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
 
@@ -69,9 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   };
 
-  const getAccessToken = () => {
+  // ✅ Memoize getAccessToken to prevent unnecessary re-renders
+  const getAccessToken = useCallback(() => {
     return session?.access_token || null;
-  };
+  }, [session?.access_token]);
 
   const value = {
     user,

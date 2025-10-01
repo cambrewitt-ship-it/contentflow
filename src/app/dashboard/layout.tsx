@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "components/ui/button";
 import Sidebar from "components/Sidebar";
@@ -8,6 +9,10 @@ import TopBar from "components/TopBar";
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const pathname = usePathname();
+  
+  // Hide TopBar for pages that have their own merged headers
+  const hideTopBar = pathname?.includes('/calendar') || pathname?.includes('/content-suite');
 
   return (
     <div className="h-screen bg-background overflow-hidden">
@@ -38,10 +43,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Main Content Area */}
         <div className="flex flex-col min-h-0 overflow-hidden">
-          {/* Top Bar - Always visible */}
-          <div className="flex-shrink-0">
-            <TopBar />
-          </div>
+          {/* Top Bar - Conditionally visible */}
+          {!hideTopBar && (
+            <div className="flex-shrink-0">
+              <TopBar />
+            </div>
+          )}
           
           {/* Page Content - Scrollable content area only */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden">
@@ -76,10 +83,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Mobile Main Content */}
         <div className="flex flex-col h-full">
-          {/* Top Bar */}
-          <div className="flex-shrink-0">
-            <TopBar />
-          </div>
+          {/* Top Bar - Conditionally visible */}
+          {!hideTopBar && (
+            <div className="flex-shrink-0">
+              <TopBar />
+            </div>
+          )}
           
           {/* Page Content */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden">

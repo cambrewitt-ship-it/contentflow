@@ -103,7 +103,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     
-    console.log('🔧 POST /api/planner/scheduled - DRAG & DROP DEBUG:');
+    console.log('🔧 POST /api/planner/scheduled - DEBUG:');
     console.log('  - Request timestamp:', new Date().toISOString());
     console.log('  - Request body keys:', Object.keys(body));
     
@@ -113,15 +113,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing scheduledPost data' }, { status: 400 });
     }
     
-    if (!body.unscheduledId) {
-      console.error('❌ Missing unscheduledId in request body');
-      return NextResponse.json({ error: 'Missing unscheduledId' }, { status: 400 });
-    }
+    // unscheduledId is optional - only needed when moving from unscheduled to scheduled
+    const isMovingFromUnscheduled = !!body.unscheduledId;
     
     console.log('🔧 STEP 1 - VALIDATION PASSED:');
     console.log('  - scheduledPost keys:', Object.keys(body.scheduledPost));
-    console.log('  - unscheduledId:', body.unscheduledId);
+    console.log('  - unscheduledId:', body.unscheduledId || 'NOT PROVIDED (direct create)');
     console.log('  - scheduledPost.image_url:', body.scheduledPost.image_url ? 'Present' : 'Missing');
+    console.log('  - Operation type:', isMovingFromUnscheduled ? 'Move from unscheduled' : 'Direct create');
     
     // Ensure image_url and client_id are included in the scheduled post data
     const scheduledPostData = {
@@ -134,7 +133,7 @@ export async function POST(request: Request) {
     console.log('  - Data keys:', Object.keys(scheduledPostData));
     console.log('  - Data size (chars):', JSON.stringify(scheduledPostData).length);
     
-    // Move from unscheduled to scheduled
+    // Insert into scheduled posts
     console.log('🔧 STEP 3 - INSERTING INTO calendar_scheduled_posts:');
     const { data: scheduled, error: scheduleError } = await supabase
       .from('calendar_scheduled_posts')
@@ -154,23 +153,28 @@ export async function POST(request: Request) {
     console.log('  - Inserted post ID:', scheduled.id);
     console.log('  - Inserted post keys:', Object.keys(scheduled));
     
-    // Delete from unscheduled
-    console.log('🔧 STEP 5 - DELETING FROM calendar_unscheduled_posts:');
-    console.log('  - Deleting unscheduledId:', body.unscheduledId);
-    
-    const { error: deleteError } = await supabase
-      .from('calendar_unscheduled_posts')
-      .delete()
-      .eq('id', body.unscheduledId);
-    
-    if (deleteError) {
-      console.error('❌ Delete error:', deleteError);
-      console.error('  - Error code:', deleteError.code);
-      console.error('  - Error message:', deleteError.message);
-      throw deleteError;
+    // Only delete from unscheduled if we're moving a post
+    if (isMovingFromUnscheduled) {
+      console.log('🔧 STEP 5 - DELETING FROM calendar_unscheduled_posts:');
+      console.log('  - Deleting unscheduledId:', body.unscheduledId);
+      
+      const { error: deleteError } = await supabase
+        .from('calendar_unscheduled_posts')
+        .delete()
+        .eq('id', body.unscheduledId);
+      
+      if (deleteError) {
+        console.error('❌ Delete error:', deleteError);
+        console.error('  - Error code:', deleteError.code);
+        console.error('  - Error message:', deleteError.message);
+        throw deleteError;
+      }
+      
+      console.log('✅ STEP 6 - SUCCESSFULLY DELETED FROM UNSCHEDULED');
+    } else {
+      console.log('⏭️ STEP 5 - SKIPPING DELETE (direct create, no unscheduled post to delete)');
     }
     
-    console.log('✅ STEP 6 - SUCCESSFULLY DELETED FROM UNSCHEDULED');
     console.log('  - Final response keys:', Object.keys({ success: true, post: scheduled }));
     
     return NextResponse.json({ success: true, post: scheduled });
