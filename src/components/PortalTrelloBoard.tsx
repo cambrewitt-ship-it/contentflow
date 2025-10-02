@@ -508,7 +508,7 @@ export function PortalTrelloBoard({
                     <div>No posts scheduled for this week</div>
                   </div>
                 ) : (
-                  column.posts.map((post) => {
+                  column.posts.map((post: Post) => {
                     const postKey = `${post.post_type}-${post.id}`;
                     const selectedStatus = selectedPosts[postKey];
                     

@@ -62,7 +62,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [contentInboxError, setContentInboxError] = useState<string | null>(null)
   const [scheduledPosts, setScheduledPosts] = useState<Post[]>([])
   const [scheduledPostsLoading, setScheduledPostsLoading] = useState(false)
-  const [activitySummary, setActivitySummary] = useState<ActivitySummary | null>(null)
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
   
   // Refs to prevent duplicate requests
@@ -105,36 +105,15 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     client_feedback?: string;
   }
 
-  interface ActivitySummary {
-    recentActivity: {
-      uploads: number;
-      approvals: number;
-      portalVisits: number;
-    };
-    upcomingPosts: {
-      thisWeek: number;
-      nextPost: {
-        id: string;
-        date: string;
-        time: string;
-        caption: string;
-        lateStatus?: string;
-        platforms?: string[];
-      } | null;
-      pendingApproval: number;
-    };
-    details: {
-      recentUploads: Array<{
-        id: string;
-        fileName: string;
-        createdAt: string;
-      }>;
-      recentApprovals: Array<{
-        id: string;
-        caption: string;
-        approvedAt: string;
-      }>;
-    };
+  interface ActivityLog {
+    id: string;
+    type: 'upload' | 'approval' | 'scheduled' | 'published' | 'portal_visit' | 'next_scheduled';
+    title: string;
+    timestamp: string;
+    status: 'completed' | 'approved' | 'scheduled' | 'published' | 'none';
+    timeAgo?: string;
+    count?: number;
+    details?: any;
   }
 
 
@@ -288,37 +267,37 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
   }, [clientId])
 
-  // Fetch activity summary
-  const fetchActivitySummary = useCallback(async () => {
+  // Fetch activity logs
+  const fetchActivityLogs = useCallback(async () => {
     if (!clientId) return
     
     try {
       setActivityLoading(true)
       
-      const response = await fetch(`/api/clients/${clientId}/activity-summary`)
+      const response = await fetch(`/api/clients/${clientId}/activity-logs`)
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch activity summary: ${response.statusText}`)
+        throw new Error(`Failed to fetch activity logs: ${response.statusText}`)
       }
       
       const data = await response.json()
-      setActivitySummary(data.summary || null)
+      setActivityLogs(data.activities || [])
       
     } catch (err) {
-      console.error('Error fetching activity summary:', err)
+      console.error('Error fetching activity logs:', err)
     } finally {
       setActivityLoading(false)
     }
   }, [clientId])
 
-  // Fetch content inbox, scheduled posts, and activity summary when client is loaded
+  // Fetch content inbox, scheduled posts, and activity logs when client is loaded
   useEffect(() => {
     if (client) {
       fetchContentInbox()
       fetchScheduledPosts()
-      fetchActivitySummary()
+      fetchActivityLogs()
     }
-  }, [client, fetchContentInbox, fetchScheduledPosts, fetchActivitySummary])
+  }, [client, fetchContentInbox, fetchScheduledPosts, fetchActivityLogs])
 
   // Check for OAuth callback messages in URL
   useEffect(() => {
@@ -1027,6 +1006,23 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
   };
 
+  const getActivityStatusBadge = (activity: ActivityLog) => {
+    switch (activity.status) {
+      case 'published':
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Published</span>;
+      case 'approved':
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Approved</span>;
+      case 'scheduled':
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Scheduled</span>;
+      case 'completed':
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Completed</span>;
+      case 'none':
+        return null; // No badge for empty states
+      default:
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{activity.status}</span>;
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-8">
@@ -1273,116 +1269,38 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   </div>
                 </CardContent>
               </Card>
-            ) : activitySummary ? (
+            ) : (
               <Card className="bg-white shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
                 <CardContent className="p-6">
-                  <div className="space-y-8">
-                    {/* Recent Activity Section */}
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center" style={{ fontSize: '18px' }}>
-                        <div className="w-2.5 h-2.5 bg-blue-600 rounded-full mr-3"></div>
-                        Recent Activity (Last 7 Days)
-                      </h3>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-4 bg-blue-50 border-2 border-blue-200 rounded-xl hover:shadow-sm transition-shadow">
-                          <div className="flex items-center flex-1 min-w-0">
-                            <Upload className="w-5 h-5 text-blue-600 mr-3 flex-shrink-0" />
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-800">Content Uploads</p>
-                              <p className="text-xs text-gray-600">Client uploaded new content</p>
-                            </div>
+                  <h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center" style={{ fontSize: '18px' }}>
+                    <div className="w-2.5 h-2.5 bg-blue-600 rounded-full mr-3"></div>
+                    Recent Activity
+                  </h3>
+                  <div className="space-y-3">
+                    {activityLogs.slice(0, 10).map((activity) => (
+                      <div key={activity.id} className="bg-gray-50 border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 mb-1">{activity.title}</p>
+                            <p className="text-xs text-gray-500">{activity.timeAgo}</p>
                           </div>
-                          <div className="text-3xl font-bold text-blue-600 ml-4 text-right">
-                            {activitySummary.recentActivity.uploads}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center justify-between p-4 bg-green-50 border-2 border-green-200 rounded-xl hover:shadow-sm transition-shadow">
-                          <div className="flex items-center flex-1 min-w-0">
-                            <CheckCircle className="w-5 h-5 text-green-600 mr-3 flex-shrink-0" />
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-800">Approvals</p>
-                              <p className="text-xs text-gray-600">Posts approved by client</p>
-                            </div>
-                          </div>
-                          <div className="text-3xl font-bold text-green-600 ml-4 text-right">
-                            {activitySummary.recentActivity.approvals}
+                          <div className="ml-3 flex-shrink-0">
+                            {getActivityStatusBadge(activity)}
                           </div>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Upcoming Posts Section */}
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center" style={{ fontSize: '18px' }}>
-                        <div className="w-2.5 h-2.5 bg-orange-600 rounded-full mr-3"></div>
-                        Upcoming Posts
-                      </h3>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-4 bg-orange-50 border-2 border-orange-200 rounded-xl hover:shadow-sm transition-shadow">
-                          <div className="flex items-center flex-1 min-w-0">
-                            <Calendar className="w-5 h-5 text-orange-600 mr-3 flex-shrink-0" />
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-800">This Week</p>
-                              <p className="text-xs text-gray-600">Posts scheduled this week</p>
-                            </div>
-                          </div>
-                          <div className="text-3xl font-bold text-orange-600 ml-4 text-right">
-                            {activitySummary.upcomingPosts.thisWeek}
-                          </div>
-                        </div>
-                        
-                        {/* Next Scheduled Post */}
-                        {activitySummary.upcomingPosts.nextPost ? (
-                          <div className="p-5 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl hover:shadow-sm transition-shadow">
-                            <div className="flex items-start">
-                              <Calendar className="w-5 h-5 text-blue-600 mr-3 mt-1 flex-shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-gray-800 mb-2">Next Post Goes Live</p>
-                                <div className="flex items-center space-x-2 mb-2">
-                                  <span className="text-lg font-bold text-blue-600">
-                                    {new Date(activitySummary.upcomingPosts.nextPost.date).toLocaleDateString('en-US', { 
-                                      month: 'short', 
-                                      day: 'numeric',
-                                      year: 'numeric'
-                                    })}
-                                  </span>
-                                  <span className="text-sm text-gray-500">at</span>
-                                  <span className="text-lg font-bold text-purple-600">
-                                    {activitySummary.upcomingPosts.nextPost.time}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-gray-700 truncate mb-2">
-                                  {activitySummary.upcomingPosts.nextPost.caption}
-                                </p>
-                                {activitySummary.upcomingPosts.nextPost.platforms && 
-                                 activitySummary.upcomingPosts.nextPost.platforms.length > 0 && (
-                                  <div className="flex items-center space-x-1">
-                                    <span className="text-xs text-gray-600 font-medium">Platforms:</span>
-                                    <div className="flex space-x-1">
-                                      {activitySummary.upcomingPosts.nextPost.platforms.map((platform, idx) => (
-                                        <span key={idx} className="text-xs bg-white px-2 py-1 rounded-md border border-gray-300 font-medium">
-                                          {platform}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="p-5 bg-gray-50 border-2 border-gray-200 rounded-xl text-center">
-                            <Calendar className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                            <p className="text-sm font-medium text-gray-600">No upcoming posts scheduled</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    ))}
                   </div>
+                  {activityLogs.length > 10 && (
+                    <div className="mt-4 text-center">
+                      <p className="text-xs text-gray-500">
+                        Showing 10 of {activityLogs.length} recent activities
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            ) : null}
+            )}
           </div>
           
           {/* Month View Calendar with Post Status - Takes 60% */}
