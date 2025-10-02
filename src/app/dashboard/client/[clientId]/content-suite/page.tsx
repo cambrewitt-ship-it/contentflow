@@ -6,7 +6,8 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Button } from 'components/ui/button'
 import { Input } from 'components/ui/input'
 import { Textarea } from 'components/ui/textarea'
-import { ArrowLeft, Loader2, Sparkles, RefreshCw, Plus, FolderOpen, Calendar, Edit3, X, Lightbulb, User, Settings } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from 'components/ui/dropdown-menu'
+import { ArrowLeft, Loader2, Sparkles, RefreshCw, Plus, FolderOpen, Calendar, Edit3, X, Lightbulb, User, Settings, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import { ImageUploadColumn } from './ImageUploadColumn'
 import { CaptionGenerationColumn } from './CaptionGenerationColumn'
@@ -294,6 +295,7 @@ export default function ContentSuitePage({ params }: PageProps) {
       const data = await response.json()
       if (data.success) {
         setProjects(prev => [data.project, ...prev])
+        setSelectedProjectId(data.project.id) // Auto-select the newly created project
         setNewProjectName("")
         setNewProjectDescription("")
         setShowNewProjectForm(false)
@@ -1105,18 +1107,50 @@ function ContentSuiteContent({
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Tag with Project (Optional)
                     </label>
-                    <select
-                      value={selectedProjectId || ''}
-                      onChange={(e) => setSelectedProjectId(e.target.value || null)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">No Project</option>
-                      {projects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                          {project.name}
-                        </option>
-                      ))}
-                    </select>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          className="w-full justify-between text-left font-normal"
+                        >
+                          {selectedProjectId 
+                            ? projects.find(p => p.id === selectedProjectId)?.name || 'Select Project'
+                            : 'No Project'
+                          }
+                          <ChevronDown className="h-4 w-4 opacity-50" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="w-full min-w-[200px]" align="start">
+                        <DropdownMenuItem 
+                          onClick={() => setSelectedProjectId(null)}
+                          className={!selectedProjectId ? 'bg-accent' : ''}
+                        >
+                          No Project
+                        </DropdownMenuItem>
+                        {projects.length > 0 && (
+                          <>
+                            <DropdownMenuSeparator />
+                            {projects.map((project) => (
+                              <DropdownMenuItem 
+                                key={project.id} 
+                                onClick={() => setSelectedProjectId(project.id)}
+                                className={selectedProjectId === project.id ? 'bg-accent' : ''}
+                              >
+                                {project.name}
+                              </DropdownMenuItem>
+                            ))}
+                          </>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={() => setShowNewProjectForm(true)}
+                          className="text-blue-600 focus:text-blue-600"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          New Project
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                   
                   {/* Add to Calendar Button */}

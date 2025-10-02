@@ -167,7 +167,6 @@ export default function CalendarPage() {
   const [clientUploads, setClientUploads] = useState<{[key: string]: ClientUpload[]}>({});
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
-  const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
   const [selectedUnscheduledPosts, setSelectedUnscheduledPosts] = useState<Set<string>>(new Set());
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +181,6 @@ export default function CalendarPage() {
   const [editingTimePostIds, setEditingTimePostIds] = useState<Set<string>>(new Set());
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const [selectedCalendarPostsForApproval, setSelectedCalendarPostsForApproval] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
 
@@ -768,12 +766,12 @@ export default function CalendarPage() {
 
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Delete ${selectedForDelete.size} posts?`)) return;
+    if (!confirm(`Delete ${selectedPosts.size} posts?`)) return;
     
     // Set loading state for delete operation
     setIsDeleting(true);
     
-    const toDelete = Array.from(selectedForDelete);
+    const toDelete = Array.from(selectedPosts);
     const allPosts = Object.values(scheduledPosts).flat();
     
     // Set individual loading states for posts being deleted
@@ -871,8 +869,9 @@ export default function CalendarPage() {
     }
   };
 
-  const handleToggleCalendarPostForApproval = (postId: string) => {
-    setSelectedCalendarPostsForApproval(prev => {
+  // Unified post selection handlers
+  const handleTogglePostSelection = (postId: string) => {
+    setSelectedPosts(prev => {
       const newSet = new Set(prev);
       if (newSet.has(postId)) {
         newSet.delete(postId);
@@ -883,7 +882,7 @@ export default function CalendarPage() {
     });
   };
 
-  const handleSelectAllCalendarPostsForApproval = () => {
+  const handleSelectAllPosts = () => {
     const allPostIds = new Set<string>();
     
     // Add all scheduled posts from calendar
@@ -891,15 +890,70 @@ export default function CalendarPage() {
       weekPosts.forEach(post => allPostIds.add(post.id));
     });
     
-    setSelectedCalendarPostsForApproval(allPostIds);
+    setSelectedPosts(allPostIds);
   };
 
-  const handleDeselectAllCalendarPostsForApproval = () => {
-    setSelectedCalendarPostsForApproval(new Set());
+  const handleDeselectAllPosts = () => {
+    setSelectedPosts(new Set());
+  };
+
+  const handleDeleteSelectedPosts = async () => {
+    if (selectedPosts.size === 0) return;
+    
+    const confirmMessage = `Are you sure you want to delete ${selectedPosts.size} post${selectedPosts.size > 1 ? 's' : ''}? This action cannot be undone.`;
+    if (!confirm(confirmMessage)) return;
+    
+    setDeletingPostIds(new Set(selectedPosts));
+    
+    try {
+      const deletePromises = Array.from(selectedPosts).map(async (postId) => {
+        const response = await fetch(`/api/calendar/scheduled/${postId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to delete post ${postId}`);
+        }
+        
+        return { postId, success: true };
+      });
+      
+      const results = await Promise.allSettled(deletePromises);
+      const successful = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+      
+      if (successful > 0) {
+        // Update scheduled posts locally
+        setScheduledPosts(prevScheduled => {
+          const updated = { ...prevScheduled };
+          Object.keys(updated).forEach(date => {
+            updated[date] = updated[date].filter(post => !selectedPosts.has(post.id));
+          });
+          return updated;
+        });
+        
+        console.log(`✅ Successfully deleted ${successful} post${successful > 1 ? 's' : ''}`);
+      }
+      
+      if (failed > 0) {
+        console.error(`❌ Failed to delete ${failed} post${failed > 1 ? 's' : ''}`);
+        alert(`Failed to delete ${failed} post${failed > 1 ? 's' : ''}. Please try again.`);
+      }
+      
+    } catch (error) {
+      console.error('Error deleting posts:', error);
+      alert('An error occurred while deleting posts. Please try again.');
+    } finally {
+      setDeletingPostIds(new Set());
+      setSelectedPosts(new Set());
+    }
   };
 
   const handleCreateShareLink = async () => {
-    if (selectedCalendarPostsForApproval.size === 0) {
+    if (selectedPosts.size === 0) {
       alert('Please select at least one post to share for approval');
       return;
     }
@@ -917,7 +971,7 @@ export default function CalendarPage() {
         body: JSON.stringify({
           project_id: projectId,
           client_id: clientId,
-          selected_post_ids: Array.from(selectedCalendarPostsForApproval)
+          selected_post_ids: Array.from(selectedPosts)
         })
       });
 
@@ -929,7 +983,7 @@ export default function CalendarPage() {
       
       // For now, just copy to clipboard and show alert
       await navigator.clipboard.writeText(share_url);
-      alert(`Share link copied to clipboard!\n\nLink: ${share_url}\nExpires: ${new Date(session.expires_at).toLocaleDateString()}\n\nSelected ${selectedCalendarPostsForApproval.size} posts for approval`);
+      alert(`Share link copied to clipboard!\n\nLink: ${share_url}\nExpires: ${new Date(session.expires_at).toLocaleDateString()}\n\nSelected ${selectedPosts.size} posts for approval`);
       
     } catch (error) {
       console.error('❌ Error creating share link:', error);
@@ -1216,9 +1270,6 @@ export default function CalendarPage() {
               <h1 className="text-2xl font-bold text-gray-700">
                 Content Calendar
               </h1>
-              <p className="text-sm text-gray-500">
-                Plan and schedule your content
-              </p>
             </div>
           </div>
           
@@ -1390,7 +1441,7 @@ export default function CalendarPage() {
         {/* Action Buttons */}
         <div className="flex justify-between items-center mb-4">
           {/* Left side - Delete button */}
-          {selectedForDelete.size > 0 && (
+          {selectedPosts.size > 0 && (
             <button
               onClick={handleBulkDelete}
               disabled={isDeleting}
@@ -1401,7 +1452,7 @@ export default function CalendarPage() {
               {isDeleting && (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
               )}
-              {isDeleting ? 'Deleting...' : `Delete ${selectedForDelete.size} Selected Posts`}
+              {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size} Selected Posts`}
             </button>
           )}
           
@@ -1497,29 +1548,11 @@ export default function CalendarPage() {
                   : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - 4 Week View`}
             </h2>
             <div className="flex items-center gap-3">
-              {/* Calendar Selection Controls */}
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">
-                  {selectedCalendarPostsForApproval.size} selected
-                </span>
-                <button
-                  onClick={handleSelectAllCalendarPostsForApproval}
-                  className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-                >
-                  Select All
-                </button>
-                <button
-                  onClick={handleDeselectAllCalendarPostsForApproval}
-                  className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-                >
-                  Deselect All
-                </button>
-              </div>
               
               {/* Share Button */}
               <button
                 onClick={handleCreateShareLink}
-                disabled={isCreatingSession || selectedCalendarPostsForApproval.size === 0}
+                disabled={isCreatingSession || selectedPosts.size === 0}
                 className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
               >
                 {isCreatingSession ? (
@@ -1556,6 +1589,34 @@ export default function CalendarPage() {
               </div>
             </div>
           </div>
+
+            {/* Delete Button - Above Calendar */}
+            {selectedPosts.size > 0 && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg mb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm text-red-700 font-medium">
+                      {selectedPosts.size} post{selectedPosts.size > 1 ? 's' : ''} selected for deletion
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={handleDeleteSelectedPosts}
+                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm rounded flex items-center"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Delete {selectedPosts.size} Post{selectedPosts.size > 1 ? 's' : ''}
+                    </button>
+                    <button
+                      onClick={handleDeselectAllPosts}
+                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="p-4 space-y-4">
             <div className="">
@@ -1729,17 +1790,17 @@ export default function CalendarPage() {
                                                     )}
                                                   </div>
                                                   
-                                                  {/* Approval Selection Checkbox */}
+                                                  {/* Post Selection Checkbox */}
                                                   <div className="flex items-center">
                                                     <input
                                                       type="checkbox"
-                                                      checked={selectedCalendarPostsForApproval.has(post.id)}
+                                                      checked={selectedPosts.has(post.id)}
                                                       onChange={(e) => {
                                                         e.stopPropagation();
-                                                        handleToggleCalendarPostForApproval(post.id);
+                                                        handleTogglePostSelection(post.id);
                                                       }}
                                                       className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                                                      title="Select for client approval"
+                                                      title="Select post for sharing or deletion"
                                                     />
                                                   </div>
                                                 </div>
@@ -1898,17 +1959,17 @@ export default function CalendarPage() {
                                               )}
                                             </div>
                                             
-                                            {/* Approval Selection Checkbox */}
+                                            {/* Post Selection Checkbox */}
                                             <div className="flex items-center">
                                               <input
                                                 type="checkbox"
-                                                checked={selectedCalendarPostsForApproval.has(post.id)}
+                                                checked={selectedPosts.has(post.id)}
                                                 onChange={(e) => {
                                                   e.stopPropagation();
-                                                  handleToggleCalendarPostForApproval(post.id);
+                                                  handleTogglePostSelection(post.id);
                                                 }}
                                                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                                                title="Select for client approval"
+                                                title="Select post for sharing or deletion"
                                               />
                                             </div>
                                           </div>

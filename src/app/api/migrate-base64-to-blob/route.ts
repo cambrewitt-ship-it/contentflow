@@ -2,11 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { put } from '@vercel/blob';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 // Helper function to convert base64 to blob
 function base64ToBlob(base64String: string, mimeType: string): Blob {
   const base64Data = base64String.replace(/^data:image\/[a-z]+;base64,/, '');
@@ -37,12 +32,26 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🚀 Starting migration of base64 images to Vercel Blob URLs...');
     
+    // Check for required environment variables
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { error: 'Supabase environment variables are required' },
+        { status: 500 }
+      );
+    }
+    
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       return NextResponse.json(
         { error: 'BLOB_READ_WRITE_TOKEN environment variable is required' },
         { status: 500 }
       );
     }
+    
+    // Create Supabase client inside the function
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
     
     const { dryRun = false, limit = 10 } = await request.json().catch(() => ({}));
     
