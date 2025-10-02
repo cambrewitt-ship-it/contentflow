@@ -498,7 +498,7 @@ export function PortalTrelloBoard({
             {/* Posts in Column */}
             <SortableContext
               id={column.id}
-              items={column.posts.map(post => `${post.post_type}-${post.id}`)}
+              items={column.posts.map((post: any) => `${post.post_type}-${post.id}`)}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-3 min-h-96">
