@@ -826,9 +826,6 @@ export default function CalendarPage() {
     setIsDeleting(false);
     setDeletingPostIds(new Set());
     
-    // Clear selection
-    setSelectedForDelete(new Set());
-    
     if (failed.length > 0) {
       alert(`Deleted ${succeeded.length} posts. Failed to delete ${failed.length} posts.`);
     } else {
@@ -1211,7 +1208,6 @@ export default function CalendarPage() {
     
     // Clear selection (no need to refresh - posts are already visible)
     setSelectedPosts(new Set());
-    setSelectedForDelete(new Set());
     
     // Show results
     if (failCount === 0) {
