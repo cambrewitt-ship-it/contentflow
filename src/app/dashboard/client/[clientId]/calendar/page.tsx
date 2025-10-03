@@ -1680,13 +1680,15 @@ export default function CalendarPage() {
                             )}
                             
                             {/* Display scheduled posts */}
-                            {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => {
-                              const isDeleting = deletingPostIds.has(post.id);
-                              const isScheduling = schedulingPostIds.has(post.id);
-                              const isEditingTime = editingTimePostIds.has(post.id);
-                              const isMoving = movingPostId === post.id;
-                              return (
-                                <div key={idx} className="mt-1">
+                            {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')] && (
+                              <div className="flex gap-1">
+                                {scheduledPosts[dayDate.toLocaleDateString('en-CA')].map((post: Post, idx: number) => {
+                                  const isDeleting = deletingPostIds.has(post.id);
+                                  const isScheduling = schedulingPostIds.has(post.id);
+                                  const isEditingTime = editingTimePostIds.has(post.id);
+                                  const isMoving = movingPostId === post.id;
+                                  return (
+                                    <div key={idx} className="flex-1">
                                   {editingPostId === post.id ? (
                                     <div className="relative">
                                       {/* Time input overlay */}
@@ -1717,7 +1719,7 @@ export default function CalendarPage() {
                                             e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
                                             e.dataTransfer.setData('originalDate', dayDate.toLocaleDateString('en-CA')); // Keeps local timezone
                                           })()}
-                                          className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow ${
+                                          className={`border rounded-lg p-3 hover:shadow-sm transition-shadow ${
                                             isDeleting 
                                               ? 'cursor-not-allowed opacity-50 bg-red-50 border-red-300' 
                                               : isScheduling
@@ -1886,7 +1888,7 @@ export default function CalendarPage() {
                                         e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
                                         e.dataTransfer.setData('originalDate', dayDate.toLocaleDateString('en-CA')); // Keeps local timezone
                                       })()}
-                                      className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow ${
+                                      className={`border rounded-lg p-3 hover:shadow-sm transition-shadow ${
                                         isDeleting 
                                           ? 'cursor-not-allowed opacity-50 bg-red-50 border-red-300' 
                                           : isScheduling
@@ -2049,7 +2051,9 @@ export default function CalendarPage() {
                                 )}
                               </div>
                               );
-                            })}
+                                })}
+                              </div>
+                            )}
 
                             {/* Display client uploads */}
                             {!isLoadingScheduledPosts && clientUploads[dayDate.toLocaleDateString('en-CA')]?.map((upload: ClientUpload, idx: number) => (
