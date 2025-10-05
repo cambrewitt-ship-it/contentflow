@@ -150,10 +150,10 @@ export default function PortalCalendarPage() {
       }
       console.log(`🔍 FETCHING - Scheduled posts for portal (attempt ${retryCount + 1})`);
       
-      // Calculate date range for current 4-week view
+      // Calculate date range for current 2-week view
       const startOfWeek = getStartOfWeek(weekOffset);
       const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + (4 * 7) - 1); // 4 weeks
+      endOfWeek.setDate(startOfWeek.getDate() + (2 * 7) - 1); // 2 weeks
 
       const startDate = startOfWeek.toISOString().split('T')[0];
       const endDate = endOfWeek.toISOString().split('T')[0];
@@ -609,7 +609,7 @@ export default function PortalCalendarPage() {
 
   const getWeeksToDisplay = () => {
     const weeks = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 2; i++) {
       weeks.push(getStartOfWeek(weekOffset + i));
     }
     return weeks;
@@ -754,33 +754,33 @@ export default function PortalCalendarPage() {
               
               return (
                 <>
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <div className="flex items-center">
+                  <div className="bg-green-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
+                    <div className="flex items-center mb-2">
                       <Check className="w-4 h-4 text-green-600 mr-2" />
                       <span className="text-sm font-medium text-green-800">Approved</span>
                     </div>
-                    <div className="text-lg font-bold text-green-900 mt-1">{approved}</div>
+                    <div className="text-lg font-bold text-green-900">{approved}</div>
                   </div>
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                    <div className="flex items-center">
+                  <div className="bg-red-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
+                    <div className="flex items-center mb-2">
                       <X className="w-4 h-4 text-red-600 mr-2" />
                       <span className="text-sm font-medium text-red-800">Rejected</span>
                     </div>
-                    <div className="text-lg font-bold text-red-900 mt-1">{rejected}</div>
+                    <div className="text-lg font-bold text-red-900">{rejected}</div>
                   </div>
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                    <div className="flex items-center">
+                  <div className="bg-orange-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
+                    <div className="flex items-center mb-2">
                       <AlertTriangle className="w-4 h-4 text-orange-600 mr-2" />
                       <span className="text-sm font-medium text-orange-800">Needs Attention</span>
                     </div>
-                    <div className="text-lg font-bold text-orange-900 mt-1">{needsAttention}</div>
+                    <div className="text-lg font-bold text-orange-900">{needsAttention}</div>
                   </div>
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                    <div className="flex items-center">
+                  <div className="bg-yellow-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
+                    <div className="flex items-center mb-2">
                       <Minus className="w-4 h-4 text-yellow-600 mr-2" />
                       <span className="text-sm font-medium text-yellow-800">Pending</span>
                     </div>
-                    <div className="text-lg font-bold text-yellow-900 mt-1">{pending}</div>
+                    <div className="text-lg font-bold text-yellow-900">{pending}</div>
                   </div>
                 </>
               );
@@ -794,33 +794,24 @@ export default function PortalCalendarPage() {
         <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <button
-              onClick={() => setWeekOffset(weekOffset - 1)}
+              onClick={() => setWeekOffset(weekOffset - 2)}
               className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
             >
               <ChevronLeft className="w-4 h-4" />
-              Previous Week
+              Previous 2 Weeks
             </button>
-            <h2 className="text-lg font-semibold">
-              Content Calendar - 4 Week View
-            </h2>
+            <div className="flex items-center justify-center">
+              <h2 className="text-lg font-semibold">
+                Content Calendar - 2 Week View
+              </h2>
+            </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setWeekOffset(weekOffset + 1)}
+                onClick={() => setWeekOffset(weekOffset + 2)}
                 className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
               >
-                Next Week
+                Next 2 Weeks
                 <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-center mb-4 pb-2">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setWeekOffset(0)}
-                className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-              >
-                Current Week
               </button>
             </div>
           </div>

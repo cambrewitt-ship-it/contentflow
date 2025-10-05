@@ -425,7 +425,7 @@ export default function CalendarPage() {
 
   const getWeeksToDisplay = () => {
     const weeks = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 2; i++) {
       weeks.push(getStartOfWeek(weekOffset + i));
     }
     return weeks;
@@ -1530,19 +1530,21 @@ export default function CalendarPage() {
           <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <button
-              onClick={() => setWeekOffset(weekOffset - 1)}
+              onClick={() => setWeekOffset(weekOffset - 2)}
               className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
             >
               <ChevronLeft className="w-4 h-4" />
-              Previous Week
+              Previous 2 Weeks
             </button>
-            <h2 className="text-lg font-semibold">
-              {selectedProjectFilter === 'all' 
-                ? 'All Projects - 4 Week View' 
-                : selectedProjectFilter === 'untagged' 
-                  ? 'Untagged Posts - 4 Week View'
-                  : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - 4 Week View`}
-            </h2>
+            <div className="flex items-center justify-center">
+              <h2 className="text-lg font-semibold">
+                {selectedProjectFilter === 'all' 
+                  ? 'All Projects - 2 Week View' 
+                  : selectedProjectFilter === 'untagged' 
+                    ? 'Untagged Posts - 2 Week View'
+                    : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - 2 Week View`}
+              </h2>
+            </div>
             <div className="flex items-center gap-3">
               
               {/* Share Button */}
@@ -1565,26 +1567,15 @@ export default function CalendarPage() {
               </button>
               
               <button
-                onClick={() => setWeekOffset(weekOffset + 1)}
+                onClick={() => setWeekOffset(weekOffset + 2)}
                 className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
               >
-                Next Week
+                Next 2 Weeks
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
-          
-            <div className="flex items-center justify-center mb-4 pb-2">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setWeekOffset(0)}
-                  className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                >
-                  Current Week
-                </button>
-              </div>
-            </div>
-          </div>
+        </div>
 
             {/* Delete Button - Above Calendar */}
             {selectedPosts.size > 0 && (
@@ -1688,7 +1679,7 @@ export default function CalendarPage() {
                                   const isEditingTime = editingTimePostIds.has(post.id);
                                   const isMoving = movingPostId === post.id;
                                   return (
-                                    <div key={idx} className="flex-1">
+                                    <div key={idx} className="flex-1 w-[260px] min-h-[390px]">
                                   {editingPostId === post.id ? (
                                     <div className="relative">
                                       {/* Time input overlay */}
@@ -1719,7 +1710,7 @@ export default function CalendarPage() {
                                             e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
                                             e.dataTransfer.setData('originalDate', dayDate.toLocaleDateString('en-CA')); // Keeps local timezone
                                           })()}
-                                          className={`border rounded-lg p-3 hover:shadow-sm transition-shadow ${
+                                          className={`border rounded-lg p-2 hover:shadow-sm transition-shadow w-full flex flex-col ${
                                             isDeleting 
                                               ? 'cursor-not-allowed opacity-50 bg-red-50 border-red-300' 
                                               : isScheduling
@@ -1759,33 +1750,38 @@ export default function CalendarPage() {
                                           ) : (
                                             <>
                                               {/* Card Title - Day, Date, and Time */}
-                                              <div className="mb-3 pb-2 border-b border-gray-200">
+                                              <div className="mb-2 pb-1 border-b border-gray-200">
                                                 <div className="flex items-center justify-between">
-                                                  <div>
-                                                    <h4 className="font-semibold text-sm text-gray-700">
-                                                      {day} {dayDate.getDate()}
-                                                    </h4>
-                                                    <p className="text-xs text-gray-600">
-                                                      <span 
-                                                        className="cursor-pointer hover:text-gray-800"
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          setEditingPostId(post.id);
-                                                        }}
-                                                        title="Click to edit time"
-                                                      >
-                                                        {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                                      </span>
-                                                    </p>
-                                                  </div>
-                                                  
-                                                  {/* Project Badge - Centered */}
-                                                  <div className="flex items-center justify-center flex-1">
-                                                    {post.project_id && projects.find(p => p.id === post.project_id) && (
-                                                      <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
-                                                        {projects.find(p => p.id === post.project_id)?.name}
-                                                      </span>
-                                                    )}
+                                                  <div className="flex items-center gap-2">
+                                                    <div className="flex gap-0.5">
+                                                      <div className="flex flex-col gap-0.5">
+                                                        <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                                                        <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                                                        <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                                                      </div>
+                                                      <div className="flex flex-col gap-0.5">
+                                                        <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                                                        <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                                                        <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                                                      </div>
+                                                    </div>
+                                                    <div>
+                                                      <h4 className="font-semibold text-xs text-gray-700">
+                                                        {day} {dayDate.getDate()}
+                                                      </h4>
+                                                      <p className="text-xs text-gray-600">
+                                                        <span 
+                                                          className="cursor-pointer hover:text-gray-800"
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingPostId(post.id);
+                                                          }}
+                                                          title="Click to edit time"
+                                                        >
+                                                          {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                                        </span>
+                                                      </p>
+                                                    </div>
                                                   </div>
                                                   
                                                   {/* Post Selection Checkbox */}
@@ -1797,16 +1793,25 @@ export default function CalendarPage() {
                                                         e.stopPropagation();
                                                         handleTogglePostSelection(post.id);
                                                       }}
-                                                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                                      className="w-3 h-3 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                                                       title="Select post for sharing or deletion"
                                                     />
                                                   </div>
                                                 </div>
+                                                
+                                                {/* Project Badge - Full width below header */}
+                                                {post.project_id && projects.find(p => p.id === post.project_id) && (
+                                                  <div className="mt-1">
+                                                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
+                                                      {projects.find(p => p.id === post.project_id)?.name}
+                                                    </span>
+                                                  </div>
+                                                )}
                                               </div>
 
                                               {/* Edit Indicators, Approval Status, and Edit Button */}
-                                              <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2">
+                                              <div className="flex items-center justify-between mb-1">
+                                                <div className="flex items-center gap-1">
                                                   <EditIndicators 
                                                     post={post} 
                                                     clientId={clientId}
@@ -1826,7 +1831,7 @@ export default function CalendarPage() {
                                                     // Navigate to content suite with editPostId parameter in same tab
                                                     window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
                                                   }}
-                                                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                                                  className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
                                                   title="Edit content"
                                                 >
                                                   Edit
@@ -1849,29 +1854,29 @@ export default function CalendarPage() {
                                               )}
                                               
                                               {/* Caption */}
-                                              <div className="mb-2">
-                                                <p className="text-sm text-gray-700">
+                                              <div className="mb-2 flex-1 overflow-hidden">
+                                                <p className="text-xs text-gray-700 line-clamp-3">
                                                   {post.caption}
                                                 </p>
                                               </div>
                                               
                                               {/* Client Feedback */}
                                               {post.client_feedback && (
-                                                <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                                                  <span className="font-medium text-gray-700">Client feedback:</span>
-                                                  <p className="mt-1 text-gray-600">{post.client_feedback}</p>
+                                                <div className="mt-1 p-1 bg-gray-50 rounded text-xs flex-shrink-0">
+                                                  <span className="font-medium text-gray-700">Feedback:</span>
+                                                  <p className="mt-1 text-gray-600 line-clamp-2">{post.client_feedback}</p>
                                                 </div>
                                               )}
 
                                               {/* Platform Icons */}
                                               {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
-                                                <div className="flex items-center gap-1 mt-2">
+                                                <div className="flex items-center gap-1 mt-1 flex-shrink-0">
                                                   {post.platforms_scheduled.map((platform, platformIdx) => (
-                                                    <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
-                                                      {platform === 'facebook' && <FacebookIcon size={12} className="text-blue-600" />}
-                                                      {platform === 'instagram' && <InstagramIcon size={12} className="text-pink-600" />}
-                                                      {platform === 'twitter' && <TwitterIcon size={12} className="text-sky-500" />}
-                                                      {platform === 'linkedin' && <LinkedInIcon size={12} className="text-blue-700" />}
+                                                    <div key={platformIdx} className="w-3 h-3 flex items-center justify-center" title={`Scheduled to ${platform}`}>
+                                                      {platform === 'facebook' && <FacebookIcon size={10} className="text-blue-600" />}
+                                                      {platform === 'instagram' && <InstagramIcon size={10} className="text-pink-600" />}
+                                                      {platform === 'twitter' && <TwitterIcon size={10} className="text-sky-500" />}
+                                                      {platform === 'linkedin' && <LinkedInIcon size={10} className="text-blue-700" />}
                                                     </div>
                                                   ))}
                                                 </div>
@@ -1888,7 +1893,7 @@ export default function CalendarPage() {
                                         e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
                                         e.dataTransfer.setData('originalDate', dayDate.toLocaleDateString('en-CA')); // Keeps local timezone
                                       })()}
-                                      className={`border rounded-lg p-3 hover:shadow-sm transition-shadow ${
+                                      className={`border rounded-lg p-2 hover:shadow-sm transition-shadow w-full flex flex-col ${
                                         isDeleting 
                                           ? 'cursor-not-allowed opacity-50 bg-red-50 border-red-300' 
                                           : isScheduling
@@ -1928,33 +1933,38 @@ export default function CalendarPage() {
                                     ) : (
                                       <>
                                         {/* Card Title - Day, Date, and Time */}
-                                        <div className="mb-3 pb-2 border-b border-gray-200">
+                                        <div className="mb-2 pb-1 border-b border-gray-200">
                                           <div className="flex items-center justify-between">
-                                            <div>
-                                              <h4 className="font-semibold text-sm text-gray-700">
-                                                {day} {dayDate.getDate()}
-                                              </h4>
-                                              <p className="text-xs text-gray-600">
-                                                <span 
-                                                  className="cursor-pointer hover:text-gray-800"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setEditingPostId(post.id);
-                                                  }}
-                                                  title="Click to edit time"
-                                                >
-                                                  {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                                </span>
-                                              </p>
-                                            </div>
-                                            
-                                            {/* Project Badge - Centered */}
-                                            <div className="flex items-center justify-center flex-1">
-                                              {post.project_id && projects.find(p => p.id === post.project_id) && (
-                                                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
-                                                  {projects.find(p => p.id === post.project_id)?.name}
-                                                </span>
-                                              )}
+                                            <div className="flex items-center gap-2">
+                                              <div className="flex gap-0.5">
+                                                <div className="flex flex-col gap-0.5">
+                                                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                                                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                                                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                                                </div>
+                                                <div className="flex flex-col gap-0.5">
+                                                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                                                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                                                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                                                </div>
+                                              </div>
+                                              <div>
+                                                <h4 className="font-semibold text-xs text-gray-700">
+                                                  {day} {dayDate.getDate()}
+                                                </h4>
+                                                <p className="text-xs text-gray-600">
+                                                  <span 
+                                                    className="cursor-pointer hover:text-gray-800"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setEditingPostId(post.id);
+                                                    }}
+                                                    title="Click to edit time"
+                                                  >
+                                                    {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                                  </span>
+                                                </p>
+                                              </div>
                                             </div>
                                             
                                             {/* Post Selection Checkbox */}
@@ -1966,16 +1976,25 @@ export default function CalendarPage() {
                                                   e.stopPropagation();
                                                   handleTogglePostSelection(post.id);
                                                 }}
-                                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                                className="w-3 h-3 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                                                 title="Select post for sharing or deletion"
                                               />
                                             </div>
                                           </div>
+                                          
+                                          {/* Project Badge - Full width below header */}
+                                          {post.project_id && projects.find(p => p.id === post.project_id) && (
+                                            <div className="mt-1">
+                                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
+                                                {projects.find(p => p.id === post.project_id)?.name}
+                                              </span>
+                                            </div>
+                                          )}
                                         </div>
 
                                         {/* Edit Indicators, Approval Status, and Edit Button */}
-                                        <div className="flex items-center justify-between mb-2">
-                                          <div className="flex items-center gap-2">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <div className="flex items-center gap-1">
                                             <EditIndicators 
                                               post={post} 
                                               clientId={clientId}
@@ -1995,7 +2014,7 @@ export default function CalendarPage() {
                                               // Navigate to content suite with editPostId parameter in same tab
                                               window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
                                             }}
-                                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
+                                            className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
                                             title="Edit content"
                                           >
                                             Edit
@@ -2018,29 +2037,29 @@ export default function CalendarPage() {
                                         )}
                                         
                                         {/* Caption */}
-                                        <div className="mb-2">
-                                          <p className="text-sm text-gray-700">
+                                        <div className="mb-2 flex-1 overflow-hidden">
+                                          <p className="text-xs text-gray-700 line-clamp-3">
                                             {post.caption}
                                           </p>
                                         </div>
                                         
                                         {/* Client Feedback */}
                                         {post.client_feedback && (
-                                          <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                                            <span className="font-medium text-gray-700">Client feedback:</span>
-                                            <p className="mt-1 text-gray-600">{post.client_feedback}</p>
+                                          <div className="mt-1 p-1 bg-gray-50 rounded text-xs flex-shrink-0">
+                                            <span className="font-medium text-gray-700">Feedback:</span>
+                                            <p className="mt-1 text-gray-600 line-clamp-2">{post.client_feedback}</p>
                                           </div>
                                         )}
 
                                         {/* Platform Icons */}
                                         {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
-                                          <div className="flex items-center gap-1 mt-2">
+                                          <div className="flex items-center gap-1 mt-1 flex-shrink-0">
                                             {post.platforms_scheduled.map((platform, platformIdx) => (
-                                              <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
-                                                {platform === 'facebook' && <FacebookIcon size={12} className="text-blue-600" />}
-                                                {platform === 'instagram' && <InstagramIcon size={12} className="text-pink-600" />}
-                                                {platform === 'twitter' && <TwitterIcon size={12} className="text-sky-500" />}
-                                                {platform === 'linkedin' && <LinkedInIcon size={12} className="text-blue-700" />}
+                                              <div key={platformIdx} className="w-3 h-3 flex items-center justify-center" title={`Scheduled to ${platform}`}>
+                                                {platform === 'facebook' && <FacebookIcon size={10} className="text-blue-600" />}
+                                                {platform === 'instagram' && <InstagramIcon size={10} className="text-pink-600" />}
+                                                {platform === 'twitter' && <TwitterIcon size={10} className="text-sky-500" />}
+                                                {platform === 'linkedin' && <LinkedInIcon size={10} className="text-blue-700" />}
                                               </div>
                                             ))}
                                           </div>

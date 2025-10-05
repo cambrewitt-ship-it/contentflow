@@ -1166,33 +1166,33 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                       
                       return (
                         <>
-                          <div className="bg-green-50 border-2 border-green-300 rounded-xl p-3 hover:shadow-md transition-all flex flex-col justify-between">
+                          <div className="bg-green-50 rounded-xl p-3 hover:shadow-md transition-all flex flex-col items-center justify-center text-center">
                             <div className="flex items-center mb-2">
                               <Check className="w-4 h-4 text-green-600 mr-1.5" />
-                              <span className="text-xs font-bold text-green-800">Approved</span>
+                              <span className="text-xs font-black text-green-800">Approved</span>
                             </div>
-                            <div className="text-2xl font-bold text-green-900 text-right">{approved}</div>
+                            <div className="text-2xl font-black text-green-900">{approved}</div>
                           </div>
-                          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-3 hover:shadow-md transition-all flex flex-col justify-between">
+                          <div className="bg-red-50 rounded-xl p-3 hover:shadow-md transition-all flex flex-col items-center justify-center text-center">
                             <div className="flex items-center mb-2">
                               <X className="w-4 h-4 text-red-600 mr-1.5" />
-                              <span className="text-xs font-bold text-red-800">Rejected</span>
+                              <span className="text-xs font-black text-red-800">Rejected</span>
                             </div>
-                            <div className="text-2xl font-bold text-red-900 text-right">{rejected}</div>
+                            <div className="text-2xl font-black text-red-900">{rejected}</div>
                           </div>
-                          <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-3 hover:shadow-md transition-all flex flex-col justify-between">
+                          <div className="bg-orange-50 rounded-xl p-3 hover:shadow-md transition-all flex flex-col items-center justify-center text-center">
                             <div className="flex items-center mb-2">
                               <AlertTriangle className="w-4 h-4 text-orange-600 mr-1.5" />
-                              <span className="text-xs font-bold text-orange-800">Needs Attention</span>
+                              <span className="text-xs font-black text-orange-800">Needs Attention</span>
                             </div>
-                            <div className="text-2xl font-bold text-orange-900 text-right">{needsAttention}</div>
+                            <div className="text-2xl font-black text-orange-900">{needsAttention}</div>
                           </div>
-                          <div className="bg-gray-50 border-2 border-gray-300 rounded-xl p-3 hover:shadow-md transition-all flex flex-col justify-between">
+                          <div className="bg-gray-50 rounded-xl p-3 hover:shadow-md transition-all flex flex-col items-center justify-center text-center">
                             <div className="flex items-center mb-2">
                               <div className="w-4 h-4 bg-gray-400 rounded-full mr-1.5"></div>
-                              <span className="text-xs font-bold text-gray-800">Pending</span>
+                              <span className="text-xs font-black text-gray-800">Pending</span>
                             </div>
-                            <div className="text-2xl font-bold text-gray-700 text-right">{pending}</div>
+                            <div className="text-2xl font-black text-gray-700">{pending}</div>
                           </div>
                         </>
                       );

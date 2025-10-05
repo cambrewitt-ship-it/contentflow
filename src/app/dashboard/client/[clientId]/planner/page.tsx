@@ -416,7 +416,7 @@ export default function CalendarPage() {
 
   const getWeeksToDisplay = () => {
     const weeks = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 2; i++) {
       weeks.push(getStartOfWeek(weekOffset + i));
     }
     return weeks;
@@ -1477,14 +1477,14 @@ export default function CalendarPage() {
           <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <button
-              onClick={() => setWeekOffset(weekOffset - 1)}
+              onClick={() => setWeekOffset(weekOffset - 2)}
               className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
             >
               <ChevronLeft className="w-4 h-4" />
-              Previous Week
+              Previous 2 Weeks
             </button>
             <h2 className="text-lg font-semibold">
-              {currentProject ? `${currentProject.name} - 4 Week View` : 'All Projects - 4 Week View'}
+              {currentProject ? `${currentProject.name} - 2 Week View` : 'All Projects - 2 Week View'}
             </h2>
             <div className="flex items-center gap-3">
               {/* Calendar Selection Controls */}
@@ -1526,10 +1526,10 @@ export default function CalendarPage() {
               </button>
               
               <button
-                onClick={() => setWeekOffset(weekOffset + 1)}
+                onClick={() => setWeekOffset(weekOffset + 2)}
                 className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
               >
-                Next Week
+                Next 2 Weeks
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
