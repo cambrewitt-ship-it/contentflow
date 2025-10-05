@@ -7,6 +7,8 @@ interface Post {
   id: string;
   scheduled_date?: string;
   approval_status?: 'pending' | 'approved' | 'rejected' | 'needs_attention' | 'draft';
+  image_url?: string;
+  caption?: string;
 }
 
 interface MonthViewCalendarProps {
@@ -228,19 +230,39 @@ export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarP
                     {day}
                   </div>
                   
-                  {/* Post Dots */}
+                  {/* Post Thumbnails */}
                   {dayPosts.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {dayPosts.slice(0, 3).map((post, idx) => (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {dayPosts.slice(0, 4).map((post, idx) => (
                         <div
                           key={post.id}
-                          className={`w-2.5 h-2.5 rounded-full ${getStatusColor(post.approval_status)} shadow-sm`}
-                          title={`Post ${post.approval_status || 'scheduled'}`}
-                        />
+                          className="relative group"
+                        >
+                          <div className="w-6 h-6 rounded border-2 overflow-hidden shadow-sm">
+                            {post.image_url ? (
+                              <img
+                                src={post.image_url}
+                                alt={post.caption || 'Post'}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.src = '/api/placeholder/24/24';
+                                }}
+                              />
+                            ) : (
+                              <div className={`w-full h-full ${getStatusColor(post.approval_status)} flex items-center justify-center`}>
+                                <div className="w-2 h-2 rounded-full bg-white"></div>
+                              </div>
+                            )}
+                          </div>
+                          {/* Status indicator */}
+                          <div className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-white ${getStatusColor(post.approval_status)}`}></div>
+                        </div>
                       ))}
-                      {dayPosts.length > 3 && (
-                        <div className="text-[10px] text-gray-700 font-bold">
-                          +{dayPosts.length - 3}
+                      {dayPosts.length > 4 && (
+                        <div className="w-6 h-6 rounded border-2 border-gray-300 bg-gray-100 flex items-center justify-center">
+                          <div className="text-[8px] text-gray-600 font-bold">
+                            +{dayPosts.length - 4}
+                          </div>
                         </div>
                       )}
                     </div>

@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Share2, Loader2, RefreshCw, User, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Share2, Loader2, RefreshCw, User, Settings, Calendar, Grid3X3 } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from 'components/EditIndicators';
+import { MonthViewCalendar } from 'components/MonthViewCalendar';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { Button } from 'components/ui/button';
@@ -183,6 +184,7 @@ export default function CalendarPage() {
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
 
   const updatePostCaption = (postId: string, newCaption: string) => {
     setEditingCaptions(prev => ({
@@ -1529,23 +1531,50 @@ export default function CalendarPage() {
         <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
           <div className="p-4">
           <div className="flex items-center justify-between mb-4">
-            <button
-              onClick={() => setWeekOffset(weekOffset - 1)}
-              className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Previous Week
-            </button>
+            {viewMode === 'week' && (
+              <button
+                onClick={() => setWeekOffset(weekOffset - 1)}
+                className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous Week
+              </button>
+            )}
             <div className="flex items-center justify-center">
               <h2 className="text-lg font-semibold">
                 {selectedProjectFilter === 'all' 
-                  ? 'All Projects - Week View' 
+                  ? `All Projects - ${viewMode === 'week' ? 'Week' : 'Month'} View` 
                   : selectedProjectFilter === 'untagged' 
-                    ? 'Untagged Posts - Week View'
-                    : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - Week View`}
+                    ? `Untagged Posts - ${viewMode === 'week' ? 'Week' : 'Month'} View`
+                    : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'week' ? 'Week' : 'Month'} View`}
               </h2>
             </div>
             <div className="flex items-center gap-3">
+              {/* View Toggle */}
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('week')}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                    viewMode === 'week' 
+                      ? 'bg-white text-gray-900 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                  Week
+                </button>
+                <button
+                  onClick={() => setViewMode('month')}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                    viewMode === 'month' 
+                      ? 'bg-white text-gray-900 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  Month
+                </button>
+              </div>
               
               {/* Share Button */}
               <button
@@ -1566,21 +1595,24 @@ export default function CalendarPage() {
                 )}
               </button>
               
-              <button
-                onClick={() => setWeekOffset(weekOffset + 1)}
-                className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
-              >
-                Next Week
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              {viewMode === 'week' && (
+                <button
+                  onClick={() => setWeekOffset(weekOffset + 1)}
+                  className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
+                >
+                  Next Week
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         </div>
 
 
             <div className="p-4 space-y-4">
-            <div className="">
-              <div className="space-y-4" style={{ gap: '16px' }}>
+            {viewMode === 'week' ? (
+              <div className="">
+                <div className="space-y-4" style={{ gap: '16px' }}>
                 {getWeeksToDisplay().map((weekStart, weekIndex) => (
                   <div key={weekIndex} className="border rounded-lg bg-white min-h-32 flex-1">
                     {/* Week Header - Above the days */}
@@ -1608,7 +1640,7 @@ export default function CalendarPage() {
                         return (
                           <div
                             key={day}
-                            className={`p-2 rounded border-2 border-transparent transition-all duration-200 min-w-[200px] min-h-[160px] flex-shrink-0 ${
+                            className={`p-2 rounded border-2 border-transparent transition-all duration-200 min-w-[200px] min-h-[300px] flex-shrink-0 ${
                               isDragOver 
                                 ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300' 
                                 : isToday 
@@ -1652,7 +1684,7 @@ export default function CalendarPage() {
                                   const isEditingTime = editingTimePostIds.has(post.id);
                                   const isMoving = movingPostId === post.id;
                                   return (
-                                    <div key={idx} className="flex-1 w-[260px] min-h-[390px]">
+                                    <div key={idx} className="flex-1 w-[260px] min-h-[300px]">
                                   {editingPostId === post.id ? (
                                     <div className="relative">
                                       {/* Time input overlay */}
@@ -2138,8 +2170,16 @@ export default function CalendarPage() {
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow">
+                <MonthViewCalendar 
+                  posts={Object.values(scheduledPosts).flat()} 
+                  loading={isLoadingScheduledPosts}
+                />
+              </div>
+            )}
           </div>
           
           
