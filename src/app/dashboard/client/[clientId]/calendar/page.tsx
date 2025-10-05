@@ -1577,33 +1577,6 @@ export default function CalendarPage() {
           </div>
         </div>
 
-            {/* Delete Button - Above Calendar */}
-            {selectedPosts.size > 0 && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg mb-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-sm text-red-700 font-medium">
-                      {selectedPosts.size} post{selectedPosts.size > 1 ? 's' : ''} selected for deletion
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={handleDeleteSelectedPosts}
-                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm rounded flex items-center"
-                    >
-                      <X className="w-4 h-4 mr-2" />
-                      Delete {selectedPosts.size} Post{selectedPosts.size > 1 ? 's' : ''}
-                    </button>
-                    <button
-                      onClick={handleDeselectAllPosts}
-                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             <div className="p-4 space-y-4">
             <div className="">
