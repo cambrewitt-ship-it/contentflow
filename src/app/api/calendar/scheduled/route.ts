@@ -219,6 +219,46 @@ export async function PATCH(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const { postId, scheduledDate, clientId } = await request.json();
+    
+    if (!postId || !scheduledDate || !clientId) {
+      return NextResponse.json({ 
+        error: 'Missing required fields: postId, scheduledDate, clientId' 
+      }, { status: 400 });
+    }
+    
+    console.log(`🔄 Updating post ${postId} date to ${scheduledDate} for client ${clientId}`);
+    
+    const { data, error } = await supabase
+      .from('calendar_scheduled_posts')
+      .update({ 
+        scheduled_date: scheduledDate,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', postId)
+      .eq('client_id', clientId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error updating post date:', error);
+      throw error;
+    }
+    
+    console.log('✅ Successfully updated post date');
+    return NextResponse.json({ success: true, post: data });
+    
+  } catch (error) {
+    console.error('PUT error:', error);
+    return NextResponse.json({ 
+      error: 'Failed to update post date',
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const { postId } = await request.json();

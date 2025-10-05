@@ -14,9 +14,10 @@ interface Post {
 interface MonthViewCalendarProps {
   posts: Post[];
   loading?: boolean;
+  onDateClick?: (date: Date) => void;
 }
 
-export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarProps) {
+export function MonthViewCalendar({ posts, loading = false, onDateClick }: MonthViewCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
 
   const monthNames = [
@@ -99,6 +100,36 @@ export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarP
     }
   }
 
+  // Get border color for a day based on post statuses
+  const getDayBorderColor = (day: number | null) => {
+    if (!day) return ''
+    
+    const dayPosts = getPostsForDay(day)
+    if (dayPosts.length === 0) return ''
+    
+    // Determine the most critical status for the day
+    const statuses = dayPosts.map(post => post.approval_status)
+    
+    // Priority order: rejected > needs_attention > pending > draft > approved
+    if (statuses.includes('rejected')) {
+      return 'border-red-500 border-2 rounded-3xl'
+    }
+    if (statuses.includes('needs_attention')) {
+      return 'border-orange-500 border-2 rounded-3xl'
+    }
+    if (statuses.includes('pending')) {
+      return 'border-yellow-500 border-2 rounded-3xl'
+    }
+    if (statuses.includes('draft')) {
+      return 'border-gray-500 border-2 rounded-3xl'
+    }
+    if (statuses.includes('approved')) {
+      return 'border-green-500 border-2 rounded-3xl'
+    }
+    
+    return ''
+  }
+
   // Check if a day is today
   const isToday = (day: number | null) => {
     if (!day) return false
@@ -164,37 +195,10 @@ export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarP
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-      {/* Top Navigation Bar */}
-      <div className="flex items-center justify-between px-6 pt-4 pb-2 border-b border-gray-200">
-        <div className="flex items-center space-x-4">
-          <Calendar className="w-5 h-5 text-gray-600" />
-          <div className="flex items-center space-x-1">
-            <button className="px-3 py-1 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
-              Day
-            </button>
-            <button className="px-3 py-1 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
-              Week
-            </button>
-            <button className="px-3 py-1 text-sm font-medium text-gray-900 bg-gray-100 rounded">
-              Month
-            </button>
-            <button className="px-3 py-1 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
-              Year
-            </button>
-          </div>
-        </div>
-        <div className="flex items-center space-x-2">
-          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </button>
-        </div>
-      </div>
 
       {/* Calendar Header */}
       <div className="flex items-center justify-between mb-6 px-6 pt-6">
-        <h2 className="text-3xl font-bold text-gray-900">
+        <h2 className="text-5xl font-bold text-gray-800">
           {monthNames[calendarData.month]} {calendarData.year}
         </h2>
         <div className="flex items-center space-x-1">
@@ -209,7 +213,7 @@ export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarP
             onClick={goToToday}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
           >
-            Today
+            {monthNames[calendarData.month]} {calendarData.year}
           </button>
           <button
             onClick={nextMonth}
@@ -239,25 +243,34 @@ export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarP
           const dayPosts = getPostsForDay(day)
           const today = isToday(day)
           const inCurrentWeek = isInCurrentWeek(day)
+          const borderColor = getDayBorderColor(day)
           
           return (
             <div
               key={index}
               className={`
                 relative min-h-[120px] p-3 border border-gray-200 transition-all
-                ${day ? 'hover:bg-gray-50 cursor-pointer' : 'bg-gray-50'}
+                ${day ? 'hover:bg-blue-50 hover:border-blue-300 cursor-pointer' : 'bg-gray-50'}
                 ${today ? 'bg-white' : ''}
+                ${borderColor}
               `}
+              title={day ? 'Click to view week' : ''}
+              onClick={() => {
+                if (day && onDateClick) {
+                  const clickedDate = new Date(calendarData.year, calendarData.month, day);
+                  onDateClick(clickedDate);
+                }
+              }}
             >
               {day && (
                 <>
                   {/* Day Number */}
                   <div className={`
                     text-lg font-medium mb-2
-                    ${today ? 'text-red-600' : 'text-gray-900'}
+                    ${today ? 'text-blue-600' : 'text-gray-900'}
                   `}>
                     {today ? (
-                      <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center text-sm font-bold">
+                      <div className="w-8 h-8 border-2 border-blue-500 rounded-3xl bg-white text-blue-600 flex items-center justify-center text-sm font-bold">
                         {day}
                       </div>
                     ) : (
@@ -265,27 +278,51 @@ export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarP
                     )}
                   </div>
                   
-                  {/* Event Indicators */}
+                  {/* Event Indicators - Photo Thumbnails */}
                   {dayPosts.length > 0 && (
                     <div className="space-y-1">
-                      {dayPosts.slice(0, 3).map((post, idx) => (
-                        <div
-                          key={post.id}
-                          className="flex items-center space-x-2 bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-medium"
-                        >
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                          <span className="truncate">
-                            {post.caption ? post.caption.substring(0, 20) + '...' : 'Post'}
-                          </span>
-                        </div>
-                      ))}
-                      {dayPosts.length > 3 && (
-                        <div className="text-xs text-gray-500 font-medium">
-                          +{dayPosts.length - 3} more
-                        </div>
-                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {dayPosts.slice(0, 4).map((post, idx) => (
+                          <div
+                            key={post.id}
+                            className="relative w-8 h-8 rounded border border-gray-200 overflow-hidden"
+                          >
+                            {post.image_url ? (
+                              <img
+                                src={post.image_url}
+                                alt={post.caption ? post.caption.substring(0, 20) : 'Post'}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  // Fallback to a placeholder if image fails to load
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    parent.innerHTML = `
+                                      <div class="w-full h-full bg-gray-200 flex items-center justify-center">
+                                        <svg class="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                          <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"/>
+                                        </svg>
+                                      </div>
+                                    `;
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                                <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"/>
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {dayPosts.length > 4 && (
+                          <div className="w-8 h-8 bg-gray-100 border border-gray-200 rounded flex items-center justify-center text-xs text-gray-500 font-medium">
+                            +{dayPosts.length - 4}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </>

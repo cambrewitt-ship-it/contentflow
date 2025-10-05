@@ -363,6 +363,26 @@ export default function CalendarPage() {
     return monday;
   };
 
+  // Calculate week offset for a given date
+  const getWeekOffsetForDate = (date: Date) => {
+    const nzDate = new Date(date.toLocaleString("en-US", {timeZone: "Pacific/Auckland"}));
+    const currentWeekStart = getStartOfWeek(0);
+    
+    // Calculate the difference in days
+    const diffTime = nzDate.getTime() - currentWeekStart.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Calculate week offset (positive for future weeks, negative for past weeks)
+    return Math.floor(diffDays / 7);
+  };
+
+  // Handle date click from month view
+  const handleDateClick = (date: Date) => {
+    const weekOffset = getWeekOffsetForDate(date);
+    setWeekOffset(weekOffset);
+    setViewMode('week');
+  };
+
   // Fetch projects for the client
   const fetchProjects = useCallback(async () => {
     try {
@@ -521,6 +541,97 @@ export default function CalendarPage() {
     const hour12 = hours % 12 || 12;
     
     return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  // Helper function to get available dates for the dropdown (next 30 days)
+  const getAvailableDates = () => {
+    const dates = [];
+    const today = new Date();
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      dates.push(date.toLocaleDateString('en-CA'));
+    }
+    return dates;
+  };
+
+  // Helper function to handle date changes
+  const handleDateChange = async (post: Post, newDate: string) => {
+    try {
+      // Add to moving state
+      setMovingPostId(post.id);
+      
+      console.log('Moving post to new date:', newDate);
+      
+      // Optimistic update - move the post immediately in local state
+      const oldDate = post.scheduled_date;
+      if (oldDate && scheduledPosts[oldDate]) {
+        setScheduledPosts(prev => {
+          const newPosts = { ...prev };
+          
+          // Remove from old date
+          newPosts[oldDate] = newPosts[oldDate].filter(p => p.id !== post.id);
+          
+          // Add to new date
+          if (!newPosts[newDate]) {
+            newPosts[newDate] = [];
+          }
+          newPosts[newDate] = [...newPosts[newDate], {
+            ...post,
+            scheduled_date: newDate
+          }];
+          
+          return newPosts;
+        });
+      }
+      
+      // Update in database
+      const response = await fetch('/api/calendar/scheduled', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          postId: post.id,
+          scheduledDate: newDate,
+          clientId: clientId
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update post date');
+      }
+      
+      console.log('Successfully updated post date');
+      
+    } catch (error) {
+      console.error('Error updating post date:', error);
+      
+      // Revert optimistic update on error
+      const oldDate = post.scheduled_date;
+      if (oldDate && scheduledPosts[oldDate]) {
+        setScheduledPosts(prev => {
+          const newPosts = { ...prev };
+          
+          // Remove from new date
+          if (newPosts[newDate]) {
+            newPosts[newDate] = newPosts[newDate].filter(p => p.id !== post.id);
+          }
+          
+          // Add back to old date
+          if (!newPosts[oldDate]) {
+            newPosts[oldDate] = [];
+          }
+          newPosts[oldDate] = [...newPosts[oldDate], post];
+          
+          return newPosts;
+        });
+      }
+      
+      alert('Failed to update post date. Please try again.');
+    } finally {
+      setMovingPostId(null);
+    }
   };
 
   const handleEditScheduledPost = async (post: Post, newTime: string) => {
@@ -1771,21 +1882,49 @@ export default function CalendarPage() {
                                                       </div>
                                                     </div>
                                                     <div>
-                                                      <h4 className="font-semibold text-xs text-gray-700">
-                                                        {day} {dayDate.getDate()}
-                                                      </h4>
-                                                      <p className="text-xs text-gray-600">
-                                                        <span 
-                                                          className="cursor-pointer hover:text-gray-800"
-                                                          onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setEditingPostId(post.id);
-                                                          }}
-                                                          title="Click to edit time"
-                                                        >
-                                                          {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                                        </span>
-                                                      </p>
+                                                      <select
+                                                        value={dayDate.toLocaleDateString('en-CA')}
+                                                        onChange={(e) => {
+                                                          e.stopPropagation();
+                                                          handleDateChange(post, e.target.value);
+                                                        }}
+                                                        className="font-semibold text-xs text-gray-700 bg-transparent border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                                                        title="Click to change date"
+                                                      >
+                                                        {getAvailableDates().map(date => {
+                                                          const dateObj = new Date(date);
+                                                          const dayName = dateObj.toLocaleDateString('en-NZ', { weekday: 'short' });
+                                                          const dayNum = dateObj.getDate();
+                                                          return (
+                                                            <option key={date} value={date}>
+                                                              {dayName} {dayNum}
+                                                            </option>
+                                                          );
+                                                        })}
+                                                      </select>
+                                                      <input
+                                                        type="text"
+                                                        value={post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                                        className="text-xs text-gray-600 bg-transparent border border-gray-300 rounded px-1 py-0.5 w-16 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          setEditingPostId(post.id);
+                                                        }}
+                                                        onKeyDown={(e) => {
+                                                          if (e.key === 'Enter') {
+                                                            handleEditScheduledPost(post, e.currentTarget.value);
+                                                            setEditingPostId(null);
+                                                          }
+                                                          if (e.key === 'Escape') {
+                                                            setEditingPostId(null);
+                                                          }
+                                                        }}
+                                                        onBlur={(e) => {
+                                                          handleEditScheduledPost(post, e.target.value);
+                                                          setEditingPostId(null);
+                                                        }}
+                                                        title="Click to edit time"
+                                                      />
                                                     </div>
                                                   </div>
                                                   
@@ -1954,21 +2093,49 @@ export default function CalendarPage() {
                                                 </div>
                                               </div>
                                               <div>
-                                                <h4 className="font-semibold text-xs text-gray-700">
-                                                  {day} {dayDate.getDate()}
-                                                </h4>
-                                                <p className="text-xs text-gray-600">
-                                                  <span 
-                                                    className="cursor-pointer hover:text-gray-800"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setEditingPostId(post.id);
-                                                    }}
-                                                    title="Click to edit time"
-                                                  >
-                                                    {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                                  </span>
-                                                </p>
+                                                <select
+                                                  value={post.scheduled_date || dayDate.toLocaleDateString('en-CA')}
+                                                  onChange={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDateChange(post, e.target.value);
+                                                  }}
+                                                  className="font-semibold text-xs text-gray-700 bg-transparent border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                                                  title="Click to change date"
+                                                >
+                                                  {getAvailableDates().map(date => {
+                                                    const dateObj = new Date(date);
+                                                    const dayName = dateObj.toLocaleDateString('en-NZ', { weekday: 'short' });
+                                                    const dayNum = dateObj.getDate();
+                                                    return (
+                                                      <option key={date} value={date}>
+                                                        {dayName} {dayNum}
+                                                      </option>
+                                                    );
+                                                  })}
+                                                </select>
+                                                <input
+                                                  type="text"
+                                                  value={post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                                  className="text-xs text-gray-600 bg-transparent border border-gray-300 rounded px-1 py-0.5 w-16 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mt-1"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingPostId(post.id);
+                                                  }}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                      handleEditScheduledPost(post, e.currentTarget.value);
+                                                      setEditingPostId(null);
+                                                    }
+                                                    if (e.key === 'Escape') {
+                                                      setEditingPostId(null);
+                                                    }
+                                                  }}
+                                                  onBlur={(e) => {
+                                                    handleEditScheduledPost(post, e.target.value);
+                                                    setEditingPostId(null);
+                                                  }}
+                                                  title="Click to edit time"
+                                                />
                                               </div>
                                             </div>
                                             
@@ -2177,6 +2344,7 @@ export default function CalendarPage() {
                 <MonthViewCalendar 
                   posts={Object.values(scheduledPosts).flat()} 
                   loading={isLoadingScheduledPosts}
+                  onDateClick={handleDateClick}
                 />
               </div>
             )}

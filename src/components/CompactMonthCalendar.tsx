@@ -92,6 +92,36 @@ export function CompactMonthCalendar({ posts, loading = false }: CompactMonthCal
     )
   }
 
+  // Get border color for a day based on post statuses
+  const getDayBorderColor = (day: number | null) => {
+    if (!day) return ''
+    
+    const dayPosts = getPostsForDay(day)
+    if (dayPosts.length === 0) return ''
+    
+    // Determine the most critical status for the day
+    const statuses = dayPosts.map(post => post.approval_status)
+    
+    // Priority order: rejected > needs_attention > pending > draft > approved
+    if (statuses.includes('rejected')) {
+      return 'border-red-500 border-2 rounded-3xl'
+    }
+    if (statuses.includes('needs_attention')) {
+      return 'border-orange-500 border-2 rounded-3xl'
+    }
+    if (statuses.includes('pending')) {
+      return 'border-gray-500 border-2 rounded-3xl'
+    }
+    if (statuses.includes('draft')) {
+      return 'border-gray-500 border-2 rounded-3xl'
+    }
+    if (statuses.includes('approved')) {
+      return 'border-green-500 border-2 rounded-3xl'
+    }
+    
+    return ''
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -105,7 +135,7 @@ export function CompactMonthCalendar({ posts, loading = false }: CompactMonthCal
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       {/* Month Header */}
       <div className="text-center mb-6">
-        <h3 className="text-2xl font-bold text-red-600 uppercase tracking-wide">
+        <h3 className="text-5xl font-bold text-gray-400 uppercase tracking-wide">
           {monthNames[calendarData.month]}
         </h3>
       </div>
@@ -115,7 +145,7 @@ export function CompactMonthCalendar({ posts, loading = false }: CompactMonthCal
         {daysOfWeek.map((day, index) => (
           <div
             key={index}
-            className="text-center text-sm font-bold text-gray-800 py-2"
+            className="text-center text-base font-bold text-gray-800 py-2"
           >
             {day}
           </div>
@@ -127,14 +157,16 @@ export function CompactMonthCalendar({ posts, loading = false }: CompactMonthCal
         {calendarData.days.map((day, index) => {
           const dayPosts = getPostsForDay(day)
           const today = isToday(day)
+          const borderColor = getDayBorderColor(day)
           
           return (
             <div
               key={index}
               className={`
-                relative aspect-square flex items-center justify-center text-lg font-bold transition-all
+                relative aspect-square flex items-center justify-center text-xl font-bold transition-all
                 ${day ? 'text-gray-800 hover:bg-gray-50 cursor-pointer' : 'text-transparent'}
-                ${today ? 'bg-red-600 text-white rounded-full' : ''}
+                ${today ? 'bg-blue-500/50 border-2 border-blue-600 text-white rounded-3xl shadow-lg shadow-blue-300' : ''}
+                ${borderColor}
               `}
             >
               {day && (

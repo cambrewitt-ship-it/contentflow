@@ -1,5 +1,5 @@
 "use client";
-import { User, Plus, Settings, LogOut } from "lucide-react";
+import { User, Plus, Settings, LogOut, PenTool, Calendar, ArrowRight } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import Link from "next/link";
@@ -198,19 +198,8 @@ export default function Dashboard() {
               return firstName;
             })()}!
           </h1>
-          <div className="mt-8">
-            <div className="inline-block bg-gradient-to-r from-purple-600 to-purple-700 opacity-90 px-6 h-10 rounded-lg flex items-center justify-center">
-              <div className="flex items-center justify-center h-full">
-                <span className="text-lg text-white font-medium">
-                  Select a client to get started
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* Spacer to push clients section halfway down */}
-        <div className="h-[calc(30vh-210px)]"></div>
 
         {/* Clients Section */}
         <div className="mb-8">
@@ -245,14 +234,14 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
               {clients.map((client) => (
                 <Card 
                   key={client.id} 
-                  className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 flex flex-col h-full opacity-90"
+                  className="transition-all hover:shadow-lg flex flex-col h-full opacity-90"
                 >
-                  <Link href={`/dashboard/client/${client.id}`}>
-                    <CardHeader>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${
                           client.logo_url 
@@ -275,21 +264,57 @@ export default function Dashboard() {
                           </CardTitle>
                         </div>
                       </div>
-                    </CardHeader>
-                    <CardContent className="flex-1 flex flex-col justify-between">
-                      {client.company_description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                          {client.company_description}
-                        </p>
-                      )}
-                      <div className="flex items-center justify-between text-xs text-muted-foreground mt-auto">
-                        <span>Created {new Date(client.created_at).toLocaleDateString()}</span>
-                        <span className="text-blue-600 font-medium">
-                          View Details →
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Link>
+                      <Link href={`/dashboard/client/${client.id}`}>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="bg-white/80 backdrop-blur-sm border-gray-300 hover:bg-gray-50 flex items-center gap-1"
+                        >
+                          View Dashboard
+                          <ArrowRight className="w-3 h-3" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col justify-between">
+                    {client.company_description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+                        {client.company_description}
+                      </p>
+                    )}
+                    
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 mb-4">
+                      <Link 
+                        href={`/dashboard/client/${client.id}/content-suite`}
+                        className="flex-1"
+                      >
+                        <Button 
+                          className="w-full bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white font-bold shadow-md hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
+                          style={{ borderRadius: '8px', height: '40px' }}
+                        >
+                          <PenTool className="w-4 h-4" />
+                          <span className="text-sm">Create Content</span>
+                        </Button>
+                      </Link>
+                      <Link 
+                        href={`/dashboard/client/${client.id}/calendar`}
+                        className="flex-1"
+                      >
+                        <Button 
+                          className="w-full bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 hover:from-blue-600 hover:via-blue-700 hover:to-blue-800 text-white font-bold shadow-md hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
+                          style={{ borderRadius: '8px', height: '40px' }}
+                        >
+                          <Calendar className="w-4 h-4" />
+                          <span className="text-sm">Calendar</span>
+                        </Button>
+                      </Link>
+                    </div>
+                    
+                    <div className="text-xs text-muted-foreground mt-auto">
+                      <span>Created {new Date(client.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </CardContent>
                 </Card>
               ))}
             </div>
