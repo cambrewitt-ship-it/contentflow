@@ -7,7 +7,7 @@ import { Button } from 'components/ui/button'
 import { Plus, Edit3, Calendar, Trash2, Upload, X, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Image, File, RefreshCw, Loader2, Check, AlertTriangle, Minus } from 'lucide-react'
 import Link from 'next/link'
 import BrandInformationPanel from 'components/BrandInformationPanel'
-import { MonthViewCalendar } from 'components/MonthViewCalendar'
+import { CompactMonthCalendar } from 'components/CompactMonthCalendar'
 import { useAuth } from 'contexts/AuthContext'
 import { Client, BrandDocument, WebsiteScrape, OAuthMessage } from 'types/api'
 import { 
@@ -1201,8 +1201,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                 </div>
                 
                 {/* Month Calendar */}
-                <div className="-mx-6 -mb-6">
-                  <MonthViewCalendar 
+                <div className="mt-6">
+                  <CompactMonthCalendar 
                     posts={scheduledPosts} 
                     loading={scheduledPostsLoading}
                   />

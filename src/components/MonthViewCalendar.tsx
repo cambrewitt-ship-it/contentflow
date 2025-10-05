@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { useState, useMemo } from 'react'
 
 interface Post {
@@ -24,7 +24,7 @@ export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarP
     'July', 'August', 'September', 'October', 'November', 'December'
   ]
 
-  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
   // Get calendar data for current month
   const calendarData = useMemo(() => {
@@ -33,7 +33,8 @@ export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarP
     
     // First day of the month
     const firstDay = new Date(year, month, 1)
-    const firstDayOfWeek = firstDay.getDay()
+    // Convert Sunday (0) to Monday (0) start
+    const firstDayOfWeek = (firstDay.getDay() + 6) % 7
     
     // Last day of the month
     const lastDay = new Date(year, month + 1, 0)
@@ -162,42 +163,70 @@ export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarP
   }
 
   return (
-    <>
-      {/* Calendar Header */}
-      <div className="flex items-center justify-between mb-4 px-6">
-        <h3 className="text-lg font-bold text-gray-800">
-          {monthNames[calendarData.month]} {calendarData.year}
-        </h3>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+      {/* Top Navigation Bar */}
+      <div className="flex items-center justify-between px-6 pt-4 pb-2 border-b border-gray-200">
+        <div className="flex items-center space-x-4">
+          <Calendar className="w-5 h-5 text-gray-600" />
+          <div className="flex items-center space-x-1">
+            <button className="px-3 py-1 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
+              Day
+            </button>
+            <button className="px-3 py-1 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
+              Week
+            </button>
+            <button className="px-3 py-1 text-sm font-medium text-gray-900 bg-gray-100 rounded">
+              Month
+            </button>
+            <button className="px-3 py-1 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
+              Year
+            </button>
+          </div>
+        </div>
         <div className="flex items-center space-x-2">
+          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Calendar Header */}
+      <div className="flex items-center justify-between mb-6 px-6 pt-6">
+        <h2 className="text-3xl font-bold text-gray-900">
+          {monthNames[calendarData.month]} {calendarData.year}
+        </h2>
+        <div className="flex items-center space-x-1">
           <button
             onClick={previousMonth}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-all hover:shadow-sm"
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
             title="Previous month"
           >
-            <ChevronLeft className="w-4 h-4 text-gray-700" />
+            <ChevronLeft className="w-5 h-5 text-gray-600" />
           </button>
           <button
             onClick={goToToday}
-            className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-all shadow-sm hover:shadow-md"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
           >
             Today
           </button>
           <button
             onClick={nextMonth}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-all hover:shadow-sm"
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
             title="Next month"
           >
-            <ChevronRight className="w-4 h-4 text-gray-700" />
+            <ChevronRight className="w-5 h-5 text-gray-600" />
           </button>
         </div>
       </div>
 
       {/* Days of Week Header */}
-      <div className="grid grid-cols-7 gap-1.5 mb-2 px-6">
+      <div className="grid grid-cols-7 gap-px mb-2 px-6">
         {daysOfWeek.map(day => (
           <div
             key={day}
-            className="text-center text-xs font-bold text-gray-700 py-1"
+            className="text-center text-sm font-medium text-gray-600 py-3"
           >
             {day}
           </div>
@@ -205,7 +234,7 @@ export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarP
       </div>
 
       {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-1.5 px-6 pb-4">
+      <div className="grid grid-cols-7 gap-px px-6 pb-6">
         {calendarData.days.map((day, index) => {
           const dayPosts = getPostsForDay(day)
           const today = isToday(day)
@@ -215,54 +244,46 @@ export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarP
             <div
               key={index}
               className={`
-                relative min-h-[50px] p-2 border-2 rounded-lg transition-all
-                ${day ? 'hover:bg-gray-50 hover:border-gray-400 hover:shadow-md cursor-pointer' : 'bg-gray-50 border-transparent'}
-                ${today ? 'bg-blue-100 border-blue-500 shadow-md ring-2 ring-blue-200' : inCurrentWeek ? 'bg-blue-50 border-blue-200' : 'border-gray-200'}
+                relative min-h-[120px] p-3 border border-gray-200 transition-all
+                ${day ? 'hover:bg-gray-50 cursor-pointer' : 'bg-gray-50'}
+                ${today ? 'bg-white' : ''}
               `}
             >
               {day && (
                 <>
                   {/* Day Number */}
                   <div className={`
-                    text-sm font-bold mb-1
-                    ${today ? 'text-blue-700' : 'text-gray-800'}
+                    text-lg font-medium mb-2
+                    ${today ? 'text-red-600' : 'text-gray-900'}
                   `}>
-                    {day}
+                    {today ? (
+                      <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center text-sm font-bold">
+                        {day}
+                      </div>
+                    ) : (
+                      day
+                    )}
                   </div>
                   
-                  {/* Post Thumbnails */}
+                  {/* Event Indicators */}
                   {dayPosts.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {dayPosts.slice(0, 4).map((post, idx) => (
+                    <div className="space-y-1">
+                      {dayPosts.slice(0, 3).map((post, idx) => (
                         <div
                           key={post.id}
-                          className="relative group"
+                          className="flex items-center space-x-2 bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs font-medium"
                         >
-                          <div className="w-6 h-6 rounded border-2 overflow-hidden shadow-sm">
-                            {post.image_url ? (
-                              <img
-                                src={post.image_url}
-                                alt={post.caption || 'Post'}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.src = '/api/placeholder/24/24';
-                                }}
-                              />
-                            ) : (
-                              <div className={`w-full h-full ${getStatusColor(post.approval_status)} flex items-center justify-center`}>
-                                <div className="w-2 h-2 rounded-full bg-white"></div>
-                              </div>
-                            )}
-                          </div>
-                          {/* Status indicator */}
-                          <div className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-white ${getStatusColor(post.approval_status)}`}></div>
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          <span className="truncate">
+                            {post.caption ? post.caption.substring(0, 20) + '...' : 'Post'}
+                          </span>
                         </div>
                       ))}
-                      {dayPosts.length > 4 && (
-                        <div className="w-6 h-6 rounded border-2 border-gray-300 bg-gray-100 flex items-center justify-center">
-                          <div className="text-[8px] text-gray-600 font-bold">
-                            +{dayPosts.length - 4}
-                          </div>
+                      {dayPosts.length > 3 && (
+                        <div className="text-xs text-gray-500 font-medium">
+                          +{dayPosts.length - 3} more
                         </div>
                       )}
                     </div>
@@ -273,29 +294,7 @@ export function MonthViewCalendar({ posts, loading = false }: MonthViewCalendarP
           )
         })}
       </div>
-
-      {/* Legend - Compact Bottom Section */}
-      <div className="px-6 pb-4 pt-3 border-t border-gray-200">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center space-x-1.5">
-            <div className="w-3 h-3 rounded-full bg-green-500 shadow-sm"></div>
-            <span className="text-[10px] font-semibold text-gray-700">Approved</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <div className="w-3 h-3 rounded-full bg-yellow-500 shadow-sm"></div>
-            <span className="text-[10px] font-semibold text-gray-700">Pending</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <div className="w-3 h-3 rounded-full bg-orange-500 shadow-sm"></div>
-            <span className="text-[10px] font-semibold text-gray-700">Needs Attention</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <div className="w-3 h-3 rounded-full bg-red-500 shadow-sm"></div>
-            <span className="text-[10px] font-semibold text-gray-700">Rejected</span>
-          </div>
-        </div>
-      </div>
-    </>
+    </div>
   )
 }
 
