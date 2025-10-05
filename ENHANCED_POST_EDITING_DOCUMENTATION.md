@@ -26,7 +26,7 @@ The enhanced post editing system provides robust handling of real-world editing 
 
 ### 4. **Approval Workflow Enhancement**
 - ✅ Automatic reapproval marking when content changes
-- ✅ Approval status indicators in planner
+- ✅ Approval status indicators in calendar
 - ✅ Notification system integration (ready for implementation)
 
 ### 5. **Error Recovery**

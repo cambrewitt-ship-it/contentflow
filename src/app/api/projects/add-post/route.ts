@@ -59,7 +59,7 @@ export async function POST(request: Request) {
       console.log('✅ Valid image URL detected:', validation.type);
     }
     
-    // Insert into calendar_unscheduled_posts (not planner_posts)
+    // Insert into calendar_unscheduled_posts
     console.log('💾 Inserting into calendar_unscheduled_posts table...');
     
     // Get the user ID from the request headers (passed from the frontend)

@@ -1,8 +1,8 @@
-# Planner Edit Button Implementation
+# Calendar Edit Button Implementation
 
 ## Overview
 
-Successfully implemented "Edit in Content Suite" buttons in the project planner for both scheduled and unscheduled posts. This creates a seamless workflow for users to edit posts directly from the planner using the full content suite functionality.
+Successfully implemented "Edit in Content Suite" buttons in the project calendar for both scheduled and unscheduled posts. This creates a seamless workflow for users to edit posts directly from the calendar using the full content suite functionality.
 
 ## ✅ Features Implemented
 
@@ -34,7 +34,7 @@ Successfully implemented "Edit in Content Suite" buttons in the project planner 
 
 ### **Scheduled Posts Workflow**
 ```
-1. User sees scheduled post in planner calendar
+1. User sees scheduled post in calendar
 2. Post shows status indicators (scheduled, published, failed, etc.)
 3. "Edit in Content Suite" button visible for unpublished posts
 4. Click opens content suite in new tab with post pre-populated
@@ -54,7 +54,7 @@ Successfully implemented "Edit in Content Suite" buttons in the project planner 
 ## 🔧 Technical Implementation
 
 ### **Files Modified**
-- **`src/app/dashboard/client/[clientId]/planner/page.tsx`**
+- **`src/app/dashboard/client/[clientId]/calendar/page.tsx`**
   - Added edit button to scheduled posts section
   - Added edit button to unscheduled posts section
   - Added post actions section with status indicators
@@ -112,7 +112,7 @@ className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex it
 ## 📊 Benefits
 
 ### **1. Seamless Workflow**
-- Users can edit posts without leaving the planner context
+- Users can edit posts without leaving the calendar context
 - Full content suite functionality available for existing posts
 - No data loss or context switching issues
 
@@ -129,16 +129,16 @@ className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex it
 ### **4. User Experience**
 - Familiar editing interface
 - Clear visual feedback
-- Smooth transitions between planner and content suite
+- Smooth transitions between calendar and content suite
 
 ## 🔄 Integration Points
 
 ### **Content Suite Integration**
 - URL parameter handling for post identification
 - Automatic form pre-population
-- Seamless data flow between planner and content suite
+- Seamless data flow between calendar and content suite
 
-### **Planner Integration**
+### **Calendar Integration**
 - Maintains existing drag-and-drop functionality
 - Preserves post selection and bulk operations
 - Consistent with existing UI patterns
@@ -156,7 +156,7 @@ className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex it
 // Opens: /dashboard/client/123/content-suite?editPostId=456
 // Content suite loads post data and pre-populates form
 // User edits and saves
-// Post updates in planner automatically
+// Post updates in calendar automatically
 ```
 
 ### **Unscheduled Post Editing**
@@ -165,15 +165,15 @@ className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex it
 // Opens: /dashboard/client/123/content-suite?editPostId=789
 // Content suite loads post data and pre-populates form
 // User edits and saves
-// Post updates in planner automatically
+// Post updates in calendar automatically
 ```
 
 ## 🎯 Future Enhancements
 
 1. **Bulk Editing**: Select multiple posts and edit together
 2. **Quick Edit**: Inline editing for simple changes
-3. **Edit History**: Track changes made through planner
+3. **Edit History**: Track changes made through calendar
 4. **Keyboard Shortcuts**: Quick access to edit functionality
 5. **Mobile Optimization**: Touch-friendly edit buttons
 
-The implementation provides a complete editing workflow that seamlessly integrates the planner and content suite, giving users full access to content creation tools for both new and existing posts while maintaining a smooth and intuitive user experience.
+The implementation provides a complete editing workflow that seamlessly integrates the calendar and content suite, giving users full access to content creation tools for both new and existing posts while maintaining a smooth and intuitive user experience.

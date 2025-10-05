@@ -11,7 +11,7 @@ Convert all base64 images to Vercel Blob URLs, which are short, efficient, and w
 ### 1. Migration API (`src/app/api/migrate-base64-to-blob/route.ts`)
 - Converts base64 images to Vercel Blob URLs
 - Supports dry run mode for testing
-- Processes all relevant tables: `planner_unscheduled_posts`, `planner_scheduled_posts`, `scheduled_posts`
+- Processes all relevant tables: `calendar_unscheduled_posts`, `calendar_scheduled_posts`, `scheduled_posts`
 - Includes rate limiting and error handling
 
 ### 2. Admin Page (`src/app/admin/migrate-images/page.tsx`)

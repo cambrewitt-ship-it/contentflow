@@ -72,9 +72,9 @@ export async function PUT(
       .eq('id', postId)
       .single();
     
-    // If not found in posts table, check planner tables
+    // If not found in posts table, check calendar tables
     if (fetchError && fetchError.code === 'PGRST116') {
-      console.log('🔍 Post not found in posts table, checking planner tables...');
+      console.log('🔍 Post not found in posts table, checking calendar tables...');
       
       // Check calendar_scheduled_posts
       const { data: scheduledPost, error: scheduledError } = await supabase
@@ -130,9 +130,9 @@ export async function PUT(
     }
     
     // 1. POST STATUS VALIDATION
-    // Check if post has a status field (main posts table) or if it's in planner tables
+    // Check if post has a status field (main posts table) or if it's in calendar tables
     const hasStatusField = currentPost.status !== undefined;
-    const isPlannerPost = currentPost.scheduled_date !== undefined || currentPost.project_id !== undefined;
+    const isCalendarPost = currentPost.scheduled_date !== undefined || currentPost.project_id !== undefined;
     
     if (hasStatusField && !['draft', 'ready', 'scheduled'].includes(currentPost.status)) {
       const statusMessages = {
@@ -150,9 +150,9 @@ export async function PUT(
       );
     }
     
-    // For planner posts, we allow editing by default since they don't have restrictive status values
-    if (isPlannerPost) {
-      console.log('✅ Planner post - allowing edit (no status restrictions)');
+    // For calendar posts, we allow editing by default since they don't have restrictive status values
+    if (isCalendarPost) {
+      console.log('✅ Calendar post - allowing edit (no status restrictions)');
     }
     
     // 2. CONCURRENT EDITING PREVENTION
@@ -271,8 +271,8 @@ export async function PUT(
       updateData.edit_reason = edit_reason;
     }
     
-    // Only add media_type and media_alt_text for main posts table, not planner tables
-    if (!isPlannerPost) {
+    // Only add media_type and media_alt_text for main posts table, not calendar tables
+    if (!isCalendarPost) {
       if (media_type !== undefined) {
         updateData.media_type = media_type;
       }
@@ -281,7 +281,7 @@ export async function PUT(
       }
       console.log('📝 Main posts table - including media_type and media_alt_text');
     } else {
-      console.log('📝 Planner post - skipping media_type and media_alt_text (not supported)');
+      console.log('📝 Calendar post - skipping media_type and media_alt_text (not supported)');
     }
     
     // AI generation settings (store as JSONB)
@@ -423,9 +423,9 @@ export async function GET(
       .eq('id', postId)
       .single();
     
-    // If not found in posts table, check planner tables
+    // If not found in posts table, check calendar tables
     if (error && error.code === 'PGRST116') {
-      console.log('🔍 Post not found in posts table, checking planner tables...');
+      console.log('🔍 Post not found in posts table, checking calendar tables...');
       
       // Check calendar_scheduled_posts
       const { data: scheduledPost, error: scheduledError } = await supabase

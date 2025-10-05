@@ -54,7 +54,7 @@ export async function POST(
     // Ensure image_url is preserved when moving from unscheduled to scheduled
     const scheduledPostData = {
       project_id: projectId,
-      planner_unscheduled_post_id: body.unscheduledPostId,
+      calendar_unscheduled_post_id: body.unscheduledPostId,
       post_data: body.postData,
       scheduled_date: body.scheduledDate,
       scheduled_time: body.scheduledTime,

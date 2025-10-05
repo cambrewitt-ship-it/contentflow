@@ -14,7 +14,7 @@ Successfully implemented post editing functionality in the content suite that al
 ### 2. **Post Data Fetching**
 - ✅ Fetches existing post data via `GET /api/posts/[postId]`
 - ✅ Handles errors gracefully with user feedback
-- ✅ Redirects to planner on fetch errors
+- ✅ Redirects to calendar on fetch errors
 
 ### 3. **Form Pre-population**
 - ✅ Pre-populates caption field with existing post caption
@@ -24,7 +24,7 @@ Successfully implemented post editing functionality in the content suite that al
 
 ### 4. **Enhanced UI Elements**
 - ✅ **Edit Banner**: Blue banner indicating editing mode with warning about reapproval
-- ✅ **Cancel Edit Button**: Returns to planner without saving changes
+- ✅ **Cancel Edit Button**: Returns to calendar without saving changes
 - ✅ **Updated Submit Button**: Changes from "Create Post" to "Update Post"
 - ✅ **Loading States**: Shows loading spinner while fetching post data
 - ✅ **Header Updates**: Changes title and description for editing mode
@@ -36,12 +36,12 @@ Successfully implemented post editing functionality in the content suite that al
 - ✅ **Reapproval Logic**: Automatically marks for reapproval when content changes
 
 ### 6. **Redirect Logic**
-- ✅ **Success Redirect**: Returns to planner with success message
+- ✅ **Success Redirect**: Returns to calendar with success message
 - ✅ **Project Context**: Maintains project context in redirect
 - ✅ **Error Handling**: Graceful error handling with user feedback
 
-### 7. **Planner Integration**
-- ✅ **Edit Button**: Added edit button to scheduled posts in planner
+### 7. **Calendar Integration**
+- ✅ **Edit Button**: Added edit button to scheduled posts in calendar
 - ✅ **New Tab Opening**: Opens content suite in new tab for editing
 - ✅ **Visual Indicator**: Clear edit icon with hover effects
 
@@ -62,7 +62,7 @@ Successfully implemented post editing functionality in the content suite that al
    - Updated submit button text and behavior
    - Added loading states for updating
 
-3. **`src/app/dashboard/client/[clientId]/planner/page.tsx`**
+3. **`src/app/dashboard/client/[clientId]/calendar/page.tsx`**
    - Added edit button to scheduled posts
    - Added click handler to open content suite
 
@@ -79,9 +79,9 @@ Successfully implemented post editing functionality in the content suite that al
 
 ## 🎯 User Workflow
 
-### 1. **Starting Edit from Planner**
+### 1. **Starting Edit from Calendar**
 ```
-1. User clicks edit button on scheduled post in planner
+1. User clicks edit button on scheduled post in calendar
 2. Content suite opens in new tab with ?editPostId=123
 3. Post data is fetched and form is pre-populated
 4. Edit banner appears with reapproval warning
@@ -102,20 +102,20 @@ Successfully implemented post editing functionality in the content suite that al
 2. Enhanced validation runs (platform-specific)
 3. Post is updated via PUT API with audit logging
 4. Reapproval logic triggers if content changed
-5. User redirected back to planner with success message
+5. User redirected back to calendar with success message
 ```
 
 ### 4. **Canceling Edit**
 ```
 1. User clicks "Cancel Edit" button
-2. Returns to planner without saving changes
+2. Returns to calendar without saving changes
 3. No data is modified
 ```
 
 ## 🛡️ Error Handling
 
 ### **Fetch Errors**
-- Post not found → Alert + redirect to planner
+- Post not found → Alert + redirect to calendar
 - Network errors → Alert with error message
 - Authorization errors → Alert + redirect
 
@@ -141,10 +141,10 @@ Successfully implemented post editing functionality in the content suite that al
 - Includes validation and audit logging
 - Handles reapproval workflow
 
-### **Planner Integration**
-- Seamless navigation between planner and content suite
+### **Calendar Integration**
+- Seamless navigation between calendar and content suite
 - Maintains project context
-- Updates planner after successful edits
+- Updates calendar after successful edits
 
 ## 🚀 Usage Examples
 
@@ -190,4 +190,4 @@ PUT /api/posts/456
 4. **Template System**: Save and reuse editing templates
 5. **Advanced Validation**: More sophisticated content validation rules
 
-The implementation provides a complete editing workflow that integrates seamlessly with the existing content suite and planner functionality, giving users full access to content creation tools for both new and existing posts.
+The implementation provides a complete editing workflow that integrates seamlessly with the existing content suite and calendar functionality, giving users full access to content creation tools for both new and existing posts.

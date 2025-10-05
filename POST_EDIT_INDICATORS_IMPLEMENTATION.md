@@ -73,7 +73,7 @@ After: "Check out our amazing new product with enhanced features"
 
 ### **Files Modified**
 
-1. **`src/app/dashboard/client/[clientId]/planner/page.tsx`**
+1. **`src/app/dashboard/client/[clientId]/calendar/page.tsx`**
    - Updated Post interface with new editing fields
    - Integrated EditIndicators component
    - Replaced old approval status display
@@ -220,7 +220,7 @@ All existing APIs already include the new editing fields:
 
 ## 🔧 Integration Points
 
-### **Planner Integration**
+### **Calendar Integration**
 - Edit indicators appear on all scheduled posts
 - Clickable edit count opens history modal
 - Approval status clearly visible

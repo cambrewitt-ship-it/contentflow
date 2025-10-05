@@ -56,7 +56,7 @@ async function migrateBase64ToBlobUrls() {
   
   try {
     // Get all posts with base64 images from both tables
-    const tables = ['planner_unscheduled_posts', 'planner_scheduled_posts', 'scheduled_posts'];
+    const tables = ['calendar_unscheduled_posts', 'calendar_scheduled_posts', 'scheduled_posts'];
     let totalConverted = 0;
     
     for (const tableName of tables) {
