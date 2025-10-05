@@ -103,7 +103,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     
-    console.log('🔧 POST /api/planner/scheduled - DEBUG:');
+    console.log('🔧 POST /api/calendar/scheduled - DEBUG:');
     console.log('  - Request timestamp:', new Date().toISOString());
     console.log('  - Request body keys:', Object.keys(body));
     
@@ -180,7 +180,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, post: scheduled });
     
   } catch (error) {
-    console.error('❌ POST /api/planner/scheduled - CRITICAL ERROR:');
+    console.error('❌ POST /api/calendar/scheduled - CRITICAL ERROR:');
     console.error('  - Error type:', typeof error);
     console.error('  - Error message:', error instanceof Error ? error.message : String(error));
     console.error('  - Error stack:', error instanceof Error ? error.stack : 'No stack trace available');

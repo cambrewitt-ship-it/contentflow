@@ -137,14 +137,14 @@ export async function POST(request: Request) {
     }
     
     // Get the post data from calendar_scheduled_posts to preserve image_url
-    const { data: plannerPost, error: fetchError } = await supabase
+    const { data: calendarPost, error: fetchError } = await supabase
       .from('calendar_scheduled_posts')
       .select('image_url')
       .eq('id', postId)
       .single();
     
     if (fetchError) {
-      console.error('Error fetching planner post:', fetchError);
+      console.error('Error fetching calendar post:', fetchError);
     }
     
     // Also save to scheduled_posts table with LATE post ID
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
         account_ids: selectedAccounts.map((a: { _id: string }) => a._id),
         status: 'scheduled',
         late_post_id: latePostId,
-        image_url: plannerPost?.image_url || null // Preserve image_url from planner post
+        image_url: calendarPost?.image_url || null // Preserve image_url from calendar post
       });
     
     if (scheduleError) {

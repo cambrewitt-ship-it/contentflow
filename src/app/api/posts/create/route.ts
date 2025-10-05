@@ -91,10 +91,10 @@ export async function POST(request: Request) {
     
     console.log('✅ Posts created successfully in posts table:', postsData);
     
-    // CRITICAL STEP: Also create entries in calendar_unscheduled_posts table to ensure they appear in the planner
+    // CRITICAL STEP: Also create entries in calendar_unscheduled_posts table to ensure they appear in the calendar
     if (postsData && postsData.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const plannerPosts = postsData.map((post: any) => ({
+      const calendarPosts = postsData.map((post: any) => ({
         project_id: projectId || 'default',
         client_id: clientId,
         caption: post.caption,
@@ -103,17 +103,17 @@ export async function POST(request: Request) {
         status: 'draft'
       }));
       
-      const { data: plannerData, error: plannerError } = await supabase
+      const { data: calendarData, error: calendarError } = await supabase
         .from('calendar_unscheduled_posts')
-        .insert(plannerPosts)
+        .insert(calendarPosts)
         .select();
       
-      if (plannerError) {
-        console.error('❌ Error creating planner posts:', plannerError);
-        // Don't throw here - posts were created successfully, just planner sync failed
-        console.warn('⚠️ Posts created but failed to sync to planner system');
+      if (calendarError) {
+        console.error('❌ Error creating calendar posts:', calendarError);
+        // Don't throw here - posts were created successfully, just calendar sync failed
+        console.warn('⚠️ Posts created but failed to sync to calendar system');
       } else {
-        console.log('✅ Posts synced to planner system:', plannerData);
+        console.log('✅ Posts synced to calendar system:', calendarData);
       }
     }
     

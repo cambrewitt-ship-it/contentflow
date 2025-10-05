@@ -231,7 +231,7 @@ export default function ContentSuitePage({ params }: PageProps) {
     } catch (error) {
       console.error('❌ Error fetching post for editing:', error)
       alert(`Failed to load post for editing: ${error instanceof Error ? error.message : String(error)}`)
-      // Redirect back to planner on error
+      // Redirect back to calendar on error
       router.push(`/dashboard/client/${clientId}/calendar`)
     } finally {
       setLoadingPost(false)
@@ -390,7 +390,7 @@ export default function ContentSuitePage({ params }: PageProps) {
         image_url: imageUrl,
         platforms: ['instagram', 'facebook', 'twitter'], // Default platforms
         edit_reason: 'Updated via content suite',
-        // Only include media_type for main posts table, not planner tables
+        // Only include media_type for main posts table, not calendar tables
         ...(editingPost?.scheduled_date ? {} : { media_type: 'image' }),
         // Include AI settings if available
         ai_settings: editingPost?.ai_settings || {},
@@ -988,7 +988,7 @@ function ContentSuiteContent({
           <div className="flex items-center">
             <Edit3 className="w-5 h-5 text-blue-600 mr-2" />
             <p className="text-sm text-blue-800">
-              <strong>Editing scheduled post</strong> - Changes will update your planner and may require reapproval
+              <strong>Editing scheduled post</strong> - Changes will update your calendar and may require reapproval
             </p>
           </div>
         </div>
@@ -1000,7 +1000,7 @@ function ContentSuiteContent({
           <div className="flex items-center">
             <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
             <p className="text-sm text-green-800">
-              <strong>Update Mode:</strong> Use the &quot;Update Post&quot; button below to save your changes. This will update the existing post in your planner.
+              <strong>Update Mode:</strong> Use the &quot;Update Post&quot; button below to save your changes. This will update the existing post in your calendar.
             </p>
           </div>
         </div>

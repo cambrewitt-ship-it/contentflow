@@ -544,15 +544,15 @@ body.glassmorphism-theme {
   margin: 0 !important;
 }
 
-/* Planner specific text styling */
-.glassmorphism-theme .planner-text,
-.glassmorphism-theme [class*="planner"] {
+/* Calendar specific text styling */
+.glassmorphism-theme .calendar-text,
+.glassmorphism-theme [class*="calendar"] {
   color: rgba(0, 0, 0, 0.9) !important;
 }
 
-/* Ensure all planner content is black */
-.glassmorphism-theme .planner-text *,
-.glassmorphism-theme [class*="planner"] * {
+/* Ensure all calendar content is black */
+.glassmorphism-theme .calendar-text *,
+.glassmorphism-theme [class*="calendar"] * {
   color: rgba(0, 0, 0, 0.9) !important;
 }
 

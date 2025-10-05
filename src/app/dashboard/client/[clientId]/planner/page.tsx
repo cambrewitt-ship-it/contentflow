@@ -248,7 +248,7 @@ export default function CalendarPage() {
         setIsLoadingPosts(true);
         setError(null);
         console.log('Fetching unscheduled posts for project:', projectId);
-        const response = await fetch(`/api/planner/unscheduled?projectId=${projectId}`);
+        const response = await fetch(`/api/calendar/unscheduled?projectId=${projectId}`);
         
         if (!response.ok) {
           throw new Error(`Failed to fetch unscheduled posts: ${response.status}`);
@@ -301,7 +301,7 @@ export default function CalendarPage() {
       
       // Simplified query - always include image data for better UX
       const response = await fetch(
-        `/api/planner/scheduled?projectId=${projectId}&limit=${baseLimit}&includeImageData=true`
+        `/api/calendar/scheduled?projectId=${projectId}&limit=${baseLimit}&includeImageData=true`
       );
       
       if (!response.ok) {
@@ -416,10 +416,21 @@ export default function CalendarPage() {
 
   const getWeeksToDisplay = () => {
     const weeks = [];
-    for (let i = 0; i < 2; i++) {
+    // Changed from i < 2 to i < 1 to show only 1 week instead of 2
+    for (let i = 0; i < 1; i++) {
       weeks.push(getStartOfWeek(weekOffset + i));
     }
+    console.log('📅 getWeeksToDisplay - returning', weeks.length, 'week(s)');
     return weeks;
+  };
+
+  // Helper functions to get previous and next week dates for button labels
+  const getPreviousWeekDate = () => {
+    return getStartOfWeek(weekOffset - 1);
+  };
+
+  const getNextWeekDate = () => {
+    return getStartOfWeek(weekOffset + 1);
   };
 
   // Format week commencing date as "W/C 8th Sept"
@@ -539,7 +550,7 @@ export default function CalendarPage() {
         timeToSave = newTime + ':00';
       }
       
-      const response = await fetch('/api/planner/scheduled', {
+      const response = await fetch('/api/calendar/scheduled', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -634,8 +645,8 @@ export default function CalendarPage() {
       console.log('📅 STEP 3 - API REQUEST BODY:');
       console.log('  - Request body keys:', Object.keys(requestBody));
       
-      console.log('📅 STEP 4 - SENDING REQUEST TO /api/planner/scheduled:');
-      const response = await fetch('/api/planner/scheduled', {
+      console.log('📅 STEP 4 - SENDING REQUEST TO /api/calendar/scheduled:');
+      const response = await fetch('/api/calendar/scheduled', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
@@ -706,7 +717,7 @@ export default function CalendarPage() {
     setMovingPostId(post.id);
     
     try {
-      await fetch('/api/planner/scheduled', {
+      await fetch('/api/calendar/scheduled', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -781,7 +792,7 @@ export default function CalendarPage() {
         }
         
         // Delete from database
-        const dbResponse = await fetch('/api/planner/scheduled', {
+        const dbResponse = await fetch('/api/calendar/scheduled', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ postId: postId })
@@ -834,7 +845,7 @@ export default function CalendarPage() {
       
       console.log(`🗑️ Deleting unscheduled post: ${postId}`);
       
-      const response = await fetch(`/api/planner/unscheduled?postId=${postId}`, {
+      const response = await fetch(`/api/calendar/unscheduled?postId=${postId}`, {
         method: 'DELETE'
       });
       
@@ -1090,7 +1101,7 @@ export default function CalendarPage() {
         if (latePostId) {
           // Update database with LATE post ID
           await supabase
-            .from('planner_scheduled_posts')
+            .from('calendar_scheduled_posts')
             .update({
               late_status: 'scheduled',
               late_post_id: latePostId,
@@ -1477,33 +1488,58 @@ export default function CalendarPage() {
           <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <button
-              onClick={() => setWeekOffset(weekOffset - 2)}
+              onClick={() => setWeekOffset(weekOffset - 1)}
               className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
             >
               <ChevronLeft className="w-4 h-4" />
-              Previous 2 Weeks
+              Previous Week {formatWeekCommencing(getPreviousWeekDate())}
             </button>
             <h2 className="text-lg font-semibold">
-              {currentProject ? `${currentProject.name} - 2 Week View` : 'All Projects - 2 Week View'}
+              {currentProject ? `${currentProject.name} - Week View` : 'All Projects - Week View'}
             </h2>
             <div className="flex items-center gap-3">
               {/* Calendar Selection Controls */}
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">
-                  {selectedCalendarPostsForApproval.size} selected
-                </span>
-                <button
-                  onClick={handleSelectAllCalendarPostsForApproval}
-                  className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-                >
-                  Select All
-                </button>
-                <button
-                  onClick={handleDeselectAllCalendarPostsForApproval}
-                  className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-                >
-                  Deselect All
-                </button>
+              <div className="flex items-center space-x-4">
+                {/* Scheduling Selection Controls */}
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">
+                    {selectedPosts.size} selected for scheduling
+                  </span>
+                  <button
+                    onClick={() => {
+                      const allCalendarPosts = Object.values(scheduledPosts).flat();
+                      setSelectedPosts(new Set(allCalendarPosts.map(p => p.id)));
+                    }}
+                    className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-2 py-1 rounded"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={() => setSelectedPosts(new Set())}
+                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+                  >
+                    Clear All
+                  </button>
+                </div>
+                
+                {/* Approval Selection Controls */}
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">
+                    {selectedCalendarPostsForApproval.size} selected for approval
+                  </span>
+                  <button
+                    onClick={handleSelectAllCalendarPostsForApproval}
+                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={handleDeselectAllCalendarPostsForApproval}
+                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+                  >
+                    Deselect All
+                  </button>
+                </div>
               </div>
               
               {/* Share Button */}
@@ -1526,10 +1562,10 @@ export default function CalendarPage() {
               </button>
               
               <button
-                onClick={() => setWeekOffset(weekOffset + 2)}
+                onClick={() => setWeekOffset(weekOffset + 1)}
                 className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
               >
-                Next 2 Weeks
+                Next Week {formatWeekCommencing(getNextWeekDate())}
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -1547,16 +1583,16 @@ export default function CalendarPage() {
             </div>
           </div>
 
-            <div className="p-4 space-y-4">
+            <div className="p-4">
             <div className="">
-              <div className="space-y-4" style={{ gap: '16px' }}>
+              <div className="space-y-4">
                 {getWeeksToDisplay().map((weekStart, weekIndex) => (
                   <div key={weekIndex} className="border rounded-lg bg-white min-h-32 flex-1">
                     {/* Week Header - Above the days */}
                     <div className="bg-gray-50 p-3 border-b">
                       <h3 className="font-semibold text-sm">
                         {formatWeekCommencing(weekStart)}
-                        {weekOffset + weekIndex === 0 && ' (Current)'}
+                        {weekOffset === 0 && ' (Current)'}
                       </h3>
                       <p className="text-xs text-gray-600">
                         {weekStart.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} - 
@@ -1709,8 +1745,28 @@ export default function CalendarPage() {
                                                       </span>
                                                     </p>
                                                   </div>
-                                                  {/* Approval Selection Checkbox */}
-                                                  <div className="flex items-center">
+                                                  {/* Selection Checkboxes */}
+                                                  <div className="flex items-center gap-2">
+                                                    {/* Scheduling Selection Checkbox */}
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={selectedPosts.has(post.id)}
+                                                      onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedPosts(prev => {
+                                                          const newSet = new Set(prev);
+                                                          if (newSet.has(post.id)) {
+                                                            newSet.delete(post.id);
+                                                          } else {
+                                                            newSet.add(post.id);
+                                                          }
+                                                          return newSet;
+                                                        });
+                                                      }}
+                                                      className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2"
+                                                      title="Select for scheduling"
+                                                    />
+                                                    {/* Approval Selection Checkbox */}
                                                     <input
                                                       type="checkbox"
                                                       checked={selectedCalendarPostsForApproval.has(post.id)}
@@ -1869,7 +1925,27 @@ export default function CalendarPage() {
                                               </p>
                                             </div>
                                             {/* Approval Selection Checkbox */}
-                                            <div className="flex items-center">
+                                            <div className="flex items-center gap-2">
+                                              {/* Scheduling Selection Checkbox */}
+                                              <input
+                                                type="checkbox"
+                                                checked={selectedPosts.has(post.id)}
+                                                onChange={(e) => {
+                                                  e.stopPropagation();
+                                                  setSelectedPosts(prev => {
+                                                    const newSet = new Set(prev);
+                                                    if (newSet.has(post.id)) {
+                                                      newSet.delete(post.id);
+                                                    } else {
+                                                      newSet.add(post.id);
+                                                    }
+                                                    return newSet;
+                                                  });
+                                                }}
+                                                className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2"
+                                                title="Select for scheduling"
+                                              />
+                                              {/* Approval Selection Checkbox */}
                                               <input
                                                 type="checkbox"
                                                 checked={selectedCalendarPostsForApproval.has(post.id)}

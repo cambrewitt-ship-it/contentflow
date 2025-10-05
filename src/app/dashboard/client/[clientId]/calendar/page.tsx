@@ -425,7 +425,7 @@ export default function CalendarPage() {
 
   const getWeeksToDisplay = () => {
     const weeks = [];
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 1; i++) {
       weeks.push(getStartOfWeek(weekOffset + i));
     }
     return weeks;
@@ -643,7 +643,7 @@ export default function CalendarPage() {
       console.log('📅 STEP 3 - API REQUEST BODY:');
       console.log('  - Request body keys:', Object.keys(requestBody));
       
-      console.log('📅 STEP 4 - SENDING REQUEST TO /api/planner/scheduled:');
+      console.log('📅 STEP 4 - SENDING REQUEST TO /api/calendar/scheduled:');
       const response = await fetch('/api/calendar/scheduled', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -790,7 +790,7 @@ export default function CalendarPage() {
         }
         
         // Delete from database
-        const dbResponse = await fetch('/api/planner/scheduled', {
+        const dbResponse = await fetch('/api/calendar/scheduled', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ postId: postId })
@@ -1530,19 +1530,19 @@ export default function CalendarPage() {
           <div className="p-4">
           <div className="flex items-center justify-between mb-4">
             <button
-              onClick={() => setWeekOffset(weekOffset - 2)}
+              onClick={() => setWeekOffset(weekOffset - 1)}
               className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
             >
               <ChevronLeft className="w-4 h-4" />
-              Previous 2 Weeks
+              Previous Week
             </button>
             <div className="flex items-center justify-center">
               <h2 className="text-lg font-semibold">
                 {selectedProjectFilter === 'all' 
-                  ? 'All Projects - 2 Week View' 
+                  ? 'All Projects - Week View' 
                   : selectedProjectFilter === 'untagged' 
-                    ? 'Untagged Posts - 2 Week View'
-                    : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - 2 Week View`}
+                    ? 'Untagged Posts - Week View'
+                    : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - Week View`}
               </h2>
             </div>
             <div className="flex items-center gap-3">
@@ -1567,10 +1567,10 @@ export default function CalendarPage() {
               </button>
               
               <button
-                onClick={() => setWeekOffset(weekOffset + 2)}
+                onClick={() => setWeekOffset(weekOffset + 1)}
                 className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
               >
-                Next 2 Weeks
+                Next Week
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>

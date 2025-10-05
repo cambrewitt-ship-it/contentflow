@@ -145,7 +145,7 @@ export default function PublicApprovalPage() {
       const promises = Object.entries(selectedPosts).map(async ([postKey, approvalStatus]) => {
         console.log(`📝 Processing post ${postKey} with status ${approvalStatus}`);
         // Split on the first hyphen only (UUIDs contain hyphens)
-        // Key format: "planner_scheduled-a77281ae-f505-4b56-8b9a-22c48435407d"
+        // Key format: "calendar_scheduled-a77281ae-f505-4b56-8b9a-22c48435407d"
         const firstHyphenIndex = postKey.indexOf('-');
         const postType = postKey.substring(0, firstHyphenIndex);
         const postId = postKey.substring(firstHyphenIndex + 1);
@@ -225,7 +225,7 @@ export default function PublicApprovalPage() {
       
       // Show success message
       const count = Object.keys(selectedPosts).length;
-      setSuccessMessage(`Successfully submitted ${count} approval(s)! The main planner page will show updated statuses.`);
+      setSuccessMessage(`Successfully submitted ${count} approval(s)! The main calendar page will show updated statuses.`);
       setTimeout(() => setSuccessMessage(null), 8000);
       
     } catch (error) {
