@@ -21,8 +21,9 @@ function PortalLayoutContent({ children, token }: { children: React.ReactNode; t
   const router = useRouter();
 
   const tabs = [
-    { id: 'calendar', label: 'Calendar', icon: Calendar, path: '/calendar' },
-    { id: 'approvals', label: 'Approvals', icon: CheckCircle, path: '/approvals' },
+    { id: 'calendar-approvals', label: 'Calendar & Approvals', icon: Calendar, path: '/calendar-approvals' },
+    { id: 'calendar', label: 'Calendar Only', icon: Calendar, path: '/calendar' },
+    { id: 'approvals', label: 'Approvals Only', icon: CheckCircle, path: '/approvals' },
     { id: 'upload', label: 'Content Upload', icon: Upload, path: '/upload' },
   ];
 
