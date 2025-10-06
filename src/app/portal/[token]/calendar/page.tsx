@@ -117,6 +117,13 @@ export default function PortalCalendarPage() {
   
   // Delete states
   const [deletingItems, setDeletingItems] = useState<{[key: string]: boolean}>({});
+  
+  // Approval states
+  const [selectedPosts, setSelectedPosts] = useState<{[key: string]: 'approved' | 'rejected' | 'needs_attention'}>({});
+  const [comments, setComments] = useState<{[key: string]: string}>({});
+  const [editedCaptions, setEditedCaptions] = useState<{[key: string]: string}>({});
+  const [isSubmittingApprovals, setIsSubmittingApprovals] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Get NZ timezone start of week (Monday)
   const getStartOfWeek = (offset: number = 0) => {
@@ -595,6 +602,140 @@ export default function PortalCalendarPage() {
     }
   };
 
+  // Approval handlers
+  const handlePostSelection = (postKey: string, status: 'approved' | 'rejected' | 'needs_attention' | null) => {
+    setSelectedPosts(prev => {
+      const newSelected = { ...prev };
+      if (status === null) {
+        delete newSelected[postKey];
+      } else {
+        newSelected[postKey] = status;
+      }
+      return newSelected;
+    });
+  };
+
+  const handleCommentChange = (postKey: string, comment: string) => {
+    setComments(prev => ({
+      ...prev,
+      [postKey]: comment
+    }));
+  };
+
+  const handleCaptionChange = (postKey: string, caption: string) => {
+    setEditedCaptions(prev => ({
+      ...prev,
+      [postKey]: caption
+    }));
+  };
+
+  const handleSubmitApprovals = async () => {
+    if (Object.keys(selectedPosts).length === 0) {
+      alert('Please select at least one post to approve or reject');
+      return;
+    }
+
+    console.log('🚀 Starting approval submission:', selectedPosts);
+    setIsSubmittingApprovals(true);
+    setError(null);
+
+    try {
+      const promises = Object.entries(selectedPosts).map(async ([postKey, approvalStatus]) => {
+        console.log(`📝 Processing post ${postKey} with status ${approvalStatus}`);
+        
+        // Split on the first hyphen only (UUIDs contain hyphens)
+        const firstHyphenIndex = postKey.indexOf('-');
+        const postId = postKey.substring(firstHyphenIndex + 1);
+        
+        // Portal calendar posts come from calendar_scheduled_posts table, so use 'planner_scheduled' type
+        const postType = 'planner_scheduled';
+        
+        console.log(`🔍 Parsed key "${postKey}" -> postType: "${postType}", postId: "${postId}"`);
+        
+        const editedCaption = editedCaptions[postKey];
+        const post = Object.values(scheduledPosts)
+          .flat()
+          .find(p => p.id === postId);
+        
+        if (!post) {
+          console.error(`❌ Post not found for key ${postKey}`);
+          throw new Error(`Post not found for key ${postKey}`);
+        }
+
+        const hasEditedCaption = editedCaption && editedCaption !== post.caption;
+        
+        console.log(`🔄 Making API call for post ${postId}:`, {
+          token: token.substring(0, 8) + '...',
+          post_id: post.id,
+          post_type: postType,
+          approval_status: approvalStatus,
+          has_comments: !!comments[postKey],
+          has_edited_caption: hasEditedCaption
+        });
+        
+        const response = await fetch('/api/portal/approvals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            post_id: post.id,
+            post_type: postType,
+            approval_status: approvalStatus,
+            client_comments: comments[postKey] || '',
+            edited_caption: hasEditedCaption ? editedCaption : undefined
+          })
+        });
+        
+        console.log(`📡 API response for ${postId}:`, response.status, response.statusText);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error(`❌ API error for ${postId}:`, errorData);
+          throw new Error(errorData.error || `Failed to submit approval for post ${postId}`);
+        }
+        
+        const result = await response.json();
+        console.log(`✅ API success for ${postId}:`, result);
+        
+        return { postKey, success: true, result };
+      });
+
+      const results = await Promise.allSettled(promises);
+      console.log('✅ Approval submission results:', results);
+      
+      // Check for any failures
+      const failures = results.filter(result => result.status === 'rejected');
+      if (failures.length > 0) {
+        console.error('❌ Some submissions failed:', failures);
+        const errorMessages = failures.map(f => f.reason?.message || 'Unknown error');
+        throw new Error(`Some submissions failed: ${errorMessages.join(', ')}`);
+      }
+      
+      const successes = results.filter(result => result.status === 'fulfilled');
+      console.log(`✅ Successfully submitted ${successes.length} approvals`);
+      
+      // Clear selections and refresh data
+      setSelectedPosts({});
+      setComments({});
+      setEditedCaptions({});
+      
+      console.log('🔄 Refreshing calendar data...');
+      await fetchScheduledPosts(0, true);
+      console.log('✅ Calendar data refreshed');
+      
+      // Show success message
+      const count = Object.keys(selectedPosts).length;
+      setSuccessMessage(`Successfully submitted ${count} approval(s)! Your feedback has been sent to the team.`);
+      setTimeout(() => setSuccessMessage(null), 8000);
+      
+    } catch (error) {
+      console.error('Error submitting approvals:', error);
+      setError(error instanceof Error ? error.message : 'Failed to submit approvals');
+    } finally {
+      setIsSubmittingApprovals(false);
+    }
+  };
+
   // Debounced effect to prevent rapid API calls
   useEffect(() => {
     if (!token) return;
@@ -739,6 +880,85 @@ export default function PortalCalendarPage() {
           </Button>
         </div>
       </div>
+
+      {/* Submit Approvals Section */}
+      {Object.keys(selectedPosts).length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Submit Your Approvals</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {Object.keys(selectedPosts).length} post{Object.keys(selectedPosts).length !== 1 ? 's' : ''} selected for approval
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                onClick={() => {
+                  setSelectedPosts({});
+                  setComments({});
+                  setEditedCaptions({});
+                }}
+                variant="outline"
+                disabled={isSubmittingApprovals}
+              >
+                Clear All
+              </Button>
+              
+              <Button
+                onClick={handleSubmitApprovals}
+                disabled={isSubmittingApprovals || Object.keys(selectedPosts).length === 0}
+                className="bg-primary hover:bg-primary/90"
+              >
+                {isSubmittingApprovals ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  `Submit ${Object.keys(selectedPosts).length} Approval${Object.keys(selectedPosts).length !== 1 ? 's' : ''}`
+                )}
+              </Button>
+            </div>
+          </div>
+          
+          {Object.keys(selectedPosts).length > 0 && (
+            <div className="mt-4 p-3 bg-gray-50 rounded text-sm">
+              <div className="font-medium text-gray-900 mb-2">Selected posts:</div>
+              <div className="space-y-1">
+                {Object.entries(selectedPosts).map(([postKey, status]) => {
+                  const postId = postKey.replace('post-', '');
+                  const post = Object.values(scheduledPosts)
+                    .flat()
+                    .find(p => p.id === postId);
+                  
+                  if (!post) return null;
+                  
+                  return (
+                    <div key={postKey} className="flex items-center gap-2 text-xs">
+                      <span className={`px-2 py-1 rounded text-white ${
+                        status === 'approved' ? 'bg-green-600' :
+                        status === 'rejected' ? 'bg-red-600' :
+                        'bg-orange-600'
+                      }`}>
+                        {status === 'approved' ? '✓ Approved' :
+                         status === 'rejected' ? '✗ Rejected' :
+                         '⚠ Improve'}
+                      </span>
+                      <span className="text-gray-600">
+                        {post.scheduled_date && new Date(post.scheduled_date).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short'
+                        })} - {post.caption.substring(0, 50)}...
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Approval Status Summary */}
       {Object.keys(scheduledPosts).length > 0 && (
@@ -1065,11 +1285,17 @@ export default function PortalCalendarPage() {
                             {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => {
                               const itemKey = `post-${post.id}`;
                               const isMoving = movingItems[itemKey];
+                              const postKey = `post-${post.id}`;
+                              const selectedStatus = selectedPosts[postKey];
                               
                               return (
                                 <div key={idx} className="mt-1">
                                   <div 
-                                    className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow cursor-move relative ${
+                                    className={`w-64 border rounded-lg p-3 hover:shadow-sm transition-all duration-200 cursor-move relative flex flex-col ${
+                                      // Priority: selectedStatus > existing approval_status
+                                      selectedStatus === 'approved' ? 'border-green-400 bg-green-100 shadow-lg shadow-green-200/50' :
+                                      selectedStatus === 'rejected' ? 'border-red-400 bg-red-100 shadow-lg shadow-red-200/50' :
+                                      selectedStatus === 'needs_attention' ? 'border-orange-400 bg-orange-100 shadow-lg shadow-orange-200/50' :
                                       post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
                                       post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
                                       post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
@@ -1122,6 +1348,70 @@ export default function PortalCalendarPage() {
                                       </div>
                                     </div>
 
+                                    {/* Approval Action Buttons */}
+                                    <div className="mb-3">
+                                      <div className="space-y-2">
+                                        {/* Approval Buttons */}
+                                        <div className="flex gap-1">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handlePostSelection(postKey, 'approved');
+                                            }}
+                                            className={`flex items-center justify-center gap-1 text-xs flex-1 px-2 py-1.5 rounded-md font-medium transition-all duration-200 ${
+                                              (selectedStatus || post.approval_status) === 'approved' 
+                                                ? 'bg-green-600 text-white shadow-sm ring-2 ring-green-300' 
+                                                : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
+                                            }`}
+                                          >
+                                            <CheckCircle className="w-3 h-3" />
+                                            Approve
+                                          </button>
+                                          
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handlePostSelection(postKey, 'needs_attention');
+                                            }}
+                                            className={`flex items-center justify-center gap-1 text-xs flex-1 px-2 py-1.5 rounded-md font-medium transition-all duration-200 ${
+                                              (selectedStatus || post.approval_status) === 'needs_attention' 
+                                                ? 'bg-orange-600 text-white shadow-sm ring-2 ring-orange-300' 
+                                                : 'bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200'
+                                            }`}
+                                          >
+                                            <AlertTriangle className="w-3 h-3" />
+                                            Improve
+                                          </button>
+                                          
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handlePostSelection(postKey, 'rejected');
+                                            }}
+                                            className={`flex items-center justify-center text-xs w-10 h-8 p-0 rounded-md font-medium transition-all duration-200 ${
+                                              (selectedStatus || post.approval_status) === 'rejected' 
+                                                ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-300' 
+                                                : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+                                            }`}
+                                          >
+                                            <XCircle className="w-4 h-4" />
+                                          </button>
+                                        </div>
+
+                                        {/* Comment Input */}
+                                        <div>
+                                          <textarea
+                                            placeholder="Add feedback..."
+                                            value={comments[postKey] || ''}
+                                            onChange={(e) => handleCommentChange(postKey, e.target.value)}
+                                            className="w-full p-2 text-xs border border-gray-300 rounded-md resize-none bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                                            rows={2}
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+
                                     {/* Approval Status Badge */}
                                     <div className="mb-2">
                                       {getApprovalStatusBadge(post)}
@@ -1142,11 +1432,38 @@ export default function PortalCalendarPage() {
                                       </div>
                                     )}
                                     
-                                    {/* Caption */}
-                                    <div className="mb-2">
-                                      <p className="text-sm text-gray-700">
-                                        {post.caption}
-                                      </p>
+                                    {/* Editable Caption */}
+                                    <div className="mb-2 flex-1">
+                                      <textarea
+                                        value={editedCaptions[postKey] || post.caption}
+                                        onChange={(e) => {
+                                          handleCaptionChange(postKey, e.target.value);
+                                          // Auto-resize
+                                          const target = e.target as HTMLTextAreaElement;
+                                          target.style.height = 'auto';
+                                          target.style.height = target.scrollHeight + 'px';
+                                        }}
+                                        className="w-full p-2 text-xs border border-gray-300 rounded-md resize-none bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 overflow-hidden"
+                                        rows={1}
+                                        onClick={(e) => e.stopPropagation()}
+                                        placeholder="Edit caption..."
+                                        style={{ 
+                                          minHeight: '40px',
+                                          height: 'auto',
+                                          overflow: 'hidden'
+                                        }}
+                                        ref={(textarea) => {
+                                          if (textarea) {
+                                            // Set initial height based on content
+                                            textarea.style.height = 'auto';
+                                            textarea.style.height = Math.max(40, textarea.scrollHeight) + 'px';
+                                          }
+                                        }}
+                                      />
+                                      {editedCaptions[postKey] && 
+                                       editedCaptions[postKey] !== post.caption && (
+                                        <p className="text-xs text-blue-600 mt-1 font-medium">✏️ Caption edited</p>
+                                      )}
                                     </div>
                                     
                                     {/* Client Feedback */}
@@ -1186,6 +1503,16 @@ export default function PortalCalendarPage() {
         </div>
 
       </div>
+
+      {/* Success Message */}
+      {successMessage && (
+        <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center">
+            <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+            <span className="text-green-800 font-medium">{successMessage}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
