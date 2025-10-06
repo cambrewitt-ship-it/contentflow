@@ -73,6 +73,7 @@ export function SocialPreviewColumn({
 
   // Custom caption state
   const [customCaption, setCustomCaption] = useState('')
+  const [captionConfirmed, setCaptionConfirmed] = useState(false)
 
   // Connected accounts state
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([])
@@ -101,6 +102,7 @@ export function SocialPreviewColumn({
   useEffect(() => {
     if (selectedCaption) {
       setCustomCaption(selectedCaption)
+      setCaptionConfirmed(false) // Reset confirmation when AI caption is selected
     }
   }, [selectedCaption])
 
@@ -110,6 +112,19 @@ export function SocialPreviewColumn({
       onCustomCaptionChange(customCaption)
     }
   }, [customCaption, onCustomCaptionChange])
+
+  // Handle caption confirmation (blur or enter)
+  const handleCaptionConfirm = () => {
+    if (customCaption.trim()) {
+      // Update the content store immediately when caption is confirmed
+      updateContentStoreForSaving()
+      setCaptionConfirmed(true)
+      // Notify parent component of the confirmed caption
+      if (onCustomCaptionChange) {
+        onCustomCaptionChange(customCaption.trim())
+      }
+    }
+  }
 
 
   // Only update content store when we're about to save/update a post
@@ -928,7 +943,17 @@ export function SocialPreviewColumn({
                   <Textarea
                     id="customCaption"
                     value={customCaption}
-                    onChange={(e) => setCustomCaption(e.target.value)}
+                    onChange={(e) => {
+                      setCustomCaption(e.target.value)
+                      setCaptionConfirmed(false) // Reset confirmation when user types
+                    }}
+                    onBlur={handleCaptionConfirm}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleCaptionConfirm()
+                      }
+                    }}
                     placeholder={selectedCaption ? `Edit the AI-generated ${copyType === 'email-marketing' ? 'email copy' : 'caption'} or type your own...` : `Type your ${copyType === 'email-marketing' ? 'email copy' : 'caption'} here...`}
                     className="w-full min-h-[80px] resize-none"
                     rows={3}
@@ -937,6 +962,23 @@ export function SocialPreviewColumn({
                     <p className="text-xs text-gray-500 mt-1">
                       AI {copyType === 'email-marketing' ? 'Email Copy' : 'Caption'}: {selectedCaption}
                     </p>
+                  )}
+                  
+                  {customCaption.trim() && (
+                    <div className="mt-2 flex items-center justify-between">
+                      <p className="text-xs text-gray-500">
+                        {captionConfirmed ? (
+                          <span className="text-green-600 flex items-center">
+                            <Check className="w-3 h-3 mr-1" />
+                            Caption confirmed - ready to add to calendar
+                          </span>
+                        ) : (
+                          <span className="text-amber-600">
+                            Click outside the box or press Enter to confirm your caption
+                          </span>
+                        )}
+                      </p>
+                    </div>
                   )}
                   
                 </div>

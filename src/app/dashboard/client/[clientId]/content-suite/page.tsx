@@ -1156,10 +1156,11 @@ function ContentSuiteContent({
                   {/* Add to Calendar Button */}
                   <Button
                     onClick={() => {
-                      const caption = getSelectedCaption()
+                      // Use custom caption from preview if available, otherwise use selected caption
+                      const caption = customCaptionFromPreview.trim() || getSelectedCaption()
                       handleSendToScheduler(caption, uploadedImages)
                     }}
-                    disabled={isSendingToScheduler}
+                    disabled={isSendingToScheduler || (!customCaptionFromPreview.trim() && !getSelectedCaption())}
                     className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
                   >
                     {isSendingToScheduler ? (

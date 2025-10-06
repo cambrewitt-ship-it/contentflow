@@ -1902,29 +1902,32 @@ export default function CalendarPage() {
                                                           );
                                                         })}
                                                       </select>
-                                                      <input
-                                                        type="text"
-                                                        value={post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                                        className="text-xs text-gray-600 bg-transparent border border-gray-300 rounded px-1 py-0.5 w-16 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          setEditingPostId(post.id);
-                                                        }}
-                                                        onKeyDown={(e) => {
-                                                          if (e.key === 'Enter') {
-                                                            handleEditScheduledPost(post, e.currentTarget.value);
+                                                      {editingPostId !== post.id && (
+                                                        <input
+                                                          type="text"
+                                                          value={post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                                          readOnly
+                                                          className="text-xs text-gray-600 bg-transparent border border-gray-300 rounded px-1 py-0.5 w-16 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingPostId(post.id);
+                                                          }}
+                                                          onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                              handleEditScheduledPost(post, e.currentTarget.value);
+                                                              setEditingPostId(null);
+                                                            }
+                                                            if (e.key === 'Escape') {
+                                                              setEditingPostId(null);
+                                                            }
+                                                          }}
+                                                          onBlur={(e) => {
+                                                            handleEditScheduledPost(post, e.target.value);
                                                             setEditingPostId(null);
-                                                          }
-                                                          if (e.key === 'Escape') {
-                                                            setEditingPostId(null);
-                                                          }
-                                                        }}
-                                                        onBlur={(e) => {
-                                                          handleEditScheduledPost(post, e.target.value);
-                                                          setEditingPostId(null);
-                                                        }}
-                                                        title="Click to edit time"
-                                                      />
+                                                          }}
+                                                          title="Click to edit time"
+                                                        />
+                                                      )}
                                                     </div>
                                                   </div>
                                                   
@@ -2113,29 +2116,32 @@ export default function CalendarPage() {
                                                     );
                                                   })}
                                                 </select>
-                                                <input
-                                                  type="text"
-                                                  value={post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                                  className="text-xs text-gray-600 bg-transparent border border-gray-300 rounded px-1 py-0.5 w-16 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mt-1"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setEditingPostId(post.id);
-                                                  }}
-                                                  onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                      handleEditScheduledPost(post, e.currentTarget.value);
+                                                {editingPostId !== post.id && (
+                                                  <input
+                                                    type="text"
+                                                    value={post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
+                                                    readOnly
+                                                    className="text-xs text-gray-600 bg-transparent border border-gray-300 rounded px-1 py-0.5 w-16 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mt-1"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setEditingPostId(post.id);
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                      if (e.key === 'Enter') {
+                                                        handleEditScheduledPost(post, e.currentTarget.value);
+                                                        setEditingPostId(null);
+                                                      }
+                                                      if (e.key === 'Escape') {
+                                                        setEditingPostId(null);
+                                                      }
+                                                    }}
+                                                    onBlur={(e) => {
+                                                      handleEditScheduledPost(post, e.target.value);
                                                       setEditingPostId(null);
-                                                    }
-                                                    if (e.key === 'Escape') {
-                                                      setEditingPostId(null);
-                                                    }
-                                                  }}
-                                                  onBlur={(e) => {
-                                                    handleEditScheduledPost(post, e.target.value);
-                                                    setEditingPostId(null);
-                                                  }}
-                                                  title="Click to edit time"
-                                                />
+                                                    }}
+                                                    title="Click to edit time"
+                                                  />
+                                                )}
                                               </div>
                                             </div>
                                             
