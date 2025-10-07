@@ -6,9 +6,6 @@ import { Button } from "components/ui/button";
 import { Card } from "components/ui/card";
 import { PortalProvider, usePortal } from "../../../contexts/PortalContext";
 import { 
-  Upload, 
-  CheckCircle, 
-  Calendar, 
   LogOut, 
   AlertCircle,
   Loader2 
@@ -20,11 +17,8 @@ function PortalLayoutContent({ children, token }: { children: React.ReactNode; t
   const pathname = usePathname();
   const router = useRouter();
 
-  const tabs = [
-    { id: 'calendar-approvals', label: 'Calendar & Approvals', icon: Calendar, path: '/calendar-approvals' },
-    { id: 'calendar', label: 'Calendar Only', icon: Calendar, path: '/calendar' },
-    { id: 'approvals', label: 'Approvals Only', icon: CheckCircle, path: '/approvals' },
-    { id: 'upload', label: 'Content Upload', icon: Upload, path: '/upload' },
+  const tabs: Array<{ id: string; label: string; icon: any; path: string }> = [
+    // All navigation tabs have been removed as their corresponding pages were deleted
   ];
 
   const handleLogout = () => {
