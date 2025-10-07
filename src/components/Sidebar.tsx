@@ -104,7 +104,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
   // Navigation items
   const navItems = [
     {
-      name: 'Dashboard',
+      name: 'Home',
       href: '/dashboard',
       icon: Home,
       active: isOnMainDashboard
@@ -316,7 +316,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                   key={client.id} 
                   className={getThemeClasses(
                     `cursor-pointer transition-all hover:shadow-md ${
-                      isActiveClient ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+                      isActiveClient ? 'ring-2 ring-blue-500' : 'hover:bg-gray-50'
                     }`,
                     `cursor-pointer transition-all glass-card ${
                       isActiveClient ? 'ring-2 ring-white/50' : 'hover:bg-white/5'
@@ -353,12 +353,8 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                           </div>
                           {!collapsed && (
                             <span className={getThemeClasses(
-                              `font-bold truncate ${
-                                isActiveClient ? 'text-blue-700' : 'text-gray-600'
-                              }`,
-                              `font-bold truncate ${
-                                isActiveClient ? 'glass-text-primary' : 'glass-text-secondary'
-                              }`
+                              `font-bold truncate text-gray-600`,
+                              `font-bold truncate glass-text-secondary`
                             )} style={{ fontSize: '20px', fontWeight: '800' }}>
                               {client.name}
                             </span>
@@ -374,15 +370,6 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                         )}
                       </div>
                       
-                      {/* Active indicator */}
-                      {!collapsed && isActiveClient && (
-                        <Badge variant="secondary" className={getThemeClasses(
-                          "text-xs bg-blue-100 text-blue-700",
-                          "text-xs glass-card glass-text-primary"
-                        )}>
-                          Active
-                        </Badge>
-                      )}
                     </div>
                   </CardContent>
                 </Card>

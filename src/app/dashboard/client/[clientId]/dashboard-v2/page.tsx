@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from '@supabase/supabase-js';
 import { Card, CardContent, CardHeader, CardTitle } from "components/ui/card";
 import { Input } from "components/ui/input";
 import { Textarea } from "components/ui/textarea";
@@ -64,62 +63,94 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
     console.log('🔍 fetchClient called')
     setLoading(true)
     
-    // Create Supabase client with environment variables
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    
-    console.log('📊 About to query Supabase')
-    
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('id', clientId)
-    
-    console.log('📊 Supabase response - success:', !error, 'count:', data?.length || 0)
-    
-    if (data && data.length > 0) {
-      console.log('✅ Client found:', data[0])
-      const clientData = data[0];
-      setClient(clientData);
-      setWebsite(clientData.website || '');
-      setDescription(clientData.description || '');
-    } else {
-      console.log('❌ No client found')
-      setError('No client found with this ID');
+    try {
+      // Get auth token from localStorage (assuming it's stored there)
+      const token = localStorage.getItem('supabase.auth.token');
+      if (!token) {
+        console.error('❌ No auth token found');
+        setError('Authentication required');
+        setLoading(false);
+        return;
+      }
+
+      console.log('📊 About to call API')
+      
+      const response = await fetch(`/api/clients/${clientId}/data`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📊 API response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ API error:', errorData);
+        setError(errorData.error || 'Failed to fetch client data');
+        setLoading(false);
+        return;
+      }
+
+      const result = await response.json();
+      console.log('✅ API response:', result);
+
+      if (result.success && result.client) {
+        console.log('✅ Client found via API:', result.client);
+        const clientData = result.client;
+        setClient(clientData);
+        setWebsite(clientData.website || '');
+        setDescription(clientData.description || '');
+      } else {
+        console.log('❌ No client found in API response');
+        setError('No client found with this ID');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching client via API:', error);
+      setError('Failed to fetch client data');
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false)
   }
 
-  // Save client data to Supabase
+  // Save client data via API
   const handleSave = async () => {
     if (!client) return;
     
     try {
       setSaving(true);
-      console.log('💾 Saving client data to Supabase - website length:', website?.length || 0, 'description length:', description?.length || 0);
+      console.log('💾 Saving client data via API - website length:', website?.length || 0, 'description length:', description?.length || 0);
       
-      // Create Supabase client with environment variables
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-      const supabase = createClient(supabaseUrl, supabaseAnonKey);
-      
-      const { error } = await supabase
-        .from('clients')
-        .update({ 
-          website, 
-          description,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', clientId);
-      
-      if (error) {
-        console.error('❌ Error saving client data:', error);
-        throw new Error(`Failed to save: ${error.message}`);
+      // Get auth token from localStorage
+      const token = localStorage.getItem('supabase.auth.token');
+      if (!token) {
+        console.error('❌ No auth token found');
+        alert('Authentication required to save data');
+        return;
       }
+
+      const response = await fetch(`/api/clients/${clientId}/data`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          website,
+          description
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ API error saving client data:', errorData);
+        throw new Error(errorData.error || 'Failed to save client data');
+      }
+
+      const result = await response.json();
+      console.log('✅ Client data saved successfully via API:', result);
       
-      console.log('✅ Client data saved successfully');
       setEditing(false);
       
       // Update local client state

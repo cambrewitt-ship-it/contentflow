@@ -29,7 +29,7 @@ export async function GET(
 
     const { data: nextPostData, error: nextPostError } = await supabase
       .from('calendar_scheduled_posts')
-      .select('id, scheduled_date, scheduled_time, caption, late_status, platforms_scheduled')
+      .select('id, scheduled_date, scheduled_time, caption, image_url, late_status, platforms_scheduled')
       .eq('client_id', clientId)
       .not('scheduled_date', 'is', null)
       .or(`scheduled_date.gt.${todayStr},and(scheduled_date.eq.${todayStr},scheduled_time.gte.${currentTime})`)
@@ -112,6 +112,7 @@ export async function GET(
         timeAgo: 'Upcoming',
         details: {
           caption: nextPost.caption?.substring(0, 100) || 'No caption',
+          image_url: nextPost.image_url,
           platforms: nextPost.platforms_scheduled || [],
           scheduledDate: nextPost.scheduled_date,
           scheduledTime: nextPost.scheduled_time
@@ -148,7 +149,7 @@ export async function GET(
           type: 'upload',
           title: `Client uploaded ${uploads.length} piece${uploads.length === 1 ? '' : 's'} of content`,
           timestamp: uploads[0].created_at,
-          status: 'completed',
+          status: 'upload',
           count: uploads.length,
           details: uploads.map(u => ({
             fileName: u.file_name,
@@ -277,11 +278,19 @@ export async function GET(
 function getTimeAgo(date: Date): string {
   const now = new Date();
   const diffInMs = now.getTime() - date.getTime();
+  
+  // Handle future dates
+  if (diffInMs < 0) {
+    return 'Just now';
+  }
+  
   const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
   const diffInHours = Math.floor(diffInMinutes / 60);
   const diffInDays = Math.floor(diffInHours / 24);
 
-  if (diffInMinutes < 60) {
+  if (diffInMinutes < 1) {
+    return 'Just now';
+  } else if (diffInMinutes < 60) {
     return `${diffInMinutes} minute${diffInMinutes === 1 ? '' : 's'} ago`;
   } else if (diffInHours < 24) {
     return `${diffInHours} hour${diffInHours === 1 ? '' : 's'} ago`;

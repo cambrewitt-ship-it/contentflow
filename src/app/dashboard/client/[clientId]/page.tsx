@@ -873,6 +873,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'upload':
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">UPLOAD</span>;
       case 'completed':
         return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Completed</span>;
       case 'failed':
@@ -886,6 +888,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   const getActivityStatusBadge = (activity: ActivityLog) => {
     switch (activity.status) {
+      case 'upload':
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Upload</span>;
       case 'published':
         return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Published</span>;
       case 'approved':
@@ -1115,12 +1119,12 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         {/* Activity Hub & Month Calendar - Two Column Layout (40/60) */}
         <div className="mb-8 grid grid-cols-1 lg:grid-cols-[40%_60%] gap-6">
           {/* Client Activity Hub - Takes 40% */}
-          <div>
+          <div className="flex flex-col">
             <h2 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Client Activity Hub</h2>
             
             {activityLoading ? (
-              <Card className="shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
-                <CardContent className="p-6">
+              <Card className="shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px', height: '879px' }}>
+                <CardContent className="p-6 h-full flex items-center justify-center">
                   <div className="flex items-center justify-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mr-3"></div>
                     <span className="text-gray-600">Loading activity...</span>
@@ -1128,34 +1132,99 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                 </CardContent>
               </Card>
             ) : (
-              <Card className="bg-white shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
-                <CardContent className="p-6">
-                  <h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center" style={{ fontSize: '18px' }}>
-                    <div className="w-2.5 h-2.5 bg-blue-600 rounded-full mr-3"></div>
-                    Recent Activity
-                  </h3>
-                  <div className="space-y-3">
-                    {activityLogs.slice(0, 10).map((activity) => (
-                      <div key={activity.id} className="bg-gray-50 border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-800 mb-1">{activity.title}</p>
-                            <p className="text-xs text-gray-500">{activity.timeAgo}</p>
-                          </div>
-                          <div className="ml-3 flex-shrink-0">
-                            {getActivityStatusBadge(activity)}
-                          </div>
-                        </div>
+              <Card className="bg-white shadow-md hover:shadow-lg transition-all duration-300 flex flex-col" style={{ borderRadius: '16px', height: '879px' }}>
+                <CardContent className="p-6 flex-1 flex flex-col min-h-0">
+                  {/* Scrollable Content Container */}
+                  <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+                    {/* Upcoming Posts Section */}
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center" style={{ fontSize: '18px' }}>
+                        <div className="w-2.5 h-2.5 bg-green-600 rounded-full mr-3"></div>
+                        Upcoming Posts
+                      </h3>
+                      <div className="space-y-3">
+                        {(() => {
+                          const upcomingPosts = activityLogs.filter(activity => activity.type === 'next_scheduled');
+                          if (upcomingPosts.length === 0) {
+                            return (
+                              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+                                <p className="text-sm text-gray-500">No upcoming posts</p>
+                              </div>
+                            );
+                          }
+                          return upcomingPosts.map((activity) => (
+                            <div key={activity.id} className="bg-green-50 border border-green-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
+                              <div className="flex items-start gap-3">
+                                {/* Post Thumbnail */}
+                                <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
+                                  {activity.details?.image_url ? (
+                                    <img
+                                      src={activity.details.image_url}
+                                      alt="Post thumbnail"
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                                      <Image className="w-6 h-6 text-gray-400" />
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Post Content */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-gray-800 mb-1">{activity.title}</p>
+                                      <p className="text-xs text-gray-500 mb-2">{activity.timeAgo}</p>
+                                      {activity.details?.caption && (
+                                        <p className="text-xs text-gray-600 italic line-clamp-2">"{activity.details.caption}"</p>
+                                      )}
+                                    </div>
+                                    <div className="ml-3 flex-shrink-0">
+                                      {getActivityStatusBadge(activity)}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ));
+                        })()}
                       </div>
-                    ))}
-                  </div>
-                  {activityLogs.length > 10 && (
-                    <div className="mt-4 text-center">
-                      <p className="text-xs text-gray-500">
-                        Showing 10 of {activityLogs.length} recent activities
-                      </p>
                     </div>
-                  )}
+
+                    {/* Recent Activity Section */}
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center" style={{ fontSize: '18px' }}>
+                        <div className="w-2.5 h-2.5 bg-blue-600 rounded-full mr-3"></div>
+                        Recent Activity
+                      </h3>
+                      <div className="space-y-3">
+                        {activityLogs
+                          .filter(activity => activity.type !== 'next_scheduled')
+                          .slice(0, 10)
+                          .map((activity) => (
+                          <div key={activity.id} className="bg-gray-50 border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-800 mb-1">{activity.title}</p>
+                                <p className="text-xs text-gray-500">{activity.timeAgo}</p>
+                              </div>
+                              <div className="ml-3 flex-shrink-0">
+                                {getActivityStatusBadge(activity)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {activityLogs.filter(activity => activity.type !== 'next_scheduled').length > 10 && (
+                        <div className="mt-4 text-center">
+                          <p className="text-xs text-gray-500">
+                            Showing 10 of {activityLogs.filter(activity => activity.type !== 'next_scheduled').length} recent activities
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             )}

@@ -94,14 +94,14 @@ export function isValidImageData(imageData: string): { isValid: boolean; type: '
     return { isValid: false, type: 'invalid' };
   }
   
-  // Check if it's a blob URL (including local development URLs)
-  if (isValidBlobUrl(imageData)) {
-    return { isValid: true, type: 'blob' };
-  }
-  
-  // Check if it's base64 (for backward compatibility)
+  // Check if it's base64 data URL (preferred for OpenAI API)
   if (imageData.startsWith('data:image/')) {
     return { isValid: true, type: 'base64' };
+  }
+  
+  // Check if it's a blob URL (will need conversion for OpenAI API)
+  if (isValidBlobUrl(imageData)) {
+    return { isValid: true, type: 'blob' };
   }
   
   return { isValid: false, type: 'invalid' };

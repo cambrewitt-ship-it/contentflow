@@ -370,18 +370,35 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         return
       }
 
-      // Use blob URL directly (no need to convert to base64)
+      // Convert blob URL to base64 data URL for OpenAI API
       let imageData = image.blobUrl || image.preview
       if (!imageData) {
         throw new Error('No image data available for AI processing')
       }
+
+      // If it's a blob URL, convert it to base64
+      if (imageData.startsWith('blob:')) {
+        console.log('Converting blob URL to base64 for OpenAI API...')
+        const response = await fetch(imageData)
+        const blob = await response.blob()
+        
+        // Convert blob to base64 data URL
+        const reader = new FileReader()
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+        })
+        reader.readAsDataURL(blob)
+        imageData = await base64Promise
+      }
       
-      console.log('Using image data for AI:', imageData)
+      console.log('Using image data for AI:', imageData.substring(0, 100) + '...')
       console.log('Image details:', {
         id: image.id,
         filename: image.file.name,
         hasBlobUrl: !!image.blobUrl,
-        previewType: image.preview.startsWith('blob:') ? 'temporary' : 'permanent'
+        previewType: image.preview.startsWith('blob:') ? 'temporary' : 'permanent',
+        dataType: imageData.startsWith('data:') ? 'base64' : 'url'
       })
 
       const response = await fetch('/api/ai', {
