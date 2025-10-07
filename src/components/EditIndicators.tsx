@@ -71,7 +71,7 @@ export function EditIndicators({ post, clientId, showHistory = true }: EditIndic
         )
       default:
         return (
-          <span className={`${baseClasses} bg-yellow-100 text-yellow-800`}>
+          <span className={`${baseClasses} bg-gray-100 text-gray-800`}>
             <Minus className="w-3 h-3 mr-1" />
             Pending
           </span>

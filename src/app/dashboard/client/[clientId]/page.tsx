@@ -52,6 +52,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [contentInboxError, setContentInboxError] = useState<string | null>(null)
   const [scheduledPosts, setScheduledPosts] = useState<Post[]>([])
   const [scheduledPostsLoading, setScheduledPostsLoading] = useState(false)
+  const [clientUploads, setClientUploads] = useState<{[key: string]: Upload[]}>({})
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
   
@@ -248,6 +249,16 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       
       const data = await response.json()
       setScheduledPosts(data.posts || [])
+      
+      // Map uploads by date (using created_at date)
+      const uploadsMapped: {[key: string]: Upload[]} = {}
+      const uploads = data.uploads || []
+      uploads.forEach((upload: Upload) => {
+        const uploadDate = new Date(upload.created_at).toLocaleDateString('en-CA')
+        if (!uploadsMapped[uploadDate]) uploadsMapped[uploadDate] = []
+        uploadsMapped[uploadDate].push(upload)
+      })
+      setClientUploads(uploadsMapped)
       
     } catch (err) {
       console.error('Error fetching scheduled posts:', err)
@@ -1204,6 +1215,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                 <div className="mt-6">
                   <CompactMonthCalendar 
                     posts={scheduledPosts} 
+                    uploads={clientUploads}
                     loading={scheduledPostsLoading}
                   />
                 </div>

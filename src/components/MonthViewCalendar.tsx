@@ -113,7 +113,7 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
       case 'needs_attention':
         return 'bg-orange-500'
       case 'pending':
-        return 'bg-yellow-500'
+        return 'bg-gray-500'
       case 'draft':
         return 'bg-gray-500'
       default:
@@ -145,7 +145,7 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
         return 'border-orange-500 border-3 rounded-3xl'
       }
       if (statuses.includes('pending')) {
-        return 'border-yellow-500 border-3 rounded-3xl'
+        return 'border-gray-500 border-3 rounded-3xl'
       }
       if (statuses.includes('draft')) {
         return 'border-gray-500 border-3 rounded-3xl'
@@ -351,7 +351,7 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
                         }
                         if (statuses.includes('pending')) {
                           return (
-                            <span className="text-xs font-medium text-yellow-400 bg-yellow-100 px-2 py-1 rounded-full">
+                            <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
                               PENDING
                             </span>
                           )

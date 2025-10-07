@@ -10,12 +10,25 @@ interface Post {
   caption?: string;
 }
 
+interface Upload {
+  id: string;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  file_url: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface CompactMonthCalendarProps {
   posts: Post[];
+  uploads?: {[key: string]: Upload[]};
   loading?: boolean;
 }
 
-export function CompactMonthCalendar({ posts, loading = false }: CompactMonthCalendarProps) {
+export function CompactMonthCalendar({ posts, uploads = {}, loading = false }: CompactMonthCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
 
   const monthNames = [
@@ -80,6 +93,14 @@ export function CompactMonthCalendar({ posts, loading = false }: CompactMonthCal
     return postsByDate[dateStr] || []
   }
 
+  // Get uploads for a specific day
+  const getUploadsForDay = (day: number | null) => {
+    if (!day) return []
+    
+    const dateStr = `${calendarData.year}-${String(calendarData.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    return uploads[dateStr] || []
+  }
+
   // Check if a day is today
   const isToday = (day: number | null) => {
     if (!day) return false
@@ -90,6 +111,14 @@ export function CompactMonthCalendar({ posts, loading = false }: CompactMonthCal
       calendarData.month === today.getMonth() &&
       calendarData.year === today.getFullYear()
     )
+  }
+
+  // Check if a day has pending posts
+  const hasPendingPosts = (day: number | null) => {
+    if (!day) return false
+    
+    const dayPosts = getPostsForDay(day)
+    return dayPosts.some(post => post.approval_status === 'pending' || !post.approval_status)
   }
 
   // Get border color for a day based on post statuses
@@ -156,8 +185,11 @@ export function CompactMonthCalendar({ posts, loading = false }: CompactMonthCal
       <div className="grid grid-cols-7 gap-2">
         {calendarData.days.map((day, index) => {
           const dayPosts = getPostsForDay(day)
+          const dayUploads = getUploadsForDay(day)
           const today = isToday(day)
           const borderColor = getDayBorderColor(day)
+          const hasContent = dayPosts.length > 0 || dayUploads.length > 0
+          const hasPending = hasPendingPosts(day)
           
           return (
             <div
@@ -165,24 +197,35 @@ export function CompactMonthCalendar({ posts, loading = false }: CompactMonthCal
               className={`
                 relative aspect-square flex items-center justify-center text-xl font-bold transition-all
                 ${day ? 'text-gray-800 hover:bg-gray-50 cursor-pointer' : 'text-transparent'}
-                ${today ? 'bg-blue-500/50 border-2 border-blue-600 text-white rounded-3xl shadow-lg shadow-blue-300' : ''}
+                ${today ? 'bg-white border-2 border-gray-600 text-gray-800 rounded-3xl shadow-lg shadow-gray-300' : ''}
+                ${hasPending && !today ? 'bg-gray-100 border-2 border-gray-300 rounded-3xl' : ''}
+                ${hasContent && !hasPending && !today ? 'bg-blue-100 border-2 border-blue-300 rounded-3xl' : ''}
                 ${borderColor}
               `}
             >
               {day && (
                 <>
                   {day}
-                  {/* Event indicators - small dots for posts */}
-                  {dayPosts.length > 0 && !today && (
+                  {/* Event indicators - small dots for posts and uploads */}
+                  {hasContent && !today && (
                     <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex space-x-1">
-                      {dayPosts.slice(0, 3).map((_, idx) => (
-                        <div
-                          key={idx}
-                          className="w-1.5 h-1.5 bg-red-500 rounded-full"
-                        />
-                      ))}
-                      {dayPosts.length > 3 && (
-                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full" />
+                      {(dayPosts.length + dayUploads.length) <= 3 ? (
+                        <>
+                          {dayPosts.slice(0, 3).map((_, idx) => (
+                            <div
+                              key={`post-${idx}`}
+                              className="w-1.5 h-1.5 bg-blue-500 rounded-full"
+                            />
+                          ))}
+                          {dayUploads.slice(0, 3 - dayPosts.length).map((_, idx) => (
+                            <div
+                              key={`upload-${idx}`}
+                              className="w-1.5 h-1.5 bg-green-500 rounded-full"
+                            />
+                          ))}
+                        </>
+                      ) : (
+                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
                       )}
                     </div>
                   )}

@@ -846,7 +846,7 @@ export default function PortalCalendarPage() {
         );
       default:
         return (
-          <span className={`${baseClasses} bg-yellow-100 text-yellow-800`}>
+          <span className={`${baseClasses} bg-gray-100 text-gray-800`}>
             <Minus className="w-3 h-3 mr-1" />
             Pending
           </span>
@@ -1019,12 +1019,12 @@ export default function PortalCalendarPage() {
                     </div>
                     <div className="text-lg font-bold text-orange-900">{needsAttention}</div>
                   </div>
-                  <div className="bg-yellow-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
+                  <div className="bg-gray-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
                     <div className="flex items-center mb-2">
-                      <Minus className="w-4 h-4 text-yellow-600 mr-2" />
-                      <span className="text-sm font-medium text-yellow-800">Pending</span>
+                      <Minus className="w-4 h-4 text-gray-600 mr-2" />
+                      <span className="text-sm font-medium text-gray-800">Pending</span>
                     </div>
-                    <div className="text-lg font-bold text-yellow-900">{pending}</div>
+                    <div className="text-lg font-bold text-gray-900">{pending}</div>
                   </div>
                 </>
               );
