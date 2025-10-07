@@ -48,7 +48,11 @@ export function ImageUploadColumn() {
       case 'promotional':
         return 'Promotional'
       case 'educational':
-        return 'Formal'
+        return 'Educational'
+      case 'personal':
+        return 'Personal'
+      case 'testimonial':
+        return 'Testimonial'
       case 'engagement':
         return 'Engagement'
       default:
