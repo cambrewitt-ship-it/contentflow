@@ -128,31 +128,9 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
     const dayPosts = getPostsForDay(day)
     const dayUploads = getUploadsForDay(day)
     
-    // If there are uploads but no posts, show blue border
-    if (dayUploads.length > 0 && dayPosts.length === 0) {
-      return 'border-blue-500 border-3 rounded-3xl'
-    }
-    
-    // If there are both uploads and posts, prioritize post status but make border thicker
-    if (dayUploads.length > 0 && dayPosts.length > 0) {
-      const statuses = dayPosts.map(post => post.approval_status)
-      
-      // Priority order: rejected > needs_attention > pending > draft > approved
-      if (statuses.includes('rejected')) {
-        return 'border-red-500 border-3 rounded-3xl'
-      }
-      if (statuses.includes('needs_attention')) {
-        return 'border-orange-500 border-3 rounded-3xl'
-      }
-      if (statuses.includes('pending')) {
-        return 'border-yellow-500 border-3 rounded-3xl'
-      }
-      if (statuses.includes('draft')) {
-        return 'border-gray-500 border-3 rounded-3xl'
-      }
-      if (statuses.includes('approved')) {
-        return 'border-green-500 border-3 rounded-3xl'
-      }
+    // If there are uploads, show thick blue border
+    if (dayUploads.length > 0) {
+      return 'border-blue-500 border-4 rounded-3xl'
     }
     
     // Only posts, no uploads
@@ -309,11 +287,12 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
             <div
               key={index}
               className={`
-                relative min-h-[120px] p-3 border-2 border-gray-300 transition-all
+                relative min-h-[120px] p-3 transition-all
                 ${day ? 'hover:bg-blue-50 hover:border-blue-400 cursor-pointer' : 'bg-gray-50'}
-                ${today ? 'bg-white' : ''}
+                ${today ? 'bg-gray-100' : ''}
+                ${dayUploads.length > 0 ? 'bg-blue-50' : ''}
                 ${isWeekendColumn && day ? 'bg-gray-50/50' : ''}
-                ${borderColor}
+                ${borderColor || 'border-2 border-gray-300'}
               `}
               title={day ? 'Click to view week' : ''}
               onClick={() => {
@@ -327,7 +306,7 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
                 <>
                   {/* Day Number */}
                   <div className={`
-                    text-lg font-medium mb-2
+                    text-lg font-medium mb-2 flex items-center gap-2
                     ${today ? 'text-blue-600' : isWeekendColumn ? 'text-gray-500' : 'text-gray-900'}
                   `}>
                     {today ? (
@@ -337,6 +316,64 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
                     ) : (
                       day
                     )}
+                    
+                    {/* Status Text */}
+                    {(() => {
+                      const dayPosts = getPostsForDay(day)
+                      const dayUploads = getUploadsForDay(day)
+                      
+                      // Priority: Uploads > Post Status
+                      if (dayUploads.length > 0) {
+                        return (
+                          <span className="text-xs font-medium text-blue-400 bg-blue-100 px-2 py-1 rounded-full">
+                            UPLOAD
+                          </span>
+                        )
+                      }
+                      
+                      if (dayPosts.length > 0) {
+                        const statuses = dayPosts.map(post => post.approval_status)
+                        
+                        // Priority order: rejected > needs_attention > pending > draft > approved
+                        if (statuses.includes('rejected')) {
+                          return (
+                            <span className="text-xs font-medium text-red-400 bg-red-100 px-2 py-1 rounded-full">
+                              REJECTED
+                            </span>
+                          )
+                        }
+                        if (statuses.includes('needs_attention')) {
+                          return (
+                            <span className="text-xs font-medium text-orange-400 bg-orange-100 px-2 py-1 rounded-full">
+                              NEEDS ATTENTION
+                            </span>
+                          )
+                        }
+                        if (statuses.includes('pending')) {
+                          return (
+                            <span className="text-xs font-medium text-yellow-400 bg-yellow-100 px-2 py-1 rounded-full">
+                              PENDING
+                            </span>
+                          )
+                        }
+                        if (statuses.includes('draft')) {
+                          return (
+                            <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                              DRAFT
+                            </span>
+                          )
+                        }
+                        if (statuses.includes('approved')) {
+                          return (
+                            <span className="text-xs font-medium text-green-400 bg-green-100 px-2 py-1 rounded-full">
+                              APPROVED
+                            </span>
+                          )
+                        }
+                      }
+                      
+                      return null
+                    })()}
                   </div>
                   
                   {/* Event Indicators - Photo Thumbnails */}

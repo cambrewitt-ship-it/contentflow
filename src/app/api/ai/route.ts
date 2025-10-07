@@ -508,59 +508,50 @@ ${brandContext.website ? `🌐 WEBSITE CONTEXT: Available for reference` : ''}`;
 
 
 
-    const finalInstruction = copyType === "email-marketing" ? "Provide ONLY 1 single email paragraph in this exact format: [2-3 concise sentences about the offer/product] followed by a blank line, then [Call-to-action]. Use actual line breaks, not \\n characters. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. Do NOT provide multiple options, captions, hashtags, or social media formatting." : "Provide only 3 captions, separated by blank lines. No introduction or explanation.";
+    const finalInstruction = copyType === "email-marketing" ? "" : "Provide only 3 captions, separated by blank lines. No introduction or explanation.";
 
     // Choose system prompt based on copy type
     const systemPrompt = copyType === "email-marketing" ? 
-      `# Email Marketing Content Creation System
+      `# Professional Email Copy Generator
 
-## Content Strategy
-**Copy Tone:** ${copyTone || 'Promotional'}
-**Post Notes Style:** ${postNotesStyle || 'Paraphrase'}
-**Image Focus:** ${imageFocus || 'Supporting'}
+## Your Role
+You are a professional email copywriter creating promotional email content.
 
-## Email Copy Tone Instructions
-${getEmailCopyToneInstructions(copyTone || 'promotional')}
+## Brand Context
+- **Company:** ${brandContext?.company || 'Not specified'} - ${brandContext?.value_proposition || 'Not specified'}
+- **Tone:** ${brandContext?.tone || 'Professional'}
+- **Audience:** ${brandContext?.audience || 'Not specified'}
+- **Value Proposition:** ${brandContext?.value_proposition || 'Not specified'}
 
-## Content Hierarchy & Approach
-${getEmailContentHierarchy(aiContext, postNotesStyle || 'paraphrase', imageFocus || 'supporting')}
+## Content Inputs
+**User's Message Intent:** ${aiContext || 'Not provided'}
+**Visual Content:** ${imageData ? 'Image provided for analysis' : 'No image provided'}
 
-${aiContext ? `## Post Notes Content
-${aiContext}
+## Task
+Transform the user's message intent into professional email copy that:
+1. Communicates the core message in refined, professional language
+2. References relevant visual elements from the image naturally
+3. Creates value and urgency appropriate for the business
+4. Maintains the brand's voice and tone
 
-**Processing Instructions:** ${getPostNotesInstructions(postNotesStyle || 'paraphrase')}` : ''}
+## Output Format
+Write exactly ONE email paragraph structured as:
 
-${brandContextSection}
+[2-3 professional sentences conveying the message and value]
 
-## Image Analysis Guidelines
-${getEmailImageInstructions(imageFocus || 'supporting')}
+[Clear call-to-action]
 
-## Email Marketing Requirements
-- Generate exactly ONE cohesive email paragraph section
-- Write 2-3 concise, compelling sentences about the main message
-- Follow with a clear, action-oriented call-to-action
-- Use professional email tone appropriate for direct marketing
-- Include specific details (prices, offers, deadlines) when mentioned
-- Create urgency and value proposition clarity
-- Format with actual line breaks between content and CTA
+## Requirements
+✓ Professional business language (translate casual language to professional tone)
+✓ Email-appropriate formatting (no hashtags, no social media slang)
+✓ Specific details when provided (prices, dates, features)
+✓ Action-oriented CTA appropriate to the business type
+✓ Concise - maximum 4 sentences total
+✗ No multiple options or variations
+✗ No "\\n" literal text - use actual line breaks
+✗ No casual social media language ("DM", "link in bio", emojis)
 
-## Email Formatting Standards
-- Professional, direct communication style
-- No hashtags or social media elements
-- No casual social media language ("DM us", "link in bio")
-- Use proper email CTAs ("Call today", "Visit our website", "Book now")
-- Clear paragraph structure suitable for email clients
-- Maintain readability across email platforms
-
-## Quality Standards
-- Content must align with selected copy tone for email context
-- Post notes content must be processed according to specified style
-- Image elements integrated per focus level requirements
-- Brand voice must be consistently applied throughout
-- Email must be professionally formatted and action-oriented
-- Single, cohesive message that drives reader response
-
-${finalInstruction}` :
+Generate the email copy now.` :
       `# Social Media Content Creation System
 
 ## Content Strategy
@@ -603,12 +594,49 @@ ${finalInstruction}`;
 
     console.log('🤖 Sending request to OpenAI...');
     console.log('📝 System prompt length:', systemPrompt.length);
+    console.log('🖼️ Image data validation:', validation);
+    console.log('🖼️ Image data type:', validation.type);
+    console.log('🖼️ Image data URL:', imageData.substring(0, 100) + '...');
     
     // Log the complete prompt for debugging brand voice examples
     console.log('🔍 COMPLETE SYSTEM PROMPT:');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(systemPrompt);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    // Prepare the user message content
+    const userContent: any[] = [
+      {
+        type: 'text',
+        text: copyType === 'email-marketing' 
+          ? (aiContext 
+              ? 'Generate ONE single email paragraph (2-3 concise sentences + CTA) based on your Post Notes: "' + aiContext + '". Write as a professional email with actual line breaks between the main text and CTA. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. NO hashtags or social media formatting.'
+              : 'Generate ONE single email paragraph (2-3 concise sentences + CTA) for this image. Write as a professional email with actual line breaks between the main text and CTA. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. NO hashtags or social media formatting.')
+          : (aiContext 
+              ? 'CRITICAL: Your Post Notes are "' + aiContext + '". Generate exactly 3 social media captions that DIRECTLY mention and use these Post Notes. Every caption must include the actual content from your notes. Do not create generic captions - make the Post Notes the main focus of each caption. Start with the first caption immediately, no introduction needed.'
+              : 'Generate exactly 3 social media captions for this image based on what you see. Start with the first caption immediately, no introduction needed.')
+      }
+    ];
+
+    // Add image to content if image data is valid
+    if (validation.isValid && imageData) {
+      userContent.push({
+        type: 'image_url',
+        image_url: {
+          url: imageData,
+          detail: 'high'
+        }
+      });
+      console.log('🖼️ Added image to OpenAI request:', {
+        type: 'image_url',
+        image_url: {
+          url: imageData.substring(0, 50) + '...',
+          detail: 'high'
+        }
+      });
+    } else {
+      console.log('⚠️ No valid image data provided, sending text-only request');
+    }
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
@@ -619,25 +647,7 @@ ${finalInstruction}`;
         },
         {
           role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: copyType === 'email-marketing' 
-                ? (aiContext 
-                    ? 'Generate ONE single email paragraph (2-3 concise sentences + CTA) based on your Post Notes: "' + aiContext + '". Write as a professional email with actual line breaks between the main text and CTA. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. NO hashtags or social media formatting.'
-                    : 'Generate ONE single email paragraph (2-3 concise sentences + CTA) for this image. Write as a professional email with actual line breaks between the main text and CTA. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. NO hashtags or social media formatting.')
-                : (aiContext 
-                    ? 'CRITICAL: Your Post Notes are "' + aiContext + '". Generate exactly 3 social media captions that DIRECTLY mention and use these Post Notes. Every caption must include the actual content from your notes. Do not create generic captions - make the Post Notes the main focus of each caption. Start with the first caption immediately, no introduction needed.'
-                    : 'Generate exactly 3 social media captions for this image based on what you see. Start with the first caption immediately, no introduction needed.')
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: imageData,
-                detail: 'high'
-              }
-            }
-          ]
+          content: userContent
         }
       ],
       max_tokens: 800,

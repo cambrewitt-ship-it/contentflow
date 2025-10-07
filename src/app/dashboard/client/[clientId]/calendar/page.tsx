@@ -2349,6 +2349,7 @@ export default function CalendarPage() {
               <div className="bg-white rounded-lg shadow">
                 <MonthViewCalendar 
                   posts={Object.values(scheduledPosts).flat()} 
+                  uploads={clientUploads}
                   loading={isLoadingScheduledPosts}
                   onDateClick={handleDateClick}
                 />
