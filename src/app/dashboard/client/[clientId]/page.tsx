@@ -1177,7 +1177,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                                       <p className="text-sm font-semibold text-gray-800 mb-1">{activity.title}</p>
                                       <p className="text-xs text-gray-500 mb-2">{activity.timeAgo}</p>
                                       {activity.details?.caption && (
-                                        <p className="text-xs text-gray-600 italic line-clamp-2">"{activity.details.caption}"</p>
+                                        <p className="text-xs text-gray-600 italic line-clamp-2">&quot;{activity.details.caption}&quot;</p>
                                       )}
                                     </div>
                                     <div className="ml-3 flex-shrink-0">
