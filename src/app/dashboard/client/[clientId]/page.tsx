@@ -4,7 +4,7 @@ import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Edit3, Calendar, Trash2, Upload, X, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Image, File, RefreshCw, Loader2, Check, AlertTriangle, Minus } from 'lucide-react'
+import { Plus, Edit3, Calendar, Trash2, Upload, X, Image, File, RefreshCw, Loader2, Check, AlertTriangle, Minus } from 'lucide-react'
 import Link from 'next/link'
 import BrandInformationPanel from '@/components/BrandInformationPanel'
 import { CompactMonthCalendar } from '@/components/CompactMonthCalendar'
@@ -41,12 +41,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [removingLogo, setRemovingLogo] = useState(false)
   const [isEditingLogo, setIsEditingLogo] = useState(false)
-  const [portalToken, setPortalToken] = useState<string | null>(null)
-  const [portalEnabled, setPortalEnabled] = useState(false)
-  const [portalUrl, setPortalUrl] = useState<string | null>(null)
-  const [generatingPortalLink, setGeneratingPortalLink] = useState(false)
-  const [togglingPortal, setTogglingPortal] = useState(false)
-  const [portalLinkCopied, setPortalLinkCopied] = useState(false)
   const [contentInbox, setContentInbox] = useState<Upload[]>([])
   const [contentInboxLoading, setContentInboxLoading] = useState(false)
   const [contentInboxError, setContentInboxError] = useState<string | null>(null)
@@ -124,12 +118,13 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         
         if (!accessToken) {
           console.log('⚠️ No access token available, waiting for session...');
-          // Wait a bit for the session to be available after OAuth callback
+          // Keep loading true while waiting for the session
+          // Don't set loading to false - keep showing loading state
           setTimeout(() => {
             fetchClientRef.current = false;
             fetchClient();
-          }, 1000);
-          return;
+          }, 500); // Reduced from 1000ms to 500ms for faster retry
+          return; // Return WITHOUT going to finally block
         }
         
         const response = await fetch(`/api/clients/${clientId}`, {
@@ -152,24 +147,25 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         setClient(data.client)
         setWebsite(data.client.website_url || "")
         setAbout(data.client.company_description || "")
+        setLoading(false) // Only set loading false on success
         
       } catch (err) {
         console.error('❌ Error fetching client:', err)
         // Only set error if it's a critical error (404, not just network issues)
         if (err instanceof Error && err.message === 'Client not found') {
           setError(err.message)
+          setLoading(false) // Set loading false for 404 errors
         } else {
           // For other errors, retry after a short delay instead of showing error immediately
-          console.log('🔄 Retrying client fetch in 2 seconds...')
+          console.log('🔄 Retrying client fetch in 1.5 seconds...')
           setTimeout(() => {
             if (!client) { // Only retry if we still don't have client data
               fetchClientRef.current = false
               fetchClient()
             }
-          }, 2000)
+          }, 1500) // Reduced from 2000ms to 1500ms
         }
       } finally {
-        setLoading(false)
         fetchClientRef.current = false
       }
     }
@@ -751,110 +747,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
   };
 
-  // Generate portal link
-  const handleGeneratePortalLink = async () => {
-    if (!client) return;
-
-    try {
-      setGeneratingPortalLink(true);
-      
-      const accessToken = getAccessToken();
-      if (!accessToken) {
-        alert('Authentication required. Please refresh the page and try again.');
-        return;
-      }
-
-      const response = await fetch(`/api/clients/${clientId}`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch client data: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const clientData = data.client;
-      
-      if (!clientData.portal_token) {
-        alert('No portal token found for this client. Please contact support.');
-        return;
-      }
-
-      const portalUrl = `${window.location.origin}/portal/${clientData.portal_token}`;
-      setPortalToken(clientData.portal_token);
-      setPortalUrl(portalUrl);
-      setPortalEnabled(clientData.portal_enabled || false);
-      
-      console.log('✅ Portal link generated:', portalUrl);
-      
-    } catch (err) {
-      console.error('❌ Error generating portal link:', err);
-      alert(`Failed to generate portal link: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setGeneratingPortalLink(false);
-    }
-  };
-
-  // Toggle portal access
-  const handleTogglePortalAccess = async () => {
-    if (!client) return;
-
-    try {
-      setTogglingPortal(true);
-      
-      const accessToken = getAccessToken();
-      if (!accessToken) {
-        alert('Authentication required. Please refresh the page and try again.');
-        return;
-      }
-
-      const response = await fetch(`/api/clients/${clientId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          portal_enabled: !portalEnabled
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to update portal access: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setPortalEnabled(data.client.portal_enabled);
-      setClient(prev => prev ? { ...prev, portal_enabled: data.client.portal_enabled } : null);
-      
-      console.log('✅ Portal access toggled:', data.client.portal_enabled);
-      
-    } catch (err) {
-      console.error('❌ Error toggling portal access:', err);
-      alert(`Failed to toggle portal access: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setTogglingPortal(false);
-    }
-  };
-
-  // Copy portal link to clipboard
-  const handleCopyPortalLink = async () => {
-    if (!portalUrl) return;
-
-    try {
-      await navigator.clipboard.writeText(portalUrl);
-      setPortalLinkCopied(true);
-      setTimeout(() => setPortalLinkCopied(false), 2000);
-      console.log('✅ Portal link copied to clipboard');
-    } catch (err) {
-      console.error('❌ Error copying to clipboard:', err);
-      alert('Failed to copy link to clipboard');
-    }
-  };
-
   // Content inbox helper functions
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -1294,126 +1186,12 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         </div>
 
 
-        {/* Unified Card - Client Portal, Social Media Platforms, Brand Information, and Delete Client */}
+        {/* Unified Card - Social Media Platforms, Brand Information, and Delete Client */}
         <div className="mt-8">
           <Card className="shadow-md hover:shadow-lg transition-all" style={{ borderRadius: '16px' }}>
             <CardContent className="p-8 space-y-10">
-              {/* Client Portal Section */}
-              <div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Client Portal</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-lg font-semibold text-gray-700">Portal Access</h4>
-                      <p className="text-sm text-gray-600">
-                        Allow this client to access their content portal
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <span className={`text-sm font-medium ${portalEnabled ? 'text-green-600' : 'text-gray-500'}`}>
-                        {portalEnabled ? 'Enabled' : 'Disabled'}
-                      </span>
-                      <button
-                        onClick={handleTogglePortalAccess}
-                        disabled={togglingPortal}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 ${
-                          portalEnabled ? 'bg-blue-600' : 'bg-gray-200'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            portalEnabled ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-lg font-semibold text-gray-700">Portal Link</h4>
-                      <p className="text-sm text-gray-600">
-                        Generate a secure link for the client to access their portal
-                      </p>
-                    </div>
-                    <Button
-                      onClick={handleGeneratePortalLink}
-                      disabled={generatingPortalLink || !portalEnabled}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      {generatingPortalLink ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <LinkIcon className="w-4 h-4 mr-2" />
-                          Generate Portal Link
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  {portalUrl && (
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-700 mb-1">Portal URL:</p>
-                          <p className="text-sm text-gray-600 break-all">{portalUrl}</p>
-                        </div>
-                        <div className="flex items-center space-x-2 ml-4">
-                          <Button
-                            onClick={handleCopyPortalLink}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center"
-                          >
-                            {portalLinkCopied ? (
-                              <>
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                Copied!
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-4 h-4 mr-1" />
-                                Copy
-                              </>
-                            )}
-                          </Button>
-                          <Button
-                            onClick={() => window.open(portalUrl, '_blank')}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center"
-                          >
-                            <ExternalLink className="w-4 h-4 mr-1" />
-                            Open
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {!portalEnabled && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                      <div className="flex items-center">
-                        <div className="w-5 h-5 text-yellow-600 mr-3">
-                          <svg fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <p className="text-sm text-yellow-700">
-                          Portal access is disabled. Enable it above to generate a portal link for this client.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Social Media Platforms Section */}
-              <div className="border-t-2 pt-8">
+              <div>
                 <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Social Media Platforms</h3>
                 
                 {/* OAuth Success/Error Messages */}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Share2, Loader2, RefreshCw, User, Settings, Calendar, Grid3X3 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Grid3X3, Copy, ExternalLink, Link as LinkIcon, CheckCircle } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
@@ -134,7 +134,7 @@ interface ConnectedAccount {
 export default function CalendarPage() {
   const params = useParams();
   const clientId = params?.clientId as string;
-  const { user } = useAuth();
+  const { user, getAccessToken } = useAuth();
   
   // Initialize Supabase client
   const supabase = createClient(
@@ -162,7 +162,7 @@ export default function CalendarPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>('all'); // 'all', 'untagged', or project id
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week
-  
+
   const [projectPosts, setProjectPosts] = useState<Post[]>([]);
   const [scheduledPosts, setScheduledPosts] = useState<{[key: string]: Post[]}>({});
   const [clientUploads, setClientUploads] = useState<{[key: string]: ClientUpload[]}>({});
@@ -181,10 +181,15 @@ export default function CalendarPage() {
   const [schedulingPostIds, setSchedulingPostIds] = useState<Set<string>>(new Set());
   const [editingTimePostIds, setEditingTimePostIds] = useState<Set<string>>(new Set());
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
-  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('month');
+  
+  // Client Portal states
+  const [portalToken, setPortalToken] = useState<string | null>(null);
+  const [portalUrl, setPortalUrl] = useState<string | null>(null);
+  const [generatingPortalLink, setGeneratingPortalLink] = useState(false);
+  const [portalLinkCopied, setPortalLinkCopied] = useState(false);
 
   const updatePostCaption = (postId: string, newCaption: string) => {
     setEditingCaptions(prev => ({
@@ -208,6 +213,64 @@ export default function CalendarPage() {
     }
   }, [clientId]); // Removed state dependencies to prevent recreation
 
+  // Generate portal link
+  const handleGeneratePortalLink = async () => {
+    try {
+      setGeneratingPortalLink(true);
+      
+      const accessToken = getAccessToken();
+      if (!accessToken) {
+        alert('Authentication required. Please refresh the page and try again.');
+        return;
+      }
+
+      const response = await fetch(`/api/clients/${clientId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch client data: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const clientData = data.client;
+      
+      if (!clientData.portal_token) {
+        alert('No portal token found for this client. Please contact support.');
+        return;
+      }
+
+      const portalUrl = `${window.location.origin}/portal/${clientData.portal_token}`;
+      setPortalToken(clientData.portal_token);
+      setPortalUrl(portalUrl);
+      
+      console.log('✅ Portal link generated:', portalUrl);
+      
+    } catch (err) {
+      console.error('❌ Error generating portal link:', err);
+      alert(`Failed to generate portal link: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setGeneratingPortalLink(false);
+    }
+  };
+
+  // Copy portal link to clipboard
+  const handleCopyPortalLink = async () => {
+    if (!portalUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(portalUrl);
+      setPortalLinkCopied(true);
+      setTimeout(() => setPortalLinkCopied(false), 2000);
+      console.log('✅ Portal link copied to clipboard');
+    } catch (err) {
+      console.error('❌ Error copying to clipboard:', err);
+      alert('Failed to copy link to clipboard');
+    }
+  };
 
   const fetchUnscheduledPosts = useCallback(async (forceRefresh = false) => {
       try {
@@ -1062,47 +1125,6 @@ export default function CalendarPage() {
     }
   };
 
-  const handleCreateShareLink = async () => {
-    if (selectedPosts.size === 0) {
-      alert('Please select at least one post to share for approval');
-      return;
-    }
-
-    setIsCreatingSession(true);
-    try {
-      // Determine project_id: use filter if it's a specific project, otherwise null for client-wide
-      const projectId = selectedProjectFilter !== 'all' && selectedProjectFilter !== 'untagged' 
-        ? selectedProjectFilter 
-        : null;
-      
-      const response = await fetch('/api/approval-sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project_id: projectId,
-          client_id: clientId,
-          selected_post_ids: Array.from(selectedPosts)
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create share link');
-      }
-
-      const { session, share_url } = await response.json();
-      
-      // For now, just copy to clipboard and show alert
-      await navigator.clipboard.writeText(share_url);
-      alert(`Share link copied to clipboard!\n\nLink: ${share_url}\nExpires: ${new Date(session.expires_at).toLocaleDateString()}\n\nSelected ${selectedPosts.size} posts for approval`);
-      
-    } catch (error) {
-      console.error('❌ Error creating share link:', error);
-      alert('Failed to create share link. Please try again.');
-    } finally {
-      setIsCreatingSession(false);
-    }
-  };
-
   const handleScheduleToPlatform = async (account: ConnectedAccount) => {
     if (selectedPosts.size === 0) return;
     
@@ -1550,26 +1572,28 @@ export default function CalendarPage() {
         {/* Action Buttons */}
         <div className="flex justify-between items-center mb-4">
           {/* Left side - Delete button */}
-          {selectedPosts.size > 0 && (
-            <button
-              onClick={handleBulkDelete}
-              disabled={isDeleting}
-              className={`px-4 py-2 text-white rounded flex items-center gap-2 ${
-                isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' : 'bg-red-600 hover:bg-red-700'
-              }`}
-            >
-              {isDeleting && (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              )}
-              {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size} Selected Posts`}
-            </button>
-          )}
+          <button
+            onClick={handleBulkDelete}
+            disabled={isDeleting || selectedPosts.size === 0}
+            className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+              isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' : 
+              selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+              'bg-red-600 hover:bg-red-700'
+            }`}
+          >
+            {isDeleting && (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            )}
+            {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
+          </button>
           
           {/* Right side - Schedule buttons */}
-          {selectedPosts.size > 0 && connectedAccounts.length > 0 && (
+          {connectedAccounts.length > 0 && (
             <div className="flex gap-2">
-              <span className="text-sm text-gray-600 py-2">
-                {selectedPosts.size} selected:
+              <span className={`text-sm py-2 transition-colors ${
+                selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-400'
+              }`}>
+                {selectedPosts.size || 0} selected:
               </span>
               {connectedAccounts.map((account) => {
                 const isScheduling = schedulingPlatform === account.platform;
@@ -1604,21 +1628,27 @@ export default function CalendarPage() {
                   return currentCaption.trim().length === 0;
                 });
                 
+                const isDisabled = isScheduling || hasEmptyCaptions || selectedPosts.size === 0;
+                const platformBgColor = selectedPosts.size === 0 ? 'bg-gray-400' :
+                  account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
+                  account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
+                  account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
+                  account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
+                  'bg-gray-600 hover:bg-gray-700';
+                
                 return (
                   <button
                     key={account._id}
                     onClick={() => handleScheduleToPlatform(account)}
-                    disabled={isScheduling || hasEmptyCaptions}
-                    className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 ${
-                      isScheduling || hasEmptyCaptions ? 'opacity-50 cursor-not-allowed' : ''
-                    } ${
-                      account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
-                      account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
-                      account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
-                      account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
-                      'bg-gray-600 hover:bg-gray-700'
-                    }`}
-                    title={hasEmptyCaptions ? 'Add captions to selected posts before scheduling' : ''}
+                    disabled={isDisabled}
+                    className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 transition-all ${
+                      isDisabled ? 'opacity-40 cursor-not-allowed' : ''
+                    } ${platformBgColor}`}
+                    title={
+                      selectedPosts.size === 0 ? 'Select posts to schedule' :
+                      hasEmptyCaptions ? 'Add captions to selected posts before scheduling' : 
+                      ''
+                    }
                   >
                     {isScheduling ? (
                       <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
@@ -1686,25 +1716,6 @@ export default function CalendarPage() {
                   Month
                 </button>
               </div>
-              
-              {/* Share Button */}
-              <button
-                onClick={handleCreateShareLink}
-                disabled={isCreatingSession || selectedPosts.size === 0}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-              >
-                {isCreatingSession ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="w-4 h-4 mr-2" />
-                    Share
-                  </>
-                )}
-              </button>
               
               {viewMode === 'week' && (
                 <button
@@ -2015,17 +2026,20 @@ export default function CalendarPage() {
                                                 </div>
                                               )}
 
-                                              {/* Platform Icons */}
+                                              {/* Platform Icons with PUBLISHED label */}
                                               {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
-                                                <div className="flex items-center gap-1 mt-1 flex-shrink-0">
-                                                  {post.platforms_scheduled.map((platform, platformIdx) => (
-                                                    <div key={platformIdx} className="w-3 h-3 flex items-center justify-center" title={`Scheduled to ${platform}`}>
-                                                      {platform === 'facebook' && <FacebookIcon size={10} className="text-blue-600" />}
-                                                      {platform === 'instagram' && <InstagramIcon size={10} className="text-pink-600" />}
-                                                      {platform === 'twitter' && <TwitterIcon size={10} className="text-sky-500" />}
-                                                      {platform === 'linkedin' && <LinkedInIcon size={10} className="text-blue-700" />}
-                                                    </div>
-                                                  ))}
+                                                <div className="flex items-center gap-2 mt-2 flex-shrink-0 bg-green-50 border border-green-200 rounded-md px-2 py-1">
+                                                  <div className="flex items-center gap-1">
+                                                    {post.platforms_scheduled.map((platform, platformIdx) => (
+                                                      <div key={platformIdx} className="w-5 h-5 flex items-center justify-center" title={`Published to ${platform}`}>
+                                                        {platform === 'facebook' && <FacebookIcon size={18} className="text-blue-600" />}
+                                                        {platform === 'instagram' && <InstagramIcon size={18} className="text-pink-600" />}
+                                                        {platform === 'twitter' && <TwitterIcon size={18} className="text-sky-500" />}
+                                                        {platform === 'linkedin' && <LinkedInIcon size={18} className="text-blue-700" />}
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                  <span className="text-xs font-semibold text-green-700">PUBLISHED</span>
                                                 </div>
                                               )}
                                             </>
@@ -2229,17 +2243,20 @@ export default function CalendarPage() {
                                           </div>
                                         )}
 
-                                        {/* Platform Icons */}
+                                        {/* Platform Icons with PUBLISHED label */}
                                         {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
-                                          <div className="flex items-center gap-1 mt-1 flex-shrink-0">
-                                            {post.platforms_scheduled.map((platform, platformIdx) => (
-                                              <div key={platformIdx} className="w-3 h-3 flex items-center justify-center" title={`Scheduled to ${platform}`}>
-                                                {platform === 'facebook' && <FacebookIcon size={10} className="text-blue-600" />}
-                                                {platform === 'instagram' && <InstagramIcon size={10} className="text-pink-600" />}
-                                                {platform === 'twitter' && <TwitterIcon size={10} className="text-sky-500" />}
-                                                {platform === 'linkedin' && <LinkedInIcon size={10} className="text-blue-700" />}
-                                              </div>
-                                            ))}
+                                          <div className="flex items-center gap-2 mt-2 flex-shrink-0 bg-green-50 border border-green-200 rounded-md px-2 py-1">
+                                            <div className="flex items-center gap-1">
+                                              {post.platforms_scheduled.map((platform, platformIdx) => (
+                                                <div key={platformIdx} className="w-5 h-5 flex items-center justify-center" title={`Published to ${platform}`}>
+                                                  {platform === 'facebook' && <FacebookIcon size={18} className="text-blue-600" />}
+                                                  {platform === 'instagram' && <InstagramIcon size={18} className="text-pink-600" />}
+                                                  {platform === 'twitter' && <TwitterIcon size={18} className="text-sky-500" />}
+                                                  {platform === 'linkedin' && <LinkedInIcon size={18} className="text-blue-700" />}
+                                                </div>
+                                              ))}
+                                            </div>
+                                            <span className="text-xs font-semibold text-green-700">PUBLISHED</span>
                                           </div>
                                         )}
                                       </>
@@ -2355,6 +2372,78 @@ export default function CalendarPage() {
                 />
               </div>
             )}
+          </div>
+
+          {/* Client Portal Section */}
+          <div className="mt-8 bg-white rounded-lg shadow p-8">
+            <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Client Portal</h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-700">Portal Link</h4>
+                  <p className="text-sm text-gray-600">
+                    Generate a secure link for the client to access their portal
+                  </p>
+                </div>
+                <Button
+                  onClick={handleGeneratePortalLink}
+                  disabled={generatingPortalLink}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {generatingPortalLink ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <LinkIcon className="w-4 h-4 mr-2" />
+                      Generate Portal Link
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {portalUrl && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-700 mb-1">Portal URL:</p>
+                      <p className="text-sm text-gray-600 break-all">{portalUrl}</p>
+                    </div>
+                    <div className="flex items-center space-x-2 ml-4">
+                      <Button
+                        onClick={handleCopyPortalLink}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center"
+                      >
+                        {portalLinkCopied ? (
+                          <>
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4 mr-1" />
+                            Copy
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={() => window.open(portalUrl, '_blank')}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-1" />
+                        Open
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           
           

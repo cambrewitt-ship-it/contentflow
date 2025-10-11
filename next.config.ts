@@ -84,6 +84,13 @@ function buildCSP(): string {
 }
 
 const nextConfig: NextConfig = {
+  // Configure API route body size limits
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb', // Allow up to 10MB for API requests with images
+    },
+  },
+  
   // Skip all API routes during static generation and force them to be dynamic
   webpack: (config, { isServer }) => {
     if (isServer) {

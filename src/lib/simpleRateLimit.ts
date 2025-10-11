@@ -174,7 +174,8 @@ export async function simpleRateLimitMiddleware(request: NextRequest): Promise<N
     console.log('📊 Rate limit tier:', tier, 'Identifier:', identifier);
     
     // For authenticated routes, try to get actual user ID
-    if (tier === 'authenticated' || tier === 'ai') {
+    // Skip session check for AI routes (they do their own auth in the route handler)
+    if (tier === 'authenticated') {
       try {
         const res = NextResponse.next();
         const { createMiddlewareClient } = await import('@supabase/auth-helpers-nextjs');
@@ -188,6 +189,14 @@ export async function simpleRateLimitMiddleware(request: NextRequest): Promise<N
       } catch (error) {
         console.log('⚠️  Could not get user session:', error);
         // Continue with original identifier
+      }
+    }
+    // For AI routes, just use the bearer token as identifier (faster)
+    else if (tier === 'ai') {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader) {
+        const token = authHeader.replace('Bearer ', '').substring(0, 20); // Use first 20 chars of token
+        identifier = `ai_${token}`;
       }
     }
     

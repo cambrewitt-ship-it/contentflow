@@ -9,6 +9,8 @@ interface Post {
   approval_status?: 'pending' | 'approved' | 'rejected' | 'needs_attention' | 'draft';
   image_url?: string;
   caption?: string;
+  platforms_scheduled?: string[];
+  late_status?: string;
 }
 
 interface Upload {
@@ -127,6 +129,16 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
     
     const dayPosts = getPostsForDay(day)
     const dayUploads = getUploadsForDay(day)
+    
+    // Check if any posts are published
+    const hasPublishedPosts = dayPosts.some(post => 
+      post.platforms_scheduled && post.platforms_scheduled.length > 0
+    )
+    
+    // Priority: Published > Uploads > Post Status
+    if (hasPublishedPosts) {
+      return 'border-green-600 border-4 rounded-3xl'
+    }
     
     // If there are uploads, show thick blue border
     if (dayUploads.length > 0) {
@@ -328,7 +340,20 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
                       const dayPosts = getPostsForDay(day)
                       const dayUploads = getUploadsForDay(day)
                       
-                      // Priority: Uploads > Post Status
+                      // Check if any posts are published (have platforms_scheduled)
+                      const hasPublishedPosts = dayPosts.some(post => 
+                        post.platforms_scheduled && post.platforms_scheduled.length > 0
+                      )
+                      
+                      // Priority: Published > Uploads > Post Status
+                      if (hasPublishedPosts) {
+                        return (
+                          <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                            PUBLISHED
+                          </span>
+                        )
+                      }
+                      
                       if (dayUploads.length > 0) {
                         return (
                           <span className="text-xs font-medium text-blue-400 bg-blue-100 px-2 py-1 rounded-full">

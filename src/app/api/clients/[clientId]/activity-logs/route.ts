@@ -57,10 +57,10 @@ export async function GET(
         .gte('created_at', thirtyDaysAgo.toISOString())
         .order('created_at', { ascending: false }),
 
-      // Post approvals
+      // Post approvals (only show if not yet published)
       supabase
         .from('calendar_scheduled_posts')
-        .select('id, updated_at, caption, approval_status, scheduled_date, scheduled_time')
+        .select('id, updated_at, caption, approval_status, scheduled_date, scheduled_time, platforms_scheduled')
         .eq('client_id', clientId)
         .eq('approval_status', 'approved')
         .gte('updated_at', thirtyDaysAgo.toISOString())
@@ -172,20 +172,24 @@ export async function GET(
     }
 
     // Add approval activities
+    // Only show approval for posts that haven't been published yet
     if (approvalsResult.data) {
       approvalsResult.data.forEach(approval => {
-        activityLogs.push({
-          id: `approval-${approval.id}`,
-          type: 'approval',
-          title: 'Client approved content',
-          timestamp: approval.updated_at,
-          status: 'approved',
-          details: {
-            caption: approval.caption?.substring(0, 50) || 'No caption',
-            scheduledDate: approval.scheduled_date,
-            scheduledTime: approval.scheduled_time
-          }
-        });
+        // Only show approval activity if the post hasn't been published to any platform yet
+        if (!approval.platforms_scheduled || approval.platforms_scheduled.length === 0) {
+          activityLogs.push({
+            id: `approval-${approval.id}`,
+            type: 'approval',
+            title: 'Client approved content',
+            timestamp: approval.updated_at,
+            status: 'approved',
+            details: {
+              caption: approval.caption?.substring(0, 50) || 'No caption',
+              scheduledDate: approval.scheduled_date,
+              scheduledTime: approval.scheduled_time
+            }
+          });
+        }
       });
     }
 
@@ -211,22 +215,35 @@ export async function GET(
     // Add published post activities
     if (publishedPostsResult.data) {
       publishedPostsResult.data.forEach(post => {
-        const publishDate = new Date(post.scheduled_date);
-        const timeAgo = getTimeAgo(publishDate);
-        
-        activityLogs.push({
-          id: `published-${post.id}`,
-          type: 'published',
-          title: 'Post published',
-          timestamp: publishDate.toISOString(),
-          status: 'published',
-          timeAgo,
-          details: {
-            caption: post.caption?.substring(0, 50) || 'No caption',
-            platforms: post.platforms_scheduled || [],
-            lateStatus: post.late_status
-          }
-        });
+        // Only show as published if it has platforms_scheduled (actually published)
+        if (post.platforms_scheduled && post.platforms_scheduled.length > 0) {
+          const publishDate = new Date(post.scheduled_date);
+          const timeAgo = getTimeAgo(publishDate);
+          
+          // Format platforms list
+          const platforms = post.platforms_scheduled.map((p: string) => 
+            p.charAt(0).toUpperCase() + p.slice(1)
+          );
+          const platformsText = platforms.length === 1 
+            ? platforms[0]
+            : platforms.length === 2
+              ? platforms.join(' and ')
+              : platforms.slice(0, -1).join(', ') + ', and ' + platforms[platforms.length - 1];
+          
+          activityLogs.push({
+            id: `published-${post.id}`,
+            type: 'published',
+            title: `Post Published to ${platformsText}`,
+            timestamp: publishDate.toISOString(),
+            status: 'published',
+            timeAgo,
+            details: {
+              caption: post.caption?.substring(0, 50) || 'No caption',
+              platforms: post.platforms_scheduled || [],
+              lateStatus: post.late_status
+            }
+          });
+        }
       });
     }
 

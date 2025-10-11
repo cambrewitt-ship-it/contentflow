@@ -401,6 +401,14 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         dataType: imageData.startsWith('data:') ? 'base64' : 'url'
       })
 
+      // Check image data size (base64 encoded images can be quite large)
+      const imageSizeMB = (imageData.length / (1024 * 1024)).toFixed(2)
+      console.log('📊 Image data size:', imageSizeMB, 'MB')
+      
+      if (imageData.length > 5 * 1024 * 1024) { // 5MB limit for single image
+        throw new Error(`Image is too large (${imageSizeMB}MB). Please use an image smaller than 5MB.`)
+      }
+
       if (!accessToken) {
         throw new Error('Access token is required for AI caption generation')
       }
@@ -432,6 +440,15 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
 
       let response
       try {
+        console.log('🌐 Initiating fetch to /api/ai...')
+        console.log('📡 Fetch configuration:', {
+          method: 'POST',
+          bodySize: bodyString.length,
+          bodySizeMB: (bodyString.length / (1024 * 1024)).toFixed(2) + 'MB',
+          hasAuth: !!accessToken,
+          timeout: '120s'
+        })
+        
         response = await fetch('/api/ai', {
           method: 'POST',
           headers: {
@@ -439,16 +456,33 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
             'Authorization': `Bearer ${accessToken}`,
           },
           body: bodyString,
+          signal: AbortSignal.timeout(120000) // 2 minute timeout
         })
         console.log('✅ Fetch completed, status:', response.status)
+        console.log('📨 Response headers:', {
+          contentType: response.headers.get('content-type'),
+          contentLength: response.headers.get('content-length')
+        })
       } catch (fetchError) {
-        console.error('❌ Fetch failed:', fetchError)
+        console.error('❌ Fetch failed at network level')
         console.error('Fetch error details:', {
           message: fetchError instanceof Error ? fetchError.message : 'Unknown error',
           name: fetchError instanceof Error ? fetchError.name : 'Unknown',
-          stack: fetchError instanceof Error ? fetchError.stack : 'No stack trace'
+          stack: fetchError instanceof Error ? fetchError.stack : 'No stack trace',
+          errorType: typeof fetchError,
+          isTimeoutError: fetchError instanceof Error && fetchError.name === 'TimeoutError',
+          isAbortError: fetchError instanceof Error && fetchError.name === 'AbortError',
+          isTypeError: fetchError instanceof TypeError
         })
-        throw new Error(`Network error while contacting AI service: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`)
+        
+        // Provide specific error message based on error type
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('Request timeout - AI processing took too long. Try with a smaller image or simpler request.')
+        } else if (fetchError instanceof TypeError && fetchError.message === 'Failed to fetch') {
+          throw new Error('Network error - unable to reach AI service. Check your internet connection or try again.')
+        } else {
+          throw new Error(`Network error while contacting AI service: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`)
+        }
       }
 
       if (!response.ok) {
@@ -476,6 +510,24 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       }
     } catch (error) {
       console.error('Error generating AI captions:', error)
+      
+      // Show user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      if (errorMessage.includes('too large')) {
+        alert(errorMessage + '\n\nTip: You can compress your image before uploading using online tools.')
+      } else if (errorMessage.includes('Network error') || errorMessage.includes('Failed to fetch')) {
+        alert('Unable to connect to AI service. This could be due to:\n\n' +
+          '1. Network connectivity issues\n' +
+          '2. Image file too large (try a smaller image)\n' +
+          '3. Server timeout (AI processing taking too long)\n\n' +
+          'Please try again with a smaller image or check your connection.')
+      } else if (errorMessage.includes('401') || errorMessage.includes('403')) {
+        alert('Authentication error. Please refresh the page and try again.')
+      } else {
+        alert('Failed to generate captions: ' + errorMessage + '\n\nPlease try again or contact support if the issue persists.')
+      }
+      
+      throw error // Re-throw to allow caller to handle if needed
     }
   }
 

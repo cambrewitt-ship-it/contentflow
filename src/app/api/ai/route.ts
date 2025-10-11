@@ -10,6 +10,8 @@ import { withAICreditCheck, trackAICreditUsage } from '../../../lib/subscription
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120; // 2 minutes max execution time (needed for AI processing)
+export const runtime = 'nodejs'; // Use Node.js runtime for better performance
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -328,16 +330,45 @@ async function getBrandContext(clientId: string) {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('🎯 AI API route hit - POST request received');
+  console.log('📋 Request headers:', {
+    contentType: request.headers.get('content-type'),
+    authorization: request.headers.get('authorization') ? 'Present' : 'Missing',
+    contentLength: request.headers.get('content-length')
+  });
+  
   try {
+    // Check content length before processing
+    const contentLength = request.headers.get('content-length');
+    if (contentLength) {
+      const sizeMB = (parseInt(contentLength) / (1024 * 1024)).toFixed(2);
+      console.log(`📦 Request body size: ${sizeMB}MB`);
+      
+      if (parseInt(contentLength) > 10 * 1024 * 1024) {
+        console.error(`❌ Request too large: ${sizeMB}MB (max 10MB)`);
+        return NextResponse.json(
+          { 
+            error: 'Payload Too Large', 
+            message: `Request body is ${sizeMB}MB, maximum allowed is 10MB. Please use a smaller image.` 
+          },
+          { status: 413 }
+        );
+      }
+    }
+    
     // SUBSCRIPTION: Check AI credit limits
+    console.log('🔒 Starting AI credit check...');
     const subscriptionCheck = await withAICreditCheck(request, 1);
     if (subscriptionCheck instanceof NextResponse) {
+      console.log('❌ AI credit check failed');
       return subscriptionCheck;
     }
+    console.log('✅ AI credit check passed');
     
     const userId = subscriptionCheck.user!.id;
 
     // SECURITY: Comprehensive input validation with Zod
+    console.log('🔒 Starting request validation...');
     const validation = await validateApiRequest(request, {
       body: aiRequestSchema,
       maxBodySize: 10 * 1024 * 1024, // 10MB limit for AI requests (to accommodate base64 images)
@@ -1461,4 +1492,17 @@ function getIndustryContentGuidance(companyDescription: string): string {
 - Use professional imagery that represents your brand
 - Highlight what makes your business special
 - Target your ideal customers and their needs`;
+}
+
+// Handle CORS preflight requests
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
 }
