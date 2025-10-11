@@ -2,13 +2,13 @@
 
 import { useState, useRef, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "components/ui/card";
-import { Input } from "components/ui/input";
-import { Textarea } from "components/ui/textarea";
-import { Button } from "components/ui/button";
-import { Badge } from "components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "components/ui/dropdown-menu";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { 
   Loader2, 
   Upload, 
@@ -29,7 +29,7 @@ import {
   Archive
 } from "lucide-react";
 import Link from "next/link";
-import { Client, Project } from 'types/api';
+import { Client, Project } from '@/types/api';
 
 
 export default function ClientDashboardV2({ params }: { params: Promise<{ clientId: string }> }) {

@@ -2,9 +2,9 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "components/ui/button";
-import Sidebar from "components/Sidebar";
-import TopBar from "components/TopBar";
+import { Button } from "@/components/ui/button";
+import Sidebar from "@/components/Sidebar";
+import TopBar from "@/components/TopBar";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);

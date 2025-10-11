@@ -2,20 +2,20 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { use } from "react";
-import { Button } from "components/ui/button";
-import { Input } from "components/ui/input";
-import { Textarea } from "components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { SocialPreview } from "components/social-preview";
+import { SocialPreview } from "@/components/social-preview";
 import {
   generateCaptionsWithAI,
   remixCaptionWithAI,
   type AICaptionResult,
   type AIRemixResult,
-} from "lib/ai-utils";
-import { usePostStore } from "lib/store";
-import { ContentStoreProvider, useContentStore } from "lib/contentStore";
+} from "@/lib/ai-utils";
+import { usePostStore } from "@/lib/store";
+import { ContentStoreProvider, useContentStore } from "@/lib/contentStore";
 
 interface Caption {
   id: string;

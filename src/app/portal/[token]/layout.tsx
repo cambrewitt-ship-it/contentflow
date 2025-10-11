@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { Button } from "components/ui/button";
-import { Card } from "components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { PortalProvider, usePortal } from "../../../contexts/PortalContext";
 import { 
   LogOut, 

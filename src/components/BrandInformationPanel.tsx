@@ -16,8 +16,8 @@ import {
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
-import { Client, BrandDocument, WebsiteScrape } from 'types/api';
-import { useAuth } from 'contexts/AuthContext';
+import { Client, BrandDocument, WebsiteScrape } from '@/types/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface BrandInformationPanelProps {
   clientId: string;

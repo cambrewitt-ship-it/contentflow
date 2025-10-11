@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useUIThemeStyles } from "hooks/useUITheme";
-import { useAuth } from "contexts/AuthContext";
-import { Card, CardContent } from "components/ui/card";
-import { Button } from "components/ui/button";
-import { Badge } from "components/ui/badge";
+import { useUIThemeStyles } from "@/hooks/useUITheme";
+import { useAuth } from "@/contexts/AuthContext";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { 
   Users, 
   Home, 

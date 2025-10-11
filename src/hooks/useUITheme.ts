@@ -1,6 +1,6 @@
 'use client';
 
-import { useUITheme } from 'contexts/UIThemeContext';
+import { useUITheme } from '@/contexts/UIThemeContext';
 
 export function useUIThemeStyles() {
   const { theme } = useUITheme();

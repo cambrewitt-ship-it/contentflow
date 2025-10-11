@@ -1,13 +1,13 @@
 "use client";
 
-import { Button } from "components/ui/button";
+import { Button } from "@/components/ui/button";
 import { 
   Settings, 
   User,
   ChevronDown
 } from "lucide-react";
-import { useAuth } from "contexts/AuthContext";
-import { useUIThemeStyles } from "hooks/useUITheme";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUIThemeStyles } from "@/hooks/useUITheme";
 import Link from "next/link";
 
 interface TopBarProps {

@@ -54,7 +54,7 @@ interface PageProps {
   params: Promise<{ clientId: string }>
 }
 
-import { useContentStore } from 'lib/contentStore'
+import { useContentStore } from '@/lib/contentStore'
 
 export default function ContentSuitePage({ params }: PageProps) {
   const { clientId } = use(params)

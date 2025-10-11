@@ -1,6 +1,6 @@
 'use client'
 import { use, useEffect, useState } from 'react'
-import { Client } from 'types/api'
+import { Client } from '@/types/api'
 
 export default function TestClientPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params)

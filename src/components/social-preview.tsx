@@ -1,5 +1,5 @@
 import { useRouter } from "next/navigation";
-import { usePostStore } from "lib/store";
+import { usePostStore } from "@/lib/store";
 
 interface SocialPreviewProps {
   imageUrl?: string;

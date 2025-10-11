@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useUIThemeStyles } from 'hooks/useUITheme';
+import { useUIThemeStyles } from '@/hooks/useUITheme';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 
 interface MetricCardProps {
