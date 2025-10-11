@@ -100,7 +100,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     type: 'upload' | 'approval' | 'scheduled' | 'published' | 'portal_visit' | 'next_scheduled';
     title: string;
     timestamp: string;
-    status: 'completed' | 'approved' | 'scheduled' | 'published' | 'none';
+    status: 'completed' | 'approved' | 'scheduled' | 'published' | 'upload' | 'none';
     timeAgo?: string;
     count?: number;
     details?: any;

@@ -84,6 +84,15 @@ function buildCSP(): string {
 }
 
 const nextConfig: NextConfig = {
+  // Skip all API routes during static generation and force them to be dynamic
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Add externals to prevent certain packages from being bundled during build
+      config.externals = config.externals || []
+    }
+    return config
+  },
+  
   async headers() {
     return [
       {

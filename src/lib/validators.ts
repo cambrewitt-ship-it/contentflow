@@ -31,12 +31,15 @@ export function sanitizeHtml(input: string): string {
 /**
  * Custom Zod transformer for sanitizing strings
  */
-export const sanitizedString = (maxLength?: number) => {
-  let schema = z.string().transform(sanitizeHtml);
+export const sanitizedString = (maxLength?: number, minLength?: number) => {
+  let schema = z.string();
+  if (minLength !== undefined) {
+    schema = schema.min(minLength, `String must be at least ${minLength} character${minLength !== 1 ? 's' : ''}`);
+  }
   if (maxLength) {
     schema = schema.max(maxLength, `String must be at most ${maxLength} characters`);
   }
-  return schema;
+  return schema.transform(sanitizeHtml);
 };
 
 /**
@@ -112,7 +115,7 @@ export const approvalStatusSchema = z.enum([
  * Client creation schema - POST /api/clients
  */
 export const createClientSchema = z.object({
-  name: sanitizedString(200).min(1, 'Client name is required'),
+  name: sanitizedString(200, 1),
   description: sanitizedString(1000).optional(),
   email: emailSchema.optional(),
   phone: phoneSchema.optional(),
@@ -157,7 +160,7 @@ export const clientIdParamSchema = z.object({
 export const createPostSchema = z.object({
   client_id: uuidSchema,
   title: sanitizedString(200).optional(),
-  caption: sanitizedString(5000).min(1, 'Caption is required'),
+  caption: sanitizedString(5000, 1),
   image_url: z.string().max(2000).optional(),
   
   // Platform targeting
@@ -255,11 +258,11 @@ export const bulkPostOperationSchema = z.object({
 // ============================================================================
 
 /**
- * Project creation schema - POST /api/projects
+ * Base project schema without refinements
  */
-export const createProjectSchema = z.object({
+const baseProjectSchema = z.object({
   client_id: uuidSchema,
-  name: sanitizedString(200).min(1, 'Project name is required'),
+  name: sanitizedString(200, 1),
   description: sanitizedString(2000).optional(),
   
   // Dates
@@ -275,7 +278,12 @@ export const createProjectSchema = z.object({
   
   // Metadata
   tags: z.array(sanitizedString(50)).max(20).optional(),
-}).refine(
+});
+
+/**
+ * Project creation schema - POST /api/projects
+ */
+export const createProjectSchema = baseProjectSchema.refine(
   (data) => {
     // If both dates are provided, end_date must be after start_date
     if (data.start_date && data.end_date) {
@@ -292,7 +300,7 @@ export const createProjectSchema = z.object({
 /**
  * Project update schema - PUT /api/projects/[id]
  */
-export const updateProjectSchema = createProjectSchema.partial();
+export const updateProjectSchema = baseProjectSchema.partial();
 
 /**
  * Project ID parameter schema
@@ -337,7 +345,7 @@ export const aiGenerateCaptionsSchema = z.object({
 export const aiRemixCaptionSchema = z.object({
   action: z.literal('remix_caption'),
   imageData: z.string().min(1, 'Image data is required'),
-  prompt: sanitizedString(2000).min(1, 'Prompt is required'),
+  prompt: sanitizedString(2000, 1),
   existingCaptions: z.array(sanitizedString(5000)).max(10).optional(),
   aiContext: sanitizedString(5000).optional(),
   clientId: uuidSchema.optional(),
@@ -395,7 +403,7 @@ export const approvalDecisionSchema = z.object({
  */
 export const portalUploadSchema = z.object({
   token: z.string().min(1, 'Portal token is required'),
-  caption: sanitizedString(5000).min(1, 'Caption is required'),
+  caption: sanitizedString(5000, 1),
   image_url: z.string().max(2000).optional(),
   scheduled_date: isoDateSchema.optional(),
   notes: sanitizedString(2000).optional(),
@@ -459,7 +467,7 @@ export const postFilterSchema = z.object({
  * Image upload metadata schema
  */
 export const imageUploadSchema = z.object({
-  filename: sanitizedString(255).min(1, 'Filename is required'),
+  filename: sanitizedString(255, 1),
   content_type: z.string().regex(/^image\/(jpeg|jpg|png|gif|webp)$/, 'Invalid image content type'),
   size: z.number().int().positive().max(10 * 1024 * 1024, 'Image size must be less than 10MB'),
   client_id: uuidSchema.optional(),
@@ -469,7 +477,7 @@ export const imageUploadSchema = z.object({
  * Document upload metadata schema
  */
 export const documentUploadSchema = z.object({
-  filename: sanitizedString(255).min(1, 'Filename is required'),
+  filename: sanitizedString(255, 1),
   content_type: z.string().regex(/^(application\/pdf|application\/msword|application\/vnd\.|text\/)/, 'Invalid document content type'),
   size: z.number().int().positive().max(20 * 1024 * 1024, 'Document size must be less than 20MB'),
   client_id: uuidSchema,

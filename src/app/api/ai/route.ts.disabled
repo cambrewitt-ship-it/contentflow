@@ -8,14 +8,12 @@ import { validateApiRequest } from '../../../lib/validationMiddleware';
 import { aiRequestSchema } from '../../../lib/validators';
 import { withAICreditCheck, trackAICreditUsage } from '../../../lib/subscriptionMiddleware';
 
+// Force dynamic rendering - prevents static generation at build time
+export const dynamic = 'force-dynamic';
+
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!
 
 // Helper functions for dynamic content
 
@@ -333,8 +331,8 @@ export async function POST(request: NextRequest) {
   try {
     // SUBSCRIPTION: Check AI credit limits
     const subscriptionCheck = await withAICreditCheck(request, 1);
-    if (!subscriptionCheck.authorized) {
-      return subscriptionCheck as NextResponse;
+    if (subscriptionCheck instanceof NextResponse) {
+      return subscriptionCheck;
     }
     
     const userId = subscriptionCheck.user!.id;
@@ -360,15 +358,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Initialize OpenAI client inside request handler (prevents build-time errors)
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
     // Route to appropriate handler based on action
     let result: NextResponse;
     switch (body.action) {
       case 'analyze_image':
-        result = await analyzeImage(body.imageData as string, body.prompt as string | undefined);
+        result = await analyzeImage(openai, body.imageData as string, body.prompt as string | undefined);
         break;
       
       case 'generate_captions':
         result = await generateCaptions(
+          openai,
           body.imageData as string, 
           body.existingCaptions as string[] | undefined, 
           body.aiContext as string | undefined, 
@@ -382,6 +386,7 @@ export async function POST(request: NextRequest) {
       
       case 'remix_caption':
         result = await remixCaption(
+          openai,
           body.imageData as string, 
           body.prompt as string, 
           body.existingCaptions as string[] | undefined, 
@@ -391,7 +396,7 @@ export async function POST(request: NextRequest) {
         break;
       
       case 'generate_content_ideas':
-        result = await generateContentIdeas(body.clientId as string);
+        result = await generateContentIdeas(openai, body.clientId as string);
         break;
       
       default:
@@ -417,7 +422,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function analyzeImage(imageData: string, prompt?: string) {
+async function analyzeImage(openai: OpenAI, imageData: string, prompt?: string) {
   try {
     // Validate image data
     const validation = isValidImageData(imageData);
@@ -482,7 +487,7 @@ async function analyzeImage(imageData: string, prompt?: string) {
   }
 }
 
-async function generateCaptions(imageData: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string, copyType?: string, copyTone?: string, postNotesStyle?: string, imageFocus?: string) {
+async function generateCaptions(openai: OpenAI, imageData: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string, copyType?: string, copyTone?: string, postNotesStyle?: string, imageFocus?: string) {
   try {
     // Validate image data
     const validation = isValidImageData(imageData);
@@ -789,7 +794,7 @@ ${finalInstruction}`;
   }
 }
 
-async function remixCaption(imageData: string, prompt: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string) {
+async function remixCaption(openai: OpenAI, imageData: string, prompt: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string) {
   try {
     // Validate image data
     const validation = isValidImageData(imageData);
@@ -909,7 +914,7 @@ async function remixCaption(imageData: string, prompt: string, existingCaptions:
   }
 }
 
-async function generateContentIdeas(clientId: string) {
+async function generateContentIdeas(openai: OpenAI, clientId: string) {
   try {
     if (!clientId) {
       return NextResponse.json(

@@ -58,7 +58,7 @@ export function getClientIdentifier(request: NextRequest): string {
   
   // Fall back to IP address
   const forwarded = request.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0] : request.ip || 'unknown';
+  const ip = forwarded ? forwarded.split(',')[0] : 'unknown';
   return `ip_${ip}`;
 }
 

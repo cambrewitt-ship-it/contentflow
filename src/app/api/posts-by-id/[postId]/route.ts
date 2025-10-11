@@ -12,6 +12,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ postId: string }> }
 ) {
+  let postId: string | undefined;
+  
   try {
     console.log('🔄 Enhanced Post Editing - Updating post');
     
@@ -29,8 +31,12 @@ export async function PUT(
     }
 
     const { body, params: validatedParams } = validation.data;
-    const { postId } = validatedParams!;
+    postId = validatedParams!.postId;
     console.log('✅ Request validated successfully:', { postId });
+    
+    if (!body) {
+      return NextResponse.json({ error: 'Request body is required' }, { status: 400 });
+    }
     
     // Extract editable fields from validated input
     const { 
@@ -55,7 +61,7 @@ export async function PUT(
       force_edit = false,
       // Draft saving
       save_as_draft = false
-    } = body;
+    } = body as any;
     
     // Create Supabase client with service role for admin access
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -396,6 +402,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ postId: string }> }
 ) {
+  let postId: string | undefined;
+  
   try {
     // SECURITY: Validate URL parameters
     const validation = await validateApiRequest(request, {
@@ -408,7 +416,7 @@ export async function GET(
     }
 
     const { params: validatedParams } = validation.data;
-    const { postId } = validatedParams!;
+    postId = validatedParams!.postId;
     
     console.log('🔍 Fetching post:', postId);
     
@@ -484,6 +492,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ postId: string }> }
 ) {
+  let postId: string | undefined;
+  
   try {
     // SECURITY: Validate URL parameters
     const validation = await validateApiRequest(request, {
@@ -496,7 +506,7 @@ export async function DELETE(
     }
 
     const { params: validatedParams } = validation.data;
-    const { postId } = validatedParams!;
+    postId = validatedParams!.postId;
     
     console.log('🗑️ Deleting post:', postId);
     

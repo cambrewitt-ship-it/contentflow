@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,7 +53,7 @@ const tierPrices: Record<string, number> = {
   agency: 199,
 };
 
-export default function SubscriptionPage() {
+function SubscriptionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -64,7 +64,7 @@ export default function SubscriptionPage() {
 
   useEffect(() => {
     // Check if redirected from successful checkout
-    if (searchParams.get('success') === 'true') {
+    if (searchParams?.get('success') === 'true') {
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 5000);
     }
@@ -449,6 +449,18 @@ export default function SubscriptionPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SubscriptionPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    }>
+      <SubscriptionContent />
+    </Suspense>
   );
 }
 

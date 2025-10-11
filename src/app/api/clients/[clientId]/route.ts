@@ -136,8 +136,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ clientId: string }> }
 ) {
+  let clientId: string | undefined;
   try {
-    const { clientId } = await params;
+    const paramsData = await params;
+    clientId = paramsData.clientId;
     
     console.log('🔍 Fetching client data for ID:', clientId);
     console.log('🔍 Client ID debug:', {
@@ -220,8 +222,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ clientId: string }> }
 ) {
+  let clientId: string | undefined;
   try {
-    const { clientId } = await params;
+    const paramsData = await params;
+    clientId = paramsData.clientId;
     const body = await request.json();
     
     console.log('🔄 Updating client data for ID:', clientId, 'Body:', body);
@@ -337,8 +341,10 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ clientId: string }> }
 ) {
+  let clientId: string | undefined;
   try {
-    const { clientId } = await params;
+    const paramsData = await params;
+    clientId = paramsData.clientId;
     
     console.log('🗑️ Deleting client with ID:', clientId);
 

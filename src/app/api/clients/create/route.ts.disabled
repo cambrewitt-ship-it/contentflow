@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { z } from 'zod';
 import { validateApiRequest } from '../../../../lib/validationMiddleware';
 import { createClientSchema } from '../../../../lib/validators';
 import { withClientLimitCheck, trackClientCreation } from '../../../../lib/subscriptionMiddleware';
@@ -103,8 +104,8 @@ export async function POST(req: NextRequest) {
     
     // SUBSCRIPTION: Check client limits
     const subscriptionCheck = await withClientLimitCheck(req);
-    if (!subscriptionCheck.authorized) {
-      return subscriptionCheck as NextResponse;
+    if (subscriptionCheck instanceof NextResponse) {
+      return subscriptionCheck;
     }
     
     const userId = subscriptionCheck.user!.id;
@@ -112,8 +113,8 @@ export async function POST(req: NextRequest) {
     // SECURITY: Comprehensive input validation with Zod
     const validation = await validateApiRequest(req, {
       body: createClientSchema.extend({
-        brand_color: createClientSchema.shape.brand_tone.optional(), // For LATE profile
-        skipLateProfile: createClientSchema.shape.brand_tone.optional().transform(v => v === 'true' || v === true), // Flag to skip LATE profile creation
+        brand_color: z.string().optional(), // For LATE profile
+        skipLateProfile: z.union([z.boolean(), z.string()]).optional().transform(v => v === 'true' || v === true), // Flag to skip LATE profile creation
       }),
       checkAuth: true, // Automatically validates auth token
       maxBodySize: 5 * 1024 * 1024, // 5MB limit for client creation
@@ -125,6 +126,10 @@ export async function POST(req: NextRequest) {
     }
 
     const { body, token } = validation.data;
+    if (!body) {
+      return NextResponse.json({ error: 'Request body is required' }, { status: 400 });
+    }
+    
     console.log('✅ Request validated successfully');
     console.log('📋 Sanitized input:', { name: body.name });
 
@@ -139,7 +144,18 @@ export async function POST(req: NextRequest) {
       caption_donts,
       brand_color, // Add brand color field for LATE profile
       skipLateProfile // Flag to skip LATE profile creation for temp clients
-    } = body;
+    } = body as {
+      name: string;
+      company_description?: string;
+      website_url?: string;
+      brand_tone?: string;
+      target_audience?: string;
+      value_proposition?: string;
+      caption_dos?: string;
+      caption_donts?: string;
+      brand_color?: string;
+      skipLateProfile?: boolean;
+    };
 
     console.log('🏢 Creating new client:', name);
 
