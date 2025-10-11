@@ -3,31 +3,33 @@ import { createClient } from '@supabase/supabase-js';
 import { createCustomerPortalSession } from '@/lib/stripe';
 import { getUserSubscription } from '@/lib/subscriptionHelpers';
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
 export async function POST(req: NextRequest) {
   try {
-    // Get user from session
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        global: {
-          headers: {
-            Cookie: req.headers.get('cookie') || '',
-          },
-        },
-      }
-    );
+    // Get the authorization header
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'User must be logged in'
+      }, { status: 401 });
+    }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
+    const token = authHeader.split(' ')[1];
+    
+    // Create Supabase client with service role key
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    
+    // Get the authenticated user using the token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ 
+        error: 'Authentication required', 
+        details: 'Invalid or expired token'
+      }, { status: 401 });
     }
 
     // Get user's subscription

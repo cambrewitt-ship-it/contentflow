@@ -5,6 +5,9 @@ import { validateApiRequest } from '../../../../lib/validationMiddleware';
 import { createClientSchema } from '../../../../lib/validators';
 import { withClientLimitCheck, trackClientCreation } from '../../../../lib/subscriptionMiddleware';
 
+// Force dynamic rendering - prevents static generation at build time
+export const dynamic = 'force-dynamic';
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 

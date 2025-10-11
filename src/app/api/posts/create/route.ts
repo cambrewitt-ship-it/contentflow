@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isValidImageData } from '../../../../lib/blobUpload';
 import { withPostLimitCheck, trackPostCreation } from '../../../../lib/subscriptionMiddleware';
 
+// Force dynamic rendering - prevents static generation at build time
+export const dynamic = 'force-dynamic';
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 

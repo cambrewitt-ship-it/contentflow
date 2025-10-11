@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
 
 const tiers = [
   {
@@ -59,17 +60,27 @@ const tiers = [
 
 export default function PricingPage() {
   const router = useRouter();
+  const { getAccessToken } = useAuth();
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
 
   const handleSubscribe = async (priceId: string, tierId: string) => {
     try {
       setLoadingTier(tierId);
 
+      // Get access token
+      const accessToken = getAccessToken();
+      if (!accessToken) {
+        // Not authenticated, redirect to login
+        router.push('/auth/login?redirect=/pricing');
+        return;
+      }
+
       // Call checkout API
       const response = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ priceId }),
       });
@@ -77,6 +88,11 @@ export default function PricingPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        // If unauthorized, redirect to login
+        if (response.status === 401) {
+          router.push('/auth/login?redirect=/pricing');
+          return;
+        }
         throw new Error(data.error || 'Failed to create checkout session');
       }
 

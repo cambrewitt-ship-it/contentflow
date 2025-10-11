@@ -1424,8 +1424,8 @@ export default function CalendarPage() {
                 </div>
               </div>
               
-              {/* Profile Settings Button */}
-              <Link href="/profile">
+              {/* Settings Button */}
+              <Link href="/settings">
                 <Button 
                   variant="outline" 
                   size="sm"
