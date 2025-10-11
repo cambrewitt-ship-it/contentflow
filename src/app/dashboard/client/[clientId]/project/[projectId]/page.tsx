@@ -16,6 +16,7 @@ import {
 } from "@/lib/ai-utils";
 import { usePostStore } from "@/lib/store";
 import { ContentStoreProvider, useContentStore } from "@/lib/contentStore";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Caption {
   id: string;
@@ -63,6 +64,7 @@ function ProjectPageContent({ params }: { params: { clientId: string; projectId:
     remixCaption
   } = useContentStore();
   
+  const { getAccessToken } = useAuth();
   const [isSendingToScheduler, setIsSendingToScheduler] = useState(false);
 
   const handleSendToScheduler = async (
@@ -241,7 +243,12 @@ function ProjectPageContent({ params }: { params: { clientId: string; projectId:
                      onClick={() => {
                        if (activeImageId) {
                          const activeImage = uploadedImages.find(img => img.id === activeImageId);
-                         generateAICaptions(activeImageId, activeImage?.notes);
+                         const accessToken = getAccessToken();
+                         if (accessToken) {
+                           generateAICaptions(activeImageId, activeImage?.notes, 'social-media', accessToken);
+                         } else {
+                           alert('Authentication required. Please log in again.');
+                         }
                        }
                      }}
                      className="w-full"

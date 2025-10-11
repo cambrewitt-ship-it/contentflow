@@ -58,13 +58,43 @@ export default function SettingsLayout({
         
         {/* Sidebar Content */}
         <div className="flex-1 p-4">
-          <div className="space-y-4">
+          <div className="space-y-2">
+            {/* Dashboard Link */}
             <Link href="/dashboard">
-              <Button variant="outline" className="w-full justify-start">
+              <Button variant="outline" className="w-full justify-start mb-4">
                 <Home className="w-4 h-4 mr-2" />
                 Dashboard
               </Button>
             </Link>
+
+            {/* Settings Header */}
+            <div className="px-3 py-2">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Settings
+              </h3>
+            </div>
+
+            {/* Settings Navigation */}
+            {tabs.map((tab) => {
+              const isActive = pathname === tab.href || 
+                (pathname === '/settings' && tab.href === '/settings/profile');
+              const Icon = tab.icon;
+              
+              return (
+                <Link key={tab.name} href={tab.href}>
+                  <Button
+                    variant={isActive ? 'default' : 'ghost'}
+                    className={`
+                      w-full justify-start
+                      ${isActive ? 'bg-blue-600 text-white hover:bg-blue-700' : 'hover:bg-gray-100'}
+                    `}
+                  >
+                    <Icon className="w-4 h-4 mr-2" />
+                    {tab.name}
+                  </Button>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -89,44 +119,6 @@ export default function SettingsLayout({
             <p className="text-muted-foreground">
               Manage your account settings and preferences
             </p>
-          </div>
-
-          {/* Tabs Navigation */}
-          <div className="border-b border-gray-200 mb-6">
-            <nav className="-mb-px flex space-x-8">
-              {tabs.map((tab) => {
-                const isActive = pathname === tab.href || 
-                  (pathname === '/settings' && tab.href === '/settings/profile');
-                const Icon = tab.icon;
-                
-                return (
-                  <Link
-                    key={tab.name}
-                    href={tab.href}
-                    className={`
-                      group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm
-                      ${
-                        isActive
-                          ? 'border-blue-500 text-blue-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }
-                    `}
-                  >
-                    <Icon
-                      className={`
-                        -ml-0.5 mr-2 h-5 w-5
-                        ${
-                          isActive
-                            ? 'text-blue-500'
-                            : 'text-gray-400 group-hover:text-gray-500'
-                        }
-                      `}
-                    />
-                    <span>{tab.name}</span>
-                  </Link>
-                );
-              })}
-            </nav>
           </div>
 
           {/* Tab Content */}

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Lightbulb, RefreshCw, Calendar, Eye, Clock, AlertCircle, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
 
 // TypeScript types for API responses
 interface ContentIdeasResponse {
@@ -20,6 +21,7 @@ interface ContentIdeasError {
 
 export function ContentIdeasColumn() {
   const { clientId, contentIdeas, setContentIdeas } = useContentStore()
+  const { getAccessToken } = useAuth()
   const [generatingIdeas, setGeneratingIdeas] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasGeneratedIdeas, setHasGeneratedIdeas] = useState(false)
@@ -37,16 +39,30 @@ export function ContentIdeasColumn() {
     setError(null)
     
     try {
+      const accessToken = getAccessToken()
+      
+      console.log('🔑 Access token available:', !!accessToken)
+      console.log('🔑 Token length:', accessToken?.length || 0)
+      
+      if (!accessToken) {
+        throw new Error('Authentication required. Please log in and try again.')
+      }
+
+      console.log('📤 Sending request to /api/ai with auth header')
       const response = await fetch('/api/ai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           action: 'generate_content_ideas',
           clientId: clientId,
         }),
       })
+      
+      console.log('📥 Response status:', response.status)
+      console.log('📥 Response ok:', response.ok)
 
       if (!response.ok) {
         const errorData: ContentIdeasError = await response.json().catch(() => ({ error: 'Network error' }))

@@ -216,23 +216,18 @@ export default function Dashboard() {
           </div>
 
           {clients.length === 0 ? (
-            <Card className="p-12 text-center">
-              <CardContent className="p-0">
-                <User className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-foreground mb-2">
-                  No clients yet
-                </h3>
-                <p className="text-muted-foreground mb-6">
-                  Get started by creating your first client to manage their social media content
-                </p>
-                <Link href="/dashboard/clients/new">
-                  <Button size="lg" className="px-8">
-                    <Plus className="w-5 h-5 mr-2" />
-                    Create Your First Client
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+            <div className="p-12 text-center">
+              <User className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                No clients yet
+              </h3>
+              <Link href="/dashboard/clients/new">
+                <Button size="lg" className="px-8">
+                  <Plus className="w-5 h-5 mr-2" />
+                  Create Your First Client
+                </Button>
+              </Link>
+            </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
               {clients.map((client) => (

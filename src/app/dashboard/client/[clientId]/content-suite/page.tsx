@@ -276,10 +276,13 @@ export default function ContentSuitePage({ params }: PageProps) {
     
     try {
       setCreatingProject(true)
+      const accessToken = getAccessToken()
+      
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           client_id: clientId,
@@ -354,10 +357,13 @@ export default function ContentSuitePage({ params }: PageProps) {
           const filename = `post-${editingPostId}-${Date.now()}.${mimeType.split('/')[1] || 'jpg'}`
           console.log('📤 Uploading to blob with filename:', filename)
           
+          const accessToken = getAccessToken()
+          
           const uploadResponse = await fetch('/api/upload-image', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
             },
             body: JSON.stringify({
               imageData: imageUrl,
@@ -487,9 +493,14 @@ export default function ContentSuitePage({ params }: PageProps) {
         })
         
         // Add to calendar_scheduled_posts via API
+        const accessToken = getAccessToken()
+        
         const response = await fetch('/api/calendar/scheduled', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
           body: JSON.stringify({
             scheduledPost: scheduledPostData
           })
@@ -520,9 +531,14 @@ export default function ContentSuitePage({ params }: PageProps) {
         })
         
         // Add to calendar_unscheduled_posts via API
+        const accessToken = getAccessToken()
+        
         const response = await fetch('/api/calendar/unscheduled', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
           body: JSON.stringify(postData)
         })
         
@@ -664,6 +680,7 @@ function ContentSuiteContent({
   // Preloaded content props
   preloadedContent
 }: ContentSuiteContentProps) {
+  const { getAccessToken } = useAuth()
   const { 
     uploadedImages, 
     captions, 
@@ -808,6 +825,9 @@ function ContentSuiteContent({
     // Set loading state for this specific project
     setAddingToProject(projectId);
     
+    // Get access token at the start of the function
+    const accessToken = getAccessToken();
+    
     try {
       let imageData = post.generatedImage;
       
@@ -826,6 +846,7 @@ function ContentSuiteContent({
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
             },
             body: JSON.stringify({
               imageData: imageData,
@@ -869,7 +890,10 @@ function ContentSuiteContent({
       // Add to project with converted or existing image
       const response = await fetch('/api/projects/add-post', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
         body: JSON.stringify({
           projectId,
           post: {

@@ -10,6 +10,9 @@ import {
   getTierLimits,
 } from '@/lib/subscriptionHelpers';
 
+// Force dynamic rendering - prevents static generation at build time
+export const dynamic = 'force-dynamic';
+
 // Disable body parsing, need raw body for webhook signature verification
 export const runtime = 'nodejs';
 

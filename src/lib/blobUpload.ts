@@ -1,29 +1,45 @@
-import { put } from '@vercel/blob';
-
 export async function uploadImageToBlob(
   imageFile: File | Blob,
   filename: string
 ): Promise<string> {
   try {
-    // Check if BLOB_READ_WRITE_TOKEN is available
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      console.warn('⚠️ BLOB_READ_WRITE_TOKEN not configured, falling back to base64');
-      // Fallback: convert to base64 data URL
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          resolve(reader.result as string);
-        };
-        reader.readAsDataURL(imageFile);
-      });
+    // Convert file to base64 first
+    const base64Data = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('Failed to read image file'));
+      reader.readAsDataURL(imageFile);
+    });
+
+    console.log('🔄 Uploading image to server...');
+
+    // Upload via server API route (this keeps the blob token secure)
+    const response = await fetch('/api/upload-image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        imageData: base64Data,
+        filename,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `Upload failed with status ${response.status}`);
     }
 
-    const blob = await put(filename, imageFile, {
-      access: 'public',
-    });
+    const data = await response.json();
     
-    console.log('📁 Image uploaded to blob:', blob.url);
-    return blob.url;
+    if (!data.url) {
+      throw new Error('No URL returned from upload');
+    }
+    
+    console.log('✅ Image uploaded to blob:', data.url);
+    return data.url;
+    
   } catch (error) {
     console.error('❌ Error uploading to blob:', error);
     

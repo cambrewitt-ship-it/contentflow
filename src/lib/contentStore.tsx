@@ -69,8 +69,8 @@ export interface ContentStore {
   updateImageNotes: (id: string, notes: string) => void
   updateCaption: (id: string, text: string) => void
   selectCaption: (id: string) => void
-  generateAICaptions: (imageId: string, notes?: string, copyType?: 'social-media' | 'email-marketing') => Promise<void>
-  remixCaption: (captionId: string) => Promise<void>
+  generateAICaptions: (imageId: string, notes?: string, copyType?: 'social-media' | 'email-marketing', accessToken?: string) => Promise<void>
+  remixCaption: (captionId: string, accessToken?: string) => Promise<void>
   clearAll: () => void
   clearStorageOnly: () => void
 }
@@ -361,7 +361,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     })
   }
 
-  const generateAICaptions = async (imageId: string, notes?: string, copyType?: 'social-media' | 'email-marketing') => {
+  const generateAICaptions = async (imageId: string, notes?: string, copyType?: 'social-media' | 'email-marketing', accessToken?: string) => {
     try {
       // Find the image data
       const image = uploadedImages.find(img => img.id === imageId)
@@ -401,22 +401,55 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         dataType: imageData.startsWith('data:') ? 'base64' : 'url'
       })
 
-      const response = await fetch('/api/ai', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'generate_captions',
-          imageData: imageData,
-          aiContext: notes || postNotes,
-          clientId: clientId,
-          copyType: copyType || 'social-media',
-          copyTone: copyTone,
-          postNotesStyle: notesInterpretation,
-          imageFocus: contentFocus,
-        }),
-      })
+      if (!accessToken) {
+        throw new Error('Access token is required for AI caption generation')
+      }
+
+      console.log('🔑 Access token present:', !!accessToken)
+      console.log('📤 Preparing request to /api/ai')
+
+      // Build the request body
+      const requestBody = {
+        action: 'generate_captions',
+        imageData: imageData,
+        aiContext: notes || postNotes,
+        clientId: clientId,
+        copyType: copyType || 'social-media',
+        copyTone: copyTone,
+        postNotesStyle: notesInterpretation,
+        imageFocus: contentFocus,
+      }
+
+      const bodyString = JSON.stringify(requestBody)
+      const bodySizeMB = (bodyString.length / (1024 * 1024)).toFixed(2)
+      console.log('📦 Request body size:', bodySizeMB, 'MB')
+
+      if (bodyString.length > 10 * 1024 * 1024) {
+        console.warn('⚠️ Large request body detected:', bodySizeMB, 'MB')
+      }
+
+      console.log('📤 Sending request to /api/ai...')
+
+      let response
+      try {
+        response = await fetch('/api/ai', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: bodyString,
+        })
+        console.log('✅ Fetch completed, status:', response.status)
+      } catch (fetchError) {
+        console.error('❌ Fetch failed:', fetchError)
+        console.error('Fetch error details:', {
+          message: fetchError instanceof Error ? fetchError.message : 'Unknown error',
+          name: fetchError instanceof Error ? fetchError.name : 'Unknown',
+          stack: fetchError instanceof Error ? fetchError.stack : 'No stack trace'
+        })
+        throw new Error(`Network error while contacting AI service: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`)
+      }
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -446,7 +479,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     }
   }
 
-  const remixCaption = async (captionId: string) => {
+  const remixCaption = async (captionId: string, accessToken?: string) => {
     try {
       const caption = captions.find(cap => cap.id === captionId)
       if (!caption) return
@@ -461,10 +494,15 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         console.log('Using image data for remix:', imageData)
       }
 
+      if (!accessToken) {
+        throw new Error('Access token is required for AI remix')
+      }
+
       const response = await fetch('/api/ai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           action: 'remix_caption',

@@ -1,6 +1,7 @@
 'use client'
 
 import { useContentStore } from '@/lib/contentStore'
+import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -24,6 +25,7 @@ export function CaptionGenerationColumn() {
     setCopyType,
   } = useContentStore()
 
+  const { getAccessToken } = useAuth()
   const [generatingCaptions, setGeneratingCaptions] = useState(false)
   const [remixingCaption, setRemixingCaption] = useState<string | null>(null)
 
@@ -42,10 +44,16 @@ export function CaptionGenerationColumn() {
 
     setGeneratingCaptions(true)
     try {
+      // Get access token from auth context
+      const accessToken = getAccessToken()
+      if (!accessToken) {
+        throw new Error('Authentication required. Please log in again.')
+      }
+
       // Use the active image ID for AI caption generation
       // Post Notes are optional - pass them if they exist
-      // Pass the selected copy type
-      await generateAICaptions(activeImage.id, postNotes.trim() || undefined, copyType)
+      // Pass the selected copy type and access token
+      await generateAICaptions(activeImage.id, postNotes.trim() || undefined, copyType, accessToken)
       console.log('Caption generation completed')
       // Success - captions will be added automatically
     } catch (error) {
@@ -73,7 +81,13 @@ export function CaptionGenerationColumn() {
 
     setRemixingCaption(captionId)
     try {
-      await remixCaption(captionId)
+      // Get access token from auth context
+      const accessToken = getAccessToken()
+      if (!accessToken) {
+        throw new Error('Authentication required. Please log in again.')
+      }
+
+      await remixCaption(captionId, accessToken)
       console.log('✅ Remix completed successfully')
       // Success - caption will be updated automatically
     } catch (error) {

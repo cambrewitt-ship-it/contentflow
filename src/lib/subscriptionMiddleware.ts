@@ -11,22 +11,40 @@ import {
  */
 export async function requireActiveSubscription(req: NextRequest) {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        global: {
-          headers: {
-            Cookie: req.headers.get('cookie') || '',
-          },
-        },
-      }
-    );
+    // Check for Authorization header first (Bearer token)
+    const authHeader = req.headers.get('authorization');
+    let user = null;
+    let authError = null;
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      // Use service role key to verify the token
+      const token = authHeader.split(' ')[1];
+      const supabaseServiceRole = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_SUPABASE_SERVICE_ROLE!
+      );
+
+      const result = await supabaseServiceRole.auth.getUser(token);
+      user = result.data.user;
+      authError = result.error;
+    } else {
+      // Fall back to cookie-based authentication
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          global: {
+            headers: {
+              Cookie: req.headers.get('cookie') || '',
+            },
+          },
+        }
+      );
+
+      const result = await supabase.auth.getUser();
+      user = result.data.user;
+      authError = result.error;
+    }
 
     if (authError || !user) {
       return {
@@ -280,23 +298,39 @@ export async function trackAICreditUsage(userId: string, credits: number = 1) {
  */
 export async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        global: {
-          headers: {
-            Cookie: req.headers.get('cookie') || '',
+    // Check for Authorization header first (Bearer token)
+    const authHeader = req.headers.get('authorization');
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      // Use service role key to verify the token
+      const token = authHeader.split(' ')[1];
+      const supabaseServiceRole = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_SUPABASE_SERVICE_ROLE!
+      );
+
+      const { data: { user } } = await supabaseServiceRole.auth.getUser(token);
+      return user?.id || null;
+    } else {
+      // Fall back to cookie-based authentication
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          global: {
+            headers: {
+              Cookie: req.headers.get('cookie') || '',
+            },
           },
-        },
-      }
-    );
+        }
+      );
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    return user?.id || null;
+      return user?.id || null;
+    }
   } catch (error) {
     console.error('Failed to get user from request:', error);
     return null;

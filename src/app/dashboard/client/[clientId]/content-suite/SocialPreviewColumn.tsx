@@ -17,6 +17,7 @@ import { useState, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface ConnectedAccount {
   _id: string;
@@ -60,6 +61,7 @@ export function SocialPreviewColumn({
     setCaptions,
     setSelectedCaptions,
   } = useContentStore()
+  const { getAccessToken } = useAuth()
 
 
 
@@ -326,9 +328,14 @@ export function SocialPreviewColumn({
         }
       }
 
+      const accessToken = getAccessToken()
+      
       const mediaResponse = await fetch('/api/late/upload-media', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
         body: JSON.stringify({ imageBlob: imageData })
       })
 
@@ -355,9 +362,14 @@ export function SocialPreviewColumn({
       }
 
       console.log('Scheduling post via LATE API...')
+      const accessToken2 = getAccessToken()
+      
       const response = await fetch('/api/late/schedule-post', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken2}`
+        },
         body: JSON.stringify(lateRequestBody)
       })
 
