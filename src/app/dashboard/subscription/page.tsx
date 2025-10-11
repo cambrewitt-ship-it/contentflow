@@ -125,7 +125,7 @@ export default function SubscriptionPage() {
           <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold mb-2">No Active Subscription</h2>
           <p className="text-gray-600 mb-6">
-            You don't have an active subscription yet. Choose a plan to get started.
+            You don&apos;t have an active subscription yet. Choose a plan to get started.
           </p>
           <Button
             onClick={() => router.push('/pricing')}
@@ -235,7 +235,7 @@ export default function SubscriptionPage() {
             {subscription.cancel_at_period_end && (
               <p className="text-sm text-yellow-600 mt-2">
                 Your subscription will be canceled at the end of the current billing
-                period. You'll still have access until then.
+                period. You&apos;ll still have access until then.
               </p>
             )}
           </div>
