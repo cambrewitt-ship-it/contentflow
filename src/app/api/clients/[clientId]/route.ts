@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { handleApiError, handleDatabaseError, ApiErrors } from '../../../lib/apiErrorHandler';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -191,16 +192,12 @@ export async function GET(
       .single();
 
     if (error) {
-      console.error('❌ Supabase query error:', error);
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ 
-          error: 'Client not found' 
-        }, { status: 404 });
-      }
-      return NextResponse.json({ 
-        error: 'Database query failed', 
-        details: error.message 
-      }, { status: 500 });
+      return handleDatabaseError(error, {
+        route: '/api/clients/[clientId]',
+        operation: 'fetch_client',
+        userId: user.id,
+        clientId: cleanClientId,
+      }, 'Client not found');
     }
 
     console.log('✅ Client data fetched successfully:', client);
@@ -211,11 +208,11 @@ export async function GET(
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in get client route:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    return handleApiError(error, {
+      route: '/api/clients/[clientId]',
+      operation: 'fetch_client',
+      additionalData: { clientId }
+    });
   }
 }
 
@@ -312,11 +309,12 @@ export async function PUT(
       .single();
 
     if (error) {
-      console.error('❌ Supabase update error:', error);
-      return NextResponse.json({ 
-        error: 'Failed to update client', 
-        details: error.message 
-      }, { status: 500 });
+      return handleDatabaseError(error, {
+        route: '/api/clients/[clientId]',
+        operation: 'update_client',
+        userId: user.id,
+        clientId: clientId,
+      }, 'Failed to update client');
     }
 
     console.log('✅ Client updated successfully:', updatedClient);
@@ -327,11 +325,11 @@ export async function PUT(
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in update client route:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    return handleApiError(error, {
+      route: '/api/clients/[clientId]',
+      operation: 'update_client',
+      additionalData: { clientId }
+    });
   }
 }
 
@@ -379,11 +377,12 @@ export async function DELETE(
       .single();
 
     if (fetchError) {
-      console.error('❌ Failed to fetch client:', fetchError);
-      return NextResponse.json({ 
-        error: 'Client not found', 
-        details: fetchError.message 
-      }, { status: 404 });
+      return handleDatabaseError(fetchError, {
+        route: '/api/clients/[clientId]',
+        operation: 'fetch_client_for_deletion',
+        userId: user.id,
+        clientId: clientId,
+      }, 'Client not found');
     }
 
     console.log('🔍 Client data fetched:', {
@@ -417,11 +416,12 @@ export async function DELETE(
       .eq('id', clientId);
 
     if (error) {
-      console.error('❌ Supabase delete error:', error);
-      return NextResponse.json({ 
-        error: 'Failed to delete client', 
-        details: error.message 
-      }, { status: 500 });
+      return handleDatabaseError(error, {
+        route: '/api/clients/[clientId]',
+        operation: 'delete_client',
+        userId: user.id,
+        clientId: clientId,
+      }, 'Failed to delete client');
     }
 
     console.log('✅ Client deleted successfully:', clientId);
@@ -433,10 +433,10 @@ export async function DELETE(
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in delete client route:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    return handleApiError(error, {
+      route: '/api/clients/[clientId]',
+      operation: 'delete_client',
+      additionalData: { clientId }
+    });
   }
 }

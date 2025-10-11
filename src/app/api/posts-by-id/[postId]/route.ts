@@ -1,28 +1,45 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { PostValidator, PostData } from '../../../../lib/postValidation';
+import { handleApiError, handleDatabaseError, ApiErrors } from '../../../../lib/apiErrorHandler';
+import { validateApiRequest } from '../../../../lib/validationMiddleware';
+import { updatePostSchema, postIdParamSchema } from '../../../../lib/validators';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ postId: string }> }
 ) {
   try {
-    const { postId } = await params;
-    const body = await request.json();
+    console.log('🔄 Enhanced Post Editing - Updating post');
     
-    console.log('🔄 Enhanced Post Editing - Updating post:', { postId, body });
+    // SECURITY: Comprehensive input validation with Zod
+    const validation = await validateApiRequest(request, {
+      body: updatePostSchema,
+      params: postIdParamSchema,
+      paramsObject: params,
+      maxBodySize: 10 * 1024 * 1024, // 10MB limit for posts (to accommodate images)
+    });
+
+    if (!validation.success) {
+      console.error('❌ Validation failed');
+      return validation.response;
+    }
+
+    const { body, params: validatedParams } = validation.data;
+    const { postId } = validatedParams!;
+    console.log('✅ Request validated successfully:', { postId });
     
-    // Extract editable fields from content suite
+    // Extract editable fields from validated input
     const { 
       caption, 
       image_url, 
       notes, 
       edit_reason, 
       edited_by_user_id,
-      client_id, // Required for authorization
+      client_id,
       platforms = ['instagram', 'facebook', 'twitter'], // Default platforms
       // AI generation settings
       ai_tone,
@@ -35,32 +52,10 @@ export async function PUT(
       media_type,
       media_alt_text,
       // Concurrent editing
-      force_edit = false, // Allow overriding concurrent editing lock
+      force_edit = false,
       // Draft saving
       save_as_draft = false
     } = body;
-    
-    // Validate required fields
-    if (!caption && !image_url && !notes && !tags && !categories) {
-      return NextResponse.json(
-        { error: 'At least one editable field must be provided for update' },
-        { status: 400 }
-      );
-    }
-    
-    if (!edited_by_user_id) {
-      return NextResponse.json(
-        { error: 'edited_by_user_id is required for tracking edits' },
-        { status: 400 }
-      );
-    }
-    
-    if (!client_id) {
-      return NextResponse.json(
-        { error: 'client_id is required for authorization' },
-        { status: 400 }
-      );
-    }
     
     // Create Supabase client with service role for admin access
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -104,17 +99,12 @@ export async function PUT(
     }
     
     if (fetchError) {
-      console.error('❌ Error fetching current post:', fetchError);
-      if (fetchError.code === 'PGRST116') {
-        return NextResponse.json(
-          { error: 'Post not found' },
-          { status: 404 }
-        );
-      }
-      return NextResponse.json(
-        { error: 'Failed to fetch post' },
-        { status: 500 }
-      );
+      return handleDatabaseError(fetchError, {
+        route: '/api/posts-by-id/[postId]',
+        operation: 'fetch_post',
+        clientId: client_id,
+        additionalData: { postId }
+      }, 'Post not found');
     }
     
     // Authorization: Verify post belongs to the requesting client
@@ -123,10 +113,7 @@ export async function PUT(
         postClientId: currentPost.client_id, 
         requestedClientId: client_id 
       });
-      return NextResponse.json(
-        { error: 'Unauthorized: Post does not belong to this client' },
-        { status: 403 }
-      );
+      return ApiErrors.forbidden('Post does not belong to this client');
     }
     
     // 1. POST STATUS VALIDATION
@@ -355,11 +342,12 @@ export async function PUT(
       .single();
     
     if (updateError) {
-      console.error('❌ Supabase update error:', updateError);
-      return NextResponse.json(
-        { error: `Database error: ${updateError.message}` },
-        { status: 500 }
-      );
+      return handleDatabaseError(updateError, {
+        route: '/api/posts-by-id/[postId]',
+        operation: 'update_post',
+        clientId: client_id,
+        additionalData: { postId, tableName }
+      }, 'Failed to update post');
     }
     
     // 7. SEND REAPPROVAL NOTIFICATION (if needed)
@@ -396,20 +384,31 @@ export async function PUT(
     });
     
   } catch (error) {
-    console.error('💥 Unexpected error in Enhanced Post Editing:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update post' },
-      { status: 500 }
-    );
+    return handleApiError(error, {
+      route: '/api/posts-by-id/[postId]',
+      operation: 'update_post',
+      additionalData: { postId }
+    });
   }
 }
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ postId: string }> }
 ) {
   try {
-    const { postId } = await params;
+    // SECURITY: Validate URL parameters
+    const validation = await validateApiRequest(request, {
+      params: postIdParamSchema,
+      paramsObject: params,
+    });
+
+    if (!validation.success) {
+      return validation.response;
+    }
+
+    const { params: validatedParams } = validation.data;
+    const { postId } = validatedParams!;
     
     console.log('🔍 Fetching post:', postId);
     
@@ -461,11 +460,11 @@ export async function GET(
     }
     
     if (error) {
-      console.error('❌ Supabase error:', error);
-      return NextResponse.json(
-        { error: `Database error: ${error.message}` },
-        { status: 500 }
-      );
+      return handleDatabaseError(error, {
+        route: '/api/posts-by-id/[postId]',
+        operation: 'fetch_post',
+        additionalData: { postId }
+      }, 'Post not found');
     }
     
     console.log('✅ Post fetched:', post);
@@ -473,20 +472,31 @@ export async function GET(
     return NextResponse.json({ post });
     
   } catch (error) {
-    console.error('💥 Unexpected error in GET:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch post' },
-      { status: 500 }
-    );
+    return handleApiError(error, {
+      route: '/api/posts-by-id/[postId]',
+      operation: 'fetch_post',
+      additionalData: { postId }
+    });
   }
 }
 
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ postId: string }> }
 ) {
   try {
-    const { postId } = await params;
+    // SECURITY: Validate URL parameters
+    const validation = await validateApiRequest(request, {
+      params: postIdParamSchema,
+      paramsObject: params,
+    });
+
+    if (!validation.success) {
+      return validation.response;
+    }
+
+    const { params: validatedParams } = validation.data;
+    const { postId } = validatedParams!;
     
     console.log('🗑️ Deleting post:', postId);
     
@@ -501,19 +511,16 @@ export async function DELETE(
       .single();
     
     if (fetchError) {
-      console.error('❌ Error fetching post for deletion:', fetchError);
-      return NextResponse.json(
-        { error: 'Post not found' },
-        { status: 404 }
-      );
+      return handleDatabaseError(fetchError, {
+        route: '/api/posts-by-id/[postId]',
+        operation: 'fetch_post_for_deletion',
+        additionalData: { postId }
+      }, 'Post not found');
     }
     
     // Validation: Prevent deletion of published posts
     if (currentPost.status === 'published') {
-      return NextResponse.json(
-        { error: 'Cannot delete published posts. Please archive instead.' },
-        { status: 400 }
-      );
+      return ApiErrors.badRequest('Cannot delete published posts. Please archive instead.');
     }
     
     // Delete the post (revisions will be deleted automatically due to CASCADE)
@@ -523,11 +530,11 @@ export async function DELETE(
       .eq('id', postId);
     
     if (deleteError) {
-      console.error('❌ Supabase delete error:', deleteError);
-      return NextResponse.json(
-        { error: `Database error: ${deleteError.message}` },
-        { status: 500 }
-      );
+      return handleDatabaseError(deleteError, {
+        route: '/api/posts-by-id/[postId]',
+        operation: 'delete_post',
+        additionalData: { postId }
+      }, 'Failed to delete post');
     }
     
     console.log('✅ Post deleted successfully:', postId);
@@ -538,10 +545,10 @@ export async function DELETE(
     });
     
   } catch (error) {
-    console.error('💥 Unexpected error in DELETE:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete post' },
-      { status: 500 }
-    );
+    return handleApiError(error, {
+      route: '/api/posts-by-id/[postId]',
+      operation: 'delete_post',
+      additionalData: { postId }
+    });
   }
 }

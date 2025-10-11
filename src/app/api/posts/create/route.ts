@@ -1,12 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { isValidImageData } from '../../../../lib/blobUpload';
+import { withPostLimitCheck, trackPostCreation } from '../../../../lib/subscriptionMiddleware';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // SUBSCRIPTION: Check post limits
+    const subscriptionCheck = await withPostLimitCheck(request);
+    if (!subscriptionCheck.authorized) {
+      return subscriptionCheck as NextResponse;
+    }
+    
+    const userId = subscriptionCheck.user!.id;
+
     const body = await request.json();
     console.log('🚀 Creating posts - Full request body:', JSON.stringify(body, null, 2));
     
@@ -90,6 +99,9 @@ export async function POST(request: Request) {
     }
     
     console.log('✅ Posts created successfully in posts table:', postsData);
+    
+    // Track post creation for subscription usage
+    await trackPostCreation(userId);
     
     // CRITICAL STEP: Also create entries in calendar_unscheduled_posts table to ensure they appear in the calendar
     if (postsData && postsData.length > 0) {

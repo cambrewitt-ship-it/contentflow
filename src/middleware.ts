@@ -1,11 +1,11 @@
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { rateLimitMiddleware } from './lib/rateLimitMiddleware';
+import { simpleRateLimitMiddleware } from './lib/simpleRateLimit';
 
 export async function middleware(req: NextRequest) {
   // Apply rate limiting to API routes first
-  const rateLimitResponse = await rateLimitMiddleware(req);
+  const rateLimitResponse = await simpleRateLimitMiddleware(req);
   if (rateLimitResponse) {
     return rateLimitResponse;
   }

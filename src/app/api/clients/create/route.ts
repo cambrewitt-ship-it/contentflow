@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { validateApiRequest } from '../../../../lib/validationMiddleware';
+import { createClientSchema } from '../../../../lib/validators';
+import { withClientLimitCheck, trackClientCreation } from '../../../../lib/subscriptionMiddleware';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -97,9 +100,34 @@ async function createLateProfile(clientName: string, brandInfo: {
 export async function POST(req: NextRequest) {
   try {
     console.log('🎯 POST /api/clients/create - Request received');
-    const body = await req.json();
-    console.log('📋 Request body:', body);
     
+    // SUBSCRIPTION: Check client limits
+    const subscriptionCheck = await withClientLimitCheck(req);
+    if (!subscriptionCheck.authorized) {
+      return subscriptionCheck as NextResponse;
+    }
+    
+    const userId = subscriptionCheck.user!.id;
+    
+    // SECURITY: Comprehensive input validation with Zod
+    const validation = await validateApiRequest(req, {
+      body: createClientSchema.extend({
+        brand_color: createClientSchema.shape.brand_tone.optional(), // For LATE profile
+        skipLateProfile: createClientSchema.shape.brand_tone.optional().transform(v => v === 'true' || v === true), // Flag to skip LATE profile creation
+      }),
+      checkAuth: true, // Automatically validates auth token
+      maxBodySize: 5 * 1024 * 1024, // 5MB limit for client creation
+    });
+
+    if (!validation.success) {
+      console.error('❌ Validation failed');
+      return validation.response;
+    }
+
+    const { body, token } = validation.data;
+    console.log('✅ Request validated successfully');
+    console.log('📋 Sanitized input:', { name: body.name });
+
     const { 
       name, 
       company_description, 
@@ -113,32 +141,13 @@ export async function POST(req: NextRequest) {
       skipLateProfile // Flag to skip LATE profile creation for temp clients
     } = body;
 
-    // Validate required fields
-    if (!name || !name.trim()) {
-      return NextResponse.json({ 
-        error: 'Client name is required' 
-      }, { status: 400 });
-    }
-
     console.log('🏢 Creating new client:', name);
 
-    // Get the authorization header
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('❌ No authorization header found');
-      return NextResponse.json({ 
-        error: 'Authentication required', 
-        details: 'User must be logged in to create clients'
-      }, { status: 401 });
-    }
-
-    const token = authHeader.split(' ')[1];
-    
     // Create Supabase client with the user's token
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     // Get the authenticated user using the token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token!);
     
     if (authError || !user) {
       console.error('❌ Authentication error:', authError);
@@ -214,6 +223,9 @@ export async function POST(req: NextRequest) {
     } else {
       console.log('⚠️ No LATE profile linked (creation failed)');
     }
+
+    // Track client creation for subscription usage
+    await trackClientCreation(userId);
 
     return NextResponse.json({
       success: true,

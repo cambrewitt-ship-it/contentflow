@@ -3,6 +3,10 @@ import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import { isValidImageData } from '../../../lib/blobUpload';
 import { getUpcomingHolidays, formatHolidaysForPrompt } from '../../../lib/data/holidays';
+import { handleApiError, ApiErrors } from '../../../lib/apiErrorHandler';
+import { validateApiRequest } from '../../../lib/validationMiddleware';
+import { aiRequestSchema } from '../../../lib/validators';
+import { withAICreditCheck, trackAICreditUsage } from '../../../lib/subscriptionMiddleware';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -327,7 +331,27 @@ async function getBrandContext(clientId: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { action, imageData, prompt, existingCaptions, aiContext, clientId, copyType, copyTone, postNotesStyle, imageFocus } = await request.json();
+    // SUBSCRIPTION: Check AI credit limits
+    const subscriptionCheck = await withAICreditCheck(request, 1);
+    if (!subscriptionCheck.authorized) {
+      return subscriptionCheck as NextResponse;
+    }
+    
+    const userId = subscriptionCheck.user!.id;
+
+    // SECURITY: Comprehensive input validation with Zod
+    const validation = await validateApiRequest(request, {
+      body: aiRequestSchema,
+      maxBodySize: 10 * 1024 * 1024, // 10MB limit for AI requests (to accommodate base64 images)
+    });
+
+    if (!validation.success) {
+      console.error('❌ AI request validation failed');
+      return validation.response;
+    }
+
+    const body = validation.data.body!;
+    console.log('✅ AI request validated successfully:', { action: body.action });
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
@@ -336,31 +360,60 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    switch (action) {
+    // Route to appropriate handler based on action
+    let result: NextResponse;
+    switch (body.action) {
       case 'analyze_image':
-        return await analyzeImage(imageData, prompt);
+        result = await analyzeImage(body.imageData as string, body.prompt as string | undefined);
+        break;
       
       case 'generate_captions':
-        return await generateCaptions(imageData, existingCaptions, aiContext, clientId, copyType, copyTone, postNotesStyle, imageFocus);
+        result = await generateCaptions(
+          body.imageData as string, 
+          body.existingCaptions as string[] | undefined, 
+          body.aiContext as string | undefined, 
+          body.clientId as string | undefined, 
+          body.copyType as 'social-media' | 'email-marketing' | undefined, 
+          body.copyTone as 'promotional' | 'educational' | 'personal' | 'testimonial' | 'engagement' | undefined, 
+          body.postNotesStyle as 'quote-directly' | 'paraphrase' | 'use-as-inspiration' | undefined, 
+          body.imageFocus as 'main-focus' | 'supporting' | 'background' | 'none' | undefined
+        );
+        break;
       
       case 'remix_caption':
-        return await remixCaption(imageData, prompt, existingCaptions, aiContext, clientId);
+        result = await remixCaption(
+          body.imageData as string, 
+          body.prompt as string, 
+          body.existingCaptions as string[] | undefined, 
+          body.aiContext as string | undefined, 
+          body.clientId as string | undefined
+        );
+        break;
       
       case 'generate_content_ideas':
-        return await generateContentIdeas(clientId);
+        result = await generateContentIdeas(body.clientId as string);
+        break;
       
       default:
+        // This should never happen due to Zod's discriminated union
         return NextResponse.json(
           { error: 'Invalid action specified' },
           { status: 400 }
         );
     }
+
+    // Track AI credit usage if request was successful
+    if (result.status === 200) {
+      await trackAICreditUsage(userId, 1);
+    }
+
+    return result;
   } catch (error) {
-    console.error('AI API Error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return handleApiError(error, {
+      route: '/api/ai',
+      operation: 'ai_request',
+      additionalData: { error: error instanceof Error ? error.message : 'Unknown error' }
+    });
   }
 }
 
@@ -421,11 +474,11 @@ async function analyzeImage(imageData: string, prompt?: string) {
       analysis: response.choices[0]?.message?.content || 'No analysis generated'
     });
   } catch (error) {
-    console.error('Image analysis error:', error);
-    return NextResponse.json(
-      { error: 'Failed to analyze image' },
-      { status: 500 }
-    );
+    return handleApiError(error, {
+      route: '/api/ai',
+      operation: 'analyze_image',
+      additionalData: { hasPrompt: !!prompt }
+    });
   }
 }
 
@@ -723,11 +776,16 @@ ${finalInstruction}`;
       captions: captions
     });
   } catch (error) {
-    console.error('Caption generation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate captions' },
-      { status: 500 }
-    );
+    return handleApiError(error, {
+      route: '/api/ai',
+      operation: 'generate_captions',
+      clientId: clientId,
+      additionalData: { 
+        copyType, 
+        hasImageData: !!imageData,
+        hasContext: !!aiContext 
+      }
+    });
   }
 }
 
@@ -838,11 +896,16 @@ async function remixCaption(imageData: string, prompt: string, existingCaptions:
       caption: response.choices[0]?.message?.content || 'No caption generated'
     });
   } catch (error) {
-    console.error('Caption remix error:', error);
-    return NextResponse.json(
-      { error: 'Failed to remix caption' },
-      { status: 500 }
-    );
+    return handleApiError(error, {
+      route: '/api/ai',
+      operation: 'remix_caption',
+      clientId: clientId,
+      additionalData: { 
+        hasImageData: !!imageData,
+        hasContext: !!aiContext,
+        hasExistingCaptions: existingCaptions.length > 0
+      }
+    });
   }
 }
 
@@ -1246,11 +1309,12 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
     });
 
   } catch (error) {
-    console.error('Content ideas generation error:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate content ideas' },
-      { status: 500 }
-    );
+    return handleApiError(error, {
+      route: '/api/ai',
+      operation: 'generate_content_ideas',
+      clientId: clientId,
+      additionalData: { clientId }
+    });
   }
 }
 
