@@ -194,14 +194,21 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
     )
   }
 
-  // Get current week range
+  // Get current week range (Monday to Sunday)
   const getCurrentWeekRange = () => {
     const today = new Date()
     const currentDay = today.getDay()
+    // Convert to Monday-based week (0=Monday, 6=Sunday)
+    const daysSinceMonday = currentDay === 0 ? 6 : currentDay - 1
+    
     const startOfWeek = new Date(today)
-    startOfWeek.setDate(today.getDate() - currentDay)
-    const endOfWeek = new Date(today)
-    endOfWeek.setDate(today.getDate() + (6 - currentDay))
+    startOfWeek.setDate(today.getDate() - daysSinceMonday)
+    startOfWeek.setHours(0, 0, 0, 0)
+    
+    const endOfWeek = new Date(startOfWeek)
+    endOfWeek.setDate(startOfWeek.getDate() + 6)
+    endOfWeek.setHours(23, 59, 59, 999)
+    
     return { startOfWeek, endOfWeek }
   }
 
@@ -209,15 +216,13 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
   const isInCurrentWeek = (day: number | null) => {
     if (!day) return false
     
-    const today = new Date()
     const { startOfWeek, endOfWeek } = getCurrentWeekRange()
     const checkDate = new Date(calendarData.year, calendarData.month, day)
+    checkDate.setHours(12, 0, 0, 0) // Set to noon to avoid timezone issues
     
     return (
       checkDate >= startOfWeek &&
-      checkDate <= endOfWeek &&
-      checkDate.getMonth() === today.getMonth() &&
-      checkDate.getFullYear() === today.getFullYear()
+      checkDate <= endOfWeek
     )
   }
 
@@ -290,6 +295,7 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
                 relative min-h-[120px] p-3 transition-all
                 ${day ? 'hover:bg-blue-50 hover:border-blue-400 cursor-pointer' : 'bg-gray-50'}
                 ${today ? 'bg-gray-100' : ''}
+                ${inCurrentWeek && day ? 'bg-blue-50/30 ring-2 ring-blue-300 ring-inset' : ''}
                 ${dayUploads.length > 0 ? 'bg-blue-50' : ''}
                 ${isWeekendColumn && day ? 'bg-gray-50/50' : ''}
                 ${borderColor || 'border-2 border-gray-300'}

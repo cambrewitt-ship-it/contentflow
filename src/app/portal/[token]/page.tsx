@@ -127,7 +127,7 @@ export default function PortalCalendarPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
   // View mode state
-  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('month');
 
   // Get NZ timezone start of week (Monday)
   const getStartOfWeek = (offset: number = 0) => {
@@ -1095,15 +1095,25 @@ export default function PortalCalendarPage() {
           <div className="">
             {viewMode === 'week' ? (
               <div className="space-y-4" style={{ gap: '16px' }}>
-                {getWeeksToDisplay().map((weekStart, weekIndex) => (
-                <div key={weekIndex} className="border rounded-lg bg-white min-h-32 flex-1">
+                {getWeeksToDisplay().map((weekStart, weekIndex) => {
+                  const isCurrentWeek = weekOffset + weekIndex === 0;
+                  return (
+                <div key={weekIndex} className={`border rounded-lg min-h-32 flex-1 ${
+                  isCurrentWeek ? 'bg-blue-50/30 border-blue-300 border-2 shadow-lg' : 'bg-white'
+                }`}>
                   {/* Week Header - Above the days */}
-                  <div className="bg-gray-50 p-3 border-b">
-                    <h3 className="font-semibold text-sm">
+                  <div className={`p-3 border-b ${
+                    isCurrentWeek ? 'bg-blue-100/50 border-blue-200' : 'bg-gray-50'
+                  }`}>
+                    <h3 className={`font-semibold text-sm ${
+                      isCurrentWeek ? 'text-blue-800' : ''
+                    }`}>
                       {formatWeekCommencing(weekStart)}
-                      {weekOffset + weekIndex === 0 && ' (Current)'}
+                      {isCurrentWeek && ' (Current Week)'}
                     </h3>
-                    <p className="text-xs text-gray-600">
+                    <p className={`text-xs ${
+                      isCurrentWeek ? 'text-blue-600' : 'text-gray-600'
+                    }`}>
                       {weekStart.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} - 
                       {new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
                     </p>
@@ -1552,7 +1562,8 @@ export default function PortalCalendarPage() {
                     </div>
                   </div>
                 </div>
-                ))}
+                );
+                })}
               </div>
             ) : (
               <div className="bg-white rounded-lg shadow">
