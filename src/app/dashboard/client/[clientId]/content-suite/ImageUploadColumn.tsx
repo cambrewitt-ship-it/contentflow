@@ -1,15 +1,15 @@
 'use client'
 
-import { useContentStore, UploadedImage, NotesInterpretation, ContentFocus, CopyTone } from 'lib/contentStore'
-import { Button } from 'components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
-import { Textarea } from 'components/ui/textarea'
+import { useContentStore, UploadedImage, NotesInterpretation, ContentFocus, CopyTone } from '@/lib/contentStore'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Textarea } from '@/components/ui/textarea'
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuTrigger 
-} from 'components/ui/dropdown-menu'
+} from '@/components/ui/dropdown-menu'
 import { Upload, X, Image as ImageIcon, ChevronDown } from 'lucide-react'
 
 export function ImageUploadColumn() {

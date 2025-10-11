@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { handleApiError, handleDatabaseError, ApiErrors } from '../../../lib/apiErrorHandler';
+import { handleApiError, handleDatabaseError, ApiErrors } from '@/lib/apiErrorHandler';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;

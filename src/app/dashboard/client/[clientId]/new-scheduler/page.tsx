@@ -1,11 +1,11 @@
 'use client'
 
 import { use, useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
-import { Button } from 'components/ui/button'
-import { Badge } from 'components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Calendar, Clock, Check, Send, Trash2 } from 'lucide-react'
-import { Post, LateAccount } from 'types/api'
+import { Post, LateAccount } from '@/types/api'
 
 interface Account {
   _id: string;

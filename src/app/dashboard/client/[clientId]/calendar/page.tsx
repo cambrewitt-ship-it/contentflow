@@ -4,13 +4,13 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Share2, Loader2, RefreshCw, User, Settings, Calendar, Grid3X3 } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
-import { EditIndicators } from 'components/EditIndicators';
-import { MonthViewCalendar } from 'components/MonthViewCalendar';
+import { EditIndicators } from '@/components/EditIndicators';
+import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
-import { Button } from 'components/ui/button';
-import { FacebookIcon, InstagramIcon, TwitterIcon, LinkedInIcon } from 'components/social-icons';
-import { useAuth } from 'contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { FacebookIcon, InstagramIcon, TwitterIcon, LinkedInIcon } from '@/components/social-icons';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {

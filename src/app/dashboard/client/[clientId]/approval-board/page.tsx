@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button } from 'components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
-import { SocialPreviewCard } from 'components/SocialPreviewCard';
+import { SocialPreviewCard } from '@/components/SocialPreviewCard';
 // Temporary inline types to resolve import issue
 interface WeekData {
   weekStart: Date;

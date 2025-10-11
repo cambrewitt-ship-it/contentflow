@@ -179,15 +179,15 @@ export async function PUT(
       }
     };
     
-    const validation = PostValidator.validatePost(postData, platforms);
+    const postValidation = PostValidator.validatePost(postData, platforms);
     
-    if (!validation.isValid) {
+    if (!postValidation.isValid) {
       return NextResponse.json(
         { 
           error: 'Validation failed',
-          validationErrors: validation.errors,
-          validationWarnings: validation.warnings,
-          platformWarnings: validation.platformWarnings
+          validationErrors: postValidation.errors,
+          validationWarnings: postValidation.warnings,
+          platformWarnings: postValidation.platformWarnings
         },
         { status: 400 }
       );
@@ -292,7 +292,7 @@ export async function PUT(
     // Platform requirements (store validation results)
     updateData.platform_requirements = {
       validated_platforms: platforms,
-      validation_warnings: validation.platformWarnings,
+      validation_warnings: postValidation.platformWarnings,
       last_validated_at: now.toISOString()
     };
     
@@ -318,7 +318,7 @@ export async function PUT(
       editedBy: edited_by_user_id,
       changes: changes,
       needsReapproval,
-      validationWarnings: validation.warnings,
+      validationWarnings: postValidation.warnings,
       platforms
     });
     
@@ -365,7 +365,7 @@ export async function PUT(
       editCount: updatedPost.edit_count,
       needsReapproval: updatedPost.needs_reapproval,
       approvalStatus: updatedPost.approval_status,
-      validationWarnings: validation.warnings,
+      validationWarnings: postValidation.warnings,
       timestamp: now.toISOString()
     });
     
@@ -375,8 +375,8 @@ export async function PUT(
       message: 'Post updated successfully with enhanced validation',
       changes: changes,
       needsReapproval: updatedPost.needs_reapproval,
-      validationWarnings: validation.warnings,
-      platformWarnings: validation.platformWarnings,
+      validationWarnings: postValidation.warnings,
+      platformWarnings: postValidation.platformWarnings,
       currentlyEditing: {
         by: updatedPost.currently_editing_by,
         startedAt: updatedPost.editing_started_at

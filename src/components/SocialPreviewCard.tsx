@@ -8,7 +8,7 @@ import {
   TikTokIcon, 
   YouTubeIcon, 
   ThreadsIcon 
-} from 'components/social-icons'
+} from '@/components/social-icons'
 
 interface SocialPreviewCardProps {
   platform: 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'youtube' | 'threads'

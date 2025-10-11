@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import { use } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from 'components/ui/button'
-import { Input } from 'components/ui/input'
-import { Textarea } from 'components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Loader2, Plus, FolderOpen, Calendar, Edit3, Trash2, Eye } from 'lucide-react'
 import Link from 'next/link'
 

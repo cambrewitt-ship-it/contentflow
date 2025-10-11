@@ -1,10 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Button } from 'components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Palette, Monitor } from 'lucide-react';
-import { useUITheme } from 'contexts/UIThemeContext';
-import { useUIThemeStyles } from 'hooks/useUITheme';
+import { useUITheme } from '@/contexts/UIThemeContext';
+import { useUIThemeStyles } from '@/hooks/useUITheme';
 
 export default function UIThemeToggle() {
   const { theme, toggleTheme } = useUITheme();

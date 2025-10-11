@@ -1,8 +1,8 @@
 'use client'
 
-import { useContentStore } from 'lib/contentStore'
-import { Button } from 'components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from 'components/ui/card'
+import { useContentStore } from '@/lib/contentStore'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, X, FolderOpen, Calendar, Clock, Check } from 'lucide-react'
 import { 
   FacebookIcon, 
@@ -12,11 +12,11 @@ import {
   TikTokIcon, 
   YouTubeIcon, 
   ThreadsIcon 
-} from 'components/social-icons'
+} from '@/components/social-icons'
 import { useState, useEffect } from 'react'
-import { Input } from 'components/ui/input'
-import { Textarea } from 'components/ui/textarea'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from 'components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface ConnectedAccount {
   _id: string;
