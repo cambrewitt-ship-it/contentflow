@@ -1,28 +1,31 @@
-export async function uploadImageToBlob(
-  imageFile: File | Blob,
+// Upload media (images or videos) to blob storage
+export async function uploadMediaToBlob(
+  mediaFile: File | Blob,
   filename: string
-): Promise<string> {
+): Promise<{ url: string; mediaType: 'image' | 'video'; mimeType: string }> {
   try {
     // Convert file to base64 first
     const base64Data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error('Failed to read image file'));
-      reader.readAsDataURL(imageFile);
+      reader.onerror = () => reject(new Error('Failed to read media file'));
+      reader.readAsDataURL(mediaFile);
     });
 
-    console.log('🔄 Uploading image to server...');
+    const mediaType = mediaFile.type.startsWith('video/') ? 'video' : 'image';
+    console.log(`🔄 Uploading ${mediaType} to server...`);
 
     // Upload via server API route (this keeps the blob token secure)
-    const response = await fetch('/api/upload-image', {
+    const response = await fetch('/api/upload-media', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       credentials: 'include',
       body: JSON.stringify({
-        imageData: base64Data,
+        mediaData: base64Data,
         filename,
+        mediaType,
       }),
     });
 
@@ -37,30 +40,49 @@ export async function uploadImageToBlob(
       throw new Error('No URL returned from upload');
     }
     
-    console.log('✅ Image uploaded to blob:', data.url);
-    return data.url;
+    console.log(`✅ ${mediaType} uploaded to blob:`, data.url);
+    return {
+      url: data.url,
+      mediaType: data.mediaType || mediaType,
+      mimeType: data.mimeType || mediaFile.type
+    };
     
   } catch (error) {
     console.error('❌ Error uploading to blob:', error);
     
     // Fallback: convert to base64 data URL
     console.log('🔄 Falling back to base64 conversion...');
-    return new Promise((resolve, reject) => {
+    const base64Data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
         resolve(reader.result as string);
       };
       reader.onerror = () => {
-        reject(new Error('Failed to convert image to base64'));
+        reject(new Error('Failed to convert media to base64'));
       };
-      reader.readAsDataURL(imageFile);
+      reader.readAsDataURL(mediaFile);
     });
+    
+    return {
+      url: base64Data,
+      mediaType: mediaFile.type.startsWith('video/') ? 'video' : 'image',
+      mimeType: mediaFile.type
+    };
   }
 }
 
+// Legacy function for backward compatibility
+export async function uploadImageToBlob(
+  imageFile: File | Blob,
+  filename: string
+): Promise<string> {
+  const result = await uploadMediaToBlob(imageFile, filename);
+  return result.url;
+}
+
 export function base64ToBlob(base64String: string, mimeType: string = 'image/png'): Blob {
-  // Remove data URL prefix if present
-  const base64Data = base64String.replace(/^data:image\/[a-z]+;base64,/, '');
+  // Remove data URL prefix if present (support both image and video)
+  const base64Data = base64String.replace(/^data:(image|video)\/[a-z0-9+-]+;base64,/, '');
   
   // Convert base64 to bytes
   const byteCharacters = atob(base64Data);
@@ -104,21 +126,51 @@ export function isValidBlobUrl(url: string): boolean {
   }
 }
 
-// Helper function to validate image data (supports both blob URLs and base64)
+// Helper function to validate media data (supports both blob URLs and base64, for images and videos)
+export function isValidMediaData(mediaData: string): { 
+  isValid: boolean; 
+  type: 'blob' | 'base64' | 'invalid';
+  mediaType: 'image' | 'video' | 'unknown';
+} {
+  if (!mediaData || typeof mediaData !== 'string') {
+    return { isValid: false, type: 'invalid', mediaType: 'unknown' };
+  }
+  
+  // Check if it's base64 data URL
+  if (mediaData.startsWith('data:image/')) {
+    return { isValid: true, type: 'base64', mediaType: 'image' };
+  }
+  
+  if (mediaData.startsWith('data:video/')) {
+    return { isValid: true, type: 'base64', mediaType: 'video' };
+  }
+  
+  // Check if it's a blob URL
+  if (isValidBlobUrl(mediaData)) {
+    // Try to determine media type from URL or assume it could be either
+    return { isValid: true, type: 'blob', mediaType: 'unknown' };
+  }
+  
+  return { isValid: false, type: 'invalid', mediaType: 'unknown' };
+}
+
+// Helper function to validate image data (backward compatibility)
 export function isValidImageData(imageData: string): { isValid: boolean; type: 'blob' | 'base64' | 'invalid' } {
-  if (!imageData || typeof imageData !== 'string') {
-    return { isValid: false, type: 'invalid' };
-  }
-  
-  // Check if it's base64 data URL (preferred for OpenAI API)
-  if (imageData.startsWith('data:image/')) {
-    return { isValid: true, type: 'base64' };
-  }
-  
-  // Check if it's a blob URL (will need conversion for OpenAI API)
-  if (isValidBlobUrl(imageData)) {
-    return { isValid: true, type: 'blob' };
-  }
-  
-  return { isValid: false, type: 'invalid' };
+  const result = isValidMediaData(imageData);
+  return {
+    isValid: result.isValid && (result.mediaType === 'image' || result.mediaType === 'unknown'),
+    type: result.type
+  };
+}
+
+// Helper to detect if a file is a video
+export function isVideoFile(file: File | Blob): boolean {
+  return file.type.startsWith('video/');
+}
+
+// Helper to get media type from file
+export function getMediaType(file: File | Blob): 'image' | 'video' | 'unknown' {
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('video/')) return 'video';
+  return 'unknown';
 }

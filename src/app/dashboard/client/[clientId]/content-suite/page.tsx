@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { ArrowLeft, Loader2, Sparkles, RefreshCw, Plus, FolderOpen, Calendar, Edit3, X, Lightbulb, User, Settings, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
-import { ImageUploadColumn } from './ImageUploadColumn'
+import { MediaUploadColumn } from './MediaUploadColumn'
 import { CaptionGenerationColumn } from './CaptionGenerationColumn'
 import { SocialPreviewColumn } from './SocialPreviewColumn'
 import { ContentIdeasColumn } from './ContentIdeasColumn'
@@ -1114,8 +1114,8 @@ function ContentSuiteContent({
 
         {/* Content Suite Columns */}
         <div className="content-suite-columns main-content">
-          {/* Column 1: Image Upload */}
-          <ImageUploadColumn />
+          {/* Column 1: Media Upload (Images & Videos) */}
+          <MediaUploadColumn />
 
           {/* Column 2: Caption Generation */}
           <CaptionGenerationColumn />

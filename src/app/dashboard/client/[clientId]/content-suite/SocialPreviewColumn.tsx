@@ -429,17 +429,38 @@ export function SocialPreviewColumn({
         </p>
       </div>
       
-      {/* Facebook Image */}
-      {activeImageId && (
-        <div className="relative">
-          <img
-            src={uploadedImages.find(img => img.id === activeImageId)?.preview}
-            alt="Post content"
-            className="w-full object-cover"
-            style={{ maxHeight: '400px' }}
-          />
-        </div>
-      )}
+      {/* Facebook Media (Image or Video Thumbnail) */}
+      {activeImageId && (() => {
+        const activeMedia = uploadedImages.find(img => img.id === activeImageId);
+        const isVideo = activeMedia?.mediaType === 'video';
+        // For videos, use thumbnail; for images, use the actual image
+        const mediaSrc = isVideo 
+          ? (activeMedia?.videoThumbnail || activeMedia?.preview)
+          : (activeMedia?.blobUrl || activeMedia?.preview);
+        
+        // Don't render if no valid source
+        if (!mediaSrc) return null;
+        
+        return (
+          <div className="relative">
+            <img
+              src={mediaSrc}
+              alt={isVideo ? "Video thumbnail" : "Post content"}
+              className="w-full object-cover"
+              style={{ maxHeight: '400px' }}
+            />
+            {isVideo && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <div className="bg-white/90 rounded-full p-4">
+                  <svg className="w-8 h-8 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       
       
       {/* Facebook Engagement Stats */}
@@ -506,16 +527,36 @@ export function SocialPreviewColumn({
         <div className="text-gray-400 text-lg">⋯</div>
       </div>
       
-      {/* Instagram Image */}
-      {activeImageId && (
-        <div className="relative">
-          <img
-            src={uploadedImages.find(img => img.id === activeImageId)?.preview}
-            alt="Post content"
-            className="w-full aspect-square object-cover"
-          />
-        </div>
-      )}
+      {/* Instagram Media (Image or Video Thumbnail) */}
+      {activeImageId && (() => {
+        const activeMedia = uploadedImages.find(img => img.id === activeImageId);
+        const isVideo = activeMedia?.mediaType === 'video';
+        const mediaSrc = isVideo 
+          ? (activeMedia?.videoThumbnail || activeMedia?.preview)
+          : (activeMedia?.blobUrl || activeMedia?.preview);
+        
+        // Don't render if no valid source
+        if (!mediaSrc) return null;
+        
+        return (
+          <div className="relative">
+            <img
+              src={mediaSrc}
+              alt={isVideo ? "Video thumbnail" : "Post content"}
+              className="w-full aspect-square object-cover"
+            />
+            {isVideo && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <div className="bg-white/90 rounded-full p-3">
+                  <svg className="w-6 h-6 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       
       {/* Instagram Actions */}
       <div className="px-3 py-3">
@@ -576,16 +617,36 @@ export function SocialPreviewColumn({
           {displayCaption}
         </p>
         
-        {/* Twitter Image */}
-        {activeImageId && (
-          <div className="mt-3 rounded-lg overflow-hidden">
-            <img
-              src={uploadedImages.find(img => img.id === activeImageId)?.preview}
-              alt="Post content"
-              className="w-full h-48 object-cover"
-            />
-          </div>
-        )}
+        {/* Twitter Media (Image or Video Thumbnail) */}
+        {activeImageId && (() => {
+          const activeMedia = uploadedImages.find(img => img.id === activeImageId);
+          const isVideo = activeMedia?.mediaType === 'video';
+          const mediaSrc = isVideo 
+            ? (activeMedia?.videoThumbnail || activeMedia?.preview)
+            : (activeMedia?.blobUrl || activeMedia?.preview);
+          
+          // Don't render if no valid source
+          if (!mediaSrc) return null;
+          
+          return (
+            <div className="mt-3 rounded-lg overflow-hidden relative">
+              <img
+                src={mediaSrc}
+                alt={isVideo ? "Video thumbnail" : "Post content"}
+                className="w-full h-48 object-cover"
+              />
+              {isVideo && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                  <div className="bg-white/90 rounded-full p-2">
+                    <svg className="w-5 h-5 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
       
       {/* Twitter Actions */}
@@ -645,16 +706,36 @@ export function SocialPreviewColumn({
       
       {/* Email Content */}
       <div className="p-4">
-        {/* Email Image */}
-        {activeImageId && (
-          <div className="mb-4">
-            <img
-              src={uploadedImages.find(img => img.id === activeImageId)?.preview}
-              alt="Email content"
-              className="w-full max-h-64 object-cover rounded-lg"
-            />
-          </div>
-        )}
+        {/* Email Media (Image or Video Thumbnail) */}
+        {activeImageId && (() => {
+          const activeMedia = uploadedImages.find(img => img.id === activeImageId);
+          const isVideo = activeMedia?.mediaType === 'video';
+          const mediaSrc = isVideo 
+            ? (activeMedia?.videoThumbnail || activeMedia?.preview)
+            : (activeMedia?.blobUrl || activeMedia?.preview);
+          
+          // Don't render if no valid source
+          if (!mediaSrc) return null;
+          
+          return (
+            <div className="mb-4 relative">
+              <img
+                src={mediaSrc}
+                alt={isVideo ? "Video thumbnail" : "Email content"}
+                className="w-full max-h-64 object-cover rounded-lg"
+              />
+              {isVideo && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+                  <div className="bg-white/90 rounded-full p-3">
+                    <svg className="w-6 h-6 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
         
         {/* Email Copy */}
         <div className="text-gray-900 leading-relaxed whitespace-pre-wrap">

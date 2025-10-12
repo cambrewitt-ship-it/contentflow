@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { isValidImageData } from '../../../../lib/blobUpload';
+import { isValidMediaData } from '../../../../lib/blobUpload';
 import { withPostLimitCheck, trackPostCreation } from '../../../../lib/subscriptionMiddleware';
 
 // Force dynamic rendering - prevents static generation at build time
@@ -48,18 +48,20 @@ export async function POST(request: NextRequest) {
     
     console.log('🚀 Creating posts:', { clientId, projectId, postsCount: posts.length, status });
     
-    // Validate image URLs in posts
+    // Validate media URLs in posts and detect media type
     for (const post of posts) {
       if (post.image_url) {
-        const validation = isValidImageData(post.image_url);
+        const validation = isValidMediaData(post.image_url);
         if (!validation.isValid) {
-          console.error('❌ Invalid image URL in post:', post.image_url);
+          console.error('❌ Invalid media URL in post:', post.image_url);
           return NextResponse.json(
-            { error: `Invalid image URL: ${post.image_url}` },
+            { error: `Invalid media URL: ${post.image_url}` },
             { status: 400 }
           );
         }
-        console.log('✅ Valid image URL detected:', validation.type);
+        console.log('✅ Valid media URL detected:', validation.type, 'Media type:', validation.mediaType);
+        // Store the detected media type in the post object for use below
+        post._detected_media_type = validation.mediaType;
       }
     }
     
@@ -69,14 +71,27 @@ export async function POST(request: NextRequest) {
     console.log('📊 About to insert posts into database...');
     
     // Create posts in the main posts table
-    const postsToInsert = posts.map((post: { caption: string; image_url: string; notes?: string; edit_reason?: string }) => {
+    const postsToInsert = posts.map((post: { 
+      caption: string; 
+      image_url: string; 
+      notes?: string; 
+      edit_reason?: string;
+      media_type?: string;
+      _detected_media_type?: 'image' | 'video' | 'unknown';
+    }) => {
       console.log('📝 Saving post with caption:', post.caption);
+      // Determine media type: use explicit media_type from post, or use detected type, or default to 'image'
+      const finalMediaType = post.media_type || 
+        (post._detected_media_type === 'video' ? 'video' : 'image');
+      
+      console.log('📦 Media type for post:', finalMediaType);
+      
       return {
         client_id: clientId,
         project_id: projectId || 'default',
         caption: post.caption,
-        image_url: post.image_url, // Fixed: was expecting 'imageUrl' but getting 'image_url'
-        media_type: 'image',
+        image_url: post.image_url,
+        media_type: finalMediaType,
         status: status,
         notes: post.notes || '',
         // New editing fields

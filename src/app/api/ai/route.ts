@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
-import { isValidImageData } from '../../../lib/blobUpload';
+import { isValidImageData, isValidMediaData } from '../../../lib/blobUpload';
 import { getUpcomingHolidays, formatHolidaysForPrompt } from '../../../lib/data/holidays';
 import { handleApiError, ApiErrors } from '../../../lib/apiErrorHandler';
 import { validateApiRequest } from '../../../lib/validationMiddleware';
@@ -520,13 +520,37 @@ async function analyzeImage(openai: OpenAI, imageData: string, prompt?: string) 
 
 async function generateCaptions(openai: OpenAI, imageData: string, existingCaptions: string[] = [], aiContext?: string, clientId?: string, copyType?: string, copyTone?: string, postNotesStyle?: string, imageFocus?: string) {
   try {
-    // Validate image data
-    const validation = isValidImageData(imageData);
-    if (!validation.isValid) {
-      throw new Error('Invalid image data - must be blob URL or base64');
+    // Check if this is a video placeholder (sent from frontend for videos)
+    const isVideoPlaceholder = imageData === 'VIDEO_PLACEHOLDER' || imageData === '';
+    const isVideo = isVideoPlaceholder;
+    
+    console.log('🎯 Caption generation request:', {
+      isVideoPlaceholder,
+      isVideo,
+      hasAIContext: !!aiContext,
+      imageDataLength: imageData.length,
+      imageDataPreview: imageData.substring(0, 50)
+    });
+    
+    // For backwards compatibility - only validate if not a video placeholder
+    let validation: { isValid: boolean; type: 'base64' | 'blob' | 'invalid' } = { isValid: true, type: 'base64' };
+    if (!isVideoPlaceholder) {
+      // Validate media data (supports both images and videos)
+      const mediaValidation = isValidMediaData(imageData);
+      if (!mediaValidation.isValid) {
+        throw new Error('Invalid media data - must be blob URL or base64');
+      }
+      
+      console.log('AI generating captions, media type:', mediaValidation.mediaType);
+      
+      // For backwards compatibility with image validation
+      validation = isValidImageData(imageData);
     }
     
-    console.log('AI generating captions, image type:', validation.type);
+    // Videos require post notes since we can't analyze them visually
+    if (isVideo && !aiContext?.trim()) {
+      throw new Error('Post Notes are required for video content. AI cannot analyze videos visually.');
+    }
     
     // Fetch brand context if clientId is provided
     let brandContext = null;
@@ -707,8 +731,9 @@ ${finalInstruction}`;
       }
     ];
 
-    // Add image to content if image data is valid
-    if (validation.isValid && imageData) {
+    // Add image to content ONLY if it's actually an image (not a video or video placeholder)
+    // Videos cannot be analyzed by OpenAI Vision API - captions will be generated from text only
+    if (validation.isValid && imageData && !isVideo && !isVideoPlaceholder) {
       userContent.push({
         type: 'image_url',
         image_url: {
@@ -723,6 +748,10 @@ ${finalInstruction}`;
           detail: 'high'
         }
       });
+    } else if (isVideo || isVideoPlaceholder) {
+      console.log('🎥 Video detected - skipping visual analysis. Captions will be generated from Post Notes only.');
+      console.log('📝 Post Notes content:', aiContext);
+      console.log('✅ Video handling: No video data sent to OpenAI (text-only generation)');
     } else {
       console.log('⚠️ No valid image data provided, sending text-only request');
     }

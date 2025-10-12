@@ -1,56 +1,69 @@
 import { NextResponse } from 'next/server';
-import { isValidImageData, base64ToBlob } from '../../../../lib/blobUpload';
+import { isValidMediaData, base64ToBlob } from '../../../../lib/blobUpload';
 
 export async function POST(request: Request) {
   try {
     const { imageBlob } = await request.json();
-    console.log('Image data type:', typeof imageBlob);
-    console.log('Image data preview:', imageBlob?.substring(0, 50));
-    console.log('Image data length:', imageBlob?.length);
-    console.log('Image data starts with data:', imageBlob?.startsWith('data:'));
+    console.log('Media data type:', typeof imageBlob);
+    console.log('Media data preview:', imageBlob?.substring(0, 50));
+    console.log('Media data length:', imageBlob?.length);
+    console.log('Media data starts with data:', imageBlob?.startsWith('data:'));
     
-    // Validate image data (supports both blob URLs and base64)
-    const validation = isValidImageData(imageBlob);
-    console.log('Image validation result:', validation);
+    // Validate media data (supports both blob URLs and base64, images and videos)
+    const validation = isValidMediaData(imageBlob);
+    console.log('Media validation result:', validation);
     if (!validation.isValid) {
-      console.error('❌ Image validation failed:', validation);
-      throw new Error('Invalid image data - must be blob URL or base64');
+      console.error('❌ Media validation failed:', validation);
+      throw new Error('Invalid media data - must be blob URL or base64 (image or video)');
     }
     
-    console.log('Image data type detected:', validation.type);
+    console.log('Media data type detected:', validation.type, 'Media type:', validation.mediaType);
     
     let buffer: Buffer;
     
     if (validation.type === 'blob') {
-      // Fetch image from blob URL
-      console.log('Fetching image from blob URL...');
+      // Fetch media from blob URL
+      console.log('Fetching media from blob URL...');
       const response = await fetch(imageBlob);
       if (!response.ok) {
-        throw new Error('Failed to fetch image from blob URL');
+        throw new Error('Failed to fetch media from blob URL');
       }
       const arrayBuffer = await response.arrayBuffer();
       buffer = Buffer.from(arrayBuffer);
     } else {
-      // Handle base64 (backward compatibility)
-      console.log('Processing base64 image...');
-      const base64Data = imageBlob.replace(/^data:image\/\w+;base64,/, '');
+      // Handle base64 (supports both images and videos)
+      console.log(`Processing base64 ${validation.mediaType}...`);
+      const base64Data = imageBlob.replace(/^data:(image|video)\/[^;]+;base64,/, '');
       buffer = Buffer.from(base64Data, 'base64');
     }
     
     console.log('Buffer size:', buffer.length);
     
-    // If buffer is over 4MB, it might be too large
-    if (buffer.length > 4 * 1024 * 1024) {
-      console.error('Image too large:', buffer.length, 'bytes');
+    // Determine appropriate content type and filename extension
+    const isVideo = validation.mediaType === 'video';
+    const sizeLimitMB = isVideo ? 100 : 4;
+    const sizeLimitBytes = sizeLimitMB * 1024 * 1024;
+    
+    // Check size limits (more lenient for videos)
+    if (buffer.length > sizeLimitBytes) {
+      console.error(`${isVideo ? 'Video' : 'Image'} too large:`, buffer.length, 'bytes');
+      console.warn(`⚠️ ${isVideo ? 'Video' : 'Image'} exceeds ${sizeLimitMB}MB limit, but attempting upload...`);
     }
+    
+    // Extract MIME type from the data URL or use default
+    const mimeType = imageBlob.match(/data:([^;]+)/)?.[1] || (isVideo ? 'video/mp4' : 'image/jpeg');
+    const extension = isVideo ? (mimeType.split('/')[1] || 'mp4') : 'jpg';
+    const filename = isVideo ? `video.${extension}` : `image.${extension}`;
+    
+    console.log('Media details:', { mimeType, extension, filename, isVideo });
     
     // Create FormData
     const formData = new FormData();
-    const blob = new Blob([new Uint8Array(buffer)], { type: 'image/jpeg' });
-    formData.append('files', blob, 'image.jpg');
+    const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
+    formData.append('files', blob, filename);
     
     // Upload to LATE
-    console.log('Uploading to LATE...');
+    console.log(`Uploading ${isVideo ? 'video' : 'image'} to LATE...`);
     const response = await fetch('https://getlate.dev/api/v1/media', {
       method: 'POST',
       headers: {

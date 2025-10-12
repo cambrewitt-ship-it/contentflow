@@ -939,7 +939,130 @@ export default function CalendarPage() {
     }
   };
 
-
+  // Month view drop handler - converts Date to the format expected by handleDrop/handleMovePost
+  const handleMonthViewDrop = async (e: React.DragEvent, date: Date) => {
+    e.preventDefault();
+    setDragOverDate(null); // Clear drag over state
+    
+    const scheduledPostData = e.dataTransfer.getData('scheduledPost');
+    const unscheduledPostData = e.dataTransfer.getData('post');
+    
+    if (scheduledPostData) {
+      // Moving a scheduled post
+      const post: Post = JSON.parse(scheduledPostData);
+      const newDateKey = date.toLocaleDateString('en-CA');
+      
+      // Set loading state
+      setMovingPostId(post.id);
+      
+      try {
+        await fetch('/api/calendar/scheduled', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            postId: post.id,
+            updates: {
+              scheduled_date: newDateKey
+            }
+          })
+        });
+        
+        // Update the post in local state
+        const oldDateKey = post.scheduled_date;
+        
+        setScheduledPosts(prev => {
+          const updated = { ...prev };
+          
+          // Remove from old date
+          if (oldDateKey && updated[oldDateKey]) {
+            updated[oldDateKey] = updated[oldDateKey].filter(p => p.id !== post.id);
+            if (updated[oldDateKey].length === 0) {
+              delete updated[oldDateKey];
+            }
+          }
+          
+          // Add to new date
+          if (!updated[newDateKey]) {
+            updated[newDateKey] = [];
+          }
+          updated[newDateKey].push({
+            ...post,
+            scheduled_date: newDateKey
+          });
+          
+          return updated;
+        });
+        
+      } catch (error) {
+        console.error('Error moving post:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        setError(`Failed to move post: ${errorMessage}`);
+      } finally {
+        setMovingPostId(null);
+      }
+    } else if (unscheduledPostData) {
+      // Scheduling an unscheduled post
+      const post = JSON.parse(unscheduledPostData);
+      const time = '12:00'; // Default to noon
+      
+      // Set loading state
+      setMovingPostId(post.id);
+      
+      const scheduledDate = date.toLocaleDateString('en-CA');
+      const scheduledTime = time + ':00';
+      
+      try {
+        const requestBody = {
+          unscheduledId: post.id,
+          scheduledPost: {
+            project_id: post.project_id,
+            client_id: clientId,
+            caption: post.caption,
+            image_url: post.image_url,
+            post_notes: post.post_notes,
+            scheduled_date: scheduledDate,
+            scheduled_time: scheduledTime
+          }
+        };
+        
+        const response = await fetch('/api/calendar/scheduled', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to schedule post: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Update state
+        // Remove from unscheduled posts (projectPosts contains the unscheduled posts)
+        setProjectPosts((prevPosts: Post[]) => prevPosts.filter((p: Post) => p.id !== post.id));
+        
+        // Add to scheduled posts for the target date
+        const newScheduledPost = {
+          ...post,
+          id: data.post.id,
+          scheduled_date: scheduledDate,
+          scheduled_time: scheduledTime
+        };
+        
+        setScheduledPosts(prevScheduled => ({
+          ...prevScheduled,
+          [scheduledDate]: [...(prevScheduled[scheduledDate] || []), newScheduledPost]
+        }));
+        
+      } catch (error) {
+        console.error('Error scheduling post:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        setError(`Failed to schedule post: ${errorMessage}`);
+      } finally {
+        setMovingPostId(null);
+      }
+    }
+  };
 
   const handleBulkDelete = async () => {
     if (!confirm(`Delete ${selectedPosts.size} posts?`)) return;
@@ -1568,105 +1691,6 @@ export default function CalendarPage() {
                   </div>
                 </div>
         
-
-        {/* Action Buttons */}
-        <div className="flex justify-between items-center mb-4">
-          {/* Left side - Delete button */}
-          <button
-            onClick={handleBulkDelete}
-            disabled={isDeleting || selectedPosts.size === 0}
-            className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-              isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' : 
-              selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
-              'bg-red-600 hover:bg-red-700'
-            }`}
-          >
-            {isDeleting && (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            )}
-            {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
-          </button>
-          
-          {/* Right side - Schedule buttons */}
-          {connectedAccounts.length > 0 && (
-            <div className="flex gap-2">
-              <span className={`text-sm py-2 transition-colors ${
-                selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-400'
-              }`}>
-                {selectedPosts.size || 0} selected:
-              </span>
-              {connectedAccounts.map((account) => {
-                const isScheduling = schedulingPlatform === account.platform;
-                
-                // Check if any selected posts have empty captions
-                const allScheduledPosts = Object.values(scheduledPosts).flat();
-                const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
-                
-                // Debug logging for button state
-                console.log('🔍 Button enable check for', account.platform, ':', {
-                  selectedPostsSize: selectedPosts.size,
-                  postsToScheduleLength: postsToSchedule.length,
-                  allScheduledPostsCount: allScheduledPosts.length,
-                  selectedPostsArray: Array.from(selectedPosts),
-                  postsToSchedule: postsToSchedule.map(p => ({
-                    id: p.id,
-                    caption: p.caption,
-                    captionType: typeof p.caption,
-                    captionLength: p.caption?.length,
-                    trimmedCaption: p.caption?.trim(),
-                    hasCaption: !!p.caption,
-                    captionIsEmpty: !p.caption || p.caption.trim() === '',
-                    fullPost: p // Include full post object for debugging
-                  })),
-                  hasEmptyCaptions: postsToSchedule.some(p => !p.caption || p.caption.trim() === ''),
-                  isScheduling,
-                  buttonShouldBeEnabled: !isScheduling && !postsToSchedule.some(p => !p.caption || p.caption.trim() === '')
-                });
-                
-                const hasEmptyCaptions = postsToSchedule.some(post => {
-                  const currentCaption = editingCaptions[post.id] || post.caption || '';
-                  return currentCaption.trim().length === 0;
-                });
-                
-                const isDisabled = isScheduling || hasEmptyCaptions || selectedPosts.size === 0;
-                const platformBgColor = selectedPosts.size === 0 ? 'bg-gray-400' :
-                  account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
-                  account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
-                  account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
-                  account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
-                  'bg-gray-600 hover:bg-gray-700';
-                
-                return (
-                  <button
-                    key={account._id}
-                    onClick={() => handleScheduleToPlatform(account)}
-                    disabled={isDisabled}
-                    className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 transition-all ${
-                      isDisabled ? 'opacity-40 cursor-not-allowed' : ''
-                    } ${platformBgColor}`}
-                    title={
-                      selectedPosts.size === 0 ? 'Select posts to schedule' :
-                      hasEmptyCaptions ? 'Add captions to selected posts before scheduling' : 
-                      ''
-                    }
-                  >
-                    {isScheduling ? (
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        {account.platform === 'facebook' && <FacebookIcon size={16} />}
-                        {account.platform === 'instagram' && <InstagramIcon size={16} />}
-                        {account.platform === 'twitter' && <TwitterIcon size={16} />}
-                        {account.platform === 'linkedin' && <LinkedInIcon size={16} />}
-                        <span>Schedule</span>
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
 
         {/* Calendar */}
         <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
@@ -2369,7 +2393,111 @@ export default function CalendarPage() {
                   uploads={clientUploads}
                   loading={isLoadingScheduledPosts}
                   onDateClick={handleDateClick}
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleMonthViewDrop}
+                  dragOverDate={dragOverDate}
                 />
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons - Below Calendar */}
+          <div className="flex justify-between items-center mt-6 mb-4 mx-8">
+            {/* Left side - Delete button */}
+            <button
+              onClick={handleBulkDelete}
+              disabled={isDeleting || selectedPosts.size === 0}
+              className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+                isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' : 
+                selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+                'bg-red-600 hover:bg-red-700'
+              }`}
+            >
+              {isDeleting && (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              )}
+              {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
+            </button>
+            
+            {/* Right side - Schedule buttons */}
+            {connectedAccounts.length > 0 && (
+              <div className="flex gap-2">
+                <span className={`text-sm py-2 transition-colors ${
+                  selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-400'
+                }`}>
+                  {selectedPosts.size || 0} selected:
+                </span>
+                {connectedAccounts.map((account) => {
+                  const isScheduling = schedulingPlatform === account.platform;
+                  
+                  // Check if any selected posts have empty captions
+                  const allScheduledPosts = Object.values(scheduledPosts).flat();
+                  const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
+                  
+                  // Debug logging for button state
+                  console.log('🔍 Button enable check for', account.platform, ':', {
+                    selectedPostsSize: selectedPosts.size,
+                    postsToScheduleLength: postsToSchedule.length,
+                    allScheduledPostsCount: allScheduledPosts.length,
+                    selectedPostsArray: Array.from(selectedPosts),
+                    postsToSchedule: postsToSchedule.map(p => ({
+                      id: p.id,
+                      caption: p.caption,
+                      captionType: typeof p.caption,
+                      captionLength: p.caption?.length,
+                      trimmedCaption: p.caption?.trim(),
+                      hasCaption: !!p.caption,
+                      captionIsEmpty: !p.caption || p.caption.trim() === '',
+                      fullPost: p // Include full post object for debugging
+                    })),
+                    hasEmptyCaptions: postsToSchedule.some(p => !p.caption || p.caption.trim() === ''),
+                    isScheduling,
+                    buttonShouldBeEnabled: !isScheduling && !postsToSchedule.some(p => !p.caption || p.caption.trim() === '')
+                  });
+                  
+                  const hasEmptyCaptions = postsToSchedule.some(post => {
+                    const currentCaption = editingCaptions[post.id] || post.caption || '';
+                    return currentCaption.trim().length === 0;
+                  });
+                  
+                  const isDisabled = isScheduling || hasEmptyCaptions || selectedPosts.size === 0;
+                  const platformBgColor = selectedPosts.size === 0 ? 'bg-gray-400' :
+                    account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
+                    account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
+                    account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
+                    account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
+                    'bg-gray-600 hover:bg-gray-700';
+                  
+                  return (
+                    <button
+                      key={account._id}
+                      onClick={() => handleScheduleToPlatform(account)}
+                      disabled={isDisabled}
+                      className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 transition-all ${
+                        isDisabled ? 'opacity-40 cursor-not-allowed' : ''
+                      } ${platformBgColor}`}
+                      title={
+                        selectedPosts.size === 0 ? 'Select posts to schedule' :
+                        hasEmptyCaptions ? 'Add captions to selected posts before scheduling' : 
+                        ''
+                      }
+                    >
+                      {isScheduling ? (
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {account.platform === 'facebook' && <FacebookIcon size={16} />}
+                          {account.platform === 'instagram' && <InstagramIcon size={16} />}
+                          {account.platform === 'twitter' && <TwitterIcon size={16} />}
+                          {account.platform === 'linkedin' && <LinkedInIcon size={16} />}
+                          <span>Schedule</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>

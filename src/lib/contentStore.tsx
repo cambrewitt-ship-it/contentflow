@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { createContext, useContext, useState, useEffect } from 'react'
-import { uploadImageToBlob } from './blobUpload'
+import { uploadMediaToBlob, getMediaType } from './blobUpload'
 
 export interface Caption {
   id: string
@@ -23,6 +23,9 @@ export interface UploadedImage {
   preview: string
   blobUrl?: string
   notes?: string
+  mediaType?: 'image' | 'video'
+  mimeType?: string
+  videoThumbnail?: string // Thumbnail image for videos (first frame)
 }
 
 // Serializable version for localStorage
@@ -34,6 +37,8 @@ export interface SerializableUploadedImage {
   notes?: string
   size: number
   type: string
+  mediaType?: 'image' | 'video'
+  mimeType?: string
 }
 
 // Global store context
@@ -87,6 +92,53 @@ export const useContentStore = () => {
 
 const getStorageKey = (key: string) => `contentflow_${key}`
 
+// Helper function to extract first frame from video as thumbnail
+const extractVideoThumbnail = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video')
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    
+    if (!context) {
+      reject(new Error('Could not get canvas context'))
+      return
+    }
+    
+    video.preload = 'metadata'
+    video.muted = true
+    video.playsInline = true
+    
+    video.onloadedmetadata = () => {
+      // Set canvas size to video dimensions
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      
+      // Seek to first frame
+      video.currentTime = 0
+    }
+    
+    video.onseeked = () => {
+      // Draw the current video frame to canvas
+      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+      
+      // Convert canvas to data URL
+      const thumbnail = canvas.toDataURL('image/jpeg', 0.8)
+      
+      // Clean up
+      URL.revokeObjectURL(video.src)
+      
+      resolve(thumbnail)
+    }
+    
+    video.onerror = () => {
+      reject(new Error('Failed to load video'))
+    }
+    
+    // Create blob URL from file
+    video.src = URL.createObjectURL(file)
+  })
+}
+
 // Helper functions to convert between UploadedImage and SerializableUploadedImage
 const toSerializable = (image: UploadedImage): SerializableUploadedImage => ({
   id: image.id,
@@ -95,7 +147,9 @@ const toSerializable = (image: UploadedImage): SerializableUploadedImage => ({
   blobUrl: image.blobUrl,
   notes: image.notes,
   size: image.file.size,
-  type: image.file.type
+  type: image.file.type,
+  mediaType: image.mediaType,
+  mimeType: image.mimeType
 })
 
 const fromSerializable = (serializable: SerializableUploadedImage): UploadedImage => {
@@ -110,7 +164,9 @@ const fromSerializable = (serializable: SerializableUploadedImage): UploadedImag
     file: mockFile,
     preview: serializable.preview,
     blobUrl: serializable.blobUrl,
-    notes: serializable.notes
+    notes: serializable.notes,
+    mediaType: serializable.mediaType,
+    mimeType: serializable.mimeType
   }
 }
 
@@ -238,14 +294,16 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         localStorage.setItem(getStorageKey("contentFocus"), contentFocus)
         localStorage.setItem(getStorageKey("copyTone"), copyTone)
         
-        // For images, only save metadata (not the actual image data)
+        // For media (images/videos), only save metadata (not the actual file data)
         const imageMetadata = uploadedImages.map(img => ({
           id: img.id,
           filename: img.file.name,
           size: img.file.size,
           type: img.file.type,
           notes: img.notes,
-          hasBlobUrl: !!img.blobUrl
+          hasBlobUrl: !!img.blobUrl,
+          mediaType: img.mediaType,
+          mimeType: img.mimeType
         }))
         localStorage.setItem(getStorageKey("imageMetadata"), JSON.stringify(imageMetadata))
       } catch (error) {
@@ -281,45 +339,86 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     // Set up periodic cleanup every 5 minutes
     const cleanupInterval = setInterval(cleanupLocalStorage, 5 * 60 * 1000)
     
-    // Cleanup on unmount
+    // Cleanup on unmount only (not on every uploadedImages change)
     return () => {
       clearInterval(cleanupInterval)
-      // Clean up blob URLs when component unmounts
+      // Clean up only temporary blob URLs when component unmounts
+      // (permanent Vercel Blob URLs should not be revoked)
       uploadedImages.forEach(image => {
-        if (image.preview.startsWith('blob:')) {
+        if (image.preview.startsWith('blob:http')) {
           URL.revokeObjectURL(image.preview)
         }
       })
     }
-  }, [uploadedImages])
+  }, []) // Empty dependency array - only run on mount/unmount
 
   const addImage = async (file: File) => {
-    const id = `img-${Date.now()}`
-    const preview = URL.createObjectURL(file) // Temporary preview while uploading
+    const id = `media-${Date.now()}`
+    const detectedType = getMediaType(file)
+    const mediaType = detectedType === 'unknown' ? undefined : detectedType
+    const isVideo = mediaType === 'video'
     
-    // Create initial image entry with temporary preview
-    const newImage: UploadedImage = { id, file, preview }
+    // For videos, extract first frame as thumbnail
+    let previewUrl: string
+    let videoThumbnail: string | undefined
+    
+    if (isVideo) {
+      try {
+        console.log('🎥 Extracting thumbnail from video...')
+        videoThumbnail = await extractVideoThumbnail(file)
+        previewUrl = videoThumbnail // Use thumbnail as preview
+        console.log('✅ Video thumbnail extracted successfully')
+      } catch (error) {
+        console.error('❌ Failed to extract video thumbnail:', error)
+        // Fallback to temp blob URL if thumbnail extraction fails
+        previewUrl = URL.createObjectURL(file)
+      }
+    } else {
+      // For images, use the standard blob URL
+      previewUrl = URL.createObjectURL(file)
+    }
+    
+    // Create initial media entry with preview
+    const newImage: UploadedImage = { 
+      id, 
+      file, 
+      preview: previewUrl, 
+      mediaType,
+      mimeType: file.type,
+      videoThumbnail: videoThumbnail
+    }
     setUploadedImages(prev => [...prev, newImage])
     setActiveImageId(id)
     
     try {
-      // Upload to blob storage
-      // uploadImageToBlob is now imported at the top of the file
+      // Upload to blob storage (now supports both images and videos)
       const filename = `content-${Date.now()}-${file.name}`
-      const blobUrl = await uploadImageToBlob(file, filename)
+      const uploadResult = await uploadMediaToBlob(file, filename)
       
-      // Update the image with the blob URL
+      // Clean up temporary blob URL if we used one (images only, thumbnails are base64)
+      if (!isVideo || !videoThumbnail) {
+        URL.revokeObjectURL(previewUrl)
+      }
+      
+      // Update the media entry with the blob URL and confirmed media type
       setUploadedImages(prev => 
         prev.map(img => 
           img.id === id 
-            ? { ...img, preview: blobUrl, blobUrl } 
+            ? { 
+                ...img, 
+                blobUrl: uploadResult.url,
+                mediaType: uploadResult.mediaType,
+                mimeType: uploadResult.mimeType,
+                // Keep the thumbnail for videos, update preview for images
+                preview: isVideo ? (img.videoThumbnail || uploadResult.url) : uploadResult.url
+              } 
             : img
         )
       )
       
-      console.log('✅ Image uploaded to blob storage:', blobUrl)
+      console.log(`✅ ${uploadResult.mediaType} uploaded to blob storage:`, uploadResult.url)
     } catch (error) {
-      console.error('❌ Failed to upload image to blob storage:', error)
+      console.error('❌ Failed to upload media to blob storage:', error)
       // Keep the temporary preview if upload fails
     }
   }
@@ -370,43 +469,63 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         return
       }
 
-      // Convert blob URL to base64 data URL for OpenAI API
-      let imageData = image.blobUrl || image.preview
-      if (!imageData) {
-        throw new Error('No image data available for AI processing')
-      }
+      const isVideo = image.mediaType === 'video'
+      console.log(`📋 Media type: ${image.mediaType}, Is video: ${isVideo}`)
 
-      // If it's a blob URL, convert it to base64
-      if (imageData.startsWith('blob:')) {
-        console.log('Converting blob URL to base64 for OpenAI API...')
-        const response = await fetch(imageData)
-        const blob = await response.blob()
-        
-        // Convert blob to base64 data URL
-        const reader = new FileReader()
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = reject
-        })
-        reader.readAsDataURL(blob)
-        imageData = await base64Promise
+      // For videos: DON'T send video data (AI can't analyze videos)
+      // For images: Convert blob URL to base64 for OpenAI Vision API
+      let imageData = ''
+      
+      if (isVideo) {
+        console.log('🎥 Video detected - skipping media data conversion (AI will use Post Notes only)')
+        // For videos, we send an empty string or a placeholder since the API won't use it anyway
+        // The API route will detect this is a video from the request and skip visual analysis
+        imageData = 'VIDEO_PLACEHOLDER' // Placeholder to indicate video content
+      } else {
+        // IMAGES ONLY: Convert blob URL to base64 data URL for OpenAI API
+        imageData = image.blobUrl || image.preview
+        if (!imageData) {
+          throw new Error('No image data available for AI processing')
+        }
+
+        // If it's a blob URL, convert it to base64
+        if (imageData.startsWith('blob:')) {
+          console.log('🖼️ Converting image blob URL to base64 for OpenAI API...')
+          const response = await fetch(imageData)
+          const blob = await response.blob()
+          
+          // Convert blob to base64 data URL
+          const reader = new FileReader()
+          const base64Promise = new Promise<string>((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string)
+            reader.onerror = reject
+          })
+          reader.readAsDataURL(blob)
+          imageData = await base64Promise
+        }
       }
       
-      console.log('Using image data for AI:', imageData.substring(0, 100) + '...')
-      console.log('Image details:', {
+      console.log('Using media data for AI:', imageData.substring(0, 100) + '...')
+      console.log('Media details:', {
         id: image.id,
         filename: image.file.name,
+        mediaType: image.mediaType,
+        isVideo: isVideo,
         hasBlobUrl: !!image.blobUrl,
-        previewType: image.preview.startsWith('blob:') ? 'temporary' : 'permanent',
-        dataType: imageData.startsWith('data:') ? 'base64' : 'url'
+        dataType: imageData.startsWith('data:') ? 'base64' : imageData === 'VIDEO_PLACEHOLDER' ? 'video-placeholder' : 'url'
       })
 
       // Check image data size (base64 encoded images can be quite large)
-      const imageSizeMB = (imageData.length / (1024 * 1024)).toFixed(2)
-      console.log('📊 Image data size:', imageSizeMB, 'MB')
-      
-      if (imageData.length > 5 * 1024 * 1024) { // 5MB limit for single image
-        throw new Error(`Image is too large (${imageSizeMB}MB). Please use an image smaller than 5MB.`)
+      // Note: Videos send a placeholder, so we only check size for images
+      if (!isVideo && imageData !== 'VIDEO_PLACEHOLDER') {
+        const imageSizeMB = (imageData.length / (1024 * 1024)).toFixed(2)
+        console.log('📊 Image data size:', imageSizeMB, 'MB')
+        
+        if (imageData.length > 5 * 1024 * 1024) { // 5MB limit for single image
+          throw new Error(`Image is too large (${imageSizeMB}MB). Please use an image smaller than 5MB.`)
+        }
+      } else if (isVideo) {
+        console.log('📊 Video data size check: Skipped (videos send placeholder only)')
       }
 
       if (!accessToken) {

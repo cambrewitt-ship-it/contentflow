@@ -30,9 +30,24 @@ interface MonthViewCalendarProps {
   uploads?: {[key: string]: Upload[]};
   loading?: boolean;
   onDateClick?: (date: Date) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragEnter?: (e: React.DragEvent, dateKey: string) => void;
+  onDragLeave?: (e: React.DragEvent, dateKey: string) => void;
+  onDrop?: (e: React.DragEvent, date: Date) => void;
+  dragOverDate?: string | null;
 }
 
-export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDateClick }: MonthViewCalendarProps) {
+export function MonthViewCalendar({ 
+  posts, 
+  uploads = {}, 
+  loading = false, 
+  onDateClick,
+  onDragOver,
+  onDragEnter,
+  onDragLeave,
+  onDrop,
+  dragOverDate
+}: MonthViewCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
 
   const monthNames = [
@@ -300,6 +315,14 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
           const columnIndex = index % 7;
           const isWeekendColumn = columnIndex === 5 || columnIndex === 6;
           
+          // Get the date key for this day (YYYY-MM-DD format)
+          const dateKey = day 
+            ? `${calendarData.year}-${String(calendarData.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+            : null;
+          
+          // Check if this day is being dragged over
+          const isDragOver = dateKey && dragOverDate === dateKey;
+          
           return (
             <div
               key={index}
@@ -310,6 +333,7 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
                 ${inCurrentWeek && day ? 'bg-blue-50/30 ring-2 ring-blue-300 ring-inset' : ''}
                 ${dayUploads.length > 0 ? 'bg-blue-50' : ''}
                 ${isWeekendColumn && day ? 'bg-gray-50/50' : ''}
+                ${isDragOver ? 'bg-blue-200 ring-4 ring-blue-500' : ''}
                 ${borderColor || 'border-2 border-gray-300'}
               `}
               title={day ? 'Click to view week' : ''}
@@ -317,6 +341,27 @@ export function MonthViewCalendar({ posts, uploads = {}, loading = false, onDate
                 if (day && onDateClick) {
                   const clickedDate = new Date(calendarData.year, calendarData.month, day);
                   onDateClick(clickedDate);
+                }
+              }}
+              onDragOver={(e) => {
+                if (day && onDragOver) {
+                  onDragOver(e);
+                }
+              }}
+              onDragEnter={(e) => {
+                if (day && dateKey && onDragEnter) {
+                  onDragEnter(e, dateKey);
+                }
+              }}
+              onDragLeave={(e) => {
+                if (day && dateKey && onDragLeave) {
+                  onDragLeave(e, dateKey);
+                }
+              }}
+              onDrop={(e) => {
+                if (day && onDrop) {
+                  const dropDate = new Date(calendarData.year, calendarData.month, day);
+                  onDrop(e, dropDate);
                 }
               }}
             >

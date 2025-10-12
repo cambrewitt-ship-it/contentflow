@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
-import { Brain, RefreshCw, Check } from 'lucide-react'
+import { Brain, RefreshCw, Check, Video, AlertCircle } from 'lucide-react'
 import { useState } from 'react'
 
 export function CaptionGenerationColumn() {
@@ -30,17 +30,26 @@ export function CaptionGenerationColumn() {
   const [remixingCaption, setRemixingCaption] = useState<string | null>(null)
 
   const activeImage = uploadedImages.find((img) => img.id === activeImageId)
+  const isVideoSelected = activeImage?.mediaType === 'video'
 
   const handleGenerateCaptions = async () => {
     if (!activeImage) {
-      alert('Please select an image first')
+      alert('Please select media first')
+      return
+    }
+
+    // For videos, require post notes since we can't analyze video content
+    if (isVideoSelected && !postNotes.trim()) {
+      alert('Post Notes are required when generating captions for videos. Please add notes describing your video content.')
       return
     }
 
     console.log('Starting caption generation...')
     console.log('Copy type:', copyType)
     console.log('Post notes:', postNotes)
-    console.log('Active image:', activeImage.id)
+    console.log('Active media:', activeImage.id)
+    console.log('Media type:', activeImage.mediaType)
+    console.log('Is video:', isVideoSelected)
 
     setGeneratingCaptions(true)
     try {
@@ -50,10 +59,17 @@ export function CaptionGenerationColumn() {
         throw new Error('Authentication required. Please log in again.')
       }
 
-      // Use the active image ID for AI caption generation
-      // Post Notes are optional - pass them if they exist
-      // Pass the selected copy type and access token
-      await generateAICaptions(activeImage.id, postNotes.trim() || undefined, copyType, accessToken)
+      // For videos: Generate captions based only on post notes (no visual analysis)
+      // For images: Generate captions with AI vision analysis + post notes
+      if (isVideoSelected) {
+        console.log('🎥 Generating captions for video - using Post Notes only (no visual analysis)')
+        // Pass the media ID but the backend will skip image analysis for videos
+        await generateAICaptions(activeImage.id, postNotes.trim(), copyType, accessToken)
+      } else {
+        console.log('🖼️ Generating captions for image - using AI vision + Post Notes')
+        await generateAICaptions(activeImage.id, postNotes.trim() || undefined, copyType, accessToken)
+      }
+      
       console.log('Caption generation completed')
       // Success - captions will be added automatically
     } catch (error) {
@@ -125,9 +141,36 @@ export function CaptionGenerationColumn() {
             <div>
               <div className="border-t pt-4">
                 <h3 className="text-22px mb-3">AI Caption Generation</h3>
+                
+                {/* Video Notice */}
+                {isVideoSelected && (
+                  <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <Video className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-xs text-blue-800">
+                        <p className="font-medium mb-1">Video Selected</p>
+                        <p>AI will generate captions based on your <strong>Post Notes only</strong>. Video visual analysis is not available. Please ensure your Post Notes describe the video content.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Warning if video but no notes */}
+                {isVideoSelected && !postNotes.trim() && (
+                  <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-xs text-amber-800">
+                        <p className="font-medium">Post Notes Required</p>
+                        <p>Add Post Notes in the upload section to describe your video before generating captions.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <Button
                   onClick={handleGenerateCaptions}
-                  disabled={generatingCaptions || !activeImage}
+                  disabled={generatingCaptions || !activeImage || (isVideoSelected && !postNotes.trim())}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                   {generatingCaptions ? (
@@ -139,12 +182,23 @@ export function CaptionGenerationColumn() {
                     <>
                       <Brain className="w-4 h-4 mr-2" />
                       Generate {copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy
+                      {isVideoSelected && ' (From Notes)'}
                     </>
                   )}
                 </Button>
                 {!activeImage && (
                   <p className="text-xs text-gray-500 mt-2 text-center">
-                    Upload an image to enable caption generation
+                    Upload media to enable caption generation
+                  </p>
+                )}
+                {activeImage && !isVideoSelected && (
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    AI will analyze your image and Post Notes to generate captions
+                  </p>
+                )}
+                {isVideoSelected && postNotes.trim() && (
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    Captions will be generated from your Post Notes
                   </p>
                 )}
                 

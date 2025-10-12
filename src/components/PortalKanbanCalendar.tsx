@@ -3,11 +3,28 @@
 import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, XCircle, AlertTriangle, Minus, Edit3 } from 'lucide-react';
 
-// Lazy loading image component for portal calendar
-const LazyPortalImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
+// Lazy loading media component for portal calendar (supports images and videos)
+const LazyPortalImage = ({ 
+  src, 
+  alt, 
+  className, 
+  mediaType 
+}: { 
+  src: string; 
+  alt: string; 
+  className?: string; 
+  mediaType?: 'image' | 'video' | 'unknown';
+}) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isInView, setIsInView] = useState(false);
-  const imgRef = useRef<HTMLDivElement>(null);
+  const mediaRef = useRef<HTMLDivElement>(null);
+
+  // Auto-detect media type if not specified
+  const detectedMediaType = mediaType === 'unknown' || !mediaType
+    ? (src.match(/\.(mp4|mov|avi|webm|mpeg)(\?|$)/i) || src.startsWith('data:video/') ? 'video' : 'image')
+    : mediaType;
+
+  const isVideo = detectedMediaType === 'video';
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -20,23 +37,37 @@ const LazyPortalImage = ({ src, alt, className }: { src: string; alt: string; cl
       { threshold: 0.1 }
     );
 
-    if (imgRef.current) {
-      observer.observe(imgRef.current);
+    if (mediaRef.current) {
+      observer.observe(mediaRef.current);
     }
 
     return () => observer.disconnect();
   }, []);
 
   return (
-    <div ref={imgRef} className={className}>
+    <div ref={mediaRef} className={className}>
       {isInView && (
         <>
-          <img
-            src={src}
-            alt={alt}
-            onLoad={() => setIsLoaded(true)}
-            className={`w-full h-auto max-h-96 object-contain rounded-lg transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
-          />
+          {isVideo ? (
+            <video
+              src={src}
+              controls
+              muted
+              playsInline
+              preload="metadata"
+              onLoadedData={() => setIsLoaded(true)}
+              className={`w-full h-auto max-h-96 object-contain rounded-lg transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+            >
+              <p>Your browser doesn&apos;t support HTML5 video.</p>
+            </video>
+          ) : (
+            <img
+              src={src}
+              alt={alt}
+              onLoad={() => setIsLoaded(true)}
+              className={`w-full h-auto max-h-96 object-contain rounded-lg transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+            />
+          )}
           {!isLoaded && (
             <div className="w-full h-48 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
               <div className="w-4 h-4 animate-spin text-gray-400" />
@@ -238,13 +269,14 @@ export function PortalKanbanCalendar({
                           )}
                         </div>
 
-                        {/* Post Image */}
+                        {/* Post Media (Image or Video) */}
                         {post.image_url && (
                           <div className="w-full mb-2 rounded overflow-hidden">
                             <LazyPortalImage
                               src={post.image_url}
                               alt="Post"
                               className="w-full h-auto object-contain"
+                              mediaType={post.media_type as 'image' | 'video' | undefined}
                             />
                           </div>
                         )}
