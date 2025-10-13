@@ -7,6 +7,7 @@ import { handleApiError, ApiErrors } from '../../../lib/apiErrorHandler';
 import { validateApiRequest } from '../../../lib/validationMiddleware';
 import { aiRequestSchema } from '../../../lib/validators';
 import { withAICreditCheck, trackAICreditUsage } from '../../../lib/subscriptionMiddleware';
+import logger from '@/lib/logger';
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
@@ -279,7 +280,7 @@ async function getBrandContext(clientId: string) {
       .single();
     
     if (clientError || !client) {
-      console.warn('Could not fetch client brand info:', clientError);
+      logger.error('Could not fetch client brand info:', { error: clientError?.message });
       return null;
     }
 
@@ -292,7 +293,7 @@ async function getBrandContext(clientId: string) {
       .not('extracted_text', 'is', null);
     
     if (docsError) {
-      console.warn('Could not fetch brand documents:', docsError);
+      logger.error('Could not fetch brand documents:', { error: docsError.message });
     }
 
     // Get website scrapes
@@ -306,7 +307,7 @@ async function getBrandContext(clientId: string) {
       .limit(1);
     
     if (scrapeError) {
-      console.warn('Could not fetch website scrapes:', scrapeError);
+      logger.error('Could not fetch website scrapes:', { error: scrapeError.message });
     }
 
     // Build comprehensive brand context
@@ -324,28 +325,20 @@ async function getBrandContext(clientId: string) {
 
     return brandContext;
   } catch (error) {
-    console.error('Error fetching brand context:', error);
+    logger.error('Error fetching brand context:', error);
     return null;
   }
 }
 
 export async function POST(request: NextRequest) {
-  console.log('🎯 AI API route hit - POST request received');
-  console.log('📋 Request headers:', {
-    contentType: request.headers.get('content-type'),
-    authorization: request.headers.get('authorization') ? 'Present' : 'Missing',
-    contentLength: request.headers.get('content-length')
-  });
-  
   try {
     // Check content length before processing
     const contentLength = request.headers.get('content-length');
     if (contentLength) {
       const sizeMB = (parseInt(contentLength) / (1024 * 1024)).toFixed(2);
-      console.log(`📦 Request body size: ${sizeMB}MB`);
       
       if (parseInt(contentLength) > 10 * 1024 * 1024) {
-        console.error(`❌ Request too large: ${sizeMB}MB (max 10MB)`);
+        logger.error(`Request too large: ${sizeMB}MB (max 10MB)`);
         return NextResponse.json(
           { 
             error: 'Payload Too Large', 
@@ -357,30 +350,25 @@ export async function POST(request: NextRequest) {
     }
     
     // SUBSCRIPTION: Check AI credit limits
-    console.log('🔒 Starting AI credit check...');
     const subscriptionCheck = await withAICreditCheck(request, 1);
     if (subscriptionCheck instanceof NextResponse) {
-      console.log('❌ AI credit check failed');
       return subscriptionCheck;
     }
-    console.log('✅ AI credit check passed');
     
     const userId = subscriptionCheck.user!.id;
 
     // SECURITY: Comprehensive input validation with Zod
-    console.log('🔒 Starting request validation...');
     const validation = await validateApiRequest(request, {
       body: aiRequestSchema,
       maxBodySize: 10 * 1024 * 1024, // 10MB limit for AI requests (to accommodate base64 images)
     });
 
     if (!validation.success) {
-      console.error('❌ AI request validation failed');
+      logger.error('AI request validation failed');
       return validation.response;
     }
 
     const body = validation.data.body!;
-    console.log('✅ AI request validated successfully:', { action: body.action });
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
@@ -461,8 +449,6 @@ async function analyzeImage(openai: OpenAI, imageData: string, prompt?: string) 
       throw new Error('Invalid image data - must be blob URL or base64');
     }
     
-    console.log('AI analyzing image, type:', validation.type);
-    
     const systemPrompt = `You are an expert content creator and social media strategist. 
     Analyze the provided image and provide insights that would be valuable for creating engaging social media content.
     
@@ -524,14 +510,6 @@ async function generateCaptions(openai: OpenAI, imageData: string, existingCapti
     const isVideoPlaceholder = imageData === 'VIDEO_PLACEHOLDER' || imageData === '';
     const isVideo = isVideoPlaceholder;
     
-    console.log('🎯 Caption generation request:', {
-      isVideoPlaceholder,
-      isVideo,
-      hasAIContext: !!aiContext,
-      imageDataLength: imageData.length,
-      imageDataPreview: imageData.substring(0, 50)
-    });
-    
     // For backwards compatibility - only validate if not a video placeholder
     let validation: { isValid: boolean; type: 'base64' | 'blob' | 'invalid' } = { isValid: true, type: 'base64' };
     if (!isVideoPlaceholder) {
@@ -540,8 +518,6 @@ async function generateCaptions(openai: OpenAI, imageData: string, existingCapti
       if (!mediaValidation.isValid) {
         throw new Error('Invalid media data - must be blob URL or base64');
       }
-      
-      console.log('AI generating captions, media type:', mediaValidation.mediaType);
       
       // For backwards compatibility with image validation
       validation = isValidImageData(imageData);
@@ -555,38 +531,7 @@ async function generateCaptions(openai: OpenAI, imageData: string, existingCapti
     // Fetch brand context if clientId is provided
     let brandContext = null;
     if (clientId) {
-              console.log('🎯 Fetching brand context for client:', clientId);
-        brandContext = await getBrandContext(clientId);
-        console.log('✅ Brand context fetched:', brandContext ? 'Available' : 'None');
-        if (brandContext) {
-          console.log('📊 Brand context details:', {
-            company: brandContext.company ? 'Set' : 'Not set',
-            tone: brandContext.tone || 'Not set',
-            audience: brandContext.audience || 'Not set',
-            value_proposition: brandContext.value_proposition ? 'Set' : 'Not set',
-            documents: brandContext.documents?.length || 0,
-            website: brandContext.website ? 'Available' : 'None',
-            voice_examples: brandContext.voice_examples ? 'Set' : 'Not set'
-          });
-          
-          // Enhanced logging for brand voice examples
-          if (brandContext.voice_examples) {
-            console.log('🎤 BRAND VOICE EXAMPLES FOUND:', brandContext.voice_examples);
-            console.log('📏 BRAND VOICE EXAMPLES LENGTH:', brandContext.voice_examples.length);
-          } else {
-            console.log('⚠️ NO BRAND VOICE EXAMPLES FOUND - AI will use generic voice');
-          }
-        }
-        
-        // Enhanced logging for user context
-        if (aiContext) {
-          console.log('🎯 POST NOTES CONTENT (MANDATORY PRIORITY):', aiContext);
-          console.log('📝 POST NOTES BEING SENT TO AI:', aiContext);
-          console.log('📏 POST NOTES LENGTH:', aiContext.length);
-          console.log('🔍 POST NOTES TRIM CHECK:', aiContext.trim());
-        } else {
-          console.log('⚠️ No Post Notes provided - AI will generate generic captions');
-        }
+      brandContext = await getBrandContext(clientId);
     }
 
     // Build brand context section
@@ -705,18 +650,6 @@ ${getImageInstructions(imageFocus || 'supporting')}
 
 ${finalInstruction}`;
 
-    console.log('🤖 Sending request to OpenAI...');
-    console.log('📝 System prompt length:', systemPrompt.length);
-    console.log('🖼️ Image data validation:', validation);
-    console.log('🖼️ Image data type:', validation.type);
-    console.log('🖼️ Image data URL:', imageData.substring(0, 100) + '...');
-    
-    // Log the complete prompt for debugging brand voice examples
-    console.log('🔍 COMPLETE SYSTEM PROMPT:');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(systemPrompt);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
     // Prepare the user message content
     const userContent: any[] = [
       {
@@ -741,19 +674,6 @@ ${finalInstruction}`;
           detail: 'high'
         }
       });
-      console.log('🖼️ Added image to OpenAI request:', {
-        type: 'image_url',
-        image_url: {
-          url: imageData.substring(0, 50) + '...',
-          detail: 'high'
-        }
-      });
-    } else if (isVideo || isVideoPlaceholder) {
-      console.log('🎥 Video detected - skipping visual analysis. Captions will be generated from Post Notes only.');
-      console.log('📝 Post Notes content:', aiContext);
-      console.log('✅ Video handling: No video data sent to OpenAI (text-only generation)');
-    } else {
-      console.log('⚠️ No valid image data provided, sending text-only request');
     }
 
     const response = await openai.chat.completions.create({
@@ -832,8 +752,6 @@ ${finalInstruction}`;
           captions = allLines.slice(0, 3);
         }
       }
-      
-      console.log('Social media captions parsed:', captions.length, 'captions');
     }
 
     return NextResponse.json({
@@ -861,8 +779,6 @@ async function remixCaption(openai: OpenAI, imageData: string, prompt: string, e
     if (!validation.isValid) {
       throw new Error('Invalid image data - must be blob URL or base64');
     }
-    
-    console.log('AI remixing caption, image type:', validation.type);
     
     // Fetch brand context if clientId is provided
     let brandContext = null;
@@ -983,8 +899,6 @@ async function generateContentIdeas(openai: OpenAI, clientId: string) {
       );
     }
 
-    console.log('🎯 Generating content ideas for client:', clientId);
-
     // Get upcoming holidays
     const upcomingHolidays = getUpcomingHolidays(8);
     const holidaysText = formatHolidaysForPrompt(upcomingHolidays);
@@ -1018,17 +932,6 @@ async function generateContentIdeas(openai: OpenAI, clientId: string) {
     // Build industry-specific content guidance
     const industry = extractIndustry(brandContext.company || '');
     const industryGuidance = getIndustryContentGuidance(brandContext.company || '');
-
-    console.log('🎯 Content Ideas Generation Debug Info:');
-    console.log('📊 Brand Context:', {
-      company: brandContext.company || 'Not specified',
-      industry: industry,
-      tone: brandContext.tone || 'Not specified',
-      audience: brandContext.audience || 'Not specified',
-      value_proposition: brandContext.value_proposition || 'Not specified'
-    });
-    console.log('📅 Upcoming Holidays Count:', upcomingHolidays.length);
-    console.log('🌍 Current Season:', season);
 
     // Type definitions for the new prompt system
     interface ClientData {
@@ -1286,8 +1189,6 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
 
     const systemPrompt = generateContentIdeasPrompt(clientData, formattedHolidays, currentContext);
 
-    console.log('🤖 Sending content ideas request to OpenAI...');
-
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [
@@ -1333,8 +1234,7 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
         }
       }
     } catch (parseError) {
-      console.error('Failed to parse content ideas response:', parseError);
-      console.log('Raw response content:', content);
+      logger.error('Failed to parse content ideas response:', parseError);
       
       // Fallback: create basic ideas structure
       ideas = [
@@ -1364,7 +1264,7 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
 
     // Ensure we have exactly 3 ideas
     if (!Array.isArray(ideas) || ideas.length !== 3) {
-      console.warn('Content ideas response format invalid, using fallback');
+      logger.warn('Content ideas response format invalid, using fallback');
       ideas = ideas.slice(0, 3);
     }
 

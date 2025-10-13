@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,8 +21,6 @@ export async function DELETE(
       );
     }
 
-    console.log('🗑️ Deleting client upload:', { clientId, uploadId });
-
     // Delete the upload from the database
     const { error: deleteError } = await supabase
       .from('client_uploads')
@@ -30,14 +29,12 @@ export async function DELETE(
       .eq('client_id', clientId); // Ensure upload belongs to this client
 
     if (deleteError) {
-      console.error('Error deleting client upload:', deleteError);
+      logger.error('Error deleting client upload:', deleteError);
       return NextResponse.json(
         { error: 'Failed to delete upload' },
         { status: 500 }
       );
     }
-
-    console.log('✅ Client upload deleted successfully');
 
     return NextResponse.json({
       success: true,
@@ -45,7 +42,7 @@ export async function DELETE(
     });
 
   } catch (error) {
-    console.error('Delete client upload error:', error);
+    logger.error('Delete client upload error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

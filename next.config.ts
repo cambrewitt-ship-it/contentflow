@@ -24,13 +24,18 @@ function buildCSP(): string {
     // Default: Only allow resources from same origin
     "default-src 'self'",
     
-    // Scripts: Allow same origin + inline scripts + eval
+    // Scripts: Allow same origin + inline scripts + eval + blob
     // - 'unsafe-inline': Required for Next.js and some React hydration
     // - 'unsafe-eval': Required for Next.js development (hot reload) and some build optimizations
+    // - blob:: Required for worker scripts and dynamic imports
     // TODO: In production, consider using nonces or hashes instead of 'unsafe-inline'
     isDevelopment
-      ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
-      : "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // Keep eval for Next.js in production too
+      ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:"
+      : "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:",
+    
+    // Workers: Allow same origin + blob URLs for web workers
+    // - blob:: Required for worker scripts created from blob URLs
+    "worker-src 'self' blob:",
     
     // Styles: Allow same origin + inline styles
     // - 'unsafe-inline': Required for Radix UI components and Tailwind arbitrary values

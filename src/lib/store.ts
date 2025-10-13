@@ -1,6 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
+import logger from '@/lib/logger';
 
 export type Post = {
   id: string;
@@ -55,7 +56,7 @@ export const usePostStore = create<State>((set, get) => ({
   },
 
                 addScheduledPost: async (sp) => {
-                console.log('🔄 addScheduledPost called with:', sp);
+
                 try {
                   const response = await fetch('/api/schedulePost', {
                     method: 'POST',
@@ -72,7 +73,6 @@ export const usePostStore = create<State>((set, get) => ({
                   });
 
                   const result = await response.json();
-                  console.log('📡 API response:', result);
 
                   if (result.success) {
                     // Update local state with the response from the API
@@ -88,12 +88,12 @@ export const usePostStore = create<State>((set, get) => ({
                         [key]: [...(state.scheduled[key] ?? []), newScheduledPost],
                       },
                     }));
-                    console.log('✅ Local state updated successfully');
+
                   } else {
-                    console.error('❌ Failed to add scheduled post:', result.error);
+                    logger.error('❌ Failed to add scheduled post:', result.error);
                   }
                 } catch (error) {
-                  console.error('❌ Error adding scheduled post:', error);
+                  logger.error('❌ Error adding scheduled post:', error);
                 }
               },
 
@@ -121,28 +121,10 @@ export const usePostStore = create<State>((set, get) => ({
 
   // Add a simple post to the store
   addPost: (post: Post) => {
-    console.log('🚀 addPost function called with:', post);
-    console.log('🔍 Post data validation:', {
-      hasId: !!post.id,
-      hasClientId: !!post.clientId,
-      hasProjectId: !!post.projectId,
-      hasImageUrl: !!post.imageUrl,
-      hasCaption: !!post.caption,
-      postType: typeof post,
-      postKeys: Object.keys(post)
-    });
-    
     const key = `${post.clientId}:${post.projectId}`;
-    console.log('🔑 Store key created:', key);
-    
+
     // Get current state before modification
     const currentState = get();
-    console.log('📊 Current store state before adding:', {
-      totalPosts: Object.keys(currentState.posts || {}).length,
-      postsKeys: Object.keys(currentState.posts || {}),
-      postsForKey: currentState.posts?.[key] || [],
-      postsForKeyLength: currentState.posts?.[key]?.length || 0
-    });
     
     set((state) => {
       const newState = {
@@ -152,34 +134,15 @@ export const usePostStore = create<State>((set, get) => ({
         },
       };
       
-      console.log('🔄 State update applied:', {
-        newPostsKeys: Object.keys(newState.posts),
-        newPostsForKey: newState.posts[key],
-        newPostsForKeyLength: newState.posts[key]?.length || 0
-      });
-      
       return newState;
     });
-    
-    // Verify the post was actually added
-    const updatedState = get();
-    const addedPost = updatedState.posts[key]?.find(p => p.id === post.id);
-    console.log('✅ Post verification after adding:', {
-      postFound: !!addedPost,
-      totalPostsAfter: Object.keys(updatedState.posts).length,
-      postsForKeyAfter: updatedState.posts[key]?.length || 0,
-      addedPostId: addedPost?.id,
-      storeKey: key
-    });
-    
-    console.log('✅ Post added to store successfully:', post);
+
   },
 
   // New function for LATE API integration
   sendToScheduler: async (imageUrl: string, caption: string, projectId: string, clientId: string, notes?: string) => {
     try {
-      console.log('🚀 Starting LATE media upload process...');
-      
+
       // Step 1: Upload media to LATE API
       const mediaFormData = new FormData();
       // Convert blob URL to File object for upload
@@ -187,8 +150,7 @@ export const usePostStore = create<State>((set, get) => ({
       const blob = await response.blob();
       const file = new File([blob], 'content-image.jpg', { type: blob.type });
       mediaFormData.append('media', file);
-      
-      console.log('📤 Uploading media to LATE API...');
+
       const mediaResponse = await fetch('/api/late/upload-media', {
         method: 'POST',
         body: mediaFormData,
@@ -199,8 +161,7 @@ export const usePostStore = create<State>((set, get) => ({
       }
       
       const mediaData = await mediaResponse.json();
-      console.log('✅ LATE media upload successful:', mediaData);
-      
+
       // Step 2: Create post object with LATE media URL
       const newPost: Post = {
         id: Date.now().toString(),
@@ -224,35 +185,25 @@ export const usePostStore = create<State>((set, get) => ({
           [key]: [...(state.posts[key] ?? []), newPost],
         },
       }));
-      
-      console.log('✅ Post created and saved to store:', newPost);
+
       return newPost;
       
     } catch (error) {
-      console.error('❌ Error sending to scheduler:', error);
+      logger.error('❌ Error sending to scheduler:', error);
       throw error;
     }
   },
 
                 schedulePost: async (postId, scheduledDateTime, accountIds, projectId, clientId) => {
-                console.log('🔄 Zustand store schedulePost called with:', { 
-                  postId, 
-                  scheduledDateTime, 
-                  accountIds, 
-                  projectId, 
-                  clientId 
-                });
-                
+
                 const key = `${clientId}:${projectId}`;
 
                 // Find the post to get its details
                 const post = get().posts[key]?.find(p => p.id === postId);
                 if (!post) {
-                  console.error('❌ Post not found in store:', { postId, key });
+                  logger.error('❌ Post not found in store:', { postId, key });
                   throw new Error('Post not found');
                 }
-
-                console.log('✅ Found post in store:', post);
 
                 // Create only one scheduled post with the specified platform
                 // This prevents double-posting when platform is 'both'
@@ -266,11 +217,8 @@ export const usePostStore = create<State>((set, get) => ({
                   status: 'scheduled',
                 };
 
-                console.log('🔄 Creating scheduled post:', scheduledPost);
-
                 // Use the new API-integrated addScheduledPost method
                 await get().addScheduledPost(scheduledPost);
-                
-                console.log('✅ schedulePost completed successfully');
+
               },
 }));

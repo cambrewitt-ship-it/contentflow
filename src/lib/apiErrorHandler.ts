@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import logger from './logger';
 
 /**
  * Secure API Error Handler
@@ -167,12 +168,11 @@ function logError(error: any, context: ErrorContext, sanitizedMessage: string): 
     errorType: error?.constructor?.name || 'Unknown',
     errorMessage: error?.message || 'No message',
     sanitizedMessage,
-    stack: error?.stack || 'No stack trace',
     additionalData: context.additionalData,
   };
 
-  // Use console.error for now - in production, this should go to a proper logging service
-  console.error('API Error Details:', JSON.stringify(logData, null, 2));
+  // Use our secure logger - automatically redacts sensitive data
+  logger.error('API Error:', logData);
 }
 
 /**
@@ -262,7 +262,7 @@ export function handleDatabaseError(
   fallbackMessage = 'Database operation failed'
 ): NextResponse {
   // Log the full database error server-side
-  console.error('Database Error:', {
+  logger.error('Database Error:', {
     ...context,
     error: {
       code: error?.code,
@@ -305,7 +305,7 @@ export function handleValidationError(
   errors: string[],
   context: ErrorContext
 ): NextResponse {
-  console.error('Validation Error:', {
+  logger.error('Validation Error:', {
     ...context,
     validationErrors: errors,
   });

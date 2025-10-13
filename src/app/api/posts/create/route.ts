@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { isValidMediaData } from '../../../../lib/blobUpload';
 import { withPostLimitCheck, trackPostCreation } from '../../../../lib/subscriptionMiddleware';
+import logger from '@/lib/logger';
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
@@ -25,7 +26,6 @@ export async function POST(request: NextRequest) {
     const userId = subscriptionCheck.user!.id;
 
     const body = await request.json();
-    console.log('🚀 Creating posts - Full request body:', JSON.stringify(body, null, 2));
     
     // Handle both array format and individual post format
     let posts, clientId, projectId, status = 'draft';
@@ -46,20 +46,17 @@ export async function POST(request: NextRequest) {
       throw new Error('Invalid request format - expected either posts array or individual post data');
     }
     
-    console.log('🚀 Creating posts:', { clientId, projectId, postsCount: posts.length, status });
-    
     // Validate media URLs in posts and detect media type
     for (const post of posts) {
       if (post.image_url) {
         const validation = isValidMediaData(post.image_url);
         if (!validation.isValid) {
-          console.error('❌ Invalid media URL in post:', post.image_url);
+          logger.error('Invalid media URL in post');
           return NextResponse.json(
             { error: `Invalid media URL: ${post.image_url}` },
             { status: 400 }
           );
         }
-        console.log('✅ Valid media URL detected:', validation.type, 'Media type:', validation.mediaType);
         // Store the detected media type in the post object for use below
         post._detected_media_type = validation.mediaType;
       }
@@ -67,8 +64,6 @@ export async function POST(request: NextRequest) {
     
     // Create Supabase client with service role for admin access (exact same pattern as working APIs)
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    
-    console.log('📊 About to insert posts into database...');
     
     // Create posts in the main posts table
     const postsToInsert = posts.map((post: { 
@@ -79,12 +74,9 @@ export async function POST(request: NextRequest) {
       media_type?: string;
       _detected_media_type?: 'image' | 'video' | 'unknown';
     }) => {
-      console.log('📝 Saving post with caption:', post.caption);
       // Determine media type: use explicit media_type from post, or use detected type, or default to 'image'
       const finalMediaType = post.media_type || 
         (post._detected_media_type === 'video' ? 'video' : 'image');
-      
-      console.log('📦 Media type for post:', finalMediaType);
       
       return {
         client_id: clientId,
@@ -103,25 +95,18 @@ export async function POST(request: NextRequest) {
       };
     });
     
-    console.log('📝 Posts to insert into database:', JSON.stringify(postsToInsert, null, 2));
-    
     const { data: postsData, error: postsError } = await supabase
       .from('posts')
       .insert(postsToInsert)
       .select();
     
     if (postsError) {
-      console.error('❌ Supabase error creating posts:', postsError);
-      console.error('❌ Error details:', {
+      logger.error('Supabase error creating posts:', {
         code: postsError.code,
-        message: postsError.message,
-        details: postsError.details,
-        hint: postsError.hint
+        message: postsError.message
       });
       throw postsError;
     }
-    
-    console.log('✅ Posts created successfully in posts table:', postsData);
     
     // Track post creation for subscription usage
     await trackPostCreation(userId);
@@ -144,17 +129,14 @@ export async function POST(request: NextRequest) {
         .select();
       
       if (calendarError) {
-        console.error('❌ Error creating calendar posts:', calendarError);
-        // Don't throw here - posts were created successfully, just calendar sync failed
-        console.warn('⚠️ Posts created but failed to sync to calendar system');
-      } else {
-        console.log('✅ Posts synced to calendar system:', calendarData);
+        logger.error('Error creating calendar posts:', { message: calendarError.message });
+        logger.warn('Posts created but failed to sync to calendar system');
       }
     }
     
     return NextResponse.json({ success: true, posts: postsData });
   } catch (error) {
-    console.error('💥 Error creating posts:', error);
+    logger.error('Error creating posts:', error);
     return NextResponse.json({ 
       error: 'Failed to create posts',
       details: error instanceof Error ? error.message : String(error)

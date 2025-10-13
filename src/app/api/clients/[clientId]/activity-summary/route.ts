@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,7 +37,7 @@ export async function GET(
       .order('created_at', { ascending: false });
 
     if (uploadsError) {
-      console.error('Error fetching recent uploads:', uploadsError);
+      logger.error('Error fetching recent uploads:', uploadsError);
     }
 
     // Fetch recent approvals (last 7 days)
@@ -49,7 +50,7 @@ export async function GET(
       .order('updated_at', { ascending: false });
 
     if (approvalsError) {
-      console.error('Error fetching recent approvals:', approvalsError);
+      logger.error('Error fetching recent approvals:', approvalsError);
     }
 
     // Fetch posts scheduled this week
@@ -66,7 +67,7 @@ export async function GET(
       .order('scheduled_time', { ascending: true });
 
     if (weekError) {
-      console.error('Error fetching this week posts:', weekError);
+      logger.error('Error fetching this week posts:', weekError);
     }
 
     // Find next scheduled post (future posts only)
@@ -84,7 +85,7 @@ export async function GET(
       .limit(1);
 
     if (futureError) {
-      console.error('Error fetching next post:', futureError);
+      logger.error('Error fetching next post:', futureError);
     }
 
     const nextPost = futurePosts && futurePosts.length > 0 ? futurePosts[0] : null;
@@ -98,7 +99,7 @@ export async function GET(
       .order('created_at', { ascending: false });
 
     if (activityError) {
-      console.error('Error fetching portal activity:', activityError);
+      logger.error('Error fetching portal activity:', activityError);
     }
 
     // Count posts pending approval
@@ -109,7 +110,7 @@ export async function GET(
       .in('approval_status', ['pending', 'needs_attention']);
 
     if (pendingError) {
-      console.error('Error fetching pending posts:', pendingError);
+      logger.error('Error fetching pending posts:', pendingError);
     }
 
     // Calculate summary metrics
@@ -151,7 +152,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Activity summary error:', error);
+    logger.error('Activity summary error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

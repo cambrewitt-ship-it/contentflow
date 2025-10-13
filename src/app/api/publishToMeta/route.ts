@@ -1,5 +1,6 @@
 // src/app/api/publishToMeta/route.ts
 import { NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 // TypeScript interfaces for better type safety
 interface SchedulingResult {
@@ -20,26 +21,23 @@ const FACEBOOK_GRAPH_API_BASE = 'https://graph.facebook.com/v19.0';
 
 // Validate required environment variables
 if (!META_APP_ID || !META_APP_SECRET || !META_PAGE_ID || !META_ACCESS_TOKEN) {
-  console.error('Missing Meta API environment variables. Ensure META_APP_ID, META_APP_SECRET, META_PAGE_ID, and META_ACCESS_TOKEN are set.');
+  logger.error('Missing Meta API environment variables. Ensure META_APP_ID, META_APP_SECRET, META_PAGE_ID, and META_ACCESS_TOKEN are set.');
 }
 
 export async function POST(req: Request) {
   try {
-    console.log('🔄 Meta API publish request received');
-    
+
     const body = await req.json();
     const { postId, platform, caption, imageUrl, scheduledTime } = body ?? {};
 
     // Validate required fields
     if (!postId || !platform || !caption || !imageUrl || !scheduledTime) {
-      console.error('❌ Missing required fields:', { postId, platform, caption, imageUrl, scheduledTime });
+      logger.error('❌ Missing required fields:', { postId, platform, caption, imageUrl, scheduledTime });
       return NextResponse.json({ 
         success: false, 
         error: 'Missing required fields: postId, platform, caption, imageUrl, scheduledTime' 
       }, { status: 400 });
     }
-
-    console.log('📝 Publishing post to Meta:', { postId, platform, scheduledTime });
 
     // Handle different platforms
     let result;
@@ -67,14 +65,14 @@ export async function POST(req: Request) {
     }
 
     if (result.success) {
-      console.log('✅ Meta API publish successful:', result);
+
       return NextResponse.json({ 
         success: true, 
         result,
         message: `Post scheduled successfully to ${platform}` 
       });
     } else {
-      console.error('❌ Meta API publish failed:', result);
+      logger.error('❌ Meta API publish failed:', result);
       return NextResponse.json({ 
         success: false, 
         error: result.error || 'Failed to schedule post to Meta' 
@@ -82,7 +80,7 @@ export async function POST(req: Request) {
     }
 
   } catch (err: unknown) {
-    console.error('❌ Unexpected error in publishToMeta route:', err);
+    logger.error('❌ Unexpected error in publishToMeta route:', err);
     const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
     return NextResponse.json({ 
       success: false, 
@@ -93,8 +91,7 @@ export async function POST(req: Request) {
 
 async function scheduleInstagramPost(caption: string, image_url: string, scheduledTime: string): Promise<SchedulingResult> {
   try {
-    console.log('📸 Scheduling Instagram post:', { scheduledTime });
-    
+
     // First, create a media container
     const mediaContainerResponse = await fetch(`${FACEBOOK_GRAPH_API_BASE}/${META_PAGE_ID}/media`, {
       method: 'POST',
@@ -113,8 +110,6 @@ async function scheduleInstagramPost(caption: string, image_url: string, schedul
     if (!mediaContainerData.id) {
       throw new Error(`Failed to create media container: ${JSON.stringify(mediaContainerData)}`);
     }
-
-    console.log('📦 Instagram media container created:', mediaContainerData.id);
 
     // Schedule the post
     const publishResponse = await fetch(`${FACEBOOK_GRAPH_API_BASE}/${META_PAGE_ID}/media_publish`, {
@@ -135,11 +130,10 @@ async function scheduleInstagramPost(caption: string, image_url: string, schedul
       throw new Error(`Failed to schedule Instagram post: ${JSON.stringify(publishData)}`);
     }
 
-    console.log('✅ Instagram post scheduled successfully:', publishData.id);
     return { success: true, postId: publishData.id, platform: 'instagram' };
 
   } catch (error: unknown) {
-    console.error('❌ Instagram scheduling error:', error);
+    logger.error('❌ Instagram scheduling error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return { success: false, error: errorMessage, platform: 'instagram' };
   }
@@ -147,8 +141,7 @@ async function scheduleInstagramPost(caption: string, image_url: string, schedul
 
 async function scheduleFacebookPost(caption: string, image_url: string, scheduledTime: string): Promise<SchedulingResult> {
   try {
-    console.log('📘 Scheduling Facebook post:', { scheduledTime });
-    
+
     // Schedule the post directly to Facebook
     const response = await fetch(`${FACEBOOK_GRAPH_API_BASE}/${META_PAGE_ID}/feed`, {
       method: 'POST',
@@ -169,10 +162,9 @@ async function scheduleFacebookPost(caption: string, image_url: string, schedule
       throw new Error(`Failed to schedule Facebook post: ${JSON.stringify(data)}`);
     }
 
-    console.log('✅ Facebook post scheduled successfully:', data.id);
     return { success: true, postId: data.id, platform: 'facebook' };
   } catch (error: unknown) {
-    console.error('❌ Facebook scheduling error:', error);
+    logger.error('❌ Facebook scheduling error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return { success: false, error: errorMessage, platform: 'facebook' };
   }

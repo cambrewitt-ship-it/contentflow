@@ -17,19 +17,50 @@ export async function middleware(req: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  // Protect dashboard routes
-  if (req.nextUrl.pathname.startsWith('/dashboard')) {
-    if (!session) {
-      return NextResponse.redirect(new URL('/auth/login', req.url));
-    }
-  }
+  // Define public routes that don't require authentication
+  const publicRoutes = [
+    '/',
+    '/auth/login',
+    '/auth/signup',
+    '/auth/callback',
+    '/pricing',
+  ];
 
-  // Redirect authenticated users away from auth pages
-  if (req.nextUrl.pathname.startsWith('/auth/login') || 
-      req.nextUrl.pathname.startsWith('/auth/signup')) {
-    if (session) {
+  // Define public API routes that don't require authentication
+  const publicApiPrefixes = [
+    '/api/portal/', // Client portal (uses token auth)
+    '/api/auth/',   // Auth endpoints
+    '/api/stripe/webhook', // Stripe webhooks
+  ];
+
+  // Define public dynamic routes
+  const publicDynamicPrefixes = [
+    '/portal/',     // Client portal pages
+    '/approval/',   // Approval pages with tokens
+  ];
+
+  const pathname = req.nextUrl.pathname;
+
+  // Check if it's a public route
+  const isPublicRoute = publicRoutes.includes(pathname);
+  const isPublicApi = publicApiPrefixes.some(prefix => pathname.startsWith(prefix));
+  const isPublicDynamic = publicDynamicPrefixes.some(prefix => pathname.startsWith(prefix));
+  
+  // If it's a public route, allow access
+  if (isPublicRoute || isPublicApi || isPublicDynamic) {
+    // Redirect authenticated users away from auth pages to dashboard
+    if (session && (pathname === '/auth/login' || pathname === '/auth/signup')) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
+    return res;
+  }
+
+  // For all other routes, require authentication
+  if (!session) {
+    // Store the original URL to redirect back after login
+    const redirectUrl = new URL('/auth/login', req.url);
+    redirectUrl.searchParams.set('redirectTo', pathname);
+    return NextResponse.redirect(redirectUrl);
   }
 
   return res;

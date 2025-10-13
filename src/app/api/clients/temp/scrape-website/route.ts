@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -19,8 +20,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
     }
 
-    console.log('🌐 Starting temporary website scrape for URL:', url);
-
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
@@ -39,7 +38,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (createError) {
-      console.error('❌ Failed to create scrape record:', createError);
+      logger.error('❌ Failed to create scrape record:', createError);
       return NextResponse.json({ 
         error: 'Failed to create scrape record', 
         details: createError.message 
@@ -48,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     try {
       // Perform the actual web scraping
-      console.log('🔍 Fetching website content...');
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -91,11 +90,9 @@ export async function POST(request: NextRequest) {
         .eq('id', scrapeRecord.id);
 
       if (updateError) {
-        console.error('❌ Failed to update scrape record:', updateError);
+        logger.error('❌ Failed to update scrape record:', updateError);
         throw updateError;
       }
-
-      console.log('✅ Website scrape completed successfully');
 
       return NextResponse.json({
         success: true,
@@ -112,7 +109,7 @@ export async function POST(request: NextRequest) {
       });
 
     } catch (scrapeError) {
-      console.error('❌ Website scraping failed:', scrapeError);
+      logger.error('❌ Website scraping failed:', scrapeError);
       
       // Update scrape record with error
       await supabase
@@ -130,7 +127,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error: unknown) {
-    console.error('💥 Error in temporary website scraping:', error);
+    logger.error('💥 Error in temporary website scraping:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)

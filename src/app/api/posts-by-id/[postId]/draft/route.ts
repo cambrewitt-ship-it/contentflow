@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -20,9 +21,7 @@ export async function GET(
         { status: 400 }
       );
     }
-    
-    console.log('🔍 Retrieving draft changes for post:', { postId, clientId });
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     const { data: post, error } = await supabase
@@ -33,7 +32,7 @@ export async function GET(
       .single();
     
     if (error) {
-      console.error('❌ Error fetching draft changes:', error);
+      logger.error('❌ Error fetching draft changes:', error);
       if (error.code === 'PGRST116') {
         return NextResponse.json(
           { error: 'Post not found' },
@@ -56,7 +55,7 @@ export async function GET(
     });
     
   } catch (error) {
-    console.error('💥 Unexpected error in GET draft:', error);
+    logger.error('💥 Unexpected error in GET draft:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to retrieve draft changes' },
       { status: 500 }
@@ -85,9 +84,7 @@ export async function POST(
         { status: 400 }
       );
     }
-    
-    console.log('💾 Saving draft changes for post:', { postId, client_id });
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     const enhancedDraftData = {
@@ -108,15 +105,13 @@ export async function POST(
       .single();
     
     if (error) {
-      console.error('❌ Error saving draft changes:', error);
+      logger.error('❌ Error saving draft changes:', error);
       return NextResponse.json(
         { error: 'Failed to save draft changes' },
         { status: 500 }
       );
     }
-    
-    console.log('✅ Draft changes saved successfully:', updatedPost);
-    
+
     return NextResponse.json({
       success: true,
       message: 'Draft changes saved successfully',
@@ -125,7 +120,7 @@ export async function POST(
     });
     
   } catch (error) {
-    console.error('💥 Unexpected error in POST draft:', error);
+    logger.error('💥 Unexpected error in POST draft:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to save draft changes' },
       { status: 500 }
@@ -149,9 +144,7 @@ export async function DELETE(
         { status: 400 }
       );
     }
-    
-    console.log('🗑️ Clearing draft changes for post:', { postId, clientId });
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     const { error } = await supabase
@@ -161,22 +154,20 @@ export async function DELETE(
       .eq('client_id', clientId);
     
     if (error) {
-      console.error('❌ Error clearing draft changes:', error);
+      logger.error('❌ Error clearing draft changes:', error);
       return NextResponse.json(
         { error: 'Failed to clear draft changes' },
         { status: 500 }
       );
     }
-    
-    console.log('✅ Draft changes cleared successfully');
-    
+
     return NextResponse.json({
       success: true,
       message: 'Draft changes cleared successfully'
     });
     
   } catch (error) {
-    console.error('💥 Unexpected error in DELETE draft:', error);
+    logger.error('💥 Unexpected error in DELETE draft:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to clear draft changes' },
       { status: 500 }

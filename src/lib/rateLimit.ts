@@ -1,6 +1,7 @@
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { NextRequest, NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 // Initialize Redis client with fallback
 const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
@@ -124,7 +125,7 @@ export async function checkRateLimit(
 ): Promise<{ success: boolean; limit: number; remaining: number; reset: Date }> {
   // If Redis is not configured, allow all requests
   if (!rateLimitConfigs || !redis) {
-    console.warn('Rate limiting disabled: Redis not configured');
+    logger.warn('Rate limiting disabled: Redis not configured');
     return {
       success: true,
       limit: 0,
@@ -143,7 +144,7 @@ export async function checkRateLimit(
       reset: new Date(reset),
     };
   } catch (error) {
-    console.error('Rate limit check failed:', error);
+    logger.error('Rate limit check failed:', error);
     // In case of Redis failure, allow the request but log the error
     return {
       success: true,
@@ -215,7 +216,7 @@ export function validateRateLimitConfig(): boolean {
   const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
   
   if (missingVars.length > 0) {
-    console.warn('Rate limiting disabled: Missing environment variables:', missingVars);
+    logger.warn('Rate limiting disabled: Missing environment variables:', missingVars);
     return false;
   }
   

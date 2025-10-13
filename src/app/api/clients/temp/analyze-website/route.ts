@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -11,8 +12,6 @@ export async function POST(request: NextRequest) {
     if (!scrapeId) {
       return NextResponse.json({ error: 'Scrape ID is required' }, { status: 400 });
     }
-
-    console.log('🤖 Starting temporary AI analysis for scrape:', scrapeId);
 
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -26,14 +25,12 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (fetchError || !scrapeData) {
-      console.error('❌ Failed to fetch scrape data:', fetchError);
+      logger.error('❌ Failed to fetch scrape data:', fetchError);
       return NextResponse.json({ 
         error: 'Failed to fetch scrape data', 
         details: fetchError?.message || 'Scrape not found' 
       }, { status: 404 });
     }
-
-    console.log('📄 Analyzing website content for:', scrapeData.url);
 
     // Prepare content for AI analysis (same as working version)
     const contentForAnalysis = `
@@ -46,8 +43,6 @@ Content: ${scrapeData.scraped_content || ''}
     // AI Analysis using OpenAI (same as working version)
     const analysisResult = await analyzeWebsiteContent(contentForAnalysis);
 
-    console.log('✅ AI analysis completed successfully');
-
     return NextResponse.json({
       success: true,
       analysis: analysisResult,
@@ -59,7 +54,7 @@ Content: ${scrapeData.scraped_content || ''}
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in temporary AI analysis:', error);
+    logger.error('💥 Error in temporary AI analysis:', error);
     return NextResponse.json({ 
       error: 'AI analysis failed', 
       details: error instanceof Error ? error.message : String(error)
@@ -123,8 +118,8 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
       // Parse the extracted JSON
       analysis = JSON.parse(jsonText.trim());
     } catch (parseError) {
-      console.error('❌ JSON parsing failed:', parseError);
-      console.error('Raw AI response:', analysisText);
+      logger.error('❌ JSON parsing failed:', parseError);
+      logger.error('Raw AI response:', analysisText);
       throw new Error(`Failed to parse AI response as JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
     }
     
@@ -139,7 +134,7 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
     return analysis;
 
   } catch (error) {
-    console.error('❌ AI analysis failed:', error);
+    logger.error('❌ AI analysis failed:', error);
     throw new Error(`AI analysis failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

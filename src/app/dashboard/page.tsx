@@ -229,11 +229,17 @@ export default function Dashboard() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+            <div className={
+              clients.length === 1 
+                ? "flex justify-center" 
+                : "grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch"
+            }>
               {clients.map((client) => (
                 <Card 
                   key={client.id} 
-                  className="transition-all hover:shadow-lg flex flex-col h-full opacity-90"
+                  className={`transition-all hover:shadow-lg flex flex-col h-full opacity-90 ${
+                    clients.length === 1 ? "w-full max-w-2xl" : ""
+                  }`}
                 >
                   <CardHeader>
                     <div className="flex items-center justify-between">

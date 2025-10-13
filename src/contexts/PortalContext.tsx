@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import logger from '@/lib/logger';
 
 interface PortalClient {
   id: string;
@@ -34,12 +35,9 @@ export function PortalProvider({
       setIsLoading(true);
       setError(null);
 
-      console.log('🔍 PortalContext: Validating token:', token);
       const response = await fetch(`/api/portal/validate?token=${encodeURIComponent(token)}`);
-      console.log('🔍 PortalContext: Response status:', response.status);
       
       const data = await response.json();
-      console.log('🔍 PortalContext: Response data:', data);
 
       if (data.success) {
         setClient(data.client);
@@ -49,7 +47,7 @@ export function PortalProvider({
         return false;
       }
     } catch (err) {
-      console.error('❌ PortalContext: Validation error:', err);
+      logger.error('PortalContext: Validation error:', err);
       setError('Network error during validation');
       return false;
     } finally {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
 
-    console.log('🔍 Portal approvals request:', { token: token?.substring(0, 8) + '...' });
+    logger.debug('Portal approvals request', { tokenPreview: token?.substring(0, 8) + '...' });
 
     if (!token) {
       return NextResponse.json(
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (clientError || !client) {
-      console.log('❌ Invalid portal token:', clientError);
+
       return NextResponse.json(
         { success: false, error: 'Invalid portal token' },
         { status: 401 }
@@ -43,8 +44,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('✅ Portal token validated for client:', client.id);
-
     // Get all projects for this client
     const { data: projects, error: projectsError } = await supabase
       .from('projects')
@@ -52,7 +51,7 @@ export async function GET(request: NextRequest) {
       .eq('client_id', client.id);
 
     if (projectsError) {
-      console.error('❌ Error fetching projects:', projectsError);
+      logger.error('❌ Error fetching projects:', projectsError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch projects' },
         { status: 500 }
@@ -69,7 +68,6 @@ export async function GET(request: NextRequest) {
     }
 
     const projectIds = projects.map(p => p.id);
-    console.log('📋 Found projects:', projectIds);
 
     // Get posts from both scheduled tables for all client projects
     const [scheduledPosts, plannerScheduledPosts] = await Promise.all([
@@ -108,11 +106,11 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (scheduledPosts.error) {
-      console.error('❌ Error fetching scheduled posts:', scheduledPosts.error);
+      logger.error('❌ Error fetching scheduled posts:', scheduledPosts.error);
     }
 
     if (plannerScheduledPosts.error) {
-      console.error('❌ Error fetching planner scheduled posts:', plannerScheduledPosts.error);
+      logger.error('❌ Error fetching planner scheduled posts:', plannerScheduledPosts.error);
     }
 
     // Combine and format posts
@@ -127,8 +125,6 @@ export async function GET(request: NextRequest) {
       }))
     ];
 
-    console.log(`📊 Found ${allPosts.length} total posts`);
-
     // Group posts by week
     const weeks = groupPostsByWeek(allPosts);
 
@@ -140,7 +136,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('❌ Portal approvals error:', error);
+    logger.error('❌ Portal approvals error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -161,13 +157,13 @@ export async function POST(request: NextRequest) {
       edited_caption 
     } = body;
 
-    console.log('📥 Portal approval submission:', {
-      token: token?.substring(0, 8) + '...',
-      post_id: post_id?.substring(0, 8) + '...',
-      post_type,
-      approval_status,
-      has_comments: !!client_comments,
-      has_edited_caption: !!edited_caption
+    logger.debug('Portal approval submission', {
+      tokenPreview: token?.substring(0, 8) + '...',
+      postIdPreview: post_id?.substring(0, 8) + '...',
+      postType: post_type,
+      approvalStatus: approval_status,
+      hasComments: !!client_comments,
+      hasEditedCaption: !!edited_caption
     });
 
     if (!token) {
@@ -227,7 +223,7 @@ export async function POST(request: NextRequest) {
         .eq('id', post_id);
 
       if (captionUpdateError) {
-        console.error('❌ Error updating caption:', captionUpdateError);
+        logger.error('❌ Error updating caption:', captionUpdateError);
         return NextResponse.json(
           { success: false, error: 'Failed to update caption' },
           { status: 500 }
@@ -257,14 +253,12 @@ export async function POST(request: NextRequest) {
       .eq('id', post_id);
 
     if (statusUpdateError) {
-      console.error('❌ Error updating post status:', statusUpdateError);
+      logger.error('❌ Error updating post status:', statusUpdateError);
       return NextResponse.json(
         { success: false, error: 'Failed to update post status' },
         { status: 500 }
       );
     }
-
-    console.log('✅ Portal approval submitted successfully');
 
     return NextResponse.json({
       success: true,
@@ -272,7 +266,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('❌ Portal approval submission error:', error);
+    logger.error('❌ Portal approval submission error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -290,7 +284,7 @@ function groupPostsByWeek(posts: any[]): any[] {
   currentWeekStart.setDate(now.getDate() - now.getDay()); // Start of current week (Sunday)
   currentWeekStart.setHours(0, 0, 0, 0); // Reset time to start of day
   
-  console.log('📅 Current week start:', currentWeekStart.toISOString().split('T')[0]);
+  logger.debug('Current week start', { weekStart: currentWeekStart.toISOString().split('T')[0] });
   
   posts.forEach(post => {
     // Handle different column names: scheduled_posts uses 'scheduled_time', calendar_scheduled_posts uses 'scheduled_date'
@@ -302,7 +296,10 @@ function groupPostsByWeek(posts: any[]): any[] {
     
     // Skip posts from weeks older than current week
     if (weekStart < currentWeekStart) {
-      console.log(`⏰ Skipping expired post from week ${weekStart.toISOString().split('T')[0]}:`, post.id);
+      logger.debug('Skipping expired post', { 
+        weekStart: weekStart.toISOString().split('T')[0],
+        postId: post.id?.substring(0, 8) + '...' 
+      });
       return;
     }
     
@@ -336,6 +333,6 @@ function groupPostsByWeek(posts: any[]): any[] {
     })
     .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
   
-  console.log(`📊 Filtered to ${weeks.length} current/future weeks (expired weeks removed)`);
+  logger.debug('Weeks filtered', { totalWeeks: weeks.length });
   return weeks;
 }

@@ -1,6 +1,7 @@
 // app/api/late/oauth-callback/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -10,14 +11,13 @@ function getAppUrl(req: NextRequest): string {
   
   // If environment URL is ngrok, try to detect the real URL from the request
   if (envUrl && envUrl.includes('ngrok')) {
-    console.log('⚠️ Detected ngrok URL in NEXT_PUBLIC_APP_URL, attempting to detect real URL');
-    
+
     // Try to get the host from the request
     const host = req.headers.get('host');
     if (host && !host.includes('ngrok')) {
       const protocol = req.headers.get('x-forwarded-proto') || 'https';
       const detectedUrl = `${protocol}://${host}`;
-      console.log('✅ Detected real URL from request:', detectedUrl);
+
       return detectedUrl;
     }
   }
@@ -27,7 +27,7 @@ function getAppUrl(req: NextRequest): string {
   if (host && host.includes('localhost')) {
     const protocol = req.headers.get('x-forwarded-proto') || 'http';
     const detectedUrl = `${protocol}://${host}`;
-    console.log('✅ Detected localhost URL from request:', detectedUrl);
+
     return detectedUrl;
   }
   
@@ -42,13 +42,13 @@ export async function GET(req: NextRequest) {
     // Handle malformed URLs with multiple ? characters
     let cleanUrl = req.url;
     if (cleanUrl.includes('??') || cleanUrl.split('?').length > 2) {
-      console.log('🔧 Detected malformed URL with multiple ? characters:', cleanUrl);
+
       // Split on first ? and take everything after it, then replace subsequent ? with &
       const [baseUrl, queryString] = cleanUrl.split('?', 2);
       if (queryString) {
         const cleanedQueryString = queryString.replace(/\?/g, '&');
         cleanUrl = `${baseUrl}?${cleanedQueryString}`;
-        console.log('✅ Cleaned URL:', cleanUrl);
+
       }
     }
     
@@ -65,9 +65,9 @@ export async function GET(req: NextRequest) {
     
     // Clean up clientId if it has additional data appended (common issue with some OAuth flows)
     if (clientId && clientId.includes('-ct_')) {
-      console.log('🔧 Cleaning up malformed clientId:', clientId);
+
       clientId = clientId.split('-ct_')[0];
-      console.log('✅ Cleaned clientId:', clientId);
+
     }
     
     // If clientId is not in query params, try to extract it from the redirect_url
@@ -80,27 +80,17 @@ export async function GET(req: NextRequest) {
           const clientIdIndex = pathParts.indexOf('client');
           if (clientIdIndex !== -1 && pathParts[clientIdIndex + 1]) {
             clientId = pathParts[clientIdIndex + 1];
-            console.log('🔍 Extracted clientId from redirect_url:', clientId);
+
           }
         } catch (err) {
-          console.log('Could not parse redirect_url for clientId extraction');
+
         }
       }
     }
-    
-    console.log('📥 OAuth callback parameters:', {
-      success,
-      platform,
-      profileId,
-      username,
-      error,
-      errorDescription,
-      clientId
-    });
 
     // Handle OAuth errors
     if (error) {
-      console.log('❌ OAuth error received:', { error, errorDescription });
+
       const errorRedirectUrl = clientId 
         ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=${encodeURIComponent(errorDescription || error)}`
         : `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=${encodeURIComponent(errorDescription || error)}`;
@@ -110,7 +100,7 @@ export async function GET(req: NextRequest) {
 
     // Validate required parameters
     if (!success || !platform || !profileId) {
-      console.log('❌ Missing required OAuth parameters');
+
       const errorRedirectUrl = clientId 
         ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=Missing required OAuth parameters`
         : `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=Missing required OAuth parameters`;
@@ -120,15 +110,13 @@ export async function GET(req: NextRequest) {
 
     // Check environment variables
     if (!supabaseUrl || !supabaseServiceRoleKey) {
-      console.log('❌ Missing Supabase environment variables');
+
       const errorRedirectUrl = clientId 
         ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Configuration error: Missing database credentials`
         : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Configuration error: Missing database credentials`;
       
       return NextResponse.redirect(errorRedirectUrl);
     }
-
-    console.log('✅ OAuth parameters validated, proceeding to update database');
 
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -142,7 +130,7 @@ export async function GET(req: NextRequest) {
       .single();
 
     if (checkError && checkError.code !== 'PGRST116') {
-      console.error('❌ Error checking existing connection:', checkError);
+      logger.error('❌ Error checking existing connection:', checkError);
       const errorRedirectUrl = clientId 
         ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Database query failed`
         : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Database query failed`;
@@ -154,8 +142,7 @@ export async function GET(req: NextRequest) {
     
     if (existingConnection) {
       // Update existing connection
-      console.log('🔄 Updating existing connection:', existingConnection);
-      
+
       const { data: updatedConnection, error: updateError } = await supabase
         .from('social_connections')
         .update({
@@ -171,7 +158,7 @@ export async function GET(req: NextRequest) {
         .single();
 
       if (updateError) {
-        console.error('❌ Error updating connection:', updateError);
+        logger.error('❌ Error updating connection:', updateError);
         const errorRedirectUrl = clientId 
           ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Failed to update connection`
           : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Failed to update connection`;
@@ -180,12 +167,10 @@ export async function GET(req: NextRequest) {
       }
 
       connectionResult = updatedConnection;
-      console.log('✅ Connection updated successfully');
-      
+
     } else {
       // Create new connection
-      console.log('🆕 Creating new connection');
-      
+
       const { data: newConnection, error: insertError } = await supabase
         .from('social_connections')
         .insert({
@@ -202,7 +187,7 @@ export async function GET(req: NextRequest) {
         .single();
 
       if (insertError) {
-        console.error('❌ Error creating connection:', insertError);
+        logger.error('❌ Error creating connection:', insertError);
         const errorRedirectUrl = clientId 
           ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Failed to create connection`
           : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Failed to create connection`;
@@ -211,26 +196,24 @@ export async function GET(req: NextRequest) {
       }
 
       connectionResult = newConnection;
-      console.log('✅ Connection created successfully');
-    }
 
-    console.log('✅ Connection result:', connectionResult);
+    }
 
     // Redirect back to client dashboard with success message
     if (clientId) {
       const successRedirectUrl = `${appUrl}/dashboard/client/${clientId}?connected=${platform}${username ? `&username=${encodeURIComponent(username)}` : ''}`;
-      console.log('🔗 Redirecting to client dashboard:', successRedirectUrl);
+
       return NextResponse.redirect(successRedirectUrl);
     } else {
       // Fallback to general dashboard if no clientId
       const fallbackRedirectUrl = `${appUrl}/dashboard?oauth_success=${platform}${username ? `&username=${encodeURIComponent(username)}` : ''}`;
-      console.log('🔗 Redirecting to general dashboard (fallback):', fallbackRedirectUrl);
+      logger.debug('Redirecting to general dashboard (fallback)', { platform });
       return NextResponse.redirect(fallbackRedirectUrl);
     }
 
   } catch (error: unknown) {
-    console.error('💥 Error in OAuth callback route:', error);
-    console.error('💥 Error details:', {
+    logger.error('💥 Error in OAuth callback route:', error);
+    logger.error('💥 Error details:', {
       name: error instanceof Error ? error.name : 'Unknown',
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : 'No stack trace'
@@ -244,7 +227,7 @@ export async function GET(req: NextRequest) {
       clientId = searchParams.get('clientId') || '';
       platform = searchParams.get('platform') || 'unknown';
     } catch (e) {
-      console.log('Could not extract clientId from URL for error redirect');
+
     }
     
     const errorRedirectUrl = clientId 

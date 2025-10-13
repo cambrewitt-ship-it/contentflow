@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -38,7 +39,7 @@ export async function GET(
       .limit(1);
 
     if (nextPostError) {
-      console.error('Error fetching next post:', nextPostError);
+      logger.error('Error fetching next post:', { error: nextPostError.message });
     }
 
     // Fetch all activity data from the last 30 days
@@ -284,7 +285,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Activity logs error:', error);
+    logger.error('Activity logs error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

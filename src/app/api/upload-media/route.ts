@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
 import { base64ToBlob } from '../../../lib/blobUpload';
+import logger from '@/lib/logger';
 
 // Supported media types
 const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     
     // Check if BLOB_READ_WRITE_TOKEN is available
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      console.warn('⚠️ BLOB_READ_WRITE_TOKEN not configured, returning error');
+      logger.warn('BLOB_READ_WRITE_TOKEN not configured');
       return NextResponse.json(
         { error: 'Blob storage not configured' },
         { status: 500 }
@@ -51,12 +52,6 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    console.log(`🔄 Uploading ${isVideo ? 'video' : 'image'} to Vercel Blob:`, { 
-      filename, 
-      mimeType,
-      dataLength: mediaData.length 
-    });
-    
     // Convert base64 to blob
     const blob = base64ToBlob(mediaData, mimeType);
     
@@ -71,15 +66,11 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    console.log('📦 Created blob:', { size: blob.size, type: blob.type, sizeMB: `${sizeMB}MB` });
-    
     // Upload to Vercel Blob
     const result = await put(filename, blob, {
       access: 'public',
       contentType: mimeType,
     });
-    
-    console.log(`✅ ${isVideo ? 'Video' : 'Image'} uploaded to blob:`, result.url);
     
     return NextResponse.json({ 
       success: true, 
@@ -91,7 +82,7 @@ export async function POST(request: NextRequest) {
     });
     
   } catch (error) {
-    console.error('❌ Error uploading media to blob:', error);
+    logger.error('Error uploading media to blob:', error);
     return NextResponse.json(
       { error: 'Failed to upload media to blob storage' },
       { status: 500 }

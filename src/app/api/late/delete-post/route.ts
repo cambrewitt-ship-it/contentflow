@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 export async function DELETE(request: Request) {
   try {
@@ -8,9 +9,7 @@ export async function DELETE(request: Request) {
     if (!latePostId) {
       return NextResponse.json({ error: 'No post ID provided' }, { status: 400 });
     }
-    
-    console.log('Deleting LATE post:', latePostId);
-    
+
     // Delete from LATE API
     const response = await fetch(`https://getlate.dev/api/v1/posts/${latePostId}`, {
       method: 'DELETE',
@@ -21,15 +20,14 @@ export async function DELETE(request: Request) {
     
     if (!response.ok) {
       const error = await response.text();
-      console.error('LATE delete error:', error);
+      logger.error('LATE delete error:', error);
       throw new Error('Failed to delete from LATE');
     }
-    
-    console.log('Successfully deleted from LATE');
+
     return NextResponse.json({ success: true });
     
   } catch (error) {
-    console.error('Error deleting post:', error);
+    logger.error('Error deleting post:', error);
     return NextResponse.json({ error: 'Failed to delete post' }, { status: 500 });
   }
 }

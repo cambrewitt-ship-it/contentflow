@@ -4,6 +4,7 @@ import { PostValidator, PostData } from '../../../../lib/postValidation';
 import { handleApiError, handleDatabaseError, ApiErrors } from '../../../../lib/apiErrorHandler';
 import { validateApiRequest } from '../../../../lib/validationMiddleware';
 import { updatePostSchema, postIdParamSchema } from '../../../../lib/validators';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -15,8 +16,7 @@ export async function PUT(
   let postId: string | undefined;
   
   try {
-    console.log('🔄 Enhanced Post Editing - Updating post');
-    
+
     // SECURITY: Comprehensive input validation with Zod
     const validation = await validateApiRequest(request, {
       body: updatePostSchema,
@@ -26,14 +26,13 @@ export async function PUT(
     });
 
     if (!validation.success) {
-      console.error('❌ Validation failed');
+      logger.error('❌ Validation failed');
       return validation.response;
     }
 
     const { body, params: validatedParams } = validation.data;
     postId = validatedParams!.postId;
-    console.log('✅ Request validated successfully:', { postId });
-    
+
     if (!body) {
       return NextResponse.json({ error: 'Request body is required' }, { status: 400 });
     }
@@ -75,8 +74,7 @@ export async function PUT(
     
     // If not found in posts table, check calendar tables
     if (fetchError && fetchError.code === 'PGRST116') {
-      console.log('🔍 Post not found in posts table, checking calendar tables...');
-      
+
       // Check calendar_scheduled_posts
       const { data: scheduledPost, error: scheduledError } = await supabase
         .from('calendar_scheduled_posts')
@@ -85,7 +83,7 @@ export async function PUT(
         .single();
       
       if (scheduledPost && !scheduledError) {
-        console.log('✅ Found post in calendar_scheduled_posts');
+
         currentPost = scheduledPost;
         fetchError = null;
       } else {
@@ -97,7 +95,7 @@ export async function PUT(
           .single();
         
         if (unscheduledPost && !unscheduledError) {
-          console.log('✅ Found post in calendar_unscheduled_posts');
+
           currentPost = unscheduledPost;
           fetchError = null;
         }
@@ -115,7 +113,7 @@ export async function PUT(
     
     // Authorization: Verify post belongs to the requesting client
     if (currentPost.client_id !== client_id) {
-      console.error('❌ Unauthorized access attempt:', { 
+      logger.error('❌ Unauthorized access attempt:', { 
         postClientId: currentPost.client_id, 
         requestedClientId: client_id 
       });
@@ -145,7 +143,7 @@ export async function PUT(
     
     // For calendar posts, we allow editing by default since they don't have restrictive status values
     if (isCalendarPost) {
-      console.log('✅ Calendar post - allowing edit (no status restrictions)');
+      logger.debug('Calendar post - allowing edit (no status restrictions)');
     }
     
     // 2. CONCURRENT EDITING PREVENTION
@@ -222,7 +220,7 @@ export async function PUT(
         .eq('id', postId);
       
       if (draftError) {
-        console.error('❌ Error saving draft:', draftError);
+        logger.error('❌ Error saving draft:', draftError);
         return NextResponse.json(
           { error: 'Failed to save draft changes' },
           { status: 500 }
@@ -272,9 +270,9 @@ export async function PUT(
       if (media_alt_text !== undefined) {
         updateData.media_alt_text = media_alt_text;
       }
-      console.log('📝 Main posts table - including media_type and media_alt_text');
+
     } else {
-      console.log('📝 Calendar post - skipping media_type and media_alt_text (not supported)');
+      logger.debug('Calendar post - skipping media_type and media_alt_text (not supported)');
     }
     
     // AI generation settings (store as JSONB)
@@ -307,7 +305,7 @@ export async function PUT(
       updateData.needs_reapproval = true;
       updateData.approval_status = 'pending';
       updateData.reapproval_notified_at = null; // Reset notification flag
-      console.log('🔄 Caption changed on approved post - marking for reapproval');
+
     }
     
     // Clear draft changes if we're committing the edit
@@ -317,17 +315,7 @@ export async function PUT(
     const changes = Object.keys(updateData).filter(key => 
       !['updated_at', 'last_edited_by', 'last_edited_at', 'edit_count', 'currently_editing_by', 'editing_started_at', 'last_modified_at'].includes(key)
     );
-    
-    console.log('📝 Enhanced Post Editing - Updating post with changes:', {
-      postId,
-      clientId: client_id,
-      editedBy: edited_by_user_id,
-      changes: changes,
-      needsReapproval,
-      validationWarnings: postValidation.warnings,
-      platforms
-    });
-    
+
     // Determine which table to update based on where the post was found
     let tableName = 'posts';
     if (currentPost.scheduled_date) {
@@ -335,9 +323,7 @@ export async function PUT(
     } else if (currentPost.project_id && !currentPost.scheduled_date) {
       tableName = 'calendar_unscheduled_posts';
     }
-    
-    console.log(`📝 Updating post in table: ${tableName}`);
-    
+
     // Update the post in the appropriate table
     const { data: updatedPost, error: updateError } = await supabase
       .from(tableName)
@@ -359,21 +345,8 @@ export async function PUT(
     // 7. SEND REAPPROVAL NOTIFICATION (if needed)
     if (needsReapproval) {
       // TODO: Implement notification system
-      console.log('📧 Post needs reapproval - notification should be sent to approvers');
+
     }
-    
-    // Enhanced audit logging
-    console.log('✅ Enhanced Post Editing - Post updated successfully:', {
-      postId,
-      clientId: client_id,
-      editedBy: edited_by_user_id,
-      changes: changes,
-      editCount: updatedPost.edit_count,
-      needsReapproval: updatedPost.needs_reapproval,
-      approvalStatus: updatedPost.approval_status,
-      validationWarnings: postValidation.warnings,
-      timestamp: now.toISOString()
-    });
     
     return NextResponse.json({ 
       success: true, 
@@ -417,9 +390,7 @@ export async function GET(
 
     const { params: validatedParams } = validation.data;
     postId = validatedParams!.postId;
-    
-    console.log('🔍 Fetching post:', postId);
-    
+
     // Create Supabase client with service role for admin access
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
@@ -432,8 +403,7 @@ export async function GET(
     
     // If not found in posts table, check calendar tables
     if (error && error.code === 'PGRST116') {
-      console.log('🔍 Post not found in posts table, checking calendar tables...');
-      
+
       // Check calendar_scheduled_posts
       const { data: scheduledPost, error: scheduledError } = await supabase
         .from('calendar_scheduled_posts')
@@ -442,7 +412,7 @@ export async function GET(
         .single();
       
       if (scheduledPost && !scheduledError) {
-        console.log('✅ Found post in calendar_scheduled_posts');
+
         post = scheduledPost;
         error = null;
       } else {
@@ -454,11 +424,11 @@ export async function GET(
           .single();
         
         if (unscheduledPost && !unscheduledError) {
-          console.log('✅ Found post in calendar_unscheduled_posts');
+
           post = unscheduledPost;
           error = null;
         } else {
-          console.log('❌ Post not found in any table');
+
           return NextResponse.json(
             { error: 'Post not found' },
             { status: 404 }
@@ -474,9 +444,7 @@ export async function GET(
         additionalData: { postId }
       }, 'Post not found');
     }
-    
-    console.log('✅ Post fetched:', post);
-    
+
     return NextResponse.json({ post });
     
   } catch (error) {
@@ -507,9 +475,7 @@ export async function DELETE(
 
     const { params: validatedParams } = validation.data;
     postId = validatedParams!.postId;
-    
-    console.log('🗑️ Deleting post:', postId);
-    
+
     // Create Supabase client with service role for admin access
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
@@ -546,9 +512,7 @@ export async function DELETE(
         additionalData: { postId }
       }, 'Failed to delete post');
     }
-    
-    console.log('✅ Post deleted successfully:', postId);
-    
+
     return NextResponse.json({ 
       success: true, 
       message: 'Post deleted successfully' 

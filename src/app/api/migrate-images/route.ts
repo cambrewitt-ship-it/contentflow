@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { uploadImageToBlob, base64ToBlob } from '../../../lib/blobUpload';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,8 +11,7 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔄 Starting image migration to blob storage...');
-    
+
     // Get all posts with base64 images
     const { data: posts, error } = await supabase
       .from('calendar_scheduled_posts')
@@ -23,14 +23,11 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
-    console.log(`📊 Found ${posts?.length || 0} posts with base64 images`);
-
     const results = [];
 
     for (const post of posts || []) {
       try {
-        console.log(`🔄 Migrating post ${post.id}...`);
-        
+
         // Convert base64 to blob
         const blob = base64ToBlob(post.image_url);
         
@@ -48,10 +45,9 @@ export async function POST(request: NextRequest) {
         }
 
         results.push({ id: post.id, success: true, blobUrl });
-        console.log(`✅ Migrated post ${post.id} to ${blobUrl}`);
-        
+
       } catch (error) {
-        console.error(`❌ Failed to migrate post ${post.id}:`, error);
+        logger.error(`❌ Failed to migrate post ${post.id}:`, error);
         results.push({ id: post.id, success: false, error: error instanceof Error ? error.message : String(error) });
       }
     }
@@ -62,7 +58,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('❌ Migration error:', error);
+    logger.error('❌ Migration error:', error);
     return NextResponse.json(
       { error: 'Migration failed' },
       { status: 500 }

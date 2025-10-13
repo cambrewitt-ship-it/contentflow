@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function GET() {
   try {
-    console.log('🧪 Test DB endpoint called');
-    console.log('🔧 Environment check:', {
-      hasSupabaseUrl: !!supabaseUrl,
-      hasSupabaseServiceRole: !!supabaseServiceRoleKey
-    });
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
       return NextResponse.json({ 
@@ -21,11 +17,9 @@ export async function GET() {
 
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    console.log('✅ Supabase client created');
 
     // Test basic connection
-    console.log('🔍 Testing database connection...');
-    
+
     // Check if clients table exists and has data
     const { data: clients, error: clientsError } = await supabase
       .from('clients')
@@ -33,7 +27,7 @@ export async function GET() {
       .limit(5);
 
     if (clientsError) {
-      console.error('❌ Clients query error:', clientsError);
+      logger.error('❌ Clients query error:', clientsError);
       return NextResponse.json({ 
         error: 'Database query failed',
         details: clientsError.message,
@@ -41,9 +35,6 @@ export async function GET() {
         timestamp: new Date().toISOString()
       }, { status: 500 });
     }
-
-    console.log('✅ Clients query successful');
-    console.log('📋 Found clients:', clients);
 
     return NextResponse.json({
       success: true,
@@ -54,7 +45,7 @@ export async function GET() {
     });
 
   } catch (error) {
-    console.error('💥 Test DB error:', error);
+    logger.error('💥 Test DB error:', error);
     return NextResponse.json({ 
       error: 'Test failed',
       details: error instanceof Error ? error.message : String(error),

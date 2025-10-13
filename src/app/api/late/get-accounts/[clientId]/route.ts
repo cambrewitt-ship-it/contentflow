@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,8 +13,7 @@ export async function GET(
 ) {
   try {
     const { clientId } = await params;
-    console.log('Getting accounts for client:', clientId);
-    
+
     // Get the client's LATE profile ID
     const { data: client, error: clientError } = await supabase
       .from('clients')
@@ -22,7 +22,7 @@ export async function GET(
       .single();
     
     if (clientError || !client) {
-      console.error('Client not found:', clientError);
+      logger.error('Client not found:', clientError);
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
     
@@ -30,12 +30,10 @@ export async function GET(
     
     // If no LATE profile ID, return empty accounts array
     if (!profileId) {
-      console.log('No LATE profile ID for client - returning empty accounts');
+
       return NextResponse.json({ accounts: [] });
     }
-    
-    console.log('Using LATE profile ID:', profileId);
-    
+
     // Get connected accounts from LATE API
     const response = await fetch(
       `https://getlate.dev/api/v1/accounts?profileId=${profileId}`,
@@ -47,16 +45,15 @@ export async function GET(
     );
     
     if (!response.ok) {
-      console.error('LATE API error:', response.status);
+      logger.error('LATE API error:', response.status);
       return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 });
     }
     
     const data = await response.json();
-    console.log('LATE accounts:', data.accounts?.length || 0);
-    
+
     return NextResponse.json({ accounts: data.accounts || [] });
   } catch (error) {
-    console.error('Error fetching accounts:', error);
+    logger.error('Error fetching accounts:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

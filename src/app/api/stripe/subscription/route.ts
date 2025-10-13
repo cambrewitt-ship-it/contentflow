@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getUserSubscription, getBillingHistory } from '@/lib/subscriptionHelpers';
+import logger from '@/lib/logger';
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
       billingHistory,
     });
   } catch (error) {
-    console.error('Get subscription error:', error);
+    logger.error('Get subscription error:', error);
     return NextResponse.json(
       { error: 'Failed to get subscription' },
       { status: 500 }

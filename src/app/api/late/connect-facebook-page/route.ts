@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: unknown) {
-    console.error('Error in connect-facebook-page route:', error);
+    logger.error('Error in connect-facebook-page route:', error);
     return NextResponse.json({
       error: 'Internal server error',
       details: error instanceof Error ? error.message : String(error)

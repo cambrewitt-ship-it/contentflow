@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -40,7 +41,7 @@ export async function GET(
       .order('created_at', { ascending: false });
 
     if (uploadsError) {
-      console.error('Error fetching client uploads:', uploadsError);
+      logger.error('Error fetching client uploads:', uploadsError);
       return NextResponse.json(
         { error: 'Failed to fetch uploads' },
         { status: 500 }
@@ -53,7 +54,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Client uploads error:', error);
+    logger.error('Client uploads error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

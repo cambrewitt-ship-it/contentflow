@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -12,9 +13,7 @@ export async function PATCH(
   try {
     const { projectId, postId } = await params;
     const body = await request.json();
-    
-    console.log('Moving scheduled post:', postId, 'to new date:', body.newScheduledDate);
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     // Update the post with new date
@@ -31,14 +30,13 @@ export async function PATCH(
       .single();
     
     if (error) {
-      console.error('Database error:', error);
+      logger.error('Database error:', error);
       throw error;
     }
-    
-    console.log('Post moved successfully - ID:', data?.id);
+
     return NextResponse.json({ post: data });
   } catch (error) {
-    console.error('Error moving scheduled post:', error);
+    logger.error('Error moving scheduled post:', error);
     return NextResponse.json({ error: 'Failed to move scheduled post' }, { status: 500 });
   }
 }

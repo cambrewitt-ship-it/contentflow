@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (uploadsError) {
-      console.error('Error fetching uploads:', uploadsError);
+      logger.error('Error fetching uploads:', uploadsError);
       return NextResponse.json(
         { error: 'Failed to fetch uploads' },
         { status: 500 }
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Portal uploads error:', error);
+    logger.error('Portal uploads error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -139,7 +140,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (uploadError) {
-      console.error('Error creating upload:', uploadError);
+      logger.error('Error creating upload:', uploadError);
       return NextResponse.json(
         { error: 'Failed to create upload' },
         { status: 500 }
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Portal upload creation error:', error);
+    logger.error('Portal upload creation error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -217,7 +218,7 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (updateError) {
-      console.error('Error updating upload notes:', updateError);
+      logger.error('Error updating upload notes:', updateError);
       return NextResponse.json(
         { error: 'Failed to update notes' },
         { status: 500 }
@@ -237,7 +238,7 @@ export async function PATCH(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Portal upload notes update error:', error);
+    logger.error('Portal upload notes update error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -286,7 +287,7 @@ export async function DELETE(request: NextRequest) {
       .eq('client_id', client.id); // Ensure client can only delete their own uploads
 
     if (deleteError) {
-      console.error('Error deleting upload:', deleteError);
+      logger.error('Error deleting upload:', deleteError);
       return NextResponse.json(
         { error: 'Failed to delete upload' },
         { status: 500 }
@@ -298,7 +299,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Portal upload deletion error:', error);
+    logger.error('Portal upload deletion error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

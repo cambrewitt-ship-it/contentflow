@@ -1,15 +1,13 @@
 // src/app/api/schedulePost/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
-console.log("supabaseUrl:", supabaseUrl);
-console.log("supabaseServiceRoleKey:", supabaseServiceRoleKey ? "***SET***" : "***MISSING***");
-
 if (!supabaseUrl || !supabaseServiceRoleKey) {
-  console.error('Missing Supabase env vars. Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_SUPABASE_SERVICE_ROLE are set.');
+  logger.error('Missing Supabase env vars. Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_SUPABASE_SERVICE_ROLE are set.');
 }
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -18,7 +16,7 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
 
 export async function POST(req: Request) {
   try {
-    console.log("Received body:", req.body);
+
     const body = await req.json();
     const { client_id, project_id, post_id, scheduled_time, account_ids, image_url } = body ?? {};
 
@@ -32,12 +30,11 @@ export async function POST(req: Request) {
     }
 
     // Test if table exists
-    console.log("Testing table access...");
+
     const { data: testData, error: testError } = await supabaseAdmin
       .from('scheduled_posts')
       .select('*')
       .limit(1);
-    console.log("Table test result:", { testData, testError });
 
     const { data, error } = await supabaseAdmin
       .from('scheduled_posts')
@@ -54,13 +51,13 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      console.error('Supabase insert error', error);
+      logger.error('Supabase insert error', error);
       return NextResponse.json({ success: false, error: error.message || 'DB insert failed' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, id: data.id, record: data }, { status: 200 });
   } catch (err: unknown) {
-    console.error('Unexpected error in schedulePost route', err);
+    logger.error('Unexpected error in schedulePost route', err);
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }

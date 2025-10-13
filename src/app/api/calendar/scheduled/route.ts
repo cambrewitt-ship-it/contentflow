@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,7 +22,13 @@ export async function GET(request: Request) {
   
   try {
     const startTime = Date.now();
-    console.log(`🔍 OPTIMIZED FETCH - Scheduled posts for client ${clientId} (project: ${projectId || 'all'}, untagged: ${filterUntagged}, limit: ${limit}, images: ${includeImageData})`);
+    logger.debug('Fetching scheduled posts', { 
+      clientId: clientId?.substring(0, 8) + '...', 
+      project: projectId || 'all', 
+      untagged: filterUntagged, 
+      limit, 
+      includeImages: includeImageData 
+    });
     
     // Optimized query - only select fields needed for approval board
     const baseFields = 'id, project_id, caption, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, late_status, late_post_id, platforms_scheduled, created_at, updated_at, last_edited_at, edit_count, needs_reapproval, original_caption';
@@ -48,20 +55,22 @@ export async function GET(request: Request) {
     const queryDuration = Date.now() - startTime;
     
     if (error) {
-      console.error('❌ Database error:', error);
+      logger.error('❌ Database error:', error);
       return NextResponse.json({ 
         error: 'Failed to fetch scheduled posts', 
         details: error.message 
       }, { status: 500 });
     }
-    
-    console.log(`✅ Retrieved ${data?.length || 0} scheduled posts in ${queryDuration}ms`);
-    
+
     // Debug: Log approval status and captions of posts (only first few)
     if (data && data.length > 0) {
-      console.log('📊 Approval status and caption debug:');
+
       data.slice(0, 3).forEach((post: Record<string, any>, index: number) => {
-        console.log(`  Post ${post.id?.substring(0, 8)}... - Status: ${post.approval_status || 'NO STATUS'} - Caption: "${post.caption || 'NO CAPTION'}" - Caption Length: ${post.caption?.length || 0}`);
+        logger.debug('Post preview', { 
+          postId: post.id?.substring(0, 8) + '...', 
+          status: post.approval_status || 'NO STATUS', 
+          captionLength: post.caption?.length || 0 
+        });
       });
     }
     
@@ -73,12 +82,10 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false });
     
     if (uploadsError) {
-      console.error('⚠️ Error fetching client uploads:', uploadsError);
+      logger.error('⚠️ Error fetching client uploads:', uploadsError);
       // Don't fail the whole request, just log the error
     }
-    
-    console.log(`📤 Retrieved ${uploadsData?.length || 0} client uploads`);
-    
+
     return NextResponse.json({ 
       posts: data || [],
       uploads: uploadsData || [],
@@ -91,7 +98,7 @@ export async function GET(request: Request) {
     });
     
   } catch (error) {
-    console.error('❌ Unexpected error:', error);
+    logger.error('❌ Unexpected error:', error);
     return NextResponse.json({ 
       error: 'Failed to fetch scheduled posts', 
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -102,39 +109,40 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    
-    console.log('🔧 POST /api/calendar/scheduled - DEBUG:');
-    console.log('  - Request timestamp:', new Date().toISOString());
-    console.log('  - Request body keys:', Object.keys(body));
+
+    logger.debug('Creating scheduled post', { 
+      timestamp: new Date().toISOString(),
+      bodyKeys: Object.keys(body) 
+    });
     
     // Validate required fields
     if (!body.scheduledPost) {
-      console.error('❌ Missing scheduledPost in request body');
+      logger.error('❌ Missing scheduledPost in request body');
       return NextResponse.json({ error: 'Missing scheduledPost data' }, { status: 400 });
     }
     
     // unscheduledId is optional - only needed when moving from unscheduled to scheduled
     const isMovingFromUnscheduled = !!body.unscheduledId;
-    
-    console.log('🔧 STEP 1 - VALIDATION PASSED:');
-    console.log('  - scheduledPost keys:', Object.keys(body.scheduledPost));
-    console.log('  - unscheduledId:', body.unscheduledId || 'NOT PROVIDED (direct create)');
-    console.log('  - scheduledPost.image_url:', body.scheduledPost.image_url ? 'Present' : 'Missing');
-    console.log('  - Operation type:', isMovingFromUnscheduled ? 'Move from unscheduled' : 'Direct create');
-    
+
+    logger.debug('Post details', { 
+      scheduledPostKeys: Object.keys(body.scheduledPost),
+      operationType: isMovingFromUnscheduled ? 'move' : 'create' 
+    });
+
     // Ensure image_url and client_id are included in the scheduled post data
     const scheduledPostData = {
       ...body.scheduledPost,
       image_url: body.scheduledPost.image_url || null, // Ensure image_url field is present
       client_id: body.scheduledPost.client_id // Ensure client_id is preserved
     };
-    
-    console.log('🔧 STEP 2 - PREPARING INSERT DATA:');
-    console.log('  - Data keys:', Object.keys(scheduledPostData));
-    console.log('  - Data size (chars):', JSON.stringify(scheduledPostData).length);
+
+    logger.debug('Preparing insert data', { 
+      dataKeys: Object.keys(scheduledPostData),
+      dataSize: JSON.stringify(scheduledPostData).length 
+    });
     
     // Insert into scheduled posts
-    console.log('🔧 STEP 3 - INSERTING INTO calendar_scheduled_posts:');
+
     const { data: scheduled, error: scheduleError } = await supabase
       .from('calendar_scheduled_posts')
       .insert(scheduledPostData)
@@ -142,49 +150,47 @@ export async function POST(request: Request) {
       .single();
     
     if (scheduleError) {
-      console.error('❌ Database insert error:', scheduleError);
-      console.error('  - Error code:', scheduleError.code);
-      console.error('  - Error message:', scheduleError.message);
-      console.error('  - Error details:', scheduleError.details);
+      logger.error('❌ Database insert error:', scheduleError);
+      logger.error('  - Error code:', scheduleError.code);
+      logger.error('  - Error message:', scheduleError.message);
+      logger.error('  - Error details:', scheduleError.details);
       throw scheduleError;
     }
-    
-    console.log('✅ STEP 4 - SUCCESSFULLY INSERTED:');
-    console.log('  - Inserted post ID:', scheduled.id);
-    console.log('  - Inserted post keys:', Object.keys(scheduled));
+
+    logger.debug('Post inserted successfully', { 
+      postId: scheduled.id?.substring(0, 8) + '...',
+      hasImage: !!scheduled.image_url 
+    });
     
     // Only delete from unscheduled if we're moving a post
     if (isMovingFromUnscheduled) {
-      console.log('🔧 STEP 5 - DELETING FROM calendar_unscheduled_posts:');
-      console.log('  - Deleting unscheduledId:', body.unscheduledId);
-      
+
       const { error: deleteError } = await supabase
         .from('calendar_unscheduled_posts')
         .delete()
         .eq('id', body.unscheduledId);
       
       if (deleteError) {
-        console.error('❌ Delete error:', deleteError);
-        console.error('  - Error code:', deleteError.code);
-        console.error('  - Error message:', deleteError.message);
+        logger.error('❌ Delete error:', deleteError);
+        logger.error('  - Error code:', deleteError.code);
+        logger.error('  - Error message:', deleteError.message);
         throw deleteError;
       }
-      
-      console.log('✅ STEP 6 - SUCCESSFULLY DELETED FROM UNSCHEDULED');
+
     } else {
-      console.log('⏭️ STEP 5 - SKIPPING DELETE (direct create, no unscheduled post to delete)');
+      logger.debug('Skipping unscheduled delete - direct create operation');
     }
     
-    console.log('  - Final response keys:', Object.keys({ success: true, post: scheduled }));
+    logger.debug('Scheduled post created', { success: true });
     
     return NextResponse.json({ success: true, post: scheduled });
     
   } catch (error) {
-    console.error('❌ POST /api/calendar/scheduled - CRITICAL ERROR:');
-    console.error('  - Error type:', typeof error);
-    console.error('  - Error message:', error instanceof Error ? error.message : String(error));
-    console.error('  - Error stack:', error instanceof Error ? error.stack : 'No stack trace available');
-    console.error('  - Full error object:', JSON.stringify(error, null, 2));
+    logger.error('❌ POST /api/calendar/scheduled - CRITICAL ERROR:');
+    logger.error('  - Error type:', typeof error);
+    logger.error('  - Error message:', error instanceof Error ? error.message : String(error));
+    logger.error('  - Error stack:', error instanceof Error ? error.stack : 'No stack trace available');
+    logger.error('  - Full error object:', JSON.stringify(error, null, 2));
     
     return NextResponse.json({ 
       error: 'Failed to schedule post',
@@ -214,7 +220,7 @@ export async function PATCH(request: Request) {
     
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('PATCH error:', error);
+    logger.error('PATCH error:', error);
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
   }
 }
@@ -228,9 +234,7 @@ export async function PUT(request: Request) {
         error: 'Missing required fields: postId, scheduledDate, clientId' 
       }, { status: 400 });
     }
-    
-    console.log(`🔄 Updating post ${postId} date to ${scheduledDate} for client ${clientId}`);
-    
+
     const { data, error } = await supabase
       .from('calendar_scheduled_posts')
       .update({ 
@@ -243,15 +247,14 @@ export async function PUT(request: Request) {
       .single();
     
     if (error) {
-      console.error('Error updating post date:', error);
+      logger.error('Error updating post date:', error);
       throw error;
     }
-    
-    console.log('✅ Successfully updated post date');
+
     return NextResponse.json({ success: true, post: data });
     
   } catch (error) {
-    console.error('PUT error:', error);
+    logger.error('PUT error:', error);
     return NextResponse.json({ 
       error: 'Failed to update post date',
       details: error instanceof Error ? error.message : String(error)
@@ -272,7 +275,7 @@ export async function DELETE(request: Request) {
     
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting scheduled post:', error);
+    logger.error('Error deleting scheduled post:', error);
     return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
   }
 }

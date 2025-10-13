@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
+import { Checkbox } from '../../../components/ui/checkbox';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Eye, EyeOff } from 'lucide-react';
 
@@ -18,6 +19,7 @@ export default function SignupPage() {
   const [message, setMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const { signUp } = useAuth();
   const router = useRouter();
 
@@ -35,6 +37,12 @@ export default function SignupPage() {
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
+      setLoading(false);
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setError('You must accept the Terms and Conditions to sign up');
       setLoading(false);
       return;
     }
@@ -127,6 +135,27 @@ export default function SignupPage() {
                   )}
                 </button>
               </div>
+            </div>
+            <div className="flex items-start space-x-2">
+              <Checkbox
+                id="terms"
+                checked={acceptedTerms}
+                onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                className="mt-1"
+              />
+              <label
+                htmlFor="terms"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                I accept the{' '}
+                <Link 
+                  href="/terms" 
+                  target="_blank"
+                  className="text-primary hover:underline"
+                >
+                  Terms and Conditions
+                </Link>
+              </label>
             </div>
             {error && (
               <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">

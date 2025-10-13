@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { handleApiError, handleDatabaseError, ApiErrors } from '@/lib/apiErrorHandler';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -8,16 +9,15 @@ const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 // Function to disconnect all social accounts from a LATE profile
 async function disconnectAllLateAccounts(lateProfileId: string) {
   try {
-    console.log('🔌 Disconnecting all social accounts from LATE profile:', lateProfileId);
-    
+
     const lateApiKey = process.env.LATE_API_KEY;
     if (!lateApiKey) {
-      console.error('❌ LATE API key not found in environment variables');
+      logger.error('❌ LATE API key not found in environment variables');
       throw new Error('LATE API key not configured');
     }
 
     // First, get all accounts for this profile
-    console.log('📋 Fetching accounts for profile:', lateProfileId);
+
     const accountsResponse = await fetch(`https://getlate.dev/api/v1/accounts?profileId=${lateProfileId}`, {
       method: 'GET',
       headers: {
@@ -28,24 +28,25 @@ async function disconnectAllLateAccounts(lateProfileId: string) {
 
     if (!accountsResponse.ok) {
       const errorText = await accountsResponse.text();
-      console.error('❌ Failed to fetch accounts:', errorText);
+      logger.error('❌ Failed to fetch accounts:', errorText);
       throw new Error(`Failed to fetch accounts: ${accountsResponse.status} - ${errorText}`);
     }
 
     const accountsData = await accountsResponse.json();
     const accounts = accountsData.accounts || [];
-    
-    console.log(`📊 Found ${accounts.length} connected accounts to disconnect`);
 
     if (accounts.length === 0) {
-      console.log('ℹ️ No accounts to disconnect');
+
       return true;
     }
 
     // Disconnect each account
     const disconnectPromises = accounts.map(async (account: any) => {
       try {
-        console.log(`🔌 Disconnecting account: ${account.platform} (${account.username})`);
+        logger.debug('Disconnecting account', { 
+          platform: account.platform,
+          accountId: account._id?.substring(0, 8) + '...' 
+        });
         
         const disconnectResponse = await fetch(`https://getlate.dev/api/v1/accounts/${account._id}`, {
           method: 'DELETE',
@@ -57,14 +58,13 @@ async function disconnectAllLateAccounts(lateProfileId: string) {
 
         if (!disconnectResponse.ok) {
           const errorText = await disconnectResponse.text();
-          console.error(`❌ Failed to disconnect account ${account._id}:`, errorText);
+          logger.error(`❌ Failed to disconnect account ${account._id}:`, errorText);
           throw new Error(`Failed to disconnect account: ${disconnectResponse.status} - ${errorText}`);
         }
 
-        console.log(`✅ Successfully disconnected ${account.platform} account`);
         return true;
       } catch (error) {
-        console.error(`❌ Error disconnecting account ${account._id}:`, error);
+        logger.error(`❌ Error disconnecting account ${account._id}:`, error);
         // Don't throw here - we want to try disconnecting all accounts even if some fail
         return false;
       }
@@ -72,12 +72,10 @@ async function disconnectAllLateAccounts(lateProfileId: string) {
 
     const results = await Promise.all(disconnectPromises);
     const successCount = results.filter(Boolean).length;
-    
-    console.log(`✅ Disconnected ${successCount}/${accounts.length} accounts successfully`);
-    
+
     return successCount > 0; // Return true if at least one account was disconnected
   } catch (error) {
-    console.error('❌ Error disconnecting LATE accounts:', error);
+    logger.error('❌ Error disconnecting LATE accounts:', error);
     throw error;
   }
 }
@@ -85,23 +83,18 @@ async function disconnectAllLateAccounts(lateProfileId: string) {
 // Function to delete LATE profile
 async function deleteLateProfile(lateProfileId: string) {
   try {
-    console.log('🗑️ Deleting LATE profile:', lateProfileId);
-    
+
     const lateApiKey = process.env.LATE_API_KEY;
     if (!lateApiKey) {
-      console.error('❌ LATE API key not found in environment variables');
+      logger.error('❌ LATE API key not found in environment variables');
       throw new Error('LATE API key not configured');
     }
 
     // First, disconnect all social accounts
-    console.log('🔌 Step 1: Disconnecting all social accounts...');
+
     await disconnectAllLateAccounts(lateProfileId);
-    console.log('✅ Step 1 completed: All social accounts disconnected');
 
     // Now delete the profile
-    console.log('🗑️ Step 2: Deleting LATE profile...');
-    console.log('🔑 LATE API key found, length:', lateApiKey.length);
-    console.log('🌐 Making request to: https://getlate.dev/api/v1/profiles/' + lateProfileId);
 
     const response = await fetch(`https://getlate.dev/api/v1/profiles/${lateProfileId}`, {
       method: 'DELETE',
@@ -111,23 +104,23 @@ async function deleteLateProfile(lateProfileId: string) {
       }
     });
 
-    console.log('📡 LATE profile deletion response status:', response.status);
-    console.log('📡 LATE profile deletion response headers:', Object.fromEntries(response.headers.entries()));
+    logger.debug('LATE profile deletion response', { 
+      status: response.status 
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ LATE profile deletion error response:', errorText);
-      console.error('❌ LATE profile deletion error status:', response.status);
-      console.error('❌ LATE profile deletion error statusText:', response.statusText);
+      logger.error('❌ LATE profile deletion error response:', errorText);
+      logger.error('❌ LATE profile deletion error status:', response.status);
+      logger.error('❌ LATE profile deletion error statusText:', response.statusText);
       throw new Error(`LATE profile deletion failed: ${response.status} - ${errorText}`);
     }
 
     const responseData = await response.text();
-    console.log('✅ LATE profile deleted successfully, response:', responseData);
-    console.log('✅ LATE profile deletion completed for profile ID:', lateProfileId);
+
     return true;
   } catch (error) {
-    console.error('❌ Error deleting LATE profile:', error);
+    logger.error('❌ Error deleting LATE profile:', error);
     throw error;
   }
 }
@@ -140,28 +133,25 @@ export async function GET(
   try {
     const paramsData = await params;
     clientId = paramsData.clientId;
-    
-    console.log('🔍 Fetching client data for ID:', clientId);
-    console.log('🔍 Client ID debug:', {
-      clientId,
-      length: clientId?.length,
+
+    logger.debug('Client ID validation', {
+      clientIdLength: clientId?.length,
       isValidUUID: clientId ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId) : false,
-      hasCtSuffix: clientId?.includes('-ct_'),
-      requestUrl: request.url
+      hasCtSuffix: clientId?.includes('-ct_')
     });
 
     // Clean up clientId if it has additional data appended (common issue with OAuth flows)
     let cleanClientId = clientId;
     if (clientId && clientId.includes('-ct_')) {
-      console.log('🔧 Cleaning up malformed clientId in client API:', clientId);
+
       cleanClientId = clientId.split('-ct_')[0];
-      console.log('✅ Cleaned clientId in client API:', cleanClientId);
+
     }
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('❌ No authorization header found');
+      logger.error('❌ No authorization header found');
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to view clients'
@@ -177,14 +167,12 @@ export async function GET(
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('❌ Authentication error:', authError);
+      logger.error('❌ Authentication error:', authError);
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to view clients'
       }, { status: 401 });
     }
-
-    console.log('✅ Authenticated user:', user.id);
 
     const { data: client, error } = await supabase
       .from('clients')
@@ -201,8 +189,6 @@ export async function GET(
         clientId: cleanClientId,
       }, 'Client not found');
     }
-
-    console.log('✅ Client data fetched successfully:', client);
 
     return NextResponse.json({
       success: true,
@@ -227,13 +213,11 @@ export async function PUT(
     const paramsData = await params;
     clientId = paramsData.clientId;
     const body = await request.json();
-    
-    console.log('🔄 Updating client data for ID:', clientId, 'Body:', body);
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('❌ No authorization header found');
+      logger.error('❌ No authorization header found');
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to update clients'
@@ -249,7 +233,7 @@ export async function PUT(
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('❌ Authentication error:', authError);
+      logger.error('❌ Authentication error:', authError);
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to update clients'
@@ -265,7 +249,7 @@ export async function PUT(
       .single();
 
     if (clientError || !existingClient) {
-      console.error('❌ Client not found or access denied:', clientError);
+      logger.error('❌ Client not found or access denied:', clientError);
       return NextResponse.json({ 
         error: 'Client not found or access denied', 
         details: 'You can only update your own clients'
@@ -321,8 +305,6 @@ export async function PUT(
       }, 'Failed to update client');
     }
 
-    console.log('✅ Client updated successfully:', updatedClient);
-
     return NextResponse.json({
       success: true,
       client: updatedClient
@@ -345,13 +327,11 @@ export async function DELETE(
   try {
     const paramsData = await params;
     clientId = paramsData.clientId;
-    
-    console.log('🗑️ Deleting client with ID:', clientId);
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('❌ No authorization header found');
+      logger.error('❌ No authorization header found');
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to delete clients'
@@ -367,7 +347,7 @@ export async function DELETE(
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('❌ Authentication error:', authError);
+      logger.error('❌ Authentication error:', authError);
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to delete clients'
@@ -391,28 +371,21 @@ export async function DELETE(
       }, 'Client not found');
     }
 
-    console.log('🔍 Client data fetched:', {
-      id: clientId,
-      name: client.name,
-      late_profile_id: client.late_profile_id,
-      hasLateProfile: !!client.late_profile_id
-    });
-
     // Delete LATE profile if it exists
     let lateProfileDeleted = false;
     if (client.late_profile_id) {
       try {
-        console.log('🎯 Client has LATE profile, deleting it first:', client.late_profile_id);
+
         await deleteLateProfile(client.late_profile_id);
         lateProfileDeleted = true;
-        console.log('✅ LATE profile deleted successfully');
+
       } catch (lateError) {
-        console.error('⚠️ Failed to delete LATE profile, continuing with client deletion:', lateError);
+        logger.error('⚠️ Failed to delete LATE profile, continuing with client deletion:', lateError);
         // Don't fail the entire operation if LATE deletion fails
         // The client should still be deleted even if LATE profile deletion fails
       }
     } else {
-      console.log('ℹ️ Client has no LATE profile, skipping LATE deletion');
+
     }
 
     // Delete the client from database
@@ -429,8 +402,6 @@ export async function DELETE(
         clientId: clientId,
       }, 'Failed to delete client');
     }
-
-    console.log('✅ Client deleted successfully:', clientId);
 
     return NextResponse.json({
       success: true,

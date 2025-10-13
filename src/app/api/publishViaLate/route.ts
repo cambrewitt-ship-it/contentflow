@@ -2,16 +2,17 @@
 // LATE API integration for social media scheduling.
 
 import { NextResponse } from "next/server";
+import logger from '@/lib/logger';
 
 export async function POST(req: Request) {
   try {
-    console.error('🚀 /api/publishViaLate - Request received');
+    logger.error('🚀 /api/publishViaLate - Request received');
     
     const body = await req.json();
-    console.error('📥 Incoming request body:', JSON.stringify(body, null, 2));
+    logger.error('📥 Incoming request body:', JSON.stringify(body, null, 2));
     
     // Environment variable check
-    console.error('ENV CHECK', {
+    logger.error('ENV CHECK', {
       LATE_API_KEY: !!process.env.LATE_API_KEY,
       VERCEL_ENV: process.env.VERCEL_ENV || null,
       VERCEL_REGION: process.env.VERCEL_REGION || null
@@ -19,8 +20,8 @@ export async function POST(req: Request) {
     
     const LATE_KEY = process.env.LATE_API_KEY;
     if (!LATE_KEY) {
-      console.error('❌ Missing LATE_API_KEY environment variable');
-      console.error('RETURNING ERROR: Missing LATE_API_KEY', { status: 500, body: { error: "Missing LATE_API_KEY" } });
+      logger.error('❌ Missing LATE_API_KEY environment variable');
+      logger.error('RETURNING ERROR: Missing LATE_API_KEY', { status: 500, body: { error: "Missing LATE_API_KEY" } });
       return NextResponse.json({ error: "Missing LATE_API_KEY" }, { status: 500 });
     }
 
@@ -35,8 +36,8 @@ export async function POST(req: Request) {
       ...(body.project_id && { project_id: body.project_id })
     };
     
-    console.error('🔄 Transformed payload for LATE API:', JSON.stringify(lateApiPayload, null, 2));
-    console.error('🌐 Calling LATE API at: https://api.getlate.dev/v1/posts');
+    logger.error('🔄 Transformed payload for LATE API:', JSON.stringify(lateApiPayload, null, 2));
+    logger.error('🌐 Calling LATE API at: https://api.getlate.dev/v1/posts');
     
     // Make request to LATE API
     const lateResp = await fetch("https://api.getlate.dev/v1/posts", {
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
       body: JSON.stringify(lateApiPayload),
     });
 
-    console.error('📡 LATE API response received:', {
+    logger.error('📡 LATE API response received:', {
       status: lateResp.status,
       statusText: lateResp.statusText,
       ok: lateResp.ok,
@@ -56,35 +57,35 @@ export async function POST(req: Request) {
     });
 
     const responseText = await lateResp.text();
-    console.error('📄 LATE API response body (raw):', responseText);
+    logger.error('📄 LATE API response body (raw):', responseText);
 
     let data;
     try {
       data = JSON.parse(responseText);
-      console.error('✅ LATE API response parsed as JSON:', data);
+      logger.error('✅ LATE API response parsed as JSON:', data);
     } catch (parseError) {
-      console.error('⚠️ LATE API response is not valid JSON, using raw text');
+      logger.error('⚠️ LATE API response is not valid JSON, using raw text');
       data = { rawResponse: responseText };
     }
 
     if (lateResp.ok) {
-      console.error('RETURNING SUCCESS:', { status: lateResp.status, body: data });
+      logger.error('RETURNING SUCCESS:', { status: lateResp.status, body: data });
       return NextResponse.json(data, { status: lateResp.status });
     } else {
-      console.error('❌ LATE API returned error status:', lateResp.status);
-      console.error('RETURNING LATE API ERROR:', { status: lateResp.status, body: data });
+      logger.error('❌ LATE API returned error status:', lateResp.status);
+      logger.error('RETURNING LATE API ERROR:', { status: lateResp.status, body: data });
       return NextResponse.json(data, { status: lateResp.status });
     }
 
   } catch (err: unknown) {
-    console.error("💥 publishViaLate error occurred:", {
+    logger.error("💥 publishViaLate error occurred:", {
       message: err instanceof Error ? err.message : 'Unknown error',
       name: err instanceof Error ? err.name : 'Error',
       stack: err instanceof Error ? err.stack : undefined
     });
     
     const errorResponse = { error: "server error", details: String(err) };
-    console.error('RETURNING ERROR:', { status: 500, body: errorResponse, error: err });
+    logger.error('RETURNING ERROR:', { status: 500, body: errorResponse, error: err });
     
     return NextResponse.json(
       errorResponse,

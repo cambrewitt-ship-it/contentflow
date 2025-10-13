@@ -107,27 +107,37 @@ export default function BillingSettingsPage() {
       const accessToken = getAccessToken();
       if (!accessToken) {
         alert('Please log in to manage billing');
+        setActionLoading(false);
         return;
       }
+
+      console.log('[Billing] Requesting portal session...');
 
       const response = await fetch('/api/stripe/portal', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
         },
       });
 
       const data = await response.json();
 
+      console.log('[Billing] Portal response:', { ok: response.ok, status: response.status, data });
+
       if (response.ok && data.url) {
+        console.log('[Billing] Redirecting to portal:', data.url);
+        // Use window.location.href for redirect
         window.location.href = data.url;
       } else {
-        alert('Failed to open billing portal');
+        console.error('[Billing] Portal error:', data);
+        const errorMessage = data.details || data.error || 'Failed to open billing portal';
+        alert(`Error: ${errorMessage}`);
+        setActionLoading(false);
       }
     } catch (error) {
-      console.error('Portal error:', error);
-      alert('Failed to open billing portal');
-    } finally {
+      console.error('[Billing] Portal error:', error);
+      alert('Failed to open billing portal. Please try again or contact support.');
       setActionLoading(false);
     }
   };

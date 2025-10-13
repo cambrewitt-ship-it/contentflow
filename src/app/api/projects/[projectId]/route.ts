@@ -1,3 +1,5 @@
+import logger from '@/lib/logger';
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -10,8 +12,7 @@ export async function GET(
 ) {
   try {
     const { projectId } = await params;
-    console.log('Fetching project:', projectId);
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     const { data, error } = await supabase
@@ -21,14 +22,13 @@ export async function GET(
       .single();
     
     if (error) {
-      console.error('Database error:', error);
+      logger.error('Database error:', error);
       throw error;
     }
-    
-    console.log('Project data:', data);
+
     return NextResponse.json({ project: data });
   } catch (error) {
-    console.error('Error fetching project:', error);
+    logger.error('Error fetching project:', error);
     return NextResponse.json({ error: 'Failed to fetch project' }, { status: 500 });
   }
 }
@@ -41,9 +41,6 @@ export async function PATCH(
     const { projectId } = await params
     const body = await request.json()
 
-    console.log('🔄 Updating project:', projectId)
-    console.log('📝 Update data:', body)
-
     // Validate projectId
     if (!projectId) {
       return NextResponse.json(
@@ -54,7 +51,7 @@ export async function PATCH(
 
     // Validate environment variables
     if (!supabaseUrl || !supabaseServiceRoleKey) {
-      console.error('❌ Missing environment variables:', {
+      logger.error('❌ Missing environment variables:', {
         supabaseUrl: !!supabaseUrl,
         supabaseServiceRoleKey: !!supabaseServiceRoleKey
       })
@@ -75,7 +72,7 @@ export async function PATCH(
       .single()
 
     if (fetchError) {
-      console.error('❌ Error fetching current project:', fetchError)
+      logger.error('❌ Error fetching current project:', fetchError)
       return NextResponse.json(
         { success: false, error: 'Failed to fetch current project' },
         { status: 500 }
@@ -102,14 +99,12 @@ export async function PATCH(
       .select()
 
     if (error) {
-      console.error('❌ Supabase update error:', error)
+      logger.error('❌ Supabase update error:', error)
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
       )
     }
-
-    console.log('✅ Project updated successfully:', data)
 
     return NextResponse.json({
       success: true,
@@ -117,7 +112,7 @@ export async function PATCH(
     })
 
   } catch (error) {
-    console.error('❌ Unexpected error updating project:', error)
+    logger.error('❌ Unexpected error updating project:', error)
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

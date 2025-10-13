@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 export async function GET(
   request: Request,
@@ -25,7 +26,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('Error generating placeholder:', error);
+    logger.error('Error generating placeholder:', error);
     return NextResponse.json({ error: 'Failed to generate placeholder' }, { status: 500 });
   }
 }

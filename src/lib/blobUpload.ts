@@ -1,3 +1,5 @@
+import logger from '@/lib/logger';
+
 // Upload media (images or videos) to blob storage
 export async function uploadMediaToBlob(
   mediaFile: File | Blob,
@@ -13,7 +15,6 @@ export async function uploadMediaToBlob(
     });
 
     const mediaType = mediaFile.type.startsWith('video/') ? 'video' : 'image';
-    console.log(`🔄 Uploading ${mediaType} to server...`);
 
     // Upload via server API route (this keeps the blob token secure)
     const response = await fetch('/api/upload-media', {
@@ -39,8 +40,7 @@ export async function uploadMediaToBlob(
     if (!data.url) {
       throw new Error('No URL returned from upload');
     }
-    
-    console.log(`✅ ${mediaType} uploaded to blob:`, data.url);
+
     return {
       url: data.url,
       mediaType: data.mediaType || mediaType,
@@ -48,10 +48,10 @@ export async function uploadMediaToBlob(
     };
     
   } catch (error) {
-    console.error('❌ Error uploading to blob:', error);
+    logger.error('❌ Error uploading to blob:', error);
     
     // Fallback: convert to base64 data URL
-    console.log('🔄 Falling back to base64 conversion...');
+
     const base64Data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {

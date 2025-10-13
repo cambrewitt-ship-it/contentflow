@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 // Temporary inline types to resolve import issue
 interface ApprovalBoardPost {
   id: string;
@@ -43,7 +44,11 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '50');
     const includeImages = searchParams.get('includeImages') !== 'false';
 
-    console.log(`🔍 OPTIMIZED APPROVAL FETCH - Session: ${sessionId?.substring(0, 8)}..., limit: ${limit}, images: ${includeImages}`);
+    logger.debug('Optimized approval fetch', { 
+      sessionIdPreview: sessionId?.substring(0, 8) + '...', 
+      limit, 
+      includeImages 
+    });
 
     // Validate session (either by ID for internal or token for public)
     let sessionQuery;
@@ -86,7 +91,7 @@ export async function GET(
       .eq('session_id', session.id);
 
     if (approvalsError) {
-      console.error('❌ Error fetching post approvals:', approvalsError);
+      logger.error('❌ Error fetching post approvals:', approvalsError);
       return NextResponse.json(
         { error: 'Failed to fetch post approvals' },
         { status: 500 }
@@ -141,10 +146,10 @@ export async function GET(
     const approvals = postApprovals;
 
     if (scheduledError) {
-      console.error('❌ Error fetching scheduled posts:', scheduledError);
+      logger.error('❌ Error fetching scheduled posts:', scheduledError);
     }
     if (otherScheduledError) {
-      console.error('❌ Error fetching other scheduled posts:', otherScheduledError);
+      logger.error('❌ Error fetching other scheduled posts:', otherScheduledError);
     }
 
     // Combine and format posts
@@ -213,7 +218,6 @@ export async function GET(
       .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
 
     const queryDuration = Date.now() - startTime;
-    console.log(`✅ OPTIMIZED APPROVAL FETCH - Retrieved ${allPosts.length} posts in ${queryDuration}ms`);
 
     return NextResponse.json({
       session,
@@ -229,7 +233,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('❌ Error in approval posts API:', error);
+    logger.error('❌ Error in approval posts API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

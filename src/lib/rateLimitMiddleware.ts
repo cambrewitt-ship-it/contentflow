@@ -7,12 +7,13 @@ import {
   createRateLimitResponse,
   validateRateLimitConfig 
 } from './rateLimit';
+import logger from '@/lib/logger';
 
 // Rate limiting middleware for API routes
 export async function rateLimitMiddleware(request: NextRequest): Promise<NextResponse | null> {
   // Skip rate limiting if Redis is not configured
   if (!validateRateLimitConfig()) {
-    console.warn('Rate limiting disabled: Redis configuration missing');
+    logger.warn('Rate limiting disabled: Redis configuration missing');
     return null;
   }
 
@@ -41,7 +42,7 @@ export async function rateLimitMiddleware(request: NextRequest): Promise<NextRes
           identifier = `user_${session.user.id}`;
         }
       } catch (error) {
-        console.warn('Failed to get user session for rate limiting:', error);
+        logger.warn('Failed to get user session for rate limiting:', error);
         // Continue with original identifier
       }
     }
@@ -50,7 +51,7 @@ export async function rateLimitMiddleware(request: NextRequest): Promise<NextRes
     const rateLimitResult = await checkRateLimit(request, tier, identifier);
     
     if (!rateLimitResult.success) {
-      console.warn(`Rate limit exceeded for ${tier} tier:`, {
+      logger.warn(`Rate limit exceeded for ${tier} tier:`, {
         identifier,
         pathname,
         limit: rateLimitResult.limit,
@@ -66,7 +67,7 @@ export async function rateLimitMiddleware(request: NextRequest): Promise<NextRes
     
     // Log rate limit status for monitoring
     if (rateLimitResult.remaining < 10) {
-      console.warn(`Rate limit warning for ${tier} tier:`, {
+      logger.warn(`Rate limit warning for ${tier} tier:`, {
         identifier,
         pathname,
         remaining: rateLimitResult.remaining,
@@ -83,7 +84,7 @@ export async function rateLimitMiddleware(request: NextRequest): Promise<NextRes
     return response;
     
   } catch (error) {
-    console.error('Rate limiting middleware error:', error);
+    logger.error('Rate limiting middleware error:', error);
     // In case of error, allow the request to proceed
     return null;
   }

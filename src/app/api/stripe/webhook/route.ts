@@ -9,6 +9,7 @@ import {
   createBillingRecord,
   getTierLimits,
 } from '@/lib/subscriptionHelpers';
+import logger from '@/lib/logger';
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
   try {
     event = verifyWebhookSignature(body, signature);
   } catch (err) {
-    console.error('Webhook signature verification failed:', err);
+    logger.error('Webhook signature verification failed:', err);
     return NextResponse.json(
       { error: 'Invalid signature' },
       { status: 400 }
@@ -73,12 +74,13 @@ export async function POST(req: NextRequest) {
       }
 
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        // Unhandled event type
+        break;
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error('Webhook handler error:', error);
+    logger.error('Webhook handler error:', error);
     return NextResponse.json(
       { error: 'Webhook handler failed' },
       { status: 500 }
@@ -92,11 +94,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const subscriptionId = session.subscription as string;
 
   if (!userId || !customerId) {
-    console.error('Missing userId or customerId in session metadata');
+    logger.error('Missing userId or customerId in session metadata');
     return;
   }
-
-  console.log('Checkout completed:', { userId, customerId, subscriptionId });
 
   // We'll get the full subscription details from the subscription.created event
   // For now, just create a basic record
@@ -123,7 +123,7 @@ async function handleSubscriptionChange(subscription: Stripe.Subscription) {
   const dbSubscription = await getSubscriptionByCustomerId(customerId);
 
   if (!dbSubscription) {
-    console.error('Subscription not found for customer:', customerId);
+    logger.error('Subscription not found for customer');
     return;
   }
 
@@ -148,12 +148,6 @@ async function handleSubscriptionChange(subscription: Stripe.Subscription) {
     max_posts_per_month: limits.maxPostsPerMonth,
     max_ai_credits_per_month: limits.maxAICreditsPerMonth,
   });
-
-  console.log('Subscription updated:', {
-    userId: dbSubscription.user_id,
-    tier,
-    status: subscription.status,
-  });
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
@@ -162,7 +156,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   const dbSubscription = await getSubscriptionByCustomerId(customerId);
 
   if (!dbSubscription) {
-    console.error('Subscription not found for customer:', customerId);
+    logger.error('Subscription not found for customer');
     return;
   }
 
@@ -173,11 +167,6 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     subscription_status: 'canceled',
     cancel_at_period_end: false,
   });
-
-  console.log('Subscription deleted:', {
-    userId: dbSubscription.user_id,
-    subscriptionId: subscription.id,
-  });
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
@@ -186,7 +175,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
   const dbSubscription = await getSubscriptionByCustomerId(customerId);
 
   if (!dbSubscription) {
-    console.error('Subscription not found for customer:', customerId);
+    logger.error('Subscription not found for customer');
     return;
   }
 
@@ -211,12 +200,6 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
       ? new Date(invoice.status_transitions.paid_at * 1000)
       : undefined,
   });
-
-  console.log('Invoice paid:', {
-    userId: dbSubscription.user_id,
-    invoiceId: invoice.id,
-    amount: invoice.amount_paid,
-  });
 }
 
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
@@ -225,7 +208,7 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   const dbSubscription = await getSubscriptionByCustomerId(customerId);
 
   if (!dbSubscription) {
-    console.error('Subscription not found for customer:', customerId);
+    logger.error('Subscription not found for customer');
     return;
   }
 
@@ -238,11 +221,6 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
       'past_due'
     );
   }
-
-  console.log('Invoice payment failed:', {
-    userId: dbSubscription.user_id,
-    invoiceId: invoice.id,
-  });
 
   // TODO: Send email notification to user about failed payment
 }

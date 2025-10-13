@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function GET() {
   try {
-    console.log('🔍 Portal verification endpoint called');
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
       return NextResponse.json({ 
@@ -29,7 +29,7 @@ export async function GET() {
         .in('column_name', ['portal_token', 'portal_enabled', 'portal_settings']);
 
       if (clientsError) {
-        console.error('❌ Error checking clients columns:', clientsError);
+        logger.error('❌ Error checking clients columns:', clientsError);
         clientsUpdated = false;
       } else {
         const columnNames = clientsColumns?.map(col => col.column_name) || [];
@@ -37,10 +37,10 @@ export async function GET() {
           columnNames.includes('portal_token') && 
           columnNames.includes('portal_enabled') && 
           columnNames.includes('portal_settings');
-        console.log('📋 Clients portal columns found:', columnNames);
+
       }
     } catch (error) {
-      console.error('❌ Error checking clients table:', error);
+      logger.error('❌ Error checking clients table:', error);
       clientsUpdated = false;
     }
 
@@ -54,14 +54,14 @@ export async function GET() {
         .single();
 
       if (contentInboxError) {
-        console.error('❌ Error checking content_inbox table:', contentInboxError);
+        logger.error('❌ Error checking content_inbox table:', contentInboxError);
         contentInboxExists = false;
       } else {
         contentInboxExists = !!contentInboxTable;
-        console.log('📋 Content inbox table exists:', contentInboxExists);
+
       }
     } catch (error) {
-      console.error('❌ Error checking content_inbox table:', error);
+      logger.error('❌ Error checking content_inbox table:', error);
       contentInboxExists = false;
     }
 
@@ -75,14 +75,14 @@ export async function GET() {
         .single();
 
       if (portalActivityError) {
-        console.error('❌ Error checking portal_activity table:', portalActivityError);
+        logger.error('❌ Error checking portal_activity table:', portalActivityError);
         portalActivityExists = false;
       } else {
         portalActivityExists = !!portalActivityTable;
-        console.log('📋 Portal activity table exists:', portalActivityExists);
+
       }
     } catch (error) {
-      console.error('❌ Error checking portal_activity table:', error);
+      logger.error('❌ Error checking portal_activity table:', error);
       portalActivityExists = false;
     }
 
@@ -102,14 +102,12 @@ export async function GET() {
       timestamp: new Date().toISOString()
     };
 
-    console.log('✅ Portal verification complete:', response);
-
     return NextResponse.json(response, { 
       status: allChecksPass ? 200 : 400 
     });
 
   } catch (error) {
-    console.error('💥 Portal verification error:', error);
+    logger.error('💥 Portal verification error:', error);
     return NextResponse.json({ 
       success: false,
       error: 'Portal verification failed',

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 // Simple in-memory rate limiting as fallback
 interface RateLimitEntry {
@@ -158,21 +159,17 @@ export function createRateLimitResponse(limit: number, remaining: number, reset:
 // Simple rate limiting middleware
 export async function simpleRateLimitMiddleware(request: NextRequest): Promise<NextResponse | null> {
   const pathname = request.nextUrl.pathname;
-  
-  console.log('🔍 Rate limiting middleware called for:', pathname);
-  
+
   // Only apply to API routes
   if (!pathname.startsWith('/api/')) {
-    console.log('⏭️  Skipping rate limiting for non-API route:', pathname);
+
     return null;
   }
 
   try {
     const tier = getRateLimitTier(pathname);
     let identifier = getClientIdentifier(request);
-    
-    console.log('📊 Rate limit tier:', tier, 'Identifier:', identifier);
-    
+
     // For authenticated routes, try to get actual user ID
     // Skip session check for AI routes (they do their own auth in the route handler)
     if (tier === 'authenticated') {
@@ -184,10 +181,10 @@ export async function simpleRateLimitMiddleware(request: NextRequest): Promise<N
         
         if (session?.user?.id) {
           identifier = `user_${session.user.id}`;
-          console.log('👤 Using user ID for rate limiting:', identifier);
+
         }
       } catch (error) {
-        console.log('⚠️  Could not get user session:', error);
+
         // Continue with original identifier
       }
     }
@@ -201,10 +198,9 @@ export async function simpleRateLimitMiddleware(request: NextRequest): Promise<N
     }
     
     const result = checkSimpleRateLimit(request, tier, identifier);
-    console.log('📈 Rate limit result:', result);
-    
+
     if (!result.success) {
-      console.warn(`🚫 Rate limit exceeded for ${tier} tier:`, {
+      logger.warn(`🚫 Rate limit exceeded for ${tier} tier:`, {
         identifier,
         pathname,
         limit: result.limit,
@@ -224,16 +220,10 @@ export async function simpleRateLimitMiddleware(request: NextRequest): Promise<N
     response.headers.set('X-RateLimit-Remaining', result.remaining.toString());
     response.headers.set('X-RateLimit-Reset', result.reset.toISOString());
     
-    console.log('✅ Rate limit headers set:', {
-      limit: result.limit,
-      remaining: result.remaining,
-      reset: result.reset.toISOString()
-    });
-    
     return response;
     
   } catch (error) {
-    console.error('Simple rate limiting middleware error:', error);
+    logger.error('Simple rate limiting middleware error:', error);
     return null;
   }
 }

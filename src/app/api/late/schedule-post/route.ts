@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,25 +10,26 @@ const supabase = createClient(
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    console.log('🔧 STEP 6 - LATE API ROUTE RECEIVED:');
-    console.log('  - Request body keys:', Object.keys(body));
-    console.log('  - Full request body:', JSON.stringify(body, null, 2));
+
+    logger.debug('Scheduling post request', { 
+      bodyKeys: Object.keys(body) 
+    });
     
     // Check for required fields
     if (!body.postId || body.caption === undefined || body.caption === null || !body.lateMediaUrl) {
-      console.error('Missing required fields:', {
+      logger.error('Missing required fields:', {
         postId: body.postId,
         caption: body.caption,
         captionType: typeof body.caption,
         lateMediaUrl: !!body.lateMediaUrl
       });
-      console.error('lateMediaUrl value:', body.lateMediaUrl);
+      logger.error('lateMediaUrl value:', body.lateMediaUrl);
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     // Validate caption content - reject empty captions
     if (!body.caption || body.caption.trim() === '') {
-      console.error('Empty caption rejected:', {
+      logger.error('Empty caption rejected:', {
         caption: body.caption,
         captionType: typeof body.caption,
         captionLength: body.caption?.length
@@ -46,15 +48,11 @@ export async function POST(request: Request) {
       selectedAccounts,
       clientId 
     } = body;
-    
-    console.log('🔧 STEP 7 - EXTRACTED VALUES:');
-    console.log('  - postId:', postId);
-    console.log('  - caption:', caption?.substring(0, 50) + '...');
-    console.log('  - lateMediaUrl:', lateMediaUrl);
-    console.log('  - scheduledDateTime:', scheduledDateTime);
-    console.log('  - selectedAccounts:', selectedAccounts);
-    console.log('  - clientId:', clientId);
-    
+
+    logger.debug('Post details', { 
+      captionLength: caption?.length || 0 
+    });
+
     // Build platforms array for LATE API
     const platforms = selectedAccounts.map((account: { platform: string; _id: string }) => ({
       platform: account.platform,
@@ -66,13 +64,6 @@ export async function POST(request: Request) {
     
     // Use the user's actual local time directly
     const localDateTime = `${datePart}T${timePart}`;
-    
-    console.log('🔧 STEP 8 - DATETIME PARSING:');
-    console.log('  - Input scheduledDateTime:', scheduledDateTime);
-    console.log('  - Split datePart:', datePart);
-    console.log('  - Split timePart:', timePart);
-    console.log('  - Reconstructed localDateTime:', localDateTime);
-    console.log('  - Using Pacific/Auckland timezone as specified');
 
     // Ensure we have valid content for LATE API
     const finalContent = caption.trim() || 'Posted via Content Manager';
@@ -89,11 +80,10 @@ export async function POST(request: Request) {
       }]
     };
 
-    console.log('🔧 STEP 9 - FINAL LATE API PAYLOAD:');
-    console.log('  - Payload keys:', Object.keys(requestBody));
-    console.log('  - scheduledFor value:', requestBody.scheduledFor);
-    console.log('  - timezone value:', requestBody.timezone);
-    console.log('  - About to send to: https://getlate.dev/api/v1/posts');
+    logger.debug('LATE API payload prepared', { 
+      payloadKeys: Object.keys(requestBody),
+      platformsCount: platforms.length 
+    });
 
     // Create post on LATE API
     const lateResponse = await fetch('https://getlate.dev/api/v1/posts', {
@@ -107,21 +97,21 @@ export async function POST(request: Request) {
     
     if (!lateResponse.ok) {
       const error = await lateResponse.text();
-      console.error('LATE API error:', error);
-      console.error('LATE API status:', lateResponse.status);
-      console.error('LATE API headers:', Object.fromEntries(lateResponse.headers.entries()));
+      logger.error('LATE API error:', error);
+      logger.error('LATE API status:', lateResponse.status);
+      logger.error('LATE API headers:', Object.fromEntries(lateResponse.headers.entries()));
       throw new Error(`LATE API error (${lateResponse.status}): ${error}`);
     }
     
     const lateData = await lateResponse.json();
-    console.log('🔧 STEP 10 - LATE API RESPONSE:');
-    console.log('  - Response status:', lateResponse.status);
-    console.log('  - Response keys:', Object.keys(lateData));
+
+    logger.debug('LATE API response received', { 
+      responseKeys: Object.keys(lateData) 
+    });
     
     // Extract the LATE post ID from the nested post object
     const latePostId = lateData.post?._id || lateData.post?.id || lateData._id || lateData.id;
-    console.log('Extracted LATE post ID:', latePostId);
-    
+
     // Update the calendar_scheduled_posts table with LATE information
     const { error: updateError } = await supabase
       .from('calendar_scheduled_posts')
@@ -133,7 +123,7 @@ export async function POST(request: Request) {
       .eq('id', postId);
     
     if (updateError) {
-      console.error('Database update error:', updateError);
+      logger.error('Database update error:', updateError);
     }
     
     // Get the post data from calendar_scheduled_posts to preserve image_url
@@ -144,7 +134,7 @@ export async function POST(request: Request) {
       .single();
     
     if (fetchError) {
-      console.error('Error fetching calendar post:', fetchError);
+      logger.error('Error fetching calendar post:', fetchError);
     }
     
     // Also save to scheduled_posts table with LATE post ID
@@ -161,7 +151,7 @@ export async function POST(request: Request) {
       });
     
     if (scheduleError) {
-      console.error('Schedule save error:', scheduleError);
+      logger.error('Schedule save error:', scheduleError);
     }
     
     // At the END of the function, make sure to return:
@@ -172,7 +162,7 @@ export async function POST(request: Request) {
       id: latePostId
     });
   } catch (error) {
-    console.error('Error scheduling post:', error);
+    logger.error('Error scheduling post:', error);
     return NextResponse.json({ error: 'Failed to schedule post' }, { status: 500 });
   }
 }

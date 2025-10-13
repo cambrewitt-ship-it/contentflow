@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,7 +19,11 @@ export async function GET(request: Request) {
   }
   
   try {
-    console.log(`🔍 OPTIMIZED QUERY - Fetching unscheduled posts for client ${clientId} (project: ${projectId || 'all'}, untagged: ${filterUntagged})`);
+    logger.debug('Fetching unscheduled posts', { 
+      clientIdPreview: clientId?.substring(0, 8) + '...', 
+      project: projectId || 'all', 
+      untagged: filterUntagged 
+    });
     
     // Build query based on filter type
     let query = supabase
@@ -39,31 +44,23 @@ export async function GET(request: Request) {
       .limit(20); // CRITICAL: Limit to prevent timeout
     
     if (error) throw error;
-    
-    console.log(`✅ Retrieved ${data?.length || 0} unscheduled posts`);
-    
+
     // Debug logging for captions
     if (data && data.length > 0) {
-      console.log('🔍 Retrieved posts with captions:');
+
       data.forEach((post, index) => {
-        console.log(`  Post ${index + 1}:`, {
-          id: post.id,
-          caption: post.caption,
-          captionType: typeof post.caption,
-          captionLength: post.caption?.length,
-          hasCaption: !!post.caption
-        });
+
       });
     }
     
     return NextResponse.json({ posts: data || [] });
     
   } catch (error: unknown) {
-    console.error('❌ Error fetching unscheduled posts:', error);
+    logger.error('❌ Error fetching unscheduled posts:', error);
     
     // Enhanced error handling for timeouts
     if (error && typeof error === 'object' && 'code' in error && error.code === '57014') {
-      console.error('❌ Database timeout error detected');
+      logger.error('❌ Database timeout error detected');
       return NextResponse.json({ 
         error: 'Database query timeout - too many posts to load',
         code: 'TIMEOUT',
@@ -99,7 +96,7 @@ export async function POST(request: Request) {
     
     return NextResponse.json({ success: true, post: data });
   } catch (error) {
-    console.error('Error:', error);
+    logger.error('Error:', error);
     return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
   }
 }
@@ -112,21 +109,17 @@ export async function DELETE(request: Request) {
     if (!postId) {
       return NextResponse.json({ error: 'postId is required' }, { status: 400 });
     }
-    
-    console.log(`🗑️ Deleting unscheduled post: ${postId}`);
-    
+
     const { error } = await supabase
       .from('calendar_unscheduled_posts')
       .delete()
       .eq('id', postId);
     
     if (error) throw error;
-    
-    console.log(`✅ Successfully deleted unscheduled post: ${postId}`);
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('❌ Error deleting unscheduled post:', error);
+    logger.error('❌ Error deleting unscheduled post:', error);
     return NextResponse.json({ 
       error: 'Failed to delete post',
       details: error instanceof Error ? error.message : String(error)

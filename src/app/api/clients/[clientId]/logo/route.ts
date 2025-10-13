@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { put } from '@vercel/blob';
+import logger from '@/lib/logger';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -53,7 +54,7 @@ export async function POST(
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('❌ Authentication error:', authError);
+      logger.error('❌ Authentication error:', authError);
       return NextResponse.json({
         error: 'Authentication failed',
         details: 'Invalid or expired authentication token'
@@ -69,7 +70,7 @@ export async function POST(
       .single();
 
     if (clientError || !existingClient) {
-      console.error('❌ Client not found or access denied:', clientError);
+      logger.error('❌ Client not found or access denied:', clientError);
       return NextResponse.json({ 
         error: 'Access denied',
         details: 'Client not found or you do not have permission to upload logos for this client'
@@ -78,15 +79,13 @@ export async function POST(
     
     // Check if BLOB_READ_WRITE_TOKEN is available
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      console.warn('⚠️ BLOB_READ_WRITE_TOKEN not configured');
+      logger.warn('⚠️ BLOB_READ_WRITE_TOKEN not configured');
       return NextResponse.json(
         { error: 'Logo upload not configured' },
         { status: 500 }
       );
     }
-    
-    console.log('🔄 Uploading client logo:', { clientId, filename, dataLength: imageData.length });
-    
+
     // Convert base64 to blob
     const mimeType = imageData.match(/data:([^;]+)/)?.[1] || 'image/jpeg';
     const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
@@ -99,9 +98,7 @@ export async function POST(
     
     const byteArray = new Uint8Array(byteNumbers);
     const blob = new Blob([byteArray], { type: mimeType });
-    
-    console.log('📦 Created blob:', { size: blob.size, type: blob.type });
-    
+
     // Create a unique filename with client ID
     const timestamp = Date.now();
     const uniqueFilename = `client-logos/${clientId}-${timestamp}-${filename}`;
@@ -110,9 +107,7 @@ export async function POST(
     const result = await put(uniqueFilename, blob, {
       access: 'public',
     });
-    
-    console.log('✅ Logo uploaded to blob:', result.url);
-    
+
     // Update the client record with the logo URL
     const { data: updatedClient, error: updateError } = await supabase
       .from('clients')
@@ -125,15 +120,13 @@ export async function POST(
       .single();
     
     if (updateError) {
-      console.error('❌ Error updating client with logo URL:', updateError);
+      logger.error('❌ Error updating client with logo URL:', updateError);
       return NextResponse.json(
         { error: 'Failed to update client with logo URL' },
         { status: 500 }
       );
     }
-    
-    console.log('✅ Client updated with logo URL:', updatedClient);
-    
+
     return NextResponse.json({ 
       success: true, 
       logoUrl: result.url,
@@ -141,7 +134,7 @@ export async function POST(
     });
     
   } catch (error) {
-    console.error('❌ Error uploading client logo:', error);
+    logger.error('❌ Error uploading client logo:', error);
     return NextResponse.json(
       { error: 'Failed to upload client logo' },
       { status: 500 }
@@ -181,7 +174,7 @@ export async function DELETE(
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('❌ Authentication error:', authError);
+      logger.error('❌ Authentication error:', authError);
       return NextResponse.json({
         error: 'Authentication failed',
         details: 'Invalid or expired authentication token'
@@ -197,7 +190,7 @@ export async function DELETE(
       .single();
 
     if (clientError || !existingClient) {
-      console.error('❌ Client not found or access denied:', clientError);
+      logger.error('❌ Client not found or access denied:', clientError);
       return NextResponse.json({ 
         error: 'Access denied',
         details: 'Client not found or you do not have permission to remove logos for this client'
@@ -216,22 +209,20 @@ export async function DELETE(
       .single();
     
     if (updateError) {
-      console.error('❌ Error removing logo URL from client:', updateError);
+      logger.error('❌ Error removing logo URL from client:', updateError);
       return NextResponse.json(
         { error: 'Failed to remove logo from client' },
         { status: 500 }
       );
     }
-    
-    console.log('✅ Client logo removed:', updatedClient);
-    
+
     return NextResponse.json({ 
       success: true, 
       client: updatedClient
     });
     
   } catch (error) {
-    console.error('❌ Error removing client logo:', error);
+    logger.error('❌ Error removing client logo:', error);
     return NextResponse.json(
       { error: 'Failed to remove client logo' },
       { status: 500 }

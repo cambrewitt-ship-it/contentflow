@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,11 +22,11 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Add detailed validation logging
-    console.log('📥 POST /api/post-approvals - Request body:', {
-      session_id: session_id?.substring(0, 8) + '...',
-      post_id: post_id?.substring(0, 8) + '...',
-      post_type,
-      approval_status,
+    logger.debug('Post approval submission', {
+      sessionIdPreview: session_id?.substring(0, 8) + '...',
+      postIdPreview: post_id?.substring(0, 8) + '...',
+      postType: post_type,
+      approvalStatus: approval_status,
       has_comments: !!client_comments,
       has_edited_caption: !!edited_caption
     });
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
     // Validate approval_status
     const validStatuses = ['approved', 'rejected', 'needs_attention'];
     if (!validStatuses.includes(approval_status)) {
-      console.error('❌ Invalid approval_status:', approval_status);
+      logger.error('❌ Invalid approval_status:', approval_status);
       return NextResponse.json(
         { error: `Invalid approval status: ${approval_status}` },
         { status: 400 }
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!session_id || !post_id || !post_type || !approval_status) {
-      console.error('❌ Missing required fields:', {
+      logger.error('❌ Missing required fields:', {
         has_session_id: !!session_id,
         has_post_id: !!post_id,
         has_post_type: !!post_type,
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
         .eq('id', post_id);
 
       if (captionUpdateError) {
-        console.error('❌ Error updating caption:', captionUpdateError);
+        logger.error('❌ Error updating caption:', captionUpdateError);
         return NextResponse.json(
           { error: 'Failed to update caption' },
           { status: 500 }
@@ -98,7 +99,6 @@ export async function POST(request: NextRequest) {
 
     // Also update the post status in the same table
     const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
-    console.log(`📝 Updating ${tableName} for post ${post_id} with status ${approval_status}`);
 
     const statusUpdate: any = {
       approval_status,
@@ -113,18 +113,14 @@ export async function POST(request: NextRequest) {
       statusUpdate.client_feedback = client_comments || null; // Still save comments even for approved/rejected
     }
 
-    console.log(`🔄 Status update object:`, statusUpdate);
-
     const { data: updateResult, error: statusUpdateError } = await supabase
       .from(tableName)
       .update(statusUpdate)
       .eq('id', post_id)
       .select(); // Add select to see what was updated
 
-    console.log(`✅ Update result:`, updateResult);
-
     if (statusUpdateError) {
-      console.error('❌ Error updating post status:', statusUpdateError);
+      logger.error('❌ Error updating post status:', statusUpdateError);
       return NextResponse.json(
         { error: 'Failed to update post status' },
         { status: 500 }
@@ -156,7 +152,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (error) {
-        console.error('❌ Error updating approval:', error);
+        logger.error('❌ Error updating approval:', error);
         return NextResponse.json(
           { error: 'Failed to update approval' },
           { status: 500 }
@@ -180,7 +176,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (error) {
-        console.error('❌ Error creating approval:', error);
+        logger.error('❌ Error creating approval:', error);
         return NextResponse.json(
           { error: 'Failed to create approval' },
           { status: 500 }
@@ -190,15 +186,13 @@ export async function POST(request: NextRequest) {
       approval = data;
     }
 
-    console.log('🎉 POST /api/post-approvals - Success! Final approval:', approval);
-    
     return NextResponse.json({
       success: true,
       approval
     });
 
   } catch (error) {
-    console.error('❌ Error in post-approvals API:', error);
+    logger.error('❌ Error in post-approvals API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -226,7 +220,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Error fetching approvals:', error);
+      logger.error('❌ Error fetching approvals:', error);
       return NextResponse.json(
         { error: 'Failed to fetch approvals' },
         { status: 500 }
@@ -236,7 +230,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ approvals });
 
   } catch (error) {
-    console.error('❌ Error in post-approvals GET:', error);
+    logger.error('❌ Error in post-approvals GET:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

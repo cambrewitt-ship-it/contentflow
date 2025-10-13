@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -35,7 +36,7 @@ export async function logPortalActivity({
   try {
     // Only proceed if we have the required environment variables
     if (!supabaseUrl || !supabaseServiceRoleKey) {
-      console.warn('⚠️ Portal activity logging skipped: Missing Supabase environment variables');
+      logger.warn('⚠️ Portal activity logging skipped: Missing Supabase environment variables');
       return;
     }
 
@@ -63,22 +64,16 @@ export async function logPortalActivity({
       .insert(activityRecord);
 
     if (error) {
-      console.error('❌ Failed to log portal activity:', {
+      logger.error('❌ Failed to log portal activity:', {
         error: error.message,
         code: error.code,
         action,
         clientId
       });
-    } else {
-      console.log('📝 Portal activity logged successfully:', {
-        action,
-        clientId,
-        timestamp: new Date().toISOString()
-      });
     }
   } catch (error) {
     // Log the error but don't throw it to prevent breaking the main flow
-    console.error('💥 Error in logPortalActivity:', {
+    logger.error('💥 Error in logPortalActivity:', {
       error: error instanceof Error ? error.message : String(error),
       action,
       clientId
@@ -113,7 +108,7 @@ export function extractClientIP(request: Request): string | null {
     
     return null;
   } catch (error) {
-    console.warn('⚠️ Failed to extract client IP:', error);
+    logger.warn('⚠️ Failed to extract client IP:', error);
     return null;
   }
 }
@@ -125,7 +120,7 @@ export function extractUserAgent(request: Request): string | null {
   try {
     return request.headers.get('user-agent');
   } catch (error) {
-    console.warn('⚠️ Failed to extract user agent:', error);
+    logger.warn('⚠️ Failed to extract user agent:', error);
     return null;
   }
 }

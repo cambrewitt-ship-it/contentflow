@@ -1,4 +1,7 @@
 // Safe logging utility to prevent terminal flooding with binary data
+// NOTE: This utility is deprecated - use the new logger from @/lib/logger instead
+import logger from './logger';
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const logSafely = (label: string, obj: any) => {
   const safe = { ...obj };
@@ -20,7 +23,7 @@ export const logSafely = (label: string, obj: any) => {
     }
   });
   
-  console.log(label, safe);
+  logger.debug(label, safe);
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,5 +34,5 @@ export const logImageInfo = (label: string, obj: any) => {
     imageLength: obj.image_url?.length || 0,
     imageStart: obj.image_url?.substring(0, 50) || 'none'
   };
-  console.log(label, info);
+  logger.debug(label, info);
 };

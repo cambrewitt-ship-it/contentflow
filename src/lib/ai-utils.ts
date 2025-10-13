@@ -1,3 +1,5 @@
+import logger from '@/lib/logger';
+
 export interface AIAnalysisResult {
   success: boolean;
   analysis?: string;
@@ -54,7 +56,7 @@ export async function analyzeImageWithAI(
 
     return result;
   } catch (error) {
-    console.error('Image analysis error:', error);
+    logger.error('Image analysis error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -94,7 +96,7 @@ export async function generateCaptionsWithAI(
 
     return result;
   } catch (error) {
-    console.error('Caption generation error:', error);
+    logger.error('Caption generation error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -136,7 +138,7 @@ export async function remixCaptionWithAI(
 
     return result;
   } catch (error) {
-    console.error('Caption remix error:', error);
+    logger.error('Caption remix error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -10,13 +11,11 @@ export async function GET(
 ) {
   try {
     const { clientId } = await params;
-    
-    console.log('🔍 Fetching client data for ID:', clientId);
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('❌ No authorization header found');
+      logger.error('❌ No authorization header found');
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to view client data'
@@ -32,21 +31,19 @@ export async function GET(
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('❌ Authentication error:', authError);
+      logger.error('❌ Authentication error:', authError);
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to view client data'
       }, { status: 401 });
     }
 
-    console.log('✅ Authenticated user:', user.id);
-
     // Clean up clientId if it has additional data appended (common issue with OAuth flows)
     let cleanClientId = clientId;
     if (clientId && clientId.includes('-ct_')) {
-      console.log('🔧 Cleaning up malformed clientId:', clientId);
+
       cleanClientId = clientId.split('-ct_')[0];
-      console.log('✅ Cleaned clientId:', cleanClientId);
+
     }
 
     const { data: client, error } = await supabase
@@ -57,7 +54,7 @@ export async function GET(
       .single();
 
     if (error) {
-      console.error('❌ Supabase query error:', error);
+      logger.error('❌ Supabase query error:', error);
       if (error.code === 'PGRST116') {
         return NextResponse.json({ 
           error: 'Client not found' 
@@ -69,15 +66,13 @@ export async function GET(
       }, { status: 500 });
     }
 
-    console.log('✅ Client data fetched successfully:', client);
-
     return NextResponse.json({
       success: true,
       client: client
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in get client data route:', error);
+    logger.error('💥 Error in get client data route:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)
@@ -92,13 +87,11 @@ export async function PUT(
   try {
     const { clientId } = await params;
     const body = await request.json();
-    
-    console.log('🔄 Updating client data for ID:', clientId, 'Body:', body);
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('❌ No authorization header found');
+      logger.error('❌ No authorization header found');
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to update client data'
@@ -114,7 +107,7 @@ export async function PUT(
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('❌ Authentication error:', authError);
+      logger.error('❌ Authentication error:', authError);
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to update client data'
@@ -124,9 +117,9 @@ export async function PUT(
     // Clean up clientId if it has additional data appended
     let cleanClientId = clientId;
     if (clientId && clientId.includes('-ct_')) {
-      console.log('🔧 Cleaning up malformed clientId:', clientId);
+
       cleanClientId = clientId.split('-ct_')[0];
-      console.log('✅ Cleaned clientId:', cleanClientId);
+
     }
 
     // Verify the client belongs to the authenticated user
@@ -138,7 +131,7 @@ export async function PUT(
       .single();
 
     if (clientError || !existingClient) {
-      console.error('❌ Client not found or access denied:', clientError);
+      logger.error('❌ Client not found or access denied:', clientError);
       return NextResponse.json({ 
         error: 'Client not found or access denied', 
         details: 'You can only update your own clients'
@@ -166,14 +159,12 @@ export async function PUT(
       .single();
 
     if (error) {
-      console.error('❌ Supabase update error:', error);
+      logger.error('❌ Supabase update error:', error);
       return NextResponse.json({ 
         error: 'Failed to update client', 
         details: error.message 
       }, { status: 500 });
     }
-
-    console.log('✅ Client updated successfully:', updatedClient);
 
     return NextResponse.json({
       success: true,
@@ -181,7 +172,7 @@ export async function PUT(
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in update client data route:', error);
+    logger.error('💥 Error in update client data route:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)

@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { isValidImageData } from '../../../../lib/blobUpload';
+import logger from '@/lib/logger';
 
 export async function POST(request: Request) {
   try {
-    console.log('🚀 POST /api/projects/add-post - Request received');
-    
+
     // Initialize Supabase inside the function to ensure env vars are loaded
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
     if (!supabaseUrl || !supabaseKey) {
-      console.error('❌ Missing Supabase environment variables');
+      logger.error('❌ Missing Supabase environment variables');
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
     
@@ -20,29 +20,26 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { projectId, post } = body;
     
-    console.log('📋 Request body:', {
+    logger.debug('Adding post to project', {
       projectId,
-      post: {
-        clientId: post?.clientId,
-        caption: post?.caption?.substring(0, 50) + '...',
-        generatedImage: post?.generatedImage ? 'Present' : 'Missing',
-        notes: post?.notes
-      }
+      hasClientId: !!(post?.clientId || post?.client_id),
+      hasCaption: !!post?.caption,
+      hasImage: !!post?.generatedImage
     });
     
     // Validate required fields
     if (!projectId) {
-      console.error('❌ Missing projectId');
+      logger.error('❌ Missing projectId');
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
     }
     
     if (!post.clientId && !post.client_id) {
-      console.error('❌ Missing clientId');
+      logger.error('❌ Missing clientId');
       return NextResponse.json({ error: 'Client ID is required' }, { status: 400 });
     }
     
     if (!post.caption) {
-      console.error('❌ Missing caption');
+      logger.error('❌ Missing caption');
       return NextResponse.json({ error: 'Caption is required' }, { status: 400 });
     }
     
@@ -50,27 +47,20 @@ export async function POST(request: Request) {
     if (post.generatedImage) {
       const validation = isValidImageData(post.generatedImage);
       if (!validation.isValid) {
-        console.error('❌ Invalid image URL in post:', post.generatedImage);
+        logger.error('❌ Invalid image URL in post:', post.generatedImage);
         return NextResponse.json(
           { error: `Invalid image URL: ${post.generatedImage}` },
           { status: 400 }
         );
       }
-      console.log('✅ Valid image URL detected:', validation.type);
+
     }
     
     // Insert into calendar_unscheduled_posts
-    console.log('💾 Inserting into calendar_unscheduled_posts table...');
-    
+
     // Get the user ID from the request headers (passed from the frontend)
     const authHeader = request.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '');
-    
-    console.log('🔐 Auth context:', {
-      hasAuthHeader: !!authHeader,
-      hasToken: !!token,
-      tokenLength: token?.length
-    });
 
     const insertData = {
       project_id: projectId,
@@ -81,12 +71,10 @@ export async function POST(request: Request) {
       approval_status: 'pending' // Set default approval status
     };
     
-    console.log('📝 Insert data:', {
-      project_id: insertData.project_id,
-      client_id: insertData.client_id,
-      caption: insertData.caption?.substring(0, 50) + '...',
-      image_url: insertData.image_url ? 'Present' : 'Missing',
-      post_notes: insertData.post_notes
+    logger.debug('Inserting post', {
+      projectId: insertData.project_id,
+      hasImage: !!insertData.image_url,
+      hasNotes: !!insertData.post_notes
     });
     
     const { data, error } = await supabase
@@ -96,8 +84,8 @@ export async function POST(request: Request) {
       .single();
     
     if (error) {
-      console.error('❌ Database error:', error);
-      console.error('❌ Error details:', {
+      logger.error('❌ Database error:', error);
+      logger.error('❌ Error details:', {
         code: error.code,
         message: error.message,
         details: error.details,
@@ -105,12 +93,11 @@ export async function POST(request: Request) {
       });
       throw error;
     }
-    
-    console.log('✅ Successfully inserted post:', data?.id);
+
     return NextResponse.json({ success: true, post: data });
     
   } catch (error) {
-    console.error('Error adding post to project:', error);
+    logger.error('Error adding post to project:', error);
     return NextResponse.json({ error: 'Failed to add post' }, { status: 500 });
   }
 }

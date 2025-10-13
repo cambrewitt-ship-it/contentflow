@@ -107,6 +107,7 @@ interface Post {
   post_type: string;
   caption: string;
   image_url?: string;
+  media_type?: string;
   scheduled_date: string;
   scheduled_time?: string;
   approval_status?: string;

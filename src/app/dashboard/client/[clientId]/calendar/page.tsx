@@ -1759,13 +1759,21 @@ export default function CalendarPage() {
             {viewMode === 'week' ? (
               <div className="">
                 <div className="space-y-4" style={{ gap: '16px' }}>
-                {getWeeksToDisplay().map((weekStart, weekIndex) => (
-                  <div key={weekIndex} className="border rounded-lg bg-white min-h-32 flex-1">
+                {getWeeksToDisplay().map((weekStart, weekIndex) => {
+                  const isCurrentWeek = weekOffset + weekIndex === 0;
+                  return (
+                  <div key={weekIndex} className={`border rounded-lg bg-white min-h-32 flex-1 ${
+                    isCurrentWeek ? 'ring-4 ring-blue-400 border-blue-400' : ''
+                  }`}>
                     {/* Week Header - Above the days */}
-                    <div className="bg-gray-50 p-3 border-b">
-                      <h3 className="font-semibold text-sm">
+                    <div className={`p-3 border-b ${
+                      isCurrentWeek ? 'bg-blue-100' : 'bg-gray-50'
+                    }`}>
+                      <h3 className={`font-semibold text-sm ${
+                        isCurrentWeek ? 'text-blue-700' : ''
+                      }`}>
                         {formatWeekCommencing(weekStart)}
-                        {weekOffset + weekIndex === 0 && ' (Current)'}
+                        {isCurrentWeek && ' (Current Week)'}
                       </h3>
                       <p className="text-xs text-gray-600">
                         {weekStart.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} - 
@@ -2383,7 +2391,8 @@ export default function CalendarPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 </div>
               </div>
             ) : (

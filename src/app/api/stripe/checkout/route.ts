@@ -10,6 +10,7 @@ import {
   upsertSubscription,
   getTierLimits,
 } from '@/lib/subscriptionHelpers';
+import logger from '@/lib/logger';
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     // Get the authorization header
     const authHeader = req.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('❌ No authorization header found');
+      logger.error('No authorization header found');
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to subscribe'
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('❌ Authentication error:', authError);
+      logger.error('Authentication error:', { error: authError?.message });
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to subscribe'
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error('Checkout error:', error);
+    logger.error('Checkout error:', error);
     return NextResponse.json(
       { error: 'Failed to create checkout session' },
       { status: 500 }

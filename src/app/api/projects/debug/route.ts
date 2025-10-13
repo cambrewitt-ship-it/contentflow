@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function GET(req: NextRequest) {
-  console.log('🔍 Projects debug endpoint called');
-  
+
   try {
     // Check environment variables
-    console.log('🔧 Environment check:', {
-      supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
-      supabaseServiceRoleKey: supabaseServiceRoleKey ? 'SET (length: ' + supabaseServiceRoleKey.length + ')' : 'MISSING'
+    logger.debug('Environment check', {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasServiceRoleKey: !!supabaseServiceRoleKey
     });
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
@@ -24,19 +24,13 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    console.log('✅ Supabase client created successfully');
 
     // Test basic connection
-    console.log('🔍 Testing basic Supabase connection...');
+
     const { data: connectionTest, error: connectionError } = await supabase
       .from('clients')
       .select('count')
       .limit(1);
-    
-    console.log('🔌 Connection test result:', { 
-      connectionTest: connectionTest ? 'SUCCESS' : 'FAILED', 
-      connectionError: connectionError ? { code: connectionError.code, message: connectionError.message } : 'none' 
-    });
 
     if (connectionError) {
       return NextResponse.json({ 
@@ -48,17 +42,11 @@ export async function GET(req: NextRequest) {
     }
 
     // Check if projects table exists
-    console.log('🔍 Checking if projects table exists...');
+
     const { data: projectsTest, error: projectsError } = await supabase
       .from('projects')
       .select('*')
       .limit(1);
-    
-    console.log('📊 Projects table test:', { 
-      exists: !projectsError,
-      data: projectsTest ? `Array with ${projectsTest.length} items` : 'null', 
-      error: projectsError ? { code: projectsError.code, message: projectsError.message } : 'none' 
-    });
 
     // Check table structure if it exists
     let tableStructure = null;
@@ -68,21 +56,15 @@ export async function GET(req: NextRequest) {
         columns: Object.keys(firstProject),
         sampleData: firstProject
       };
-      console.log('📋 Table structure:', tableStructure);
+
     }
 
     // Check clients table structure
-    console.log('🔍 Checking clients table structure...');
+
     const { data: clientsTest, error: clientsError } = await supabase
       .from('clients')
       .select('*')
       .limit(1);
-    
-    console.log('👤 Clients table test:', { 
-      exists: !clientsError,
-      data: clientsTest ? `Array with ${clientsTest.length} items` : 'null', 
-      error: clientsError ? { code: clientsError.code, message: clientsError.message } : 'none' 
-    });
 
     let clientsStructure = null;
     if (!clientsError && clientsTest && clientsTest.length > 0) {
@@ -91,7 +73,7 @@ export async function GET(req: NextRequest) {
         columns: Object.keys(firstClient),
         sampleData: firstClient
       };
-      console.log('📋 Clients table structure:', clientsStructure);
+
     }
 
     // Check for any existing projects
@@ -104,7 +86,7 @@ export async function GET(req: NextRequest) {
       
       if (!allProjectsError) {
         existingProjects = allProjects;
-        console.log('📋 Existing projects:', existingProjects);
+
       }
     }
 
@@ -118,7 +100,7 @@ export async function GET(req: NextRequest) {
       
       if (!allClientsError) {
         existingClients = allClients;
-        console.log('👤 Existing clients:', existingClients);
+
       }
     }
 
@@ -150,12 +132,11 @@ export async function GET(req: NextRequest) {
       }
     };
 
-    console.log('✅ Debug info collected successfully');
     return NextResponse.json(debugInfo);
 
   } catch (error: unknown) {
-    console.error('💥 Unexpected error in projects debug route:', error);
-    console.error('💥 Error details:', {
+    logger.error('💥 Unexpected error in projects debug route:', error);
+    logger.error('💥 Error details:', {
       name: error instanceof Error ? error.name : 'Unknown',
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : 'No stack trace'

@@ -3,6 +3,7 @@
 import React from 'react'
 import { createContext, useContext, useState, useEffect } from 'react'
 import { uploadMediaToBlob, getMediaType } from './blobUpload'
+import logger from './logger'
 
 export interface Caption {
   id: string
@@ -212,19 +213,19 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         const maxSize = 5 * 1024 * 1024 // 5MB limit
         
         if (used > maxSize * 0.8) { // If we're using more than 80% of quota
-          console.warn("localStorage approaching quota limit, cleaning up...")
+          logger.warn("localStorage approaching quota limit, cleaning up...")
           
           // Clear old image metadata first
           localStorage.removeItem(getStorageKey("imageMetadata"))
           
           // If still too large, clear everything except essential data
           if (JSON.stringify(localStorage).length > maxSize * 0.9) {
-            console.warn("localStorage still too large, clearing all data...")
+            logger.warn("localStorage still too large, clearing all data...")
             localStorage.clear()
           }
         }
       } catch (error) {
-        console.error("Error during localStorage cleanup:", error)
+        logger.error("Error during localStorage cleanup:", error)
       }
     }
   }
@@ -270,12 +271,12 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         // For images, we'll start with an empty array since we can't restore the actual image data
         // Users will need to re-upload images, but their captions and other data will be preserved
         if (savedImageMetadata) {
-          console.log("Found image metadata in localStorage, but images need to be re-uploaded")
+
         }
 
         setHasHydrated(true)
       } catch (error) {
-        console.error("Error hydrating from localStorage:", error)
+        logger.error("Error hydrating from localStorage:", error)
         setHasHydrated(true)
       }
     }
@@ -307,10 +308,10 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         }))
         localStorage.setItem(getStorageKey("imageMetadata"), JSON.stringify(imageMetadata))
       } catch (error) {
-        console.error("Error saving to localStorage:", error)
+        logger.error("Error saving to localStorage:", error)
         // If we hit quota issues, clear old data and try again
         if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-          console.warn("localStorage quota exceeded, clearing old data...")
+          logger.warn("localStorage quota exceeded, clearing old data...")
           try {
             localStorage.clear()
             // Retry saving essential data only
@@ -321,10 +322,10 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
             
             // Show user-friendly notification
             if (typeof window !== "undefined") {
-              console.info("💾 Storage cleared to free up space. Your captions and settings have been preserved.")
+
             }
           } catch (retryError) {
-            console.error("Failed to save after clearing localStorage:", retryError)
+            logger.error("Failed to save after clearing localStorage:", retryError)
           }
         }
       }
@@ -364,12 +365,12 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     
     if (isVideo) {
       try {
-        console.log('🎥 Extracting thumbnail from video...')
+
         videoThumbnail = await extractVideoThumbnail(file)
         previewUrl = videoThumbnail // Use thumbnail as preview
-        console.log('✅ Video thumbnail extracted successfully')
+
       } catch (error) {
-        console.error('❌ Failed to extract video thumbnail:', error)
+        logger.error('❌ Failed to extract video thumbnail:', error)
         // Fallback to temp blob URL if thumbnail extraction fails
         previewUrl = URL.createObjectURL(file)
       }
@@ -415,10 +416,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
             : img
         )
       )
-      
-      console.log(`✅ ${uploadResult.mediaType} uploaded to blob storage:`, uploadResult.url)
+
     } catch (error) {
-      console.error('❌ Failed to upload media to blob storage:', error)
+      logger.error('❌ Failed to upload media to blob storage:', error)
       // Keep the temporary preview if upload fails
     }
   }
@@ -465,19 +465,17 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       // Find the image data
       const image = uploadedImages.find(img => img.id === imageId)
       if (!image) {
-        console.error('Image not found:', imageId)
+        logger.error('Image not found:', imageId)
         return
       }
 
       const isVideo = image.mediaType === 'video'
-      console.log(`📋 Media type: ${image.mediaType}, Is video: ${isVideo}`)
 
       // For videos: DON'T send video data (AI can't analyze videos)
       // For images: Convert blob URL to base64 for OpenAI Vision API
       let imageData = ''
       
       if (isVideo) {
-        console.log('🎥 Video detected - skipping media data conversion (AI will use Post Notes only)')
         // For videos, we send an empty string or a placeholder since the API won't use it anyway
         // The API route will detect this is a video from the request and skip visual analysis
         imageData = 'VIDEO_PLACEHOLDER' // Placeholder to indicate video content
@@ -490,7 +488,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
 
         // If it's a blob URL, convert it to base64
         if (imageData.startsWith('blob:')) {
-          console.log('🖼️ Converting image blob URL to base64 for OpenAI API...')
+
           const response = await fetch(imageData)
           const blob = await response.blob()
           
@@ -505,35 +503,19 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         }
       }
       
-      console.log('Using media data for AI:', imageData.substring(0, 100) + '...')
-      console.log('Media details:', {
-        id: image.id,
-        filename: image.file.name,
-        mediaType: image.mediaType,
-        isVideo: isVideo,
-        hasBlobUrl: !!image.blobUrl,
-        dataType: imageData.startsWith('data:') ? 'base64' : imageData === 'VIDEO_PLACEHOLDER' ? 'video-placeholder' : 'url'
-      })
-
       // Check image data size (base64 encoded images can be quite large)
       // Note: Videos send a placeholder, so we only check size for images
       if (!isVideo && imageData !== 'VIDEO_PLACEHOLDER') {
         const imageSizeMB = (imageData.length / (1024 * 1024)).toFixed(2)
-        console.log('📊 Image data size:', imageSizeMB, 'MB')
-        
+
         if (imageData.length > 5 * 1024 * 1024) { // 5MB limit for single image
           throw new Error(`Image is too large (${imageSizeMB}MB). Please use an image smaller than 5MB.`)
         }
-      } else if (isVideo) {
-        console.log('📊 Video data size check: Skipped (videos send placeholder only)')
       }
 
       if (!accessToken) {
         throw new Error('Access token is required for AI caption generation')
       }
-
-      console.log('🔑 Access token present:', !!accessToken)
-      console.log('📤 Preparing request to /api/ai')
 
       // Build the request body
       const requestBody = {
@@ -549,25 +531,13 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
 
       const bodyString = JSON.stringify(requestBody)
       const bodySizeMB = (bodyString.length / (1024 * 1024)).toFixed(2)
-      console.log('📦 Request body size:', bodySizeMB, 'MB')
 
       if (bodyString.length > 10 * 1024 * 1024) {
-        console.warn('⚠️ Large request body detected:', bodySizeMB, 'MB')
+        logger.warn('⚠️ Large request body detected:', bodySizeMB, 'MB')
       }
-
-      console.log('📤 Sending request to /api/ai...')
 
       let response
       try {
-        console.log('🌐 Initiating fetch to /api/ai...')
-        console.log('📡 Fetch configuration:', {
-          method: 'POST',
-          bodySize: bodyString.length,
-          bodySizeMB: (bodyString.length / (1024 * 1024)).toFixed(2) + 'MB',
-          hasAuth: !!accessToken,
-          timeout: '120s'
-        })
-        
         response = await fetch('/api/ai', {
           method: 'POST',
           headers: {
@@ -577,14 +547,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           body: bodyString,
           signal: AbortSignal.timeout(120000) // 2 minute timeout
         })
-        console.log('✅ Fetch completed, status:', response.status)
-        console.log('📨 Response headers:', {
-          contentType: response.headers.get('content-type'),
-          contentLength: response.headers.get('content-length')
-        })
       } catch (fetchError) {
-        console.error('❌ Fetch failed at network level')
-        console.error('Fetch error details:', {
+        logger.error('❌ Fetch failed at network level')
+        logger.error('Fetch error details:', {
           message: fetchError instanceof Error ? fetchError.message : 'Unknown error',
           name: fetchError instanceof Error ? fetchError.name : 'Unknown',
           stack: fetchError instanceof Error ? fetchError.stack : 'No stack trace',
@@ -606,29 +571,27 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('API response error:', response.status, errorText)
+        logger.error('API response error:', response.status, errorText)
         throw new Error(`Failed to generate captions: ${response.status}`)
       }
 
       const data = await response.json()
-      console.log('API Response:', data)
-      console.log('Copy Type:', copyType)
-      
+
       if (data.captions && Array.isArray(data.captions)) {
-        console.log('Captions received:', data.captions)
+
         // Convert the captions array to the expected format with IDs
         const newCaptions = data.captions.map((text: string, index: number) => ({
           id: `caption-${Date.now()}-${index}`,
           text: text,
           isSelected: false
         }))
-        console.log('New captions to set:', newCaptions)
+
         setCaptions(newCaptions)
       } else {
-        console.error('No captions in response or not an array:', data)
+        logger.error('No captions in response or not an array:', data)
       }
     } catch (error) {
-      console.error('Error generating AI captions:', error)
+      logger.error('Error generating AI captions:', error)
       
       // Show user-friendly error message
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
@@ -662,7 +625,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       let imageData = ''
       if (activeImage?.blobUrl || activeImage?.preview) {
         imageData = activeImage.blobUrl || activeImage.preview
-        console.log('Using image data for remix:', imageData)
+
       }
 
       if (!accessToken) {
@@ -687,7 +650,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('API response error:', response.status, errorText)
+        logger.error('API response error:', response.status, errorText)
         throw new Error(`Failed to remix caption: ${response.status}`)
       }
 
@@ -699,7 +662,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         ))
       }
     } catch (error) {
-      console.error('Error remixing caption:', error)
+      logger.error('Error remixing caption:', error)
     }
   }
 
@@ -753,9 +716,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     if (typeof window !== "undefined") {
       try {
         localStorage.clear()
-        console.info("💾 Storage cleared successfully")
+
       } catch (error) {
-        console.error("Error clearing storage:", error)
+        logger.error("Error clearing storage:", error)
       }
     }
   }

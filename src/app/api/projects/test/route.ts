@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 export async function GET() {
-  console.log('=== PROJECTS TEST ENDPOINT CALLED ===');
-  
+
   return NextResponse.json({ 
     success: true, 
     message: 'Projects API routing is working',

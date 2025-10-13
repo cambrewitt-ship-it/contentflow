@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -13,9 +14,7 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
-    
-    console.log('🔍 Fetching revisions for post:', { postId, limit, offset });
-    
+
     // Create Supabase client with service role for admin access
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
@@ -27,7 +26,7 @@ export async function GET(
       .single();
     
     if (postError) {
-      console.error('❌ Error fetching post:', postError);
+      logger.error('❌ Error fetching post:', postError);
       if (postError.code === 'PGRST116') {
         return NextResponse.json(
           { error: 'Post not found' },
@@ -52,7 +51,7 @@ export async function GET(
       .range(offset, offset + limit - 1);
     
     if (revisionsError) {
-      console.error('❌ Supabase revisions error:', revisionsError);
+      logger.error('❌ Supabase revisions error:', revisionsError);
       return NextResponse.json(
         { error: `Database error: ${revisionsError.message}` },
         { status: 500 }
@@ -66,15 +65,9 @@ export async function GET(
       .eq('post_id', postId);
     
     if (countError) {
-      console.error('❌ Error getting revision count:', countError);
+      logger.error('❌ Error getting revision count:', countError);
     }
-    
-    console.log('✅ Revisions fetched:', { 
-      postId, 
-      revisionCount: revisions?.length || 0, 
-      totalCount: count || 0 
-    });
-    
+
     return NextResponse.json({ 
       revisions: revisions || [],
       totalCount: count || 0,
@@ -87,7 +80,7 @@ export async function GET(
     });
     
   } catch (error) {
-    console.error('💥 Unexpected error in GET revisions:', error);
+    logger.error('💥 Unexpected error in GET revisions:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch revisions' },
       { status: 500 }
@@ -102,9 +95,7 @@ export async function POST(
   try {
     const { postId } = await params;
     const body = await request.json();
-    
-    console.log('🔄 Creating manual revision for post:', { postId, body });
-    
+
     const { 
       previous_caption, 
       new_caption, 
@@ -131,7 +122,7 @@ export async function POST(
       .single();
     
     if (postError) {
-      console.error('❌ Error fetching post for revision:', postError);
+      logger.error('❌ Error fetching post for revision:', postError);
       if (postError.code === 'PGRST116') {
         return NextResponse.json(
           { error: 'Post not found' },
@@ -154,7 +145,7 @@ export async function POST(
       .single();
     
     if (maxError && maxError.code !== 'PGRST116') {
-      console.error('❌ Error getting max revision number:', maxError);
+      logger.error('❌ Error getting max revision number:', maxError);
       return NextResponse.json(
         { error: `Database error: ${maxError.message}` },
         { status: 500 }
@@ -181,15 +172,13 @@ export async function POST(
       .single();
     
     if (revisionError) {
-      console.error('❌ Supabase revision creation error:', revisionError);
+      logger.error('❌ Supabase revision creation error:', revisionError);
       return NextResponse.json(
         { error: `Database error: ${revisionError.message}` },
         { status: 500 }
       );
     }
-    
-    console.log('✅ Manual revision created successfully:', revision);
-    
+
     return NextResponse.json({ 
       success: true, 
       revision: revision,
@@ -197,7 +186,7 @@ export async function POST(
     });
     
   } catch (error) {
-    console.error('💥 Unexpected error in POST revision:', error);
+    logger.error('💥 Unexpected error in POST revision:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create revision' },
       { status: 500 }

@@ -5,6 +5,7 @@ import {
   checkSubscriptionLimit,
   incrementUsage,
 } from './subscriptionHelpers';
+import logger from '@/lib/logger';
 
 /**
  * Middleware to check if user has an active subscription
@@ -87,7 +88,7 @@ export async function requireActiveSubscription(req: NextRequest) {
       subscription,
     };
   } catch (error) {
-    console.error('Subscription check error:', error);
+    logger.error('Subscription check error:', error);
     return {
       authorized: false,
       response: NextResponse.json(
@@ -262,7 +263,7 @@ export async function trackClientCreation(userId: string) {
     await incrementUsage(userId, 'clients', 1);
     return { success: true };
   } catch (error) {
-    console.error('Failed to track client creation:', error);
+    logger.error('Failed to track client creation:', error);
     return { success: false, error };
   }
 }
@@ -275,7 +276,7 @@ export async function trackPostCreation(userId: string) {
     await incrementUsage(userId, 'posts', 1);
     return { success: true };
   } catch (error) {
-    console.error('Failed to track post creation:', error);
+    logger.error('Failed to track post creation:', error);
     return { success: false, error };
   }
 }
@@ -288,7 +289,7 @@ export async function trackAICreditUsage(userId: string, credits: number = 1) {
     await incrementUsage(userId, 'ai_credits', credits);
     return { success: true };
   } catch (error) {
-    console.error('Failed to track AI credit usage:', error);
+    logger.error('Failed to track AI credit usage:', error);
     return { success: false, error };
   }
 }
@@ -332,7 +333,7 @@ export async function getUserIdFromRequest(req: NextRequest): Promise<string | n
       return user?.id || null;
     }
   } catch (error) {
-    console.error('Failed to get user from request:', error);
+    logger.error('Failed to get user from request:', error);
     return null;
   }
 }

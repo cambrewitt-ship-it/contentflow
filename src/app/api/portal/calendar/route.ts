@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
       .order('scheduled_time', { ascending: true });
 
     if (scheduledError) {
-      console.error('Error fetching scheduled posts:', scheduledError);
+      logger.error('Error fetching scheduled posts:', scheduledError);
       return NextResponse.json(
         { error: 'Failed to fetch scheduled posts' },
         { status: 500 }
@@ -80,9 +81,13 @@ export async function GET(request: NextRequest) {
 
     // Debug: Log approval status of posts
     if (scheduledPosts && scheduledPosts.length > 0) {
-      console.log('📊 Portal calendar - Approval status debug:');
+
       scheduledPosts.slice(0, 3).forEach((post: any, index: number) => {
-        console.log(`  Post ${post.id?.substring(0, 8)}... - Status: ${post.approval_status || 'NO STATUS'} - Caption: "${post.caption || 'NO CAPTION'}"`);
+        logger.debug('Post preview', { 
+          postId: post.id?.substring(0, 8) + '...', 
+          status: post.approval_status || 'NO STATUS', 
+          captionLength: post.caption?.length || 0 
+        });
       });
     }
 
@@ -103,7 +108,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Portal calendar error:', error);
+    logger.error('Portal calendar error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -35,13 +36,6 @@ export async function POST(
       }, { status: 400 });
     }
 
-    console.log('📁 Processing brand document upload:', {
-      clientId,
-      filename,
-      fileType: file.type,
-      fileSize: file.size
-    });
-
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
@@ -54,7 +48,7 @@ export async function POST(
       .upload(storageFilename, file);
 
     if (uploadError) {
-      console.error('❌ File upload failed:', uploadError);
+      logger.error('❌ File upload failed:', uploadError);
       return NextResponse.json({ 
         error: 'Failed to upload file', 
         details: uploadError.message 
@@ -91,7 +85,7 @@ export async function POST(
       .single();
 
     if (dbError) {
-      console.error('❌ Database insert failed:', dbError);
+      logger.error('❌ Database insert failed:', dbError);
       // Clean up uploaded file
       await supabase.storage.from('brand-documents').remove([storageFilename]);
       return NextResponse.json({ 
@@ -99,8 +93,6 @@ export async function POST(
         details: dbError.message 
       }, { status: 500 });
     }
-
-    console.log('✅ Brand document uploaded successfully:', document);
 
     // TODO: In the future, we'll add background processing here for text extraction
     // For now, we'll return success and the document can be processed later
@@ -119,7 +111,7 @@ export async function POST(
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in brand document upload:', error);
+    logger.error('💥 Error in brand document upload:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)
@@ -133,8 +125,6 @@ export async function GET(
 ) {
   try {
     const { clientId } = await params;
-    
-    console.log('📁 Fetching brand documents for client:', clientId);
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
@@ -145,14 +135,12 @@ export async function GET(
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Database query failed:', error);
+      logger.error('❌ Database query failed:', error);
       return NextResponse.json({ 
         error: 'Failed to fetch documents', 
         details: error.message 
       }, { status: 500 });
     }
-
-    console.log('✅ Brand documents fetched successfully:', documents?.length || 0);
 
     return NextResponse.json({
       success: true,
@@ -160,7 +148,7 @@ export async function GET(
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in fetch brand documents:', error);
+    logger.error('💥 Error in fetch brand documents:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)

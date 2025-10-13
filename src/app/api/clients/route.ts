@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function GET(req: NextRequest) {
   try {
-    console.log('🔍 Fetching clients for authenticated user...');
 
     // Get the authorization header
     const authHeader = req.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('❌ No authorization header found');
+      logger.error('❌ No authorization header found');
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to view clients'
@@ -27,14 +27,12 @@ export async function GET(req: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('❌ Authentication error:', authError);
+      logger.error('❌ Authentication error:', authError);
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to view clients'
       }, { status: 401 });
     }
-
-    console.log('✅ Authenticated user:', user.id);
 
     // Query clients for the authenticated user only
     const { data: clients, error } = await supabase
@@ -44,14 +42,12 @@ export async function GET(req: NextRequest) {
       .order('name', { ascending: true });
 
     if (error) {
-      console.error('❌ Supabase query error:', error);
+      logger.error('❌ Supabase query error:', error);
       return NextResponse.json({ 
         error: 'Database query failed', 
         details: error.message 
       }, { status: 500 });
     }
-
-    console.log('✅ User clients fetched successfully:', clients?.length || 0, 'clients found');
 
     return NextResponse.json({ 
       success: true,
@@ -59,7 +55,7 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in get all clients route:', error);
+    logger.error('💥 Error in get all clients route:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)
@@ -78,12 +74,10 @@ export async function DELETE(req: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('🗑️ Deleting client:', clientId);
-
     // Get the authorization header
     const authHeader = req.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('❌ No authorization header found');
+      logger.error('❌ No authorization header found');
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to delete clients'
@@ -99,7 +93,7 @@ export async function DELETE(req: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('❌ Authentication error:', authError);
+      logger.error('❌ Authentication error:', authError);
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to delete clients'
@@ -115,7 +109,7 @@ export async function DELETE(req: NextRequest) {
       .single();
 
     if (clientError || !client) {
-      console.error('❌ Client not found or access denied:', clientError);
+      logger.error('❌ Client not found or access denied:', clientError);
       return NextResponse.json({ 
         error: 'Client not found or access denied', 
         details: 'You can only delete your own clients'
@@ -130,7 +124,7 @@ export async function DELETE(req: NextRequest) {
       .eq('client_id', clientId);
 
     if (projectsError) {
-      console.error('❌ Error deleting projects:', projectsError);
+      logger.error('❌ Error deleting projects:', projectsError);
       return NextResponse.json({ 
         error: 'Failed to delete related projects', 
         details: projectsError.message 
@@ -144,7 +138,7 @@ export async function DELETE(req: NextRequest) {
       .eq('client_id', clientId);
 
     if (brandDocsError) {
-      console.error('❌ Error deleting brand documents:', brandDocsError);
+      logger.error('❌ Error deleting brand documents:', brandDocsError);
       // Continue with client deletion even if brand docs fail
     }
 
@@ -155,7 +149,7 @@ export async function DELETE(req: NextRequest) {
       .eq('client_id', clientId);
 
     if (scrapesError) {
-      console.error('❌ Error deleting website scrapes:', scrapesError);
+      logger.error('❌ Error deleting website scrapes:', scrapesError);
       // Continue with client deletion even if scrapes fail
     }
 
@@ -166,14 +160,12 @@ export async function DELETE(req: NextRequest) {
       .eq('id', clientId);
 
     if (deleteError) {
-      console.error('❌ Error deleting client:', deleteError);
+      logger.error('❌ Error deleting client:', deleteError);
       return NextResponse.json({ 
         error: 'Failed to delete client', 
         details: deleteError.message 
       }, { status: 500 });
     }
-
-    console.log('✅ Client and all related data deleted successfully');
 
     return NextResponse.json({ 
       success: true,
@@ -181,7 +173,7 @@ export async function DELETE(req: NextRequest) {
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in delete client route:', error);
+    logger.error('💥 Error in delete client route:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)

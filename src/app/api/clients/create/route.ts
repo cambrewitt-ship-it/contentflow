@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { validateApiRequest } from '../../../../lib/validationMiddleware';
 import { createClientSchema } from '../../../../lib/validators';
 import { withClientLimitCheck, trackClientCreation } from '../../../../lib/subscriptionMiddleware';
+import logger from '@/lib/logger';
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
@@ -21,9 +22,6 @@ async function createLateProfile(clientName: string, brandInfo: {
   website_url?: string;
 }) {
   try {
-    console.log('🚀 Creating LATE profile for client:', clientName);
-    console.log('📋 Using brand information:', brandInfo);
-    
     const lateApiKey = process.env.LATE_API_KEY;
     if (!lateApiKey) {
       throw new Error('LATE API key not configured');
@@ -58,10 +56,6 @@ async function createLateProfile(clientName: string, brandInfo: {
       color: brandInfo.brand_color || "#4ade80"
     };
 
-    console.log('📤 LATE API request body:', requestBody);
-    console.log('🌐 LATE API URL: https://getlate.dev/api/v1/profiles');
-    console.log('🔑 Authorization header:', `Bearer ${lateApiKey.substring(0, 10)}...`);
-
     const response = await fetch('https://getlate.dev/api/v1/profiles', {
       method: 'POST',
       headers: {
@@ -71,40 +65,31 @@ async function createLateProfile(clientName: string, brandInfo: {
       body: JSON.stringify(requestBody)
     });
 
-    console.log('📡 LATE API response status:', response.status);
-    console.log('📡 LATE API response headers:', Object.fromEntries(response.headers.entries()));
-
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ LATE API error response:', errorText);
-      console.error('❌ LATE API error status:', response.status);
-      console.error('❌ LATE API error statusText:', response.statusText);
+      logger.error('LATE API error:', { status: response.status, statusText: response.statusText });
       throw new Error(`LATE API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('✅ LATE profile created successfully:', data);
     
     // Handle the nested response structure
     const profileId = data._id || data.profile?._id;
-    console.log('✅ LATE profile ID extracted:', profileId);
 
     if (!profileId) {
-      console.error('❌ LATE API response structure:', JSON.stringify(data, null, 2));
+      logger.error('LATE API response missing _id field');
       throw new Error('LATE API response missing _id field');
     }
 
     return profileId;
   } catch (error) {
-    console.error('❌ Error creating LATE profile:', error);
+    logger.error('Error creating LATE profile:', error);
     throw error;
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    console.log('🎯 POST /api/clients/create - Request received');
-    
     // SUBSCRIPTION: Check client limits
     const subscriptionCheck = await withClientLimitCheck(req);
     if (subscriptionCheck instanceof NextResponse) {
@@ -124,7 +109,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!validation.success) {
-      console.error('❌ Validation failed');
+      logger.error('Validation failed');
       return validation.response;
     }
 
@@ -132,9 +117,6 @@ export async function POST(req: NextRequest) {
     if (!body) {
       return NextResponse.json({ error: 'Request body is required' }, { status: 400 });
     }
-    
-    console.log('✅ Request validated successfully');
-    console.log('📋 Sanitized input:', { name: body.name });
 
     const { 
       name, 
@@ -160,8 +142,6 @@ export async function POST(req: NextRequest) {
       skipLateProfile?: boolean;
     };
 
-    console.log('🏢 Creating new client:', name);
-
     // Create Supabase client with the user's token
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
@@ -169,23 +149,17 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token!);
     
     if (authError || !user) {
-      console.error('❌ Authentication error:', authError);
+      logger.error('Authentication error:', { error: authError?.message });
       return NextResponse.json({ 
         error: 'Authentication required', 
         details: 'User must be logged in to create clients'
       }, { status: 401 });
     }
 
-    console.log('✅ Authenticated user:', user.id);
-
     // Try to create LATE profile first (unless skipped for temp clients)
     let lateProfileId = null;
     if (!skipLateProfile) {
       try {
-        console.log('🎯 Attempting to create LATE profile...');
-        console.log('🔑 LATE API Key available:', !!process.env.LATE_API_KEY);
-        console.log('🔑 LATE API Key length:', process.env.LATE_API_KEY?.length || 0);
-        
         lateProfileId = await createLateProfile(name.trim(), {
           brand_color: brand_color,
           company_description: company_description,
@@ -194,16 +168,12 @@ export async function POST(req: NextRequest) {
           value_proposition: value_proposition,
           website_url: website_url
         });
-        console.log('✅ LATE profile created with ID:', lateProfileId);
       } catch (lateError) {
-        console.error('⚠️ Failed to create LATE profile, continuing with client creation:');
-        console.error('❌ LATE Error details:', lateError);
-        console.error('❌ LATE Error message:', lateError instanceof Error ? lateError.message : String(lateError));
-        console.error('❌ LATE Error stack:', lateError instanceof Error ? lateError.stack : 'No stack trace');
+        logger.error('Failed to create LATE profile, continuing with client creation:', {
+          error: lateError instanceof Error ? lateError.message : String(lateError)
+        });
         // Don't fail the entire operation if LATE fails
       }
-    } else {
-      console.log('⏭️ Skipping LATE profile creation for temporary client');
     }
 
     // Insert the new client with LATE profile ID and user association
@@ -229,18 +199,11 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (insertError) {
-      console.error('❌ Failed to create client:', insertError);
+      logger.error('Failed to create client:', { error: insertError.message });
       return NextResponse.json({ 
         error: 'Failed to create client', 
         details: insertError.message 
       }, { status: 500 });
-    }
-
-    console.log('✅ Client created successfully:', client.id);
-    if (lateProfileId) {
-      console.log('✅ LATE profile linked:', lateProfileId);
-    } else {
-      console.log('⚠️ No LATE profile linked (creation failed)');
     }
 
     // Track client creation for subscription usage
@@ -255,7 +218,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: unknown) {
-    console.error('💥 Error in clients/create route:', error);
+    logger.error('Error in clients/create route:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)

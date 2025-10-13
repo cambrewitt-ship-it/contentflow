@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -25,9 +26,7 @@ export async function POST(
         { status: 400 }
       );
     }
-    
-    console.log('🚀 Starting editing session for post:', { postId, client_id, edited_by_user_id });
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     // Get current post status
@@ -41,7 +40,7 @@ export async function POST(
       .single();
     
     if (fetchError) {
-      console.error('❌ Error fetching post for editing session:', fetchError);
+      logger.error('❌ Error fetching post for editing session:', fetchError);
       if (fetchError.code === 'PGRST116') {
         return NextResponse.json(
           { error: 'Post not found' },
@@ -110,15 +109,13 @@ export async function POST(
       .single();
     
     if (updateError) {
-      console.error('❌ Error starting editing session:', updateError);
+      logger.error('❌ Error starting editing session:', updateError);
       return NextResponse.json(
         { error: 'Failed to start editing session' },
         { status: 500 }
       );
     }
-    
-    console.log('✅ Editing session started successfully:', updatedPost);
-    
+
     return NextResponse.json({
       success: true,
       message: 'Editing session started successfully',
@@ -131,7 +128,7 @@ export async function POST(
     });
     
   } catch (error) {
-    console.error('💥 Unexpected error in POST editing session:', error);
+    logger.error('💥 Unexpected error in POST editing session:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to start editing session' },
       { status: 500 }
@@ -160,9 +157,7 @@ export async function DELETE(
         { status: 400 }
       );
     }
-    
-    console.log('🛑 Ending editing session for post:', { postId, client_id, edited_by_user_id });
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     // Get current editing status
@@ -173,7 +168,7 @@ export async function DELETE(
       .single();
     
     if (fetchError) {
-      console.error('❌ Error fetching post for ending session:', fetchError);
+      logger.error('❌ Error fetching post for ending session:', fetchError);
       if (fetchError.code === 'PGRST116') {
         return NextResponse.json(
           { error: 'Post not found' },
@@ -218,22 +213,20 @@ export async function DELETE(
       .eq('client_id', client_id);
     
     if (updateError) {
-      console.error('❌ Error ending editing session:', updateError);
+      logger.error('❌ Error ending editing session:', updateError);
       return NextResponse.json(
         { error: 'Failed to end editing session' },
         { status: 500 }
       );
     }
-    
-    console.log('✅ Editing session ended successfully');
-    
+
     return NextResponse.json({
       success: true,
       message: 'Editing session ended successfully'
     });
     
   } catch (error) {
-    console.error('💥 Unexpected error in DELETE editing session:', error);
+    logger.error('💥 Unexpected error in DELETE editing session:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to end editing session' },
       { status: 500 }
@@ -257,9 +250,7 @@ export async function GET(
         { status: 400 }
       );
     }
-    
-    console.log('🔍 Checking editing session status for post:', { postId, clientId });
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     const { data: post, error } = await supabase
@@ -273,7 +264,7 @@ export async function GET(
       .single();
     
     if (error) {
-      console.error('❌ Error checking editing session status:', error);
+      logger.error('❌ Error checking editing session status:', error);
       if (error.code === 'PGRST116') {
         return NextResponse.json(
           { error: 'Post not found' },
@@ -305,7 +296,7 @@ export async function GET(
     });
     
   } catch (error) {
-    console.error('💥 Unexpected error in GET editing session:', error);
+    logger.error('💥 Unexpected error in GET editing session:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to check editing session status' },
       { status: 500 }

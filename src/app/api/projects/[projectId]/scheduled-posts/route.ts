@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -11,11 +12,9 @@ export async function GET(
 ) {
   try {
     const { projectId } = await params;
-    console.log('🔍 Fetching scheduled posts for project:', projectId);
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    
-    console.log('🔍 Querying calendar_scheduled_posts table with project_id:', projectId);
+
     const { data, error } = await supabase
       .from('calendar_scheduled_posts')
       .select('*')
@@ -23,17 +22,16 @@ export async function GET(
       .order('scheduled_date', { ascending: true });
     
     if (error) {
-      console.error('Database error:', error);
+      logger.error('Database error:', error);
       throw error;
     }
-    
-    console.log('🔍 Scheduled posts found:', data?.length || 0);
+
     if (data && data.length > 0) {
-      console.log('🔍 First scheduled post ID:', data[0]?.id);
+
     }
     return NextResponse.json({ posts: data });
   } catch (error) {
-    console.error('Error fetching scheduled posts:', error);
+    logger.error('Error fetching scheduled posts:', error);
     return NextResponse.json({ error: 'Failed to fetch scheduled posts' }, { status: 500 });
   }
 }
@@ -46,9 +44,7 @@ export async function POST(
   try {
     const { projectId } = await params;
     const body = await request.json();
-    
-    console.log('Scheduling post for project:', projectId);
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     // Ensure image_url is preserved when moving from unscheduled to scheduled
@@ -70,7 +66,7 @@ export async function POST(
       .single();
     
     if (scheduleError) {
-      console.error('Error scheduling post:', scheduleError);
+      logger.error('Error scheduling post:', scheduleError);
       throw scheduleError;
     }
     
@@ -82,15 +78,14 @@ export async function POST(
         .eq('id', body.unscheduledPostId);
       
       if (deleteError) {
-        console.error('Error deleting unscheduled post:', deleteError);
+        logger.error('Error deleting unscheduled post:', deleteError);
         // Don't throw here, the post was scheduled successfully
       }
     }
-    
-    console.log('Scheduled post ID:', scheduledPost?.id);
+
     return NextResponse.json({ post: scheduledPost });
   } catch (error) {
-    console.error('Error scheduling post:', error);
+    logger.error('Error scheduling post:', error);
     return NextResponse.json({ error: 'Failed to schedule post' }, { status: 500 });
   }
 }
@@ -103,9 +98,7 @@ export async function PATCH(
   try {
     const { projectId } = await params;
     const body = await request.json();
-    
-    console.log('Updating scheduled post:', body.postId);
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     // First check if the post exists
@@ -117,7 +110,7 @@ export async function PATCH(
       .single();
     
     if (checkError) {
-      console.error('Post not found:', checkError);
+      logger.error('Post not found:', checkError);
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
     
@@ -137,14 +130,13 @@ export async function PATCH(
       .single();
     
     if (error) {
-      console.error('Database error:', error);
+      logger.error('Database error:', error);
       throw error;
     }
-    
-    console.log('Updated scheduled post ID:', data?.id);
+
     return NextResponse.json({ post: data });
   } catch (error) {
-    console.error('Error updating scheduled post:', error);
+    logger.error('Error updating scheduled post:', error);
     return NextResponse.json({ error: 'Failed to update scheduled post' }, { status: 500 });
   }
 }
@@ -162,9 +154,7 @@ export async function DELETE(
     if (!postId) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
-    
-    console.log('Deleting scheduled post:', postId);
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     // Get the post data before deleting to preserve image_url
@@ -176,7 +166,7 @@ export async function DELETE(
       .single();
     
     if (fetchError) {
-      console.error('Error fetching post to delete:', fetchError);
+      logger.error('Error fetching post to delete:', fetchError);
       throw fetchError;
     }
     
@@ -188,7 +178,7 @@ export async function DELETE(
       .eq('project_id', projectId);
     
     if (error) {
-      console.error('Database error:', error);
+      logger.error('Database error:', error);
       throw error;
     }
     
@@ -204,15 +194,14 @@ export async function DELETE(
         });
       
       if (moveError) {
-        console.error('Error moving post back to unscheduled:', moveError);
+        logger.error('Error moving post back to unscheduled:', moveError);
         // Don't throw here, the post was deleted successfully
       }
     }
-    
-    console.log('Scheduled post deleted successfully');
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting scheduled post:', error);
+    logger.error('Error deleting scheduled post:', error);
     return NextResponse.json({ error: 'Failed to delete scheduled post' }, { status: 500 });
   }
 }

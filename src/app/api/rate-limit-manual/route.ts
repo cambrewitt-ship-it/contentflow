@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkSimpleRateLimit, getRateLimitTier, getClientIdentifier, createRateLimitResponse } from '../../../lib/simpleRateLimit';
+import logger from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const tier = getRateLimitTier(pathname);
   const identifier = getClientIdentifier(request);
-  
-  console.log('🔍 Manual rate limit check:', { pathname, tier, identifier });
-  
+
   const result = checkSimpleRateLimit(request, tier, identifier);
-  console.log('📊 Rate limit result:', result);
-  
+
   if (!result.success) {
-    console.log('🚫 Rate limit exceeded!');
+
     return createRateLimitResponse(result.limit, result.remaining, result.reset);
   }
   

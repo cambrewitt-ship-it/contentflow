@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -11,8 +12,7 @@ export async function GET(
 ) {
   try {
     const { projectId } = await params;
-    console.log('Fetching unscheduled posts for project:', projectId);
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     const { data, error } = await supabase
@@ -22,14 +22,13 @@ export async function GET(
       .order('created_at', { ascending: false });
     
     if (error) {
-      console.error('Database error:', error);
+      logger.error('Database error:', error);
       throw error;
     }
-    
-    console.log('Unscheduled posts:', data);
+
     return NextResponse.json({ posts: data });
   } catch (error) {
-    console.error('Error fetching unscheduled posts:', error);
+    logger.error('Error fetching unscheduled posts:', error);
     return NextResponse.json({ error: 'Failed to fetch unscheduled posts' }, { status: 500 });
   }
 }
@@ -42,9 +41,7 @@ export async function POST(
   try {
     const { projectId } = await params;
     const body = await request.json();
-    
-    console.log('Creating unscheduled post for project:', projectId);
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
     
     // Ensure image_url field is included in the post data
@@ -61,14 +58,13 @@ export async function POST(
       .single();
     
     if (error) {
-      console.error('Database error:', error);
+      logger.error('Database error:', error);
       throw error;
     }
-    
-    console.log('Created unscheduled post:', data);
+
     return NextResponse.json({ post: data });
   } catch (error) {
-    console.error('Error creating unscheduled post:', error);
+    logger.error('Error creating unscheduled post:', error);
     return NextResponse.json({ error: 'Failed to create unscheduled post' }, { status: 500 });
   }
 }

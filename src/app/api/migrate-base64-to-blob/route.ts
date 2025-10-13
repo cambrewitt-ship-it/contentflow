@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { put } from '@vercel/blob';
+import logger from '@/lib/logger';
 
 // Helper function to convert base64 to blob
 function base64ToBlob(base64String: string, mimeType: string): Blob {
@@ -30,8 +31,7 @@ async function uploadBase64ToBlob(base64String: string, filename: string): Promi
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🚀 Starting migration of base64 images to Vercel Blob URLs...');
-    
+
     // Check for required environment variables
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return NextResponse.json(
@@ -62,8 +62,7 @@ export async function POST(request: NextRequest) {
     const results = [];
     
     for (const tableName of tables) {
-      console.log(`\n📋 Processing table: ${tableName}`);
-      
+
       // Get posts with base64 images
       const { data: posts, error: fetchError } = await supabase
         .from(tableName)
@@ -72,7 +71,7 @@ export async function POST(request: NextRequest) {
         .limit(limit);
       
       if (fetchError) {
-        console.error(`❌ Error fetching from ${tableName}:`, fetchError);
+        logger.error(`❌ Error fetching from ${tableName}:`, fetchError);
         results.push({
           table: tableName,
           error: fetchError.message,
@@ -82,7 +81,7 @@ export async function POST(request: NextRequest) {
       }
       
       if (!posts || posts.length === 0) {
-        console.log(`✅ No base64 images found in ${tableName}`);
+
         results.push({
           table: tableName,
           converted: 0,
@@ -92,19 +91,20 @@ export async function POST(request: NextRequest) {
       }
       
       totalFound += posts.length;
-      console.log(`🔍 Found ${posts.length} posts with base64 images in ${tableName}`);
-      
+
       let tableConverted = 0;
       
       // Process each post
       for (const post of posts) {
         try {
-          console.log(`\n🔄 Processing post ${post.id} from ${tableName}...`);
-          console.log(`   Caption: ${post.caption?.substring(0, 50)}...`);
-          console.log(`   Image length: ${post.image_url?.length} characters`);
-          
+
+          logger.debug('Processing post', { 
+            postId: post.id?.substring(0, 8) + '...',
+            captionLength: post.caption?.length || 0 
+          });
+
           if (dryRun) {
-            console.log(`   🔍 DRY RUN: Would convert this image`);
+
             tableConverted++;
             continue;
           }
@@ -116,8 +116,7 @@ export async function POST(request: NextRequest) {
           
           // Upload to Vercel Blob
           const blobUrl = await uploadBase64ToBlob(post.image_url, filename);
-          console.log(`   ✅ Uploaded to blob: ${blobUrl}`);
-          
+
           // Update database with blob URL
           const { error: updateError } = await supabase
             .from(tableName)
@@ -125,11 +124,10 @@ export async function POST(request: NextRequest) {
             .eq('id', post.id);
           
           if (updateError) {
-            console.error(`   ❌ Error updating database:`, updateError);
+            logger.error(`   ❌ Error updating database:`, updateError);
             continue;
           }
-          
-          console.log(`   ✅ Updated database with blob URL`);
+
           tableConverted++;
           totalConverted++;
           
@@ -137,7 +135,7 @@ export async function POST(request: NextRequest) {
           await new Promise(resolve => setTimeout(resolve, 100));
           
         } catch (error) {
-          console.error(`   ❌ Error processing post ${post.id}:`, error);
+          logger.error(`   ❌ Error processing post ${post.id}:`, error);
           continue;
         }
       }
@@ -148,9 +146,7 @@ export async function POST(request: NextRequest) {
         found: posts.length
       });
     }
-    
-    console.log(`\n🎉 Migration completed! Converted ${totalConverted} images to Vercel Blob URLs`);
-    
+
     return NextResponse.json({
       success: true,
       message: `Migration completed! Converted ${totalConverted} images to Vercel Blob URLs`,
@@ -161,7 +157,7 @@ export async function POST(request: NextRequest) {
     });
     
   } catch (error) {
-    console.error('❌ Migration failed:', error);
+    logger.error('❌ Migration failed:', error);
     return NextResponse.json(
       { error: 'Migration failed', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

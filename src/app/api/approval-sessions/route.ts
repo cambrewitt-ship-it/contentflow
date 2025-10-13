@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/logger';
 // Temporary inline types to resolve import issue
 interface ClientApprovalSession {
   id: string;
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('❌ Error creating approval session:', error);
+      logger.error('❌ Error creating approval session:', error);
       return NextResponse.json(
         { error: 'Failed to create approval session' },
         { status: 500 }
@@ -58,8 +59,7 @@ export async function POST(request: NextRequest) {
 
     // Create post approvals for selected posts only
     if (selected_post_ids.length > 0) {
-      console.log(`📝 Creating post approvals for ${selected_post_ids.length} selected posts`);
-      
+
       // Get all posts from both tables to determine their types
       const [scheduledPosts, otherScheduledPosts] = await Promise.all([
         supabase
@@ -91,9 +91,9 @@ export async function POST(request: NextRequest) {
           .insert(plannerApprovals);
 
         if (plannerError) {
-          console.error('❌ Error creating planner post approvals:', plannerError);
+          logger.error('❌ Error creating planner post approvals:', plannerError);
         } else {
-          console.log(`✅ Created ${plannerApprovals.length} planner post approvals`);
+
         }
       }
 
@@ -111,9 +111,9 @@ export async function POST(request: NextRequest) {
           .insert(scheduledApprovals);
 
         if (scheduledError) {
-          console.error('❌ Error creating scheduled post approvals:', scheduledError);
+          logger.error('❌ Error creating scheduled post approvals:', scheduledError);
         } else {
-          console.log(`✅ Created ${scheduledApprovals.length} scheduled post approvals`);
+
         }
       }
     }
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('❌ Error in approval sessions API:', error);
+    logger.error('❌ Error in approval sessions API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -159,7 +159,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Error fetching approval sessions:', error);
+      logger.error('❌ Error fetching approval sessions:', error);
       return NextResponse.json(
         { error: 'Failed to fetch approval sessions' },
         { status: 500 }
@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sessions });
 
   } catch (error) {
-    console.error('❌ Error in approval sessions GET:', error);
+    logger.error('❌ Error in approval sessions GET:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
