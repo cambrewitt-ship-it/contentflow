@@ -6,6 +6,7 @@ interface Post {
   id: string;
   scheduled_date?: string;
   approval_status?: 'pending' | 'approved' | 'rejected' | 'needs_attention' | 'draft';
+  late_status?: 'pending' | 'scheduled' | 'published' | 'failed';
   image_url?: string;
   caption?: string;
 }
@@ -121,6 +122,41 @@ export function CompactMonthCalendar({ posts, uploads = {}, loading = false }: C
     return dayPosts.some(post => post.approval_status === 'pending' || !post.approval_status)
   }
 
+  // Check if a day has published posts
+  const hasPublishedPosts = (day: number | null) => {
+    if (!day) return false
+    
+    const dayPosts = getPostsForDay(day)
+    const today = new Date()
+    const dayDate = new Date(calendarData.year, calendarData.month, day)
+    
+    const hasPublished = dayPosts.some(post => {
+      // Check if post is explicitly marked as published
+      if (post.late_status === 'published') {
+        return true
+      }
+      
+      // Check if post is scheduled and the scheduled date is today or in the past
+      if (post.late_status === 'scheduled' && post.scheduled_date) {
+        const scheduledDate = new Date(post.scheduled_date + 'T00:00:00')
+        return scheduledDate <= today
+      }
+      
+      return false
+    })
+    
+    
+    return hasPublished
+  }
+
+  // Check if a day has posts that need attention
+  const hasNeedsAttentionPosts = (day: number | null) => {
+    if (!day) return false
+    
+    const dayPosts = getPostsForDay(day)
+    return dayPosts.some(post => post.approval_status === 'needs_attention')
+  }
+
   // Get border color for a day based on post statuses
   const getDayBorderColor = (day: number | null) => {
     if (!day) return ''
@@ -190,6 +226,9 @@ export function CompactMonthCalendar({ posts, uploads = {}, loading = false }: C
           const borderColor = getDayBorderColor(day)
           const hasContent = dayPosts.length > 0 || dayUploads.length > 0
           const hasPending = hasPendingPosts(day)
+          const hasPublished = hasPublishedPosts(day)
+          const hasNeedsAttention = hasNeedsAttentionPosts(day)
+          
           
           return (
             <div
@@ -197,9 +236,11 @@ export function CompactMonthCalendar({ posts, uploads = {}, loading = false }: C
               className={`
                 relative aspect-square flex items-center justify-center text-xl font-bold transition-all
                 ${day ? 'text-gray-800 hover:bg-gray-50 cursor-pointer' : 'text-transparent'}
-                ${today ? 'bg-white border-2 border-gray-600 text-gray-800 rounded-3xl shadow-lg shadow-gray-300' : ''}
-                ${hasPending && !today ? 'bg-gray-100 border-2 border-gray-300 rounded-3xl' : ''}
-                ${hasContent && !hasPending && !today ? 'bg-blue-100 border-2 border-blue-300 rounded-3xl' : ''}
+                ${hasNeedsAttention ? 'bg-orange-100 border-2 border-orange-300 rounded-3xl' : ''}
+                ${hasPublished && !hasNeedsAttention ? 'bg-green-100 border-2 border-green-300 rounded-3xl' : ''}
+                ${hasPending && !hasNeedsAttention && !hasPublished ? 'bg-gray-100 border-2 border-gray-300 rounded-3xl' : ''}
+                ${hasContent && !hasPending && !hasPublished && !hasNeedsAttention ? 'bg-blue-100 border-2 border-blue-300 rounded-3xl' : ''}
+                ${!hasContent && today ? 'bg-white border-2 border-gray-600 text-gray-800 rounded-3xl shadow-lg shadow-gray-300' : ''}
                 ${borderColor}
               `}
             >
@@ -234,6 +275,29 @@ export function CompactMonthCalendar({ posts, uploads = {}, loading = false }: C
             </div>
           )
         })}
+      </div>
+
+      {/* Color Key/Legend */}
+      <div className="mt-6 pt-4 border-t border-gray-200">
+        <div className="text-sm font-medium text-gray-700 mb-3">Calendar Legend</div>
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-orange-100 border-2 border-orange-300 rounded-full"></div>
+            <span className="text-gray-600">Needs Attention</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-green-100 border-2 border-green-300 rounded-full"></div>
+            <span className="text-gray-600">Published/Scheduled</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-gray-100 border-2 border-gray-300 rounded-full"></div>
+            <span className="text-gray-600">Pending Approval</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-blue-100 border-2 border-blue-300 rounded-full"></div>
+            <span className="text-gray-600">Client Uploads</span>
+          </div>
+        </div>
       </div>
     </div>
   )
