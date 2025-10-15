@@ -1,7 +1,40 @@
 import Stripe from 'stripe';
 
-// Initialize Stripe with the secret key
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+// ===== STRIPE CONFIGURATION VALIDATION =====
+// Validate Stripe configuration on startup to fail fast if misconfigured
+
+// 1. Check if STRIPE_SECRET_KEY exists
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error(
+    '❌ STRIPE_SECRET_KEY is not set in environment variables. ' +
+    'Please add STRIPE_SECRET_KEY to your .env file. ' +
+    'Get your key from: https://dashboard.stripe.com/apikeys'
+  );
+}
+
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+
+// 2. Validate key format - must start with 'sk_'
+if (!stripeSecretKey.startsWith('sk_')) {
+  throw new Error(
+    `❌ Invalid STRIPE_SECRET_KEY format. ` +
+    `Stripe secret keys must start with 'sk_' but got: ${stripeSecretKey.substring(0, 10)}... ` +
+    `Please check your environment variables.`
+  );
+}
+
+// 3. In production, ensure we're not using a test key
+if (process.env.NODE_ENV === 'production' && stripeSecretKey.startsWith('sk_test_')) {
+  throw new Error(
+    '❌ SECURITY ERROR: Using Stripe TEST key in PRODUCTION environment! ' +
+    'You must use a live Stripe key (starts with sk_live_) in production. ' +
+    'Get your live key from: https://dashboard.stripe.com/apikeys ' +
+    'Current key starts with: sk_test_...'
+  );
+}
+
+// Initialize Stripe with the validated secret key
+export const stripe = new Stripe(stripeSecretKey, {
   apiVersion: '2025-09-30.clover',
   typescript: true,
 });

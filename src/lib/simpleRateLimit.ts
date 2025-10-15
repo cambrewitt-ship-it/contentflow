@@ -14,7 +14,8 @@ const rateLimits = {
   ai: { requests: 20, windowMs: 60 * 60 * 1000 }, // 20 per hour
   authenticated: { requests: 100, windowMs: 15 * 60 * 1000 }, // 100 per 15 min
   public: { requests: 10, windowMs: 15 * 60 * 1000 }, // 10 per 15 min
-  portal: { requests: 50, windowMs: 15 * 60 * 1000 }, // 50 per 15 min
+  portal: { requests: 20, windowMs: 60 * 60 * 1000 }, // 20 per hour
+  portalAuth: { requests: 5, windowMs: 60 * 60 * 1000 }, // 5 per hour
   auth: { requests: 20, windowMs: 15 * 60 * 1000 }, // 20 per 15 min
 };
 
@@ -28,6 +29,7 @@ const routePatterns: Record<string, RateLimitTier> = {
   '/auth/login': 'auth',
   '/auth/signup': 'auth',
   '/auth/callback': 'auth',
+  '/api/portal/validate': 'portalAuth',
   '/api/portal': 'portal',
   '/portal': 'portal',
   '/api/clients': 'authenticated',

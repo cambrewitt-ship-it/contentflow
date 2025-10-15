@@ -22,6 +22,7 @@ export default function Home() {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [email, setEmail] = useState('');
 
   // Fetch user profile - ONLY on mount or when user ID changes
   useEffect(() => {
@@ -83,13 +84,13 @@ export default function Home() {
               ) : (
                 <div className="flex items-center space-x-2">
                   <Link href="/auth/login">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" className="bg-white text-gray-900 hover:bg-gray-50 border-gray-300">
                       Sign In
                     </Button>
                   </Link>
                   <Link href="/auth/signup">
                     <Button size="sm">
-                      Sign Up
+                      Get Started FREE
                     </Button>
                   </Link>
                 </div>
@@ -110,23 +111,29 @@ export default function Home() {
               Upload content, generate captions with AI, and schedule posts across all platforms. 
               Built specifically for marketing agencies managing multiple clients.
             </p>
-            <div className="mt-10 flex items-center justify-center gap-x-6">
-
+            <div className="mt-10 flex items-center justify-center gap-3 max-w-2xl mx-auto px-4">
+              <input
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="flex-1 px-4 py-3 text-base rounded-lg border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent shadow-sm"
+              />
               <Button 
                 size="lg" 
-                className="px-8 py-3 text-base" 
+                className="px-8 py-3 text-base whitespace-nowrap" 
                 onClick={() => {
                   if (user) {
                     router.push('/dashboard');
                   } else {
-                    router.push('/auth/login');
+                    const signupUrl = email 
+                      ? `/auth/signup?email=${encodeURIComponent(email)}`
+                      : '/auth/signup';
+                    router.push(signupUrl);
                   }
                 }}
               >
-                Get Started
-              </Button>
-              <Button size="lg" className="px-8 py-3 text-base bg-white text-gray-900 hover:bg-gray-50 border border-gray-200">
-                Watch Demo
+                Get Started FREE
               </Button>
             </div>
           </div>

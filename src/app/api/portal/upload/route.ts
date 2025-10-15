@@ -7,6 +7,81 @@ const supabase = createClient(
   process.env.NEXT_SUPABASE_SERVICE_ROLE!
 );
 
+// Allowed MIME types
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'video/mp4',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/webm',
+  'application/pdf'
+];
+
+// Allowed file extensions
+const ALLOWED_EXTENSIONS = [
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.gif',
+  '.webp',
+  '.mp4',
+  '.mov',
+  '.avi',
+  '.webm',
+  '.pdf'
+];
+
+// Maximum file size: 50MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+/**
+ * Validates file upload parameters
+ */
+function validateFile(
+  fileName: string,
+  fileType: string,
+  fileSize: number
+): { valid: boolean; error?: string } {
+  // Check for dangerous characters in filename
+  if (fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+    return {
+      valid: false,
+      error: 'Invalid filename: contains forbidden characters'
+    };
+  }
+
+  // Validate file extension
+  const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+  if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
+    return {
+      valid: false,
+      error: `Invalid file type: ${fileExtension}. Allowed types: ${ALLOWED_EXTENSIONS.join(', ')}`
+    };
+  }
+
+  // Validate MIME type
+  if (!ALLOWED_MIME_TYPES.includes(fileType)) {
+    return {
+      valid: false,
+      error: `Invalid MIME type: ${fileType}. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`
+    };
+  }
+
+  // Validate file size
+  if (fileSize > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      error: `File too large: ${(fileSize / (1024 * 1024)).toFixed(2)}MB. Maximum allowed: ${MAX_FILE_SIZE / (1024 * 1024)}MB`
+    };
+  }
+
+  return { valid: true };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -89,6 +164,21 @@ export async function POST(request: NextRequest) {
     if (!token || !fileName || !fileUrl) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Validate file parameters
+    const validation = validateFile(fileName, fileType || 'unknown', fileSize || 0);
+    if (!validation.valid) {
+      logger.warn('⚠️ Portal upload rejected - validation failed', {
+        fileName,
+        fileType,
+        fileSize,
+        error: validation.error
+      });
+      return NextResponse.json(
+        { error: validation.error },
         { status: 400 }
       );
     }

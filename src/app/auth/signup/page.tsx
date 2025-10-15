@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -10,8 +10,13 @@ import { Checkbox } from '../../../components/ui/checkbox';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Eye, EyeOff } from 'lucide-react';
 
-export default function SignupPage() {
-  const [email, setEmail] = useState('');
+function SignupForm() {
+  const searchParams = useSearchParams();
+  const emailParam = searchParams?.get('email') || '';
+  
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState(emailParam);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,20 +28,33 @@ export default function SignupPage() {
   const { signUp } = useAuth();
   const router = useRouter();
 
+  // Update email when URL parameter changes
+  useEffect(() => {
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+  }, [emailParam]);
+
+  // Password validation
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasLowercase = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const isPasswordValid = hasUppercase && hasLowercase && hasNumber && password.length >= 6;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setMessage('');
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
+    if (!isPasswordValid) {
+      setError('Password must contain an uppercase letter, a lowercase letter, and a number');
       setLoading(false);
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
       setLoading(false);
       return;
     }
@@ -47,7 +65,7 @@ export default function SignupPage() {
       return;
     }
 
-    const { error } = await signUp(email, password);
+    const { error } = await signUp(email, password, { firstName, lastName });
     
     if (error) {
       setError(error.message);
@@ -82,6 +100,34 @@ export default function SignupPage() {
                 placeholder="Enter your email"
               />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label htmlFor="firstName" className="text-sm font-medium">
+                  First Name
+                </label>
+                <Input
+                  id="firstName"
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                  placeholder="First name"
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="lastName" className="text-sm font-medium">
+                  Last Name
+                </label>
+                <Input
+                  id="lastName"
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                  placeholder="Last name"
+                />
+              </div>
+            </div>
             <div className="space-y-2">
               <label htmlFor="password" className="text-sm font-medium">
                 Password
@@ -107,6 +153,24 @@ export default function SignupPage() {
                     <Eye className="h-4 w-4" />
                   )}
                 </button>
+              </div>
+            </div>
+            {/* Password Requirements */}
+            <div className="text-xs space-y-0.5 px-2 py-1.5 bg-muted/30 rounded border border-muted">
+              <p className="font-medium text-muted-foreground mb-1 text-xs">Password must contain:</p>
+              <div className="space-y-0.5">
+                <div className={`flex items-center gap-1.5 ${hasUppercase ? 'text-green-600' : 'text-muted-foreground'}`}>
+                  <span className="text-sm">{hasUppercase ? '✓' : '○'}</span>
+                  <span>Uppercase character</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${hasLowercase ? 'text-green-600' : 'text-muted-foreground'}`}>
+                  <span className="text-sm">{hasLowercase ? '✓' : '○'}</span>
+                  <span>Lowercase character</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${hasNumber ? 'text-green-600' : 'text-muted-foreground'}`}>
+                  <span className="text-sm">{hasNumber ? '✓' : '○'}</span>
+                  <span>Number</span>
+                </div>
               </div>
             </div>
             <div className="space-y-2">
@@ -180,5 +244,22 @@ export default function SignupPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
+            <CardDescription>Loading...</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    }>
+      <SignupForm />
+    </Suspense>
   );
 }

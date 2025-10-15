@@ -9,7 +9,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, metadata?: { firstName?: string; lastName?: string }) => Promise<{ error: AuthError | null }>;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, metadata?: { firstName?: string; lastName?: string }) => {
     try {
       // Debug: Check environment variables (client-side)
       logger.debug('🔐 Starting signup process for:', { email });
@@ -60,11 +60,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: configError as AuthError };
       }
 
+      // Prepare user metadata
+      const userMetadata: { full_name?: string } = {};
+      if (metadata?.firstName || metadata?.lastName) {
+        userMetadata.full_name = `${metadata.firstName || ''} ${metadata.lastName || ''}`.trim();
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: userMetadata,
         },
       });
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { handleApiError, handleDatabaseError, ApiErrors } from '@/lib/apiErrorHandler';
+import { sanitizeUUID } from '@/lib/validators';
 import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -134,18 +135,20 @@ export async function GET(
     const paramsData = await params;
     clientId = paramsData.clientId;
 
-    logger.debug('Client ID validation', {
-      clientIdLength: clientId?.length,
-      isValidUUID: clientId ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId) : false,
-      hasCtSuffix: clientId?.includes('-ct_')
-    });
-
     // Clean up clientId if it has additional data appended (common issue with OAuth flows)
     let cleanClientId = clientId;
     if (clientId && clientId.includes('-ct_')) {
-
       cleanClientId = clientId.split('-ct_')[0];
+    }
 
+    // Validate and sanitize the client ID
+    const sanitizedClientId = sanitizeUUID(cleanClientId);
+    if (!sanitizedClientId) {
+      logger.warn('⚠️ Invalid client ID format', { clientId: cleanClientId });
+      return NextResponse.json(
+        { error: 'Invalid client ID format' },
+        { status: 400 }
+      );
     }
 
     // Get the authorization header
@@ -177,7 +180,7 @@ export async function GET(
     const { data: client, error } = await supabase
       .from('clients')
       .select('*')
-      .eq('id', cleanClientId)
+      .eq('id', sanitizedClientId)
       .eq('user_id', user.id) // Only get clients owned by the authenticated user
       .single();
 
@@ -186,7 +189,7 @@ export async function GET(
         route: '/api/clients/[clientId]',
         operation: 'fetch_client',
         userId: user.id,
-        clientId: cleanClientId,
+        clientId: sanitizedClientId,
       }, 'Client not found');
     }
 

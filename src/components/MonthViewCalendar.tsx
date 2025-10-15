@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, Calendar, Upload } from 'lucide-react'
 import { useState, useMemo } from 'react'
+import { SafeImage } from './SafeImage'
 
 interface Post {
   id: string;
@@ -462,34 +463,13 @@ export function MonthViewCalendar({
                             key={post.id}
                             className="relative w-8 h-8 rounded border border-gray-200 overflow-hidden"
                           >
-                            {post.image_url ? (
-                              <img
-                                src={post.image_url}
-                                alt={post.caption ? post.caption.substring(0, 20) : 'Post'}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  // Fallback to a placeholder if image fails to load
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = 'none';
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    parent.innerHTML = `
-                                      <div class="w-full h-full bg-gray-200 flex items-center justify-center">
-                                        <svg class="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                          <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"/>
-                                        </svg>
-                                      </div>
-                                    `;
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                                <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"/>
-                                </svg>
-                              </div>
-                            )}
+                            <SafeImage
+                              src={post.image_url}
+                              alt={post.caption ? post.caption.substring(0, 20) : 'Post'}
+                              className="w-full h-full object-cover"
+                              placeholderBgColor="bg-gray-200"
+                              placeholderIconColor="text-gray-400"
+                            />
                           </div>
                         ))}
                         
@@ -501,24 +481,12 @@ export function MonthViewCalendar({
                           >
                             {upload.file_type.startsWith('image/') ? (
                               <div className="relative w-full h-full">
-                                <img
+                                <SafeImage
                                   src={upload.file_url}
                                   alt={upload.file_name}
                                   className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.style.display = 'none';
-                                    const parent = target.parentElement;
-                                    if (parent) {
-                                      parent.innerHTML = `
-                                        <div class="w-full h-full bg-blue-100 flex items-center justify-center">
-                                          <svg class="w-3 h-3 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"/>
-                                          </svg>
-                                        </div>
-                                      `;
-                                    }
-                                  }}
+                                  placeholderBgColor="bg-blue-100"
+                                  placeholderIconColor="text-blue-500"
                                 />
                                 {/* Blue upload icon overlay */}
                                 <div className="absolute top-0 right-0 w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
