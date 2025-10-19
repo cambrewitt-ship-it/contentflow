@@ -35,7 +35,7 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
     fetchAccounts();
   }, [clientId, fetchPosts, fetchAccounts]);
 
-  const fetchPosts = async () => {
+  const fetchPosts = useCallback(async () => {
     try {
       console.log('Fetching posts for client:', clientId);
       const response = await fetch(`/api/posts/${clientId}`);
@@ -47,9 +47,9 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
     } finally {
       setLoading(false);
     }
-  };
+  }, [clientId]);
 
-  const fetchAccounts = async () => {
+  const fetchAccounts = useCallback(async () => {
     try {
       console.log('Fetching accounts for client:', clientId);
       const response = await fetch(`/api/late/get-accounts/${clientId}`);
@@ -59,7 +59,7 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
     } catch (error) {
       console.error('Error fetching accounts:', error);
     }
-  };
+  }, [clientId]);
 
   const toggleAccountForPost = (postId: string, accountId: string) => {
     setScheduledPosts(prev => {

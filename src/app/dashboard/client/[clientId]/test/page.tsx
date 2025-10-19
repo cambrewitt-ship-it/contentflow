@@ -14,7 +14,7 @@ export default function TestClientPage({ params }: { params: Promise<{ clientId:
     fetchClient()
   }, [clientId, fetchClient])
   
-  const fetchClient = async () => {
+  const fetchClient = useCallback(async () => {
     console.log('🔍 fetchClient called')
     setLoading(true)
     
@@ -63,7 +63,7 @@ export default function TestClientPage({ params }: { params: Promise<{ clientId:
     } finally {
       setLoading(false);
     }
-  }
+  }, [clientId])
   
   if (loading) return <div>Loading test page...</div>
   if (!client) return <div>Client not found in test page</div>

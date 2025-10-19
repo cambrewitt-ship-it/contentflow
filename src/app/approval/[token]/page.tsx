@@ -78,7 +78,7 @@ export default function PublicApprovalPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Fetch approval data using the token
-  const fetchApprovalData = async () => {
+  const fetchApprovalData = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -101,7 +101,7 @@ export default function PublicApprovalPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   // Load data on mount
   useEffect(() => {

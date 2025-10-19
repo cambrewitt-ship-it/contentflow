@@ -59,7 +59,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
     fetchClient()
   }, [clientId, fetchClient])
   
-  const fetchClient = async () => {
+  const fetchClient = useCallback(async () => {
     console.log('🔍 fetchClient called')
     setLoading(true)
     
@@ -112,7 +112,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
     } finally {
       setLoading(false);
     }
-  }
+  }, [clientId])
 
   // Save client data via API
   const handleSave = async () => {
