@@ -57,7 +57,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
   useEffect(() => {
     console.log('🔥 useEffect triggered for clientId:', clientId);
     fetchClient()
-  }, [clientId])
+  }, [clientId, fetchClient])
   
   const fetchClient = async () => {
     console.log('🔍 fetchClient called')

@@ -12,7 +12,7 @@ export default function TestClientPage({ params }: { params: Promise<{ clientId:
   useEffect(() => {
     console.log('🔥 useEffect triggered for clientId:', clientId)
     fetchClient()
-  }, [clientId])
+  }, [clientId, fetchClient])
   
   const fetchClient = async () => {
     console.log('🔍 fetchClient called')

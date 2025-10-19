@@ -105,7 +105,7 @@ export default function Dashboard() {
     if (user) {
       fetchClients();
     }
-  }, [user?.id]); // ✅ Only depend on user ID, not entire user object
+  }, [user?.id, getAccessToken]); // ✅ Only depend on user ID, not entire user object
 
   // Update NZST time and date every minute
   useEffect(() => {

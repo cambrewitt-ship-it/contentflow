@@ -44,7 +44,7 @@ export default function Home() {
     }
 
     fetchProfile();
-  }, [user?.id]); // ✅ Only depend on user ID, not entire user object
+  }, [user?.id, fetchProfile]); // ✅ Only depend on user ID, not entire user object
 
   return (
     <div className="min-h-screen bg-background">

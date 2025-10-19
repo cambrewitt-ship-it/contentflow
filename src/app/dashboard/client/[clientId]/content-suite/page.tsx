@@ -7,14 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
-import { ArrowLeft, Loader2, Sparkles, RefreshCw, Plus, FolderOpen, Calendar, Edit3, X, Lightbulb, User, Settings, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Calendar, Edit3, X, User, Settings, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import { MediaUploadColumn } from './MediaUploadColumn'
 import { CaptionGenerationColumn } from './CaptionGenerationColumn'
 import { SocialPreviewColumn } from './SocialPreviewColumn'
 import { ContentIdeasColumn } from './ContentIdeasColumn'
-import { generateCaptionsWithAI, remixCaptionWithAI, type AICaptionResult, type AIRemixResult } from '@/lib/ai-utils'
-import { ContentStoreProvider, type Caption, type UploadedImage } from '@/lib/contentStore'
+import { ContentStoreProvider } from '@/lib/contentStore'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface Project {
@@ -97,7 +96,7 @@ export default function ContentSuitePage({ params }: PageProps) {
   useEffect(() => {
     setClientRetryCount(0) // Reset retry count when clientId changes
     fetchClient()
-  }, [clientId])
+  }, [clientId, fetchClient])
 
   // Check for editPostId URL parameter
   useEffect(() => {
@@ -107,7 +106,7 @@ export default function ContentSuitePage({ params }: PageProps) {
       setIsEditing(true)
       fetchPostForEditing(editPostId)
     }
-  }, [searchParams, clientId])
+  }, [searchParams, clientId, fetchPostForEditing])
 
   // Check for content inbox pre-load parameters
   useEffect(() => {
@@ -154,7 +153,7 @@ export default function ContentSuitePage({ params }: PageProps) {
   }, [searchParams])
 
   // Fetch client data
-  const fetchClient = async () => {
+  const fetchClient = useCallback(async () => {
     if (!clientId) return
     
     try {
@@ -202,10 +201,10 @@ export default function ContentSuitePage({ params }: PageProps) {
     } finally {
       setClientLoading(false)
     }
-  }
+  }, [clientId, clientRetryCount, getAccessToken])
 
   // Fetch post data for editing
-  const fetchPostForEditing = async (postId: string) => {
+  const fetchPostForEditing = useCallback(async (postId: string) => {
     if (!clientId) return
     
     try {
@@ -236,7 +235,7 @@ export default function ContentSuitePage({ params }: PageProps) {
     } finally {
       setLoadingPost(false)
     }
-  }
+  }, [clientId, router])
 
   // Fetch projects for the client
   useEffect(() => {
@@ -746,7 +745,7 @@ function ContentSuiteContent({
     if (!isEditing) {
       clearAll();
     }
-  }, [isEditing]);
+  }, [isEditing, clearAll]);
 
   // Pre-populate form when editing post
   useEffect(() => {

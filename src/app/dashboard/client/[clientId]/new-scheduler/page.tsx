@@ -33,7 +33,7 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
   useEffect(() => {
     fetchPosts();
     fetchAccounts();
-  }, [clientId]);
+  }, [clientId, fetchPosts, fetchAccounts]);
 
   const fetchPosts = async () => {
     try {

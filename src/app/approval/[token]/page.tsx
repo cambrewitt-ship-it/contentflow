@@ -108,7 +108,7 @@ export default function PublicApprovalPage() {
     if (token) {
       fetchApprovalData();
     }
-  }, [token]);
+  }, [token, fetchApprovalData]);
 
   // Memoize expensive calculations
   const totalPosts = useMemo(() => {

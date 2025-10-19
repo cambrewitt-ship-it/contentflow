@@ -158,16 +158,16 @@ export function SocialPreviewColumn({
   // Fetch connected accounts on component mount
   useEffect(() => {
     fetchConnectedAccounts()
-  }, [clientId])
+  }, [clientId, fetchConnectedAccounts])
 
   // Fetch account data when platform changes
   useEffect(() => {
     if (connectedAccounts.length > 0) {
       fetchAccountDataForPlatform(selectedPreviewPlatform)
     }
-  }, [selectedPreviewPlatform, connectedAccounts])
+  }, [selectedPreviewPlatform, connectedAccounts, fetchAccountDataForPlatform])
 
-  const fetchConnectedAccounts = async () => {
+  const fetchConnectedAccounts = useCallback(async () => {
     try {
       setIsLoadingAccounts(true)
       const response = await fetch(`/api/late/get-accounts/${clientId}`)
@@ -183,9 +183,9 @@ export function SocialPreviewColumn({
     } finally {
       setIsLoadingAccounts(false)
     }
-  }
+  }, [clientId])
 
-  const fetchAccountDataForPlatform = async (platform: string) => {
+  const fetchAccountDataForPlatform = useCallback(async (platform: string) => {
     console.log(`🔍 Fetching ${platform} account data for client:`, clientId)
     console.log(`📋 Available connected accounts:`, connectedAccounts)
     console.log(`🔎 Looking for platform: "${platform}"`)
@@ -230,7 +230,7 @@ export function SocialPreviewColumn({
         profilePicture: '/default-avatar.svg'
       })
     }
-  }
+  }, [clientId, connectedAccounts])
 
 
   const openScheduleModal = () => {

@@ -1,6 +1,60 @@
 /**
- * Validation and sanitization utilities
+ * Validation and sanitization utilities using Zod
  */
+
+import { z } from 'zod';
+
+// ============================================================================
+// UTILITY VALIDATORS
+// ============================================================================
+
+/**
+ * Sanitizes HTML content by removing dangerous tags and attributes
+ * @param html - HTML string to sanitize
+ * @returns Sanitized HTML string
+ */
+function sanitizeHtml(html: string): string {
+  if (!html || typeof html !== 'string') {
+    return '';
+  }
+
+  return html
+    // Remove script tags and their content
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    // Remove iframe tags and their content
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+    // Remove object tags and their content
+    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
+    // Remove embed tags and their content
+    .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, '')
+    // Remove applet tags and their content
+    .replace(/<applet\b[^<]*(?:(?!<\/applet>)<[^<]*)*<\/applet>/gi, '')
+    // Remove dangerous event handlers
+    .replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '')
+    // Remove javascript: protocols
+    .replace(/javascript:/gi, '')
+    // Remove vbscript: protocols
+    .replace(/vbscript:/gi, '')
+    // Remove data: protocols that could contain scripts
+    .replace(/data:text\/html/gi, 'data:text/plain')
+    .replace(/data:application\/javascript/gi, 'data:text/plain');
+}
+
+/**
+ * Creates a sanitized string validator with length limits
+ * @param maxLength - Maximum allowed length
+ * @param minLength - Minimum required length (default: 1)
+ * @returns Zod string schema with sanitization
+ */
+function sanitizedString(maxLength: number, minLength: number = 1) {
+  return z.string()
+    .min(minLength, `String must be at least ${minLength} characters`)
+    .max(maxLength, `String must be at most ${maxLength} characters`)
+    .transform(sanitizeHtml)
+    .refine(val => val.length >= minLength, {
+      message: `String must be at least ${minLength} characters after sanitization`
+    });
+}
 
 /**
  * Validates UUID v4 format
@@ -88,3 +142,162 @@ export function sanitizeFilename(filename: string): string {
 
   return sanitized;
 }
+
+// ============================================================================
+// ZOD SCHEMAS
+// ============================================================================
+
+// Common validation schemas
+export const uuidSchema = z.string().uuid('Invalid UUID format');
+export const emailSchema = z.string().email('Invalid email format').max(320, 'Email too long');
+export const urlSchema = z.string().url('Invalid URL format').max(2000, 'URL too long');
+export const isoDateSchema = z.string().datetime('Invalid ISO date format');
+export const phoneSchema = z.string().regex(/^\+?[\d\s\-\(\)]+$/, 'Invalid phone number format').max(20);
+
+// Platform and enum schemas
+export const socialPlatformSchema = z.enum(['instagram', 'facebook', 'twitter', 'linkedin', 'tiktok', 'youtube']);
+export const postStatusSchema = z.enum(['draft', 'ready', 'scheduled', 'published', 'archived', 'deleted']);
+export const approvalStatusSchema = z.enum(['pending', 'approved', 'rejected', 'needs_revision']);
+export const mediaTypeSchema = z.enum(['image', 'video', 'gif', 'carousel']);
+
+// AI request schemas
+export const copyTypeSchema = z.enum(['social-media', 'email-marketing']);
+export const copyToneSchema = z.enum(['promotional', 'educational', 'personal', 'testimonial', 'engagement']);
+export const postNotesStyleSchema = z.enum(['quote-directly', 'paraphrase', 'use-as-inspiration']);
+export const imageFocusSchema = z.enum(['main-focus', 'supporting', 'background', 'none']);
+
+// ============================================================================
+// ENTITY SCHEMAS
+// ============================================================================
+
+// Client schemas
+export const createClientSchema = z.object({
+  name: sanitizedString(200, 1),
+  company_description: sanitizedString(5000).optional(),
+  website_url: urlSchema.optional(),
+  brand_tone: sanitizedString(1000).optional(),
+  target_audience: sanitizedString(2000).optional(),
+  value_proposition: sanitizedString(2000).optional(),
+  caption_dos: sanitizedString(2000).optional(),
+  caption_donts: sanitizedString(2000).optional(),
+  brand_voice_examples: sanitizedString(5000).optional(),
+  brand_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid hex color format').optional(),
+});
+
+export const updateClientSchema = createClientSchema.partial();
+
+// Post schemas
+export const updatePostSchema = z.object({
+  caption: sanitizedString(5000).optional(),
+  image_url: urlSchema.optional(),
+  notes: sanitizedString(2000).optional(),
+  edit_reason: sanitizedString(500).optional(),
+  edited_by_user_id: uuidSchema.optional(),
+  client_id: uuidSchema.optional(),
+  platforms: z.array(socialPlatformSchema).optional(),
+  // AI generation settings
+  ai_tone: copyToneSchema.optional(),
+  ai_style: sanitizedString(100).optional(),
+  ai_hashtags: z.array(sanitizedString(50)).max(30).optional(),
+  // Tags and categories
+  tags: z.array(sanitizedString(50)).max(20).optional(),
+  categories: z.array(sanitizedString(100)).max(10).optional(),
+  // Media settings
+  media_type: mediaTypeSchema.optional(),
+  media_alt_text: sanitizedString(200).optional(),
+  // Concurrent editing
+  force_edit: z.boolean().optional(),
+  // Draft saving
+  save_as_draft: z.boolean().optional(),
+});
+
+// Parameter schemas
+export const postIdParamSchema = z.object({
+  postId: uuidSchema,
+});
+
+// AI request schema (discriminated union)
+export const aiRequestSchema = z.discriminatedUnion('action', [
+  // Image analysis
+  z.object({
+    action: z.literal('analyze_image'),
+    imageData: z.string().min(1, 'Image data is required'),
+    prompt: sanitizedString(2000).optional(),
+  }),
+  
+  // Caption generation
+  z.object({
+    action: z.literal('generate_captions'),
+    imageData: z.string().min(1, 'Image data is required'),
+    existingCaptions: z.array(sanitizedString(5000)).max(10).optional(),
+    aiContext: sanitizedString(2000).optional(),
+    clientId: uuidSchema.optional(),
+    copyType: copyTypeSchema.optional(),
+    copyTone: copyToneSchema.optional(),
+    postNotesStyle: postNotesStyleSchema.optional(),
+    imageFocus: imageFocusSchema.optional(),
+  }),
+  
+  // Caption remixing
+  z.object({
+    action: z.literal('remix_caption'),
+    imageData: z.string().min(1, 'Image data is required'),
+    prompt: sanitizedString(2000),
+    existingCaptions: z.array(sanitizedString(5000)).max(10).optional(),
+    aiContext: sanitizedString(2000).optional(),
+    clientId: uuidSchema.optional(),
+  }),
+  
+  // Content ideas generation
+  z.object({
+    action: z.literal('generate_content_ideas'),
+    clientId: uuidSchema,
+  }),
+]);
+
+// ============================================================================
+// QUERY AND FILTER SCHEMAS
+// ============================================================================
+
+export const paginationSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const dateRangeSchema = z.object({
+  startDate: isoDateSchema.optional(),
+  endDate: isoDateSchema.optional(),
+});
+
+export const postFilterSchema = z.object({
+  status: postStatusSchema.optional(),
+  platforms: z.array(socialPlatformSchema).optional(),
+  tags: z.array(sanitizedString(50)).optional(),
+  categories: z.array(sanitizedString(100)).optional(),
+  clientId: uuidSchema.optional(),
+  projectId: uuidSchema.optional(),
+}).merge(paginationSchema).merge(dateRangeSchema);
+
+// ============================================================================
+// UPLOAD SCHEMAS
+// ============================================================================
+
+export const imageUploadSchema = z.object({
+  filename: sanitizedString(255),
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/gif', 'image/webp']),
+  size: z.number().int().max(10 * 1024 * 1024, 'Image must be less than 10MB'),
+  altText: sanitizedString(200).optional(),
+});
+
+export const documentUploadSchema = z.object({
+  filename: sanitizedString(255),
+  contentType: z.enum(['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
+  size: z.number().int().max(20 * 1024 * 1024, 'Document must be less than 20MB'),
+});
+
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+// All schemas are exported individually above
+// This section is kept for documentation purposes
