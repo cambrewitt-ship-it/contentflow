@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user already has a subscription
-    let subscription = await getUserSubscription(user.id);
+    const subscription = await getUserSubscription(user.id);
     let customerId: string;
 
     if (subscription) {
