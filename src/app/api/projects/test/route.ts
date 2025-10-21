@@ -8,5 +8,5 @@ export async function GET() {
     message: 'Projects API routing is working',
     timestamp: new Date().toISOString(),
     endpoint: '/api/projects/test'
-  });
+
 }

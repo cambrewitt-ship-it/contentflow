@@ -54,14 +54,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Image data is required' },
         { status: 400 }
-      );
+
     }
     
     if (!filename) {
       return NextResponse.json(
         { error: 'Filename is required' },
         { status: 400 }
-      );
+
     }
     
     // 3. VALIDATE FILE TYPE
@@ -73,14 +73,14 @@ export async function POST(request: NextRequest) {
         mimeType, 
         filename,
         allowedTypes: ALLOWED_MIME_TYPES 
-      });
+
       return NextResponse.json(
         { 
           error: 'Invalid file type', 
           details: `Only these image types are allowed: ${ALLOWED_MIME_TYPES.join(', ')}` 
         },
         { status: 400 }
-      );
+
     }
 
     // 4. VALIDATE FILE SIZE
@@ -96,14 +96,14 @@ export async function POST(request: NextRequest) {
         fileSize: approximateFileSize, 
         maxSize: MAX_FILE_SIZE,
         filename 
-      });
+
       return NextResponse.json(
         { 
           error: 'File too large', 
           details: `Maximum file size is ${MAX_FILE_SIZE / (1024 * 1024)}MB` 
         },
         { status: 400 }
-      );
+
     }
     
     // 5. CHECK BLOB STORAGE CONFIGURATION
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Blob storage not configured' },
         { status: 500 }
-      );
+
     }
 
     // 6. CONVERT AND UPLOAD
@@ -122,26 +122,23 @@ export async function POST(request: NextRequest) {
     // Upload to Vercel Blob
     const result = await put(filename, blob, {
       access: 'public',
-    });
 
     logger.info('✅ Image uploaded successfully', { 
       userId: user.id, 
       filename: result.pathname,
       size: approximateFileSize,
       mimeType 
-    });
 
     return NextResponse.json({ 
       success: true, 
       url: result.url,
       filename: result.pathname
-    });
-    
+
   } catch (error) {
     logger.error('❌ Error uploading image to blob:', error);
     return NextResponse.json(
       { error: 'Failed to upload image to blob storage' },
       { status: 500 }
-    );
+
   }
 }

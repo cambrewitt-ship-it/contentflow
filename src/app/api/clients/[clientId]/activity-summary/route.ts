@@ -5,7 +5,6 @@ import logger from '@/lib/logger';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!
-);
 
 export async function GET(
   request: NextRequest,
@@ -18,7 +17,7 @@ export async function GET(
       return NextResponse.json(
         { error: 'Client ID is required' },
         { status: 400 }
-      );
+
     }
 
     const now = new Date();
@@ -144,19 +143,17 @@ export async function GET(
           approvedAt: post.updated_at
         })) || []
       }
-    };
-
+    
     return NextResponse.json({
       success: true,
       summary
-    });
 
   } catch (error) {
     logger.error('Activity summary error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-    );
+
   }
 }
 

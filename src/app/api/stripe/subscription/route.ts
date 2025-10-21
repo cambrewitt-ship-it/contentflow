@@ -44,13 +44,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       subscription,
       billingHistory,
-    });
+
   } catch (error) {
     logger.error('Get subscription error:', error);
     return NextResponse.json(
       { error: 'Failed to get subscription' },
       { status: 500 }
-    );
+
   }
 }
 

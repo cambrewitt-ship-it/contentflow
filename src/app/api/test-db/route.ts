@@ -12,7 +12,7 @@ export async function GET() {
       return NextResponse.json({ 
         error: 'Missing Supabase environment variables',
         timestamp: new Date().toISOString()
-      }, { status: 500 });
+      
     }
 
     // Create Supabase client
@@ -33,7 +33,7 @@ export async function GET() {
         details: clientsError.message,
         code: clientsError.code,
         timestamp: new Date().toISOString()
-      }, { status: 500 });
+      
     }
 
     return NextResponse.json({
@@ -42,7 +42,6 @@ export async function GET() {
       clients: clients,
       totalClients: clients?.length || 0,
       timestamp: new Date().toISOString()
-    });
 
   } catch (error) {
     logger.error('💥 Test DB error:', error);
@@ -50,6 +49,6 @@ export async function GET() {
       error: 'Test failed',
       details: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString()
-    }, { status: 500 });
+    
   }
 }

@@ -24,7 +24,7 @@ export async function POST(
       return NextResponse.json(
         { error: 'client_id and edited_by_user_id are required' },
         { status: 400 }
-      );
+
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -45,12 +45,12 @@ export async function POST(
         return NextResponse.json(
           { error: 'Post not found' },
           { status: 404 }
-        );
+
       }
       return NextResponse.json(
         { error: 'Failed to fetch post' },
         { status: 500 }
-      );
+
     }
     
     // Verify authorization
@@ -58,7 +58,7 @@ export async function POST(
       return NextResponse.json(
         { error: 'Unauthorized: Post does not belong to this client' },
         { status: 403 }
-      );
+
     }
     
     // Check if post can be edited
@@ -69,7 +69,7 @@ export async function POST(
           currentStatus: currentPost.status
         },
         { status: 400 }
-      );
+
     }
     
     // Check for concurrent editing
@@ -89,7 +89,7 @@ export async function POST(
           message: 'Use force_start=true to override the current session'
         },
         { status: 409 }
-      );
+
     }
     
     // Start editing session
@@ -113,7 +113,7 @@ export async function POST(
       return NextResponse.json(
         { error: 'Failed to start editing session' },
         { status: 500 }
-      );
+
     }
 
     return NextResponse.json({
@@ -125,14 +125,13 @@ export async function POST(
         editingStartedAt: updatedPost.editing_started_at,
         lastModifiedAt: updatedPost.last_modified_at
       }
-    });
-    
+
   } catch (error) {
     logger.error('💥 Unexpected error in POST editing session:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to start editing session' },
       { status: 500 }
-    );
+
   }
 }
 
@@ -155,7 +154,7 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'client_id and edited_by_user_id are required' },
         { status: 400 }
-      );
+
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -173,12 +172,12 @@ export async function DELETE(
         return NextResponse.json(
           { error: 'Post not found' },
           { status: 404 }
-        );
+
       }
       return NextResponse.json(
         { error: 'Failed to fetch post' },
         { status: 500 }
-      );
+
     }
     
     // Verify authorization
@@ -186,7 +185,7 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Unauthorized: Post does not belong to this client' },
         { status: 403 }
-      );
+
     }
     
     // Check if user can end this session
@@ -199,7 +198,7 @@ export async function DELETE(
           message: 'Use force_end=true to force end the session'
         },
         { status: 403 }
-      );
+
     }
     
     // End editing session
@@ -217,20 +216,19 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Failed to end editing session' },
         { status: 500 }
-      );
+
     }
 
     return NextResponse.json({
       success: true,
       message: 'Editing session ended successfully'
-    });
-    
+
   } catch (error) {
     logger.error('💥 Unexpected error in DELETE editing session:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to end editing session' },
       { status: 500 }
-    );
+
   }
 }
 
@@ -248,7 +246,7 @@ export async function GET(
       return NextResponse.json(
         { error: 'client_id is required' },
         { status: 400 }
-      );
+
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -269,12 +267,12 @@ export async function GET(
         return NextResponse.json(
           { error: 'Post not found' },
           { status: 404 }
-        );
+
       }
       return NextResponse.json(
         { error: 'Failed to check editing session status' },
         { status: 500 }
-      );
+
     }
     
     const now = new Date();
@@ -293,13 +291,12 @@ export async function GET(
         canEdit: ['draft', 'ready', 'scheduled'].includes(post.status),
         status: post.status
       }
-    });
-    
+
   } catch (error) {
     logger.error('💥 Unexpected error in GET editing session:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to check editing session status' },
       { status: 500 }
-    );
+
   }
 }

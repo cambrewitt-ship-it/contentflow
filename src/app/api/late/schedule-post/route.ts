@@ -5,7 +5,6 @@ import logger from '@/lib/logger';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!
-);
 
 export async function POST(request: Request) {
   try {
@@ -13,8 +12,7 @@ export async function POST(request: Request) {
 
     logger.debug('Scheduling post request', { 
       bodyKeys: Object.keys(body) 
-    });
-    
+
     // Check for required fields
     if (!body.postId || body.caption === undefined || body.caption === null || !body.lateMediaUrl) {
       logger.error('Missing required fields:', {
@@ -22,7 +20,7 @@ export async function POST(request: Request) {
         caption: body.caption,
         captionType: typeof body.caption,
         lateMediaUrl: !!body.lateMediaUrl
-      });
+
       logger.error('lateMediaUrl value:', body.lateMediaUrl);
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
@@ -33,11 +31,11 @@ export async function POST(request: Request) {
         caption: body.caption,
         captionType: typeof body.caption,
         captionLength: body.caption?.length
-      });
+
       return NextResponse.json(
         { error: 'Caption/content is required for social media posts' },
         { status: 400 }
-      );
+
     }
     
     const { 
@@ -49,12 +47,11 @@ export async function POST(request: Request) {
       clientId 
     } = body;
 
-    logger.debug('Post details', { 
-      captionLength: caption?.length || 0 
+    logger.debug(, {
+      const 
     });
 
-    // Build platforms array for LATE API
-    const platforms = selectedAccounts.map((account: { platform: string; _id: string }) => ({
+    $3platforms = selectedAccounts.map((account: { platform: string; _id: string }) => ({
       platform: account.platform,
       accountId: account._id
     }));
@@ -78,23 +75,19 @@ export async function POST(request: Request) {
         type: 'image',
         url: lateMediaUrl
       }]
-    };
-
-    logger.debug('LATE API payload prepared', { 
-      payloadKeys: Object.keys(requestBody),
-      platformsCount: platforms.length 
+    
+    logger.debug(, {
+      const 
     });
 
-    // Create post on LATE API
-    const lateResponse = await fetch('https://getlate.dev/api/v1/posts', {
+    $3lateResponse = await fetch('https://getlate.dev/api/v1/posts', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.LATE_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(requestBody)
-    });
-    
+
     if (!lateResponse.ok) {
       const error = await lateResponse.text();
       logger.error('LATE API error:', error);
@@ -105,15 +98,11 @@ export async function POST(request: Request) {
     
     const lateData = await lateResponse.json();
 
-    logger.debug('LATE API response received', { 
-      responseKeys: Object.keys(lateData) 
+    logger.debug(, {
+      const 
     });
-    
-    // Extract the LATE post ID from the nested post object
-    const latePostId = lateData.post?._id || lateData.post?.id || lateData._id || lateData.id;
 
-    // Update the calendar_scheduled_posts table with LATE information
-    const { error: updateError } = await supabase
+    $3{ error: updateError } = await supabase
       .from('calendar_scheduled_posts')
       .update({ 
         late_status: 'scheduled',
@@ -148,8 +137,7 @@ export async function POST(request: Request) {
         status: 'scheduled',
         late_post_id: latePostId,
         image_url: calendarPost?.image_url || null // Preserve image_url from calendar post
-      });
-    
+
     if (scheduleError) {
       logger.error('Schedule save error:', scheduleError);
     }
@@ -160,9 +148,9 @@ export async function POST(request: Request) {
       latePostId: latePostId,
       late_post_id: latePostId,
       id: latePostId
-    });
+
   } catch (error) {
     logger.error('Error scheduling post:', error);
-    return NextResponse.json({ error: 'Failed to schedule post' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to schedule post' 
   }
 }

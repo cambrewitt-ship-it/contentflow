@@ -56,8 +56,7 @@ export async function POST(request: Request) {
         'Authorization': `Bearer ${process.env.LATE_API_KEY}`
       },
       body: formData
-    });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       logger.error('LATE upload error:', errorText);
@@ -85,6 +84,6 @@ export async function POST(request: Request) {
     
   } catch (error) {
     logger.error('Upload error:', error);
-    return NextResponse.json({ error: 'Failed to upload media' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to upload media' 
   }
 }

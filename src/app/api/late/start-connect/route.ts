@@ -9,12 +9,12 @@ export async function POST(req: Request) {
     // 2. Validate required environment variables
     if (!process.env.LATE_API_KEY) {
       logger.error('Missing LATE_API_KEY environment variable');
-      return NextResponse.json({ error: 'Missing LATE_API_KEY' }, { status: 500 });
+      return NextResponse.json({ error: 'Missing LATE_API_KEY' 
     }
     
     if (!process.env.NEXT_PUBLIC_APP_URL) {
       logger.error('Missing NEXT_PUBLIC_APP_URL environment variable');
-      return NextResponse.json({ error: 'Missing NEXT_PUBLIC_APP_URL' }, { status: 500 });
+      return NextResponse.json({ error: 'Missing NEXT_PUBLIC_APP_URL' 
     }
     
     // 3. Parse request body
@@ -48,13 +48,12 @@ export async function POST(req: Request) {
       type: typeof error,
       message: error instanceof Error ? error.message : String(error),
       name: error instanceof Error ? error.name : 'Unknown'
-    });
-    
+
     return NextResponse.json({ 
       error: 'Internal server error in LATE API integration',
       details: error instanceof Error ? error.message : String(error),
       step: 'unhandled_exception',
       timestamp: new Date().toISOString()
-    }, { status: 500 });
+    
   }
 }

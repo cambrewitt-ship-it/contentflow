@@ -14,6 +14,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   getAccessToken: () => string | null;
+  clearAuthAndRedirect: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +24,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Clear all authentication storage and force re-login
+  const clearAuthAndRedirect = useCallback(() => {
+    logger.info('🧹 Clearing all authentication storage and redirecting to login');
+    
+    try {
+      // Clear all possible auth storage
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Clear Supabase session
+      supabase.auth.signOut();
+      
+      // Clear local state
+      setUser(null);
+      setSession(null);
+      setLoading(false);
+      
+      // Redirect to login
+      window.location.href = '/auth/login';
+    } catch (error) {
+      logger.error('❌ Error clearing auth storage:', error);
+      // Force redirect even if clearing fails
+      window.location.href = '/auth/login';
+    }
+  }, []);
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -31,17 +58,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    // Listen for auth changes
+    // Listen for auth changes with better error handling
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      logger.debug('🔄 Auth state change:', { event, hasSession: !!session });
+      
+      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        if (!session) {
+          logger.info('🚪 User signed out or token refresh failed, clearing auth');
+          setUser(null);
+          setSession(null);
+          setLoading(false);
+        }
+      }
+      
+      if (event === 'SIGNED_IN') {
+        logger.info('✅ User signed in successfully');
+        setUser(session?.user ?? null);
+        setSession(session);
+        setLoading(false);
+      }
+      
+      if (event === 'SIGNED_OUT') {
+        logger.info('👋 User signed out');
+        setUser(null);
+        setSession(null);
+        setLoading(false);
+      }
+      
+      // Handle token refresh errors
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        logger.warn('⚠️ Token refresh failed, clearing auth and redirecting');
+        clearAuthAndRedirect();
+      }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [clearAuthAndRedirect]);
 
   const signUp = async (email: string, password: string, metadata?: { firstName?: string; lastName?: string }) => {
     try {
@@ -142,6 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     resetPassword,
     getAccessToken,
+    clearAuthAndRedirect,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

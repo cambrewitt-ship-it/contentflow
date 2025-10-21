@@ -16,7 +16,6 @@ export async function POST(request: NextRequest) {
       success: true,
       analysis: analysisResult
     });
-
   } catch (error: unknown) {
     logger.error('💥 Error in temporary AI analysis:', error);
     return NextResponse.json({ 
@@ -58,8 +57,7 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
         ],
         temperature: 0.3,
         max_tokens: 500
-      })
-    });
+      });
 
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);

@@ -88,6 +88,7 @@ function getPostNotesApproach(style: string) {
     'paraphrase': 'Rewrite notes content in brand voice while keeping all key information',
     'use-as-inspiration': 'Capture the essence and intent of notes with creative interpretation'
   };
+  
   return approaches[style] || 'Incorporate notes content appropriately';
 }
 
@@ -97,7 +98,9 @@ function getImageRole(focus: string) {
     'supporting': 'Content Enhancer', 
     'background': 'Context Provider',
     'none': 'Not Used'
+  
   };
+
   return roles[focus] || 'Supporting';
 }
 
@@ -107,7 +110,9 @@ function getImageDescription(focus: string) {
     'supporting': 'Use image details to enhance and support the main message',
     'background': 'Reference image elements briefly for context',
     'none': 'Focus entirely on text content, ignore image'
+  
   };
+
   return descriptions[focus] || 'Use image details to support content';
 }
 
@@ -116,7 +121,9 @@ function getPostNotesInstructions(style: string) {
     'quote-directly': 'Include specific phrases, numbers, and details exactly as written. If notes mention "$50 special offer", your caption must include "$50 special offer".',
     'paraphrase': 'Rewrite the notes content in the brand\'s voice while preserving all key information, prices, dates, and important details.',
     'use-as-inspiration': 'Capture the core message and intent from the notes, using them as a foundation for brand-appropriate content.'
+  
   };
+
   return instructions[style] || 'Incorporate the notes content appropriately based on context.';
 }
 
@@ -149,8 +156,9 @@ function getImageInstructions(focus: string) {
 - Focus entirely on post notes and brand messaging
 - Create content independent of visual elements
 - Treat this as text-based content creation`
-  };
   
+  };
+
   return instructions[focus] || instructions['supporting'];
 }
 
@@ -202,8 +210,9 @@ function getEmailCopyToneInstructions(copyTone: string) {
 - Build relationship through two-way communication approach
 - Encourage direct replies or personal consultation requests
 - Focus on understanding reader's specific situation`
-  };
   
+  };
+
   return emailToneMap[copyTone] || `**Professional Email Copy:** Create direct, value-focused content that drives email engagement and response.`;
 }
 
@@ -229,7 +238,9 @@ function getEmailImageRole(focus: string) {
     'supporting': 'Mention relevant image details to enhance credibility and context', 
     'background': 'Briefly reference image context if relevant to message',
     'none': 'Focus entirely on text-based value proposition and messaging'
+  
   };
+
   return emailImageDescriptions[focus] || 'Use image details to enhance email message credibility';
 }
 
@@ -262,8 +273,9 @@ function getEmailImageInstructions(focus: string) {
 - Focus entirely on value proposition and brand messaging  
 - Create content independent of any visual components
 - Treat as pure text-based professional communication`
-  };
   
+  };
+
   return emailImageInstructions[focus] || emailImageInstructions['supporting'];
 }
 
@@ -322,7 +334,7 @@ async function getBrandContext(clientId: string) {
       documents: documents || [],
       website: scrapes?.[0] || null
     };
-
+    
     return brandContext;
   } catch (error) {
     logger.error('Error fetching brand context:', error);
@@ -345,7 +357,7 @@ export async function POST(request: NextRequest) {
             message: `Request body is ${sizeMB}MB, maximum allowed is 10MB. Please use a smaller image.` 
           },
           { status: 413 }
-        );
+
       }
     }
     
@@ -361,7 +373,6 @@ export async function POST(request: NextRequest) {
     const validation = await validateApiRequest(request, {
       body: aiRequestSchema,
       maxBodySize: 10 * 1024 * 1024, // 10MB limit for AI requests (to accommodate base64 images)
-    });
 
     if (!validation.success) {
       logger.error('AI request validation failed');
@@ -374,13 +385,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'OpenAI API key not configured' },
         { status: 500 }
-      );
+
     }
 
     // Initialize OpenAI client inside request handler (prevents build-time errors)
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
-    });
 
     // Route to appropriate handler based on action
     let result: NextResponse;
@@ -400,7 +410,7 @@ export async function POST(request: NextRequest) {
           body.copyTone as 'promotional' | 'educational' | 'personal' | 'testimonial' | 'engagement' | undefined, 
           body.postNotesStyle as 'quote-directly' | 'paraphrase' | 'use-as-inspiration' | undefined, 
           body.imageFocus as 'main-focus' | 'supporting' | 'background' | 'none' | undefined
-        );
+
         break;
       
       case 'remix_caption':
@@ -411,7 +421,7 @@ export async function POST(request: NextRequest) {
           body.existingCaptions as string[] | undefined, 
           body.aiContext as string | undefined, 
           body.clientId as string | undefined
-        );
+
         break;
       
       case 'generate_content_ideas':
@@ -423,7 +433,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: 'Invalid action specified' },
           { status: 400 }
-        );
+
     }
 
     // Track AI credit usage if request was successful
@@ -432,12 +442,12 @@ export async function POST(request: NextRequest) {
     }
 
     return result;
-  } catch (error) {
+    }   } catch (error) {
     return handleApiError(error, {
       route: '/api/ai',
       operation: 'ai_request',
       additionalData: { error: error instanceof Error ? error.message : 'Unknown error' }
-    });
+
   }
 }
 
@@ -489,18 +499,17 @@ async function analyzeImage(openai: OpenAI, imageData: string, prompt?: string) 
       ],
       max_tokens: 500,
       temperature: 0.7,
-    });
 
     return NextResponse.json({
       success: true,
       analysis: response.choices[0]?.message?.content || 'No analysis generated'
-    });
-  } catch (error) {
+
+    }   } catch (error) {
     return handleApiError(error, {
       route: '/api/ai',
       operation: 'analyze_image',
       additionalData: { hasPrompt: !!prompt }
-    });
+
   }
 }
 
@@ -511,10 +520,12 @@ async function generateCaptions(openai: OpenAI, imageData: string, existingCapti
     const isVideo = isVideoPlaceholder;
     
     // For backwards compatibility - only validate if not a video placeholder
-    let validation: { isValid: boolean; type: 'base64' | 'blob' | 'invalid' } = { isValid: true, type: 'base64' };
+    let validation: { isValid: boolean; type: 'base64' | 'blob' | 'invalid' } = { isValid: true, type: 'base64' 
     if (!isVideoPlaceholder) {
       // Validate media data (supports both images and videos)
-      const mediaValidation = isValidMediaData(imageData);
+    };
+
+const mediaValidation = isValidMediaData(imageData);
       if (!mediaValidation.isValid) {
         throw new Error('Invalid media data - must be blob URL or base64');
       }
@@ -673,7 +684,7 @@ ${finalInstruction}`;
           url: imageData,
           detail: 'high'
         }
-      });
+
     }
 
     const response = await openai.chat.completions.create({
@@ -690,7 +701,6 @@ ${finalInstruction}`;
       ],
       max_tokens: 800,
       temperature: 0.8,
-    });
 
     const content = response.choices[0]?.message?.content || '';
     
@@ -757,8 +767,8 @@ ${finalInstruction}`;
     return NextResponse.json({
       success: true,
       captions: captions
-    });
-  } catch (error) {
+
+    }   } catch (error) {
     return handleApiError(error, {
       route: '/api/ai',
       operation: 'generate_captions',
@@ -768,7 +778,7 @@ ${finalInstruction}`;
         hasImageData: !!imageData,
         hasContext: !!aiContext 
       }
-    });
+
   }
 }
 
@@ -870,13 +880,12 @@ async function remixCaption(openai: OpenAI, imageData: string, prompt: string, e
       ],
       max_tokens: 400,
       temperature: 0.7,
-    });
 
     return NextResponse.json({
       success: true,
       caption: response.choices[0]?.message?.content || 'No caption generated'
-    });
-  } catch (error) {
+
+    }   } catch (error) {
     return handleApiError(error, {
       route: '/api/ai',
       operation: 'remix_caption',
@@ -886,7 +895,7 @@ async function remixCaption(openai: OpenAI, imageData: string, prompt: string, e
         hasContext: !!aiContext,
         hasExistingCaptions: existingCaptions.length > 0
       }
-    });
+
   }
 }
 
@@ -896,7 +905,7 @@ async function generateContentIdeas(openai: OpenAI, clientId: string) {
       return NextResponse.json(
         { error: 'Client ID is required' },
         { status: 400 }
-      );
+
     }
 
     // Get upcoming holidays
@@ -909,7 +918,7 @@ async function generateContentIdeas(openai: OpenAI, clientId: string) {
       return NextResponse.json(
         { error: 'Could not fetch client brand context' },
         { status: 404 }
-      );
+
     }
 
     // Get current date and season info
@@ -919,8 +928,7 @@ async function generateContentIdeas(openai: OpenAI, clientId: string) {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
-    });
-    
+
     // Determine current season in New Zealand
     const month = now.getMonth() + 1; // getMonth() returns 0-11
     let season = '';
@@ -1092,8 +1100,7 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
 - **Location:** Wellington, New Zealand
 - **Available Holidays:** ${holidays.filter(h => h.daysUntil <= 30).map(h => `${h.name} - ${h.date} (${h.daysUntil} days)`).join(', ')}
 - **Client Information:** Company: ${clientData.company_description || 'Not specified'}, Industry: ${clientData.industry || 'General Business'}, Target Audience: ${clientData.target_audience || 'General consumers'}, Brand Tone: ${clientData.brand_tone || 'Professional'}${clientData.brand_voice_examples ? `, Brand Voice: ${clientData.brand_voice_examples.slice(0, 200)}...` : ''}`;
-    };
-
+    
     // Helper function for industry-specific guidance
     function getIndustryGuidance(industry: string) {
       const industryMap = {
@@ -1144,7 +1151,6 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
 - Before/after transformations and client features
 - Seasonal color and style trends
 - Self-care and confidence-building content`
-      };
       
       return industryMap[industry as keyof typeof industryMap] || `
 **General Business Content Strategy:**
@@ -1160,8 +1166,7 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
       date: currentDate,
       season: season,
       weatherContext: `${season} weather patterns in Wellington`
-    };
-
+    
     const clientData = {
       company_description: brandContext.company,
       industry: industry,
@@ -1171,8 +1176,7 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
       brand_voice_examples: brandContext.voice_examples,
       caption_dos: brandContext.dos,
       caption_donts: brandContext.donts
-    };
-
+    
     // Format holidays for the new prompt
     const formattedHolidays = upcomingHolidays.map(holiday => {
       const holidayDate = new Date(holiday.date);
@@ -1184,12 +1188,14 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
         date: holidayDate.toLocaleDateString('en-NZ'),
         daysUntil: daysUntil,
         marketingAngle: holiday.marketingAngle
-      };
-    });
+      
+    };
 
-    const systemPrompt = generateContentIdeasPrompt(clientData, formattedHolidays, currentContext);
+const systemPrompt = generateContentIdeasPrompt(clientData, formattedHolidays, currentContext);
 
-    const response = await openai.chat.completions.create({
+    };
+
+const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [
         {
@@ -1203,7 +1209,6 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
       ],
       max_tokens: 1500,
       temperature: 0.8,
-    });
 
     const content = response.choices[0]?.message?.content || '';
     
@@ -1222,8 +1227,7 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
             visualSuggestion: lines[2].replace(/\*\*Visual:\*\* /, '').trim(),
             timing: lines[3].replace(/\*\*Hook:\*\* /, '').trim(),
             holidayConnection: "Strategic content aligned with business goals"
-          };
-        });
+          
       } else {
         // Fallback: try to parse as JSON (for backward compatibility)
         const jsonMatch = content.match(/\[[\s\S]*\]/);
@@ -1271,15 +1275,14 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
     return NextResponse.json({
       success: true,
       ideas: ideas
-    });
 
-  } catch (error) {
+    }   } catch (error) {
     return handleApiError(error, {
       route: '/api/ai',
       operation: 'generate_content_ideas',
       clientId: clientId,
       additionalData: { clientId }
-    });
+
   }
 }
 
@@ -1414,8 +1417,9 @@ function getIndustryContentGuidance(companyDescription: string): string {
 - Use community photography and impact imagery
 - Focus on social good, volunteerism, and positive change
 - Target supporters, volunteers, and community members`
-  };
   
+  };
+
   return guidanceMap[industry] || `
 - Focus on your unique value proposition and customer benefits
 - Use professional imagery that represents your brand
@@ -1433,5 +1437,5 @@ export async function OPTIONS(request: NextRequest) {
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400',
     },
-  });
+
 }

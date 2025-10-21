@@ -47,7 +47,7 @@ export async function POST(
           success: true,
           scraped: false, // Not a new scrape
           data: existingScrape
-        });
+
       }
     }
 
@@ -69,7 +69,7 @@ export async function POST(
       return NextResponse.json({ 
         error: 'Failed to create scrape record', 
         details: createError.message 
-      }, { status: 500 });
+      
     }
 
     try {
@@ -80,9 +80,9 @@ export async function POST(
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; ContentManager/1.0)'
         }
-      });
+    });
 
-      if (!response.ok) {
+    if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -133,7 +133,6 @@ export async function POST(
           scrape_status: 'completed',
           scraped_at: new Date().toISOString()
         }
-      });
 
     } catch (scrapeError) {
       logger.error('❌ Website scraping failed:', scrapeError);
@@ -150,7 +149,7 @@ export async function POST(
       return NextResponse.json({ 
         error: 'Website scraping failed', 
         details: scrapeError instanceof Error ? scrapeError.message : String(scrapeError)
-      }, { status: 500 });
+      
     }
 
   } catch (error: unknown) {
@@ -158,7 +157,7 @@ export async function POST(
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    
   }
 }
 
@@ -182,19 +181,18 @@ export async function GET(
       return NextResponse.json({ 
         error: 'Failed to fetch scrapes', 
         details: error.message 
-      }, { status: 500 });
+      
     }
 
     return NextResponse.json({
       success: true,
       scrapes: scrapes || []
-    });
 
   } catch (error: unknown) {
     logger.error('💥 Error in fetch website scrapes:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    
   }
 }

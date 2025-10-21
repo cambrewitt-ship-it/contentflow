@@ -19,14 +19,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Media data is required' },
         { status: 400 }
-      );
+
     }
     
     if (!filename) {
       return NextResponse.json(
         { error: 'Filename is required' },
         { status: 400 }
-      );
+
     }
     
     // Check if BLOB_READ_WRITE_TOKEN is available
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Blob storage not configured' },
         { status: 500 }
-      );
+
     }
     
     // Detect MIME type from base64 data
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: `Unsupported media type: ${mimeType}. Supported types: images (JPG, PNG, GIF, WebP) and videos (MP4, MOV, AVI, WebM, MPEG)` },
         { status: 400 }
-      );
+
     }
     
     // Convert base64 to blob
@@ -63,15 +63,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: `File too large (${sizeMB}MB). Maximum size: ${isVideo ? '100MB' : '10MB'}` },
         { status: 400 }
-      );
+
     }
     
     // Upload to Vercel Blob
     const result = await put(filename, blob, {
       access: 'public',
       contentType: mimeType,
-    });
-    
+
     return NextResponse.json({ 
       success: true, 
       url: result.url,
@@ -79,14 +78,13 @@ export async function POST(request: NextRequest) {
       mediaType: isVideo ? 'video' : 'image',
       mimeType: mimeType,
       size: blob.size
-    });
-    
+
   } catch (error) {
     logger.error('Error uploading media to blob:', error);
     return NextResponse.json(
       { error: 'Failed to upload media to blob storage' },
       { status: 500 }
-    );
+
   }
 }
 

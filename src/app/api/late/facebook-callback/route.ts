@@ -52,16 +52,11 @@ export async function GET(req: NextRequest) {
     }
     
     const { searchParams } = new URL(cleanUrl);
-    logger.debug('Facebook callback params', { 
-      paramsCount: Array.from(searchParams.entries()).length 
+    logger.debug(, {
+      const 
     });
-    
-    // Extract parameters from Facebook OAuth callback
-    const connected = searchParams.get('connected');
-    const profileId = searchParams.get('profileId');
-    const username = searchParams.get('username');
-    const error = searchParams.get('error');
-    const errorDescription = searchParams.get('error_description');
+
+    $3errorDescription = searchParams.get('error_description');
     let clientId = searchParams.get('clientId');
     
     // Clean up clientId if it has additional data appended (common issue with some OAuth flows)
@@ -76,7 +71,6 @@ export async function GET(req: NextRequest) {
       hasClientId: !!clientId,
       clientIdLength: clientId?.length,
       isValidUUID: clientId ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId) : false
-    });
 
     // Additional debugging for OAuth errors
     if (error || errorDescription) {
@@ -115,8 +109,7 @@ export async function GET(req: NextRequest) {
       name: error instanceof Error ? error.name : 'Unknown',
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : 'No stack trace'
-    });
-    
+
     // Try to extract clientId from the error context for better error handling
     let clientId = '';
     try {

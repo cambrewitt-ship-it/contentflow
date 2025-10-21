@@ -82,9 +82,13 @@ export default function NewClientPageV2() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
+    // Clear field-specific error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: "" }));
+    }
+    // Clear submit error when user makes any changes
+    if (errors.submit) {
+      setErrors(prev => ({ ...prev, submit: "" }));
     }
   };
 
@@ -106,6 +110,11 @@ export default function NewClientPageV2() {
     }
 
     console.log('✅ Form validation passed, starting client creation...');
+    
+    // Clear previous errors and messages
+    setErrors({});
+    setMessage(null);
+    
     setLoading(true);
     setLoadingStage('creating');
     isSubmittingRef.current = true;
@@ -127,7 +136,20 @@ export default function NewClientPageV2() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create client");
+        console.error("❌ Client creation failed:", errorData);
+        
+        // Handle plan limit errors specifically
+        if (response.status === 403 && errorData.current && errorData.max) {
+          setErrors({
+            submit: `${errorData.error} You currently have ${errorData.current} clients out of ${errorData.max} allowed.`
+          });
+        } else {
+          // Handle other API errors
+          setErrors({
+            submit: errorData.error || "Failed to create client"
+          });
+        }
+        return; // Don't throw, just return early
       }
 
       const { clientId: newClientId, lateProfileId, lateProfileCreated } = await response.json();
@@ -162,8 +184,6 @@ export default function NewClientPageV2() {
         brand_color: "#4ade80"
       });
       
-      // Clear the form after successful creation
-      
       // Redirect after a short delay to show the success message
       setTimeout(() => {
         // Trigger sidebar refresh by dispatching a custom event
@@ -174,9 +194,9 @@ export default function NewClientPageV2() {
       }, 2000);
       
     } catch (error) {
-      console.error("Error creating client:", error);
+      console.error("❌ Unexpected error creating client:", error);
       setErrors({
-        submit: error instanceof Error ? error.message : "Failed to create client"
+        submit: "An unexpected error occurred. Please try again."
       });
     } finally {
       setLoading(false);
@@ -216,42 +236,12 @@ export default function NewClientPageV2() {
     }
 
     setScraping(true);
-    let tempClientId = null;
     
     try {
-      // Create a temporary client for scraping (we'll delete it after)
-      console.log('🔍 Creating temporary client for scraping...');
-      const createResponse = await fetch("/api/clients/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${getAccessToken() || ''}`,
-        },
-        body: JSON.stringify({
-          name: "TEMP_SCRAPE_" + Date.now(),
-          company_description: "",
-          website_url: formData.website_url,
-          brand_tone: "",
-          target_audience: "",
-          value_proposition: "",
-          caption_dos: "",
-          caption_donts: "",
-    brand_voice_examples: "",
-          brand_color: "#4ade80",
-          skipLateProfile: true // Flag to skip LATE profile creation for temp clients
-        }),
-      });
-
-      if (!createResponse.ok) {
-        throw new Error('Failed to create temporary client for scraping');
-      }
-
-      const { clientId } = await createResponse.json();
-      tempClientId = clientId;
-      console.log('✅ Temporary client created with ID:', tempClientId);
-
-      // First, scrape the website using the temp client ID
-      const scrapeResponse = await fetch(`/api/clients/${tempClientId}/scrape-website`, {
+      console.log('🔍 Starting website scraping using temp route...');
+      
+      // Use the temp scraping route directly - no need to create a temporary client
+      const scrapeResponse = await fetch('/api/clients/temp/scrape-website', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -260,15 +250,21 @@ export default function NewClientPageV2() {
         body: JSON.stringify({ url: formData.website_url })
       });
 
+      console.log('📡 Scrape response status:', scrapeResponse.status);
+
       if (!scrapeResponse.ok) {
-        throw new Error('Failed to scrape website');
+        const errorData = await scrapeResponse.json();
+        console.error('❌ Scrape failed:', errorData);
+        throw new Error(errorData.error || 'Failed to scrape website');
       }
 
       const scrapeData = await scrapeResponse.json();
+      console.log('✅ Scrape data received:', scrapeData);
       
       if (scrapeData.success && scrapeData.data && scrapeData.data.id) {
-        // Now analyze the scraped content with AI
-        const analysisResponse = await fetch(`/api/clients/${tempClientId}/analyze-website`, {
+        // Now analyze the scraped content with AI using the temp route
+        console.log('🤖 Starting AI analysis...');
+        const analysisResponse = await fetch('/api/clients/temp/analyze-website', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -277,8 +273,11 @@ export default function NewClientPageV2() {
           body: JSON.stringify({ scrapeId: scrapeData.data.id })
         });
 
+        console.log('📡 Analysis response status:', analysisResponse.status);
+
         if (analysisResponse.ok) {
           const analysisData = await analysisResponse.json();
+          console.log('✅ Analysis data received:', analysisData);
           
           // Auto-fill the form fields with AI analysis results (including company name)
           setFormData(prev => ({
@@ -293,41 +292,20 @@ export default function NewClientPageV2() {
           setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully! Click "Create New Client" to save.' });
           setTimeout(() => setMessage(null), 3000);
         } else {
-          throw new Error('Failed to analyze website content');
+          const errorData = await analysisResponse.json();
+          console.error('❌ Analysis failed:', errorData);
+          throw new Error(errorData.error || 'Failed to analyze website content');
         }
       } else {
         throw new Error('No scrape data received');
       }
 
     } catch (error) {
+      console.error('❌ Website processing failed:', error);
       setMessage({ type: 'error', text: `Failed to process website: ${error instanceof Error ? error.message : 'Unknown error'}` });
       setTimeout(() => setMessage(null), 3000);
     } finally {
       setScraping(false);
-      
-      // Clean up: Delete the temporary client if it was created
-      if (tempClientId) {
-        try {
-          console.log('🧹 Cleaning up temporary client:', tempClientId);
-          const deleteResponse = await fetch(`/api/clients/${tempClientId}`, {
-            method: 'DELETE',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${getAccessToken() || ''}`,
-            }
-          });
-          
-          if (deleteResponse.ok) {
-            console.log('✅ Temporary client deleted successfully');
-          } else {
-            const errorData = await deleteResponse.json();
-            console.warn('⚠️ Failed to delete temporary client:', errorData);
-          }
-        } catch (cleanupError) {
-          console.warn('⚠️ Failed to delete temporary client:', cleanupError);
-          // Don't show this error to the user as it's not critical
-        }
-      }
     }
   };
 
@@ -667,8 +645,24 @@ export default function NewClientPageV2() {
 
           {/* Submit Error */}
           {errors.submit && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-              <p className="text-red-800 text-sm">{errors.submit}</p>
+            <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+              <div className="flex items-start">
+                <AlertCircle className="w-5 h-5 text-red-500 mr-3 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-red-800 font-medium">Error creating client</p>
+                  <p className="text-red-700 text-sm mt-1">{errors.submit}</p>
+                  {errors.submit.includes('upgrade your plan') && (
+                    <div className="mt-3">
+                      <a 
+                        href="/settings/billing" 
+                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        Upgrade Plan
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

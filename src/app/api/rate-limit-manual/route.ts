@@ -26,8 +26,7 @@ export async function GET(request: NextRequest) {
       remaining: result.remaining,
       reset: result.reset.toISOString(),
     },
-  });
-  
+
   // Add rate limit headers
   response.headers.set('X-RateLimit-Limit', result.limit.toString());
   response.headers.set('X-RateLimit-Remaining', result.remaining.toString());

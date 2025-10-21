@@ -5,7 +5,6 @@ import logger from '@/lib/logger';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!
-);
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -23,8 +22,7 @@ export async function GET(request: Request) {
       clientIdPreview: clientId?.substring(0, 8) + '...', 
       project: projectId || 'all', 
       untagged: filterUntagged 
-    });
-    
+
     // Build query based on filter type
     let query = supabase
       .from('calendar_unscheduled_posts')
@@ -50,7 +48,6 @@ export async function GET(request: Request) {
 
       data.forEach((post, index) => {
 
-      });
     }
     
     return NextResponse.json({ posts: data || [] });
@@ -72,7 +69,7 @@ export async function GET(request: Request) {
       error: 'Failed to fetch unscheduled posts',
       details: error instanceof Error ? error.message : String(error),
       code: error && typeof error === 'object' && 'code' in error ? String(error.code) : 'UNKNOWN'
-    }, { status: 500 });
+    
   }
 }
 
@@ -84,9 +81,10 @@ export async function POST(request: Request) {
     const postData = {
       ...body,
       image_url: body.image_url || null // Ensure image_url field is present
-    };
     
-    const { data, error } = await supabase
+    };
+
+const { data, error } = await supabase
       .from('calendar_unscheduled_posts')
       .insert(postData)
       .select()
@@ -97,7 +95,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, post: data });
   } catch (error) {
     logger.error('Error:', error);
-    return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create post' 
   }
 }
 
@@ -123,6 +121,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ 
       error: 'Failed to delete post',
       details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    
   }
 }

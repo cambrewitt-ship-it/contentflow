@@ -2,12 +2,19 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { simpleRateLimitMiddleware } from './lib/simpleRateLimit';
+import { enhancedCSRFProtection } from './lib/csrfProtection';
 
 export async function middleware(req: NextRequest) {
   // Apply rate limiting to API routes first
   const rateLimitResponse = await simpleRateLimitMiddleware(req);
   if (rateLimitResponse) {
     return rateLimitResponse;
+  }
+
+  // Apply CSRF protection to API routes
+  const csrfResponse = enhancedCSRFProtection(req);
+  if (csrfResponse) {
+    return csrfResponse;
   }
 
   const res = NextResponse.next();

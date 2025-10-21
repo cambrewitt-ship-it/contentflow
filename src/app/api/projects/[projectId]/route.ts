@@ -29,7 +29,7 @@ export async function GET(
     return NextResponse.json({ project: data });
   } catch (error) {
     logger.error('Error fetching project:', error);
-    return NextResponse.json({ error: 'Failed to fetch project' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch project' 
   }
 }
 

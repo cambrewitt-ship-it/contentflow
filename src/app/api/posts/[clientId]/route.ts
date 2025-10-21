@@ -32,7 +32,7 @@ export async function GET(
         message: error.message,
         details: error.details,
         hint: error.hint
-      });
+
       throw error;
     }
 
@@ -45,7 +45,7 @@ export async function GET(
     return NextResponse.json({ 
       error: 'Failed to fetch posts',
       details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    
   }
 }
 
@@ -62,7 +62,7 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Post ID is required' },
         { status: 400 }
-      );
+
     }
 
     // Use the same Supabase client creation that works in other APIs
@@ -82,11 +82,11 @@ export async function DELETE(
         message: error.message,
         details: error.details,
         hint: error.hint
-      });
+
       return NextResponse.json(
         { error: `Database error: ${error.message}` },
         { status: 500 }
-      );
+
     }
 
     return NextResponse.json({ success: true, message: 'Post deleted successfully' });
@@ -96,6 +96,6 @@ export async function DELETE(
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to delete post' },
       { status: 500 }
-    );
+
   }
 }

@@ -31,12 +31,12 @@ export async function GET(
         return NextResponse.json(
           { error: 'Post not found' },
           { status: 404 }
-        );
+
       }
       return NextResponse.json(
         { error: `Database error: ${postError.message}` },
         { status: 500 }
-      );
+
     }
     
     // Fetch revisions with editor information
@@ -55,7 +55,7 @@ export async function GET(
       return NextResponse.json(
         { error: `Database error: ${revisionsError.message}` },
         { status: 500 }
-      );
+
     }
     
     // Get total count for pagination
@@ -77,14 +77,13 @@ export async function GET(
         current_caption: post.caption,
         created_at: post.created_at
       }
-    });
-    
+
   } catch (error) {
     logger.error('💥 Unexpected error in GET revisions:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch revisions' },
       { status: 500 }
-    );
+
   }
 }
 
@@ -108,7 +107,7 @@ export async function POST(
       return NextResponse.json(
         { error: 'previous_caption, new_caption, and edited_by_user_id are required' },
         { status: 400 }
-      );
+
     }
     
     // Create Supabase client with service role for admin access
@@ -127,12 +126,12 @@ export async function POST(
         return NextResponse.json(
           { error: 'Post not found' },
           { status: 404 }
-        );
+
       }
       return NextResponse.json(
         { error: `Database error: ${postError.message}` },
         { status: 500 }
-      );
+
     }
     
     // Get the next revision number
@@ -149,7 +148,7 @@ export async function POST(
       return NextResponse.json(
         { error: `Database error: ${maxError.message}` },
         { status: 500 }
-      );
+
     }
     
     const nextRevisionNumber = (maxRevision?.revision_number || 0) + 1;
@@ -176,20 +175,19 @@ export async function POST(
       return NextResponse.json(
         { error: `Database error: ${revisionError.message}` },
         { status: 500 }
-      );
+
     }
 
     return NextResponse.json({ 
       success: true, 
       revision: revision,
       message: 'Revision created successfully'
-    });
-    
+
   } catch (error) {
     logger.error('💥 Unexpected error in POST revision:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create revision' },
       { status: 500 }
-    );
+
   }
 }

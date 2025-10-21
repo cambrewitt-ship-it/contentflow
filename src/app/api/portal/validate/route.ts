@@ -5,7 +5,6 @@ import logger from '@/lib/logger';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!
-);
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,7 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Token is required' },
         { status: 400 }
-      );
+
     }
 
     // Validate portal token and get client info
@@ -37,11 +36,11 @@ export async function GET(request: NextRequest) {
           message: error.message,
           code: error.code
         } : 'Client not found'
-      });
+
       return NextResponse.json(
         { success: false, error: 'Invalid portal token' },
         { status: 401 }
-      );
+
     }
 
     // Check if portal is enabled for this client
@@ -49,7 +48,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Portal access is disabled for this client' },
         { status: 401 }
-      );
+
     }
 
     return NextResponse.json({
@@ -59,13 +58,12 @@ export async function GET(request: NextRequest) {
         name: client.name,
         portal_settings: client.portal_settings
       }
-    });
 
   } catch (error) {
     logger.error('Portal validation error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
-    );
+
   }
 }

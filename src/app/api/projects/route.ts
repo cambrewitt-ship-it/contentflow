@@ -19,17 +19,16 @@ async function checkProjectsTableExists(supabase: SupabaseClient) {
 
       if (tableError.code === '42P01') {
         logger.debug('Projects table does not exist', { errorCode: tableError.code });
-        return { exists: false, error: tableError };
+        return { exists: false, error: tableError 
       }
       
-      return { exists: false, error: tableError };
+      return { exists: false, error: tableError 
     }
 
-    return { exists: true, error: null };
-    
+    return { exists: true, error: null 
   } catch (error) {
     logger.error('Unexpected error checking table existence:', error);
-    return { exists: false, error };
+    return { exists: false, error 
   }
 }
 
@@ -46,21 +45,21 @@ async function getTableSchema(supabase: SupabaseClient, tableName: string) {
     
     if (sampleError) {
 
-      return { schema: null, error: sampleError };
+      return { schema: null, error: sampleError 
     }
     
     if (sampleData && sampleData.length > 0) {
       const columns = Object.keys(sampleData[0]);
 
-      return { schema: columns, error: null };
+      return { schema: columns, error: null 
     } else {
 
-      return { schema: [], error: null };
+      return { schema: [], error: null 
     }
     
   } catch (error) {
     logger.error(`Error getting ${tableName} table schema:`, error);
-    return { schema: null, error };
+    return { schema: null, error 
   }
 }
 
@@ -84,7 +83,6 @@ export async function POST(req: NextRequest) {
     logger.debug('Environment variables check', {
       hasSupabaseUrl: !!supabaseUrl,
       hasServiceRoleKey: !!supabaseServiceRoleKey
-    });
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
       logger.error('=== ENVIRONMENT ERROR ===');
@@ -92,7 +90,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ 
         success: false, 
         error: 'Configuration error: Missing Supabase environment variables' 
-      }, { status: 500 });
+      
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -107,11 +105,10 @@ export async function POST(req: NextRequest) {
       logger.error('Projects table access failed:', {
         exists: tableCheck.exists,
         error: tableCheck.error
-      });
-      
+
       // Check if table doesn't exist
       if (tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error) {
-        const error = tableCheck.error as { code: string; message: string };
+        const error = tableCheck.error as { code: string; message: string 
         if (error.code === '42P01') {
           logger.error('Table does not exist error detected');
           return NextResponse.json({ 
@@ -120,7 +117,7 @@ export async function POST(req: NextRequest) {
             details: error.message,
             code: error.code,
             solution: 'Run the SQL commands in database-setup.sql to create the projects table'
-          }, { status: 500 });
+          
         }
       }
       
@@ -133,7 +130,7 @@ export async function POST(req: NextRequest) {
         code: tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error 
           ? (tableCheck.error as { code: string }).code 
           : 'UNKNOWN'
-      }, { status: 500 });
+      
     }
 
     // Get table schema information
@@ -146,9 +143,10 @@ export async function POST(req: NextRequest) {
       description: description || '',
       status: 'active',
       created_at: new Date().toISOString()
+    
     };
 
-    const { data: project, error } = await supabase
+const { data: project, error } = await supabase
       .from('projects')
       .insert([insertData])
       .select('*')
@@ -162,20 +160,18 @@ export async function POST(req: NextRequest) {
         details: error.details,
         hint: error.hint,
         fullError: JSON.stringify(error, null, 2)
-      });
-      
+
       return NextResponse.json({ 
         success: false, 
         error: error.message || 'Failed to create project',
         details: error.details,
         code: error.code
-      }, { status: 500 });
+      
     }
 
     return NextResponse.json({ 
       success: true, 
       project 
-    });
 
   } catch (error: unknown) {
     logger.error('=== PROJECTS API POST ERROR ===');
@@ -190,7 +186,7 @@ export async function POST(req: NextRequest) {
       error: error instanceof Error ? error.message : 'Internal server error',
       type: error instanceof Error ? error.name : 'Unknown error type',
       stack: error instanceof Error ? error.stack : 'No stack trace'
-    }, { status: 500 });
+    
   }
 }
 
@@ -205,7 +201,7 @@ export async function GET(req: NextRequest) {
       success: true, 
       message: 'Projects API route is working (test mode)',
       timestamp: new Date().toISOString()
-    });
+
   }
   
   // Add immediate response for debugging
@@ -218,7 +214,7 @@ export async function GET(req: NextRequest) {
       route: 'projects',
       timestamp: new Date().toISOString(),
       message: 'Projects API route is responding'
-    });
+
   }
   
   try {
@@ -228,7 +224,6 @@ export async function GET(req: NextRequest) {
     logger.debug('Request parameters', { 
       hasClientId: !!clientId,
       paramsCount: Array.from(searchParams.entries()).length
-    });
 
     if (!clientId) {
 
@@ -242,7 +237,6 @@ export async function GET(req: NextRequest) {
     logger.debug('Environment variables check', {
       hasSupabaseUrl: !!supabaseUrl,
       hasServiceRoleKey: !!supabaseServiceRoleKey
-    });
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
       logger.error('=== ENVIRONMENT ERROR ===');
@@ -250,7 +244,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ 
         success: false, 
         error: 'Configuration error: Missing Supabase environment variables' 
-      }, { status: 500 });
+      
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -265,11 +259,10 @@ export async function GET(req: NextRequest) {
       logger.error('Projects table access failed:', {
         exists: tableCheck.exists,
         error: tableCheck.error
-      });
-      
+
       // Check if table doesn't exist
       if (tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error) {
-        const error = tableCheck.error as { code: string; message: string };
+        const error = tableCheck.error as { code: string; message: string 
         if (error.code === '42P01') {
           logger.error('Table does not exist error detected');
           return NextResponse.json({ 
@@ -278,7 +271,7 @@ export async function GET(req: NextRequest) {
             details: error.message,
             code: error.code,
             solution: 'Run the SQL commands in database-setup.sql to create the projects table'
-          }, { status: 500 });
+          
         }
       }
       
@@ -291,7 +284,7 @@ export async function GET(req: NextRequest) {
         code: tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error 
           ? (tableCheck.error as { code: string }).code 
           : 'UNKNOWN'
-      }, { status: 500 });
+      
     }
 
     // Get table schema information
@@ -312,8 +305,7 @@ export async function GET(req: NextRequest) {
         message: clientTestError.message,
         details: clientTestError.details,
         hint: clientTestError.hint
-      });
-      
+
       if (clientTestError.code === 'PGRST116') {
         logger.error('Client not found error detected');
         return NextResponse.json({ 
@@ -329,7 +321,7 @@ export async function GET(req: NextRequest) {
         error: 'Client lookup failed',
         details: clientTestError.message,
         code: clientTestError.code
-      }, { status: 500 });
+      
     }
 
     // Fetch projects for the client
@@ -352,24 +344,21 @@ export async function GET(req: NextRequest) {
         details: error.details,
         hint: error.hint,
         fullError: JSON.stringify(error, null, 2)
-      });
-      
+
       return NextResponse.json({ 
         success: false, 
         error: error.message || 'Failed to fetch projects',
         details: error.details,
         code: error.code
-      }, { status: 500 });
+      
     }
 
     logger.debug('Projects fetched successfully', {
       count: projects?.length || 0
-    });
 
     return NextResponse.json({ 
       success: true, 
       projects: projects || [] 
-    });
 
   } catch (error: unknown) {
     logger.error('=== PROJECTS API GET ERROR ===');
@@ -384,6 +373,6 @@ export async function GET(req: NextRequest) {
       error: error instanceof Error ? error.message : 'Internal server error',
       type: error instanceof Error ? error.name : 'Unknown error type',
       stack: error instanceof Error ? error.stack : 'No stack trace'
-    }, { status: 500 });
+    
   }
 }

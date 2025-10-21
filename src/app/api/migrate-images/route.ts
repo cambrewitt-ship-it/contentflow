@@ -7,7 +7,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!,
   { auth: { autoRefreshToken: false, persistSession: false } }
-);
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,13 +54,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       message: `Migrated ${results.filter(r => r.success).length} of ${results.length} posts`,
       results
-    });
 
   } catch (error) {
     logger.error('❌ Migration error:', error);
     return NextResponse.json(
       { error: 'Migration failed' },
       { status: 500 }
-    );
+
   }
 }

@@ -11,15 +11,13 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 }
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: { persistSession: false }
-});
+  auth: { persistSession: false });
 
 export async function POST(req: Request) {
   try {
 
     const body = await req.json();
-    const { client_id, project_id, post_id, scheduled_time, account_ids, image_url } = body ?? {};
-
+    const { client_id, project_id, post_id, scheduled_time, account_ids, image_url } = body ?? {
     if (!client_id || !project_id || !post_id || !scheduled_time || !account_ids) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
@@ -52,13 +50,13 @@ export async function POST(req: Request) {
 
     if (error) {
       logger.error('Supabase insert error', error);
-      return NextResponse.json({ success: false, error: error.message || 'DB insert failed' }, { status: 500 });
+      return NextResponse.json({ success: false, error: error.message || 'DB insert failed' 
     }
 
     return NextResponse.json({ success: true, id: data.id, record: data }, { status: 200 });
   } catch (err: unknown) {
     logger.error('Unexpected error in schedulePost route', err);
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
+    return NextResponse.json({ success: false, error: errorMessage 
   }
 }

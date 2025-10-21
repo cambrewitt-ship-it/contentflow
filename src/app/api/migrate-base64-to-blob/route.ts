@@ -24,8 +24,7 @@ async function uploadBase64ToBlob(base64String: string, filename: string): Promi
   
   const result = await put(filename, blob, {
     access: 'public',
-  });
-  
+
   return result.url;
 }
 
@@ -37,22 +36,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Supabase environment variables are required' },
         { status: 500 }
-      );
+
     }
     
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       return NextResponse.json(
         { error: 'BLOB_READ_WRITE_TOKEN environment variable is required' },
         { status: 500 }
-      );
+
     }
     
     // Create Supabase client inside the function
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-    
+
     const { dryRun = false, limit = 10 } = await request.json().catch(() => ({}));
     
     // Get all posts with base64 images from both tables
@@ -76,7 +74,7 @@ export async function POST(request: NextRequest) {
           table: tableName,
           error: fetchError.message,
           converted: 0
-        });
+
         continue;
       }
       
@@ -86,7 +84,7 @@ export async function POST(request: NextRequest) {
           table: tableName,
           converted: 0,
           message: 'No base64 images found'
-        });
+
         continue;
       }
       
@@ -101,7 +99,6 @@ export async function POST(request: NextRequest) {
           logger.debug('Processing post', { 
             postId: post.id?.substring(0, 8) + '...',
             captionLength: post.caption?.length || 0 
-          });
 
           if (dryRun) {
 
@@ -144,7 +141,7 @@ export async function POST(request: NextRequest) {
         table: tableName,
         converted: tableConverted,
         found: posts.length
-      });
+
     }
 
     return NextResponse.json({
@@ -154,13 +151,12 @@ export async function POST(request: NextRequest) {
       totalConverted,
       results,
       dryRun
-    });
-    
+
   } catch (error) {
     logger.error('❌ Migration failed:', error);
     return NextResponse.json(
       { error: 'Migration failed', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
-    );
+
   }
 }

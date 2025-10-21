@@ -23,7 +23,6 @@ export async function PUT(
       params: postIdParamSchema,
       paramsObject: params,
       maxBodySize: 10 * 1024 * 1024, // 10MB limit for posts (to accommodate images)
-    });
 
     if (!validation.success) {
       logger.error('❌ Validation failed');
@@ -116,7 +115,7 @@ export async function PUT(
       logger.error('❌ Unauthorized access attempt:', { 
         postClientId: currentPost.client_id, 
         requestedClientId: client_id 
-      });
+
       return ApiErrors.forbidden('Post does not belong to this client');
     }
     
@@ -130,7 +129,6 @@ export async function PUT(
         'published': 'Cannot edit published posts. Please create a new version instead.',
         'archived': 'Cannot edit archived posts. Please restore the post first.',
         'deleted': 'Cannot edit deleted posts.'
-      };
       
       return NextResponse.json(
         { 
@@ -138,7 +136,7 @@ export async function PUT(
           currentStatus: currentPost.status
         },
         { status: 400 }
-      );
+
     }
     
     // For calendar posts, we allow editing by default since they don't have restrictive status values
@@ -166,7 +164,7 @@ export async function PUT(
           message: 'Use force_edit=true to override the lock'
         },
         { status: 409 }
-      );
+
     }
     
     // 3. DATA CONSISTENCY VALIDATION
@@ -181,7 +179,6 @@ export async function PUT(
         style: ai_style || currentPost.ai_settings?.style,
         hashtags: ai_hashtags || currentPost.ai_settings?.hashtags
       }
-    };
     
     const postValidation = PostValidator.validatePost(postData, platforms);
     
@@ -194,7 +191,7 @@ export async function PUT(
           platformWarnings: postValidation.platformWarnings
         },
         { status: 400 }
-      );
+
     }
     
     // 4. DRAFT SAVING (if requested)
@@ -212,9 +209,9 @@ export async function PUT(
         },
         saved_at: now.toISOString(),
         saved_by: edited_by_user_id
-      };
-      
-      const { error: draftError } = await supabase
+    };
+
+const { error: draftError } = await supabase
         .from('posts')
         .update({ draft_changes: draftData })
         .eq('id', postId);
@@ -224,14 +221,14 @@ export async function PUT(
         return NextResponse.json(
           { error: 'Failed to save draft changes' },
           { status: 500 }
-        );
+
       }
       
       return NextResponse.json({
         success: true,
         message: 'Draft changes saved successfully',
         draftData
-      });
+
     }
     
     // 5. APPROVAL WORKFLOW - Check if reapproval needed
@@ -246,7 +243,6 @@ export async function PUT(
       edit_count: (currentPost.edit_count || 0) + 1,
       currently_editing_by: edited_by_user_id,
       editing_started_at: now.toISOString()
-    };
     
     // Add editable fields that are being updated
     if (caption !== undefined) {
@@ -276,7 +272,7 @@ export async function PUT(
     }
     
     // AI generation settings (store as JSONB)
-    const aiSettings: any = {};
+    const aiSettings: any = {
     if (ai_tone !== undefined) aiSettings.tone = ai_tone;
     if (ai_style !== undefined) aiSettings.style = ai_style;
     if (ai_hashtags !== undefined) aiSettings.hashtags = ai_hashtags;
@@ -298,7 +294,6 @@ export async function PUT(
       validated_platforms: platforms,
       validation_warnings: postValidation.platformWarnings,
       last_validated_at: now.toISOString()
-    };
     
     // 6. REAPPROVAL LOGIC
     if (needsReapproval) {
@@ -309,12 +304,12 @@ export async function PUT(
     }
     
     // Clear draft changes if we're committing the edit
-    updateData.draft_changes = {};
-    
+    updateData.draft_changes = {
     // Audit logging
-    const changes = Object.keys(updateData).filter(key => 
+    };
+
+const changes = Object.keys(updateData).filter(key => 
       !['updated_at', 'last_edited_by', 'last_edited_at', 'edit_count', 'currently_editing_by', 'editing_started_at', 'last_modified_at'].includes(key)
-    );
 
     // Determine which table to update based on where the post was found
     let tableName = 'posts';
@@ -360,14 +355,13 @@ export async function PUT(
         by: updatedPost.currently_editing_by,
         startedAt: updatedPost.editing_started_at
       }
-    });
-    
-  } catch (error) {
+
+    }   } catch (error) {
     return handleApiError(error, {
       route: '/api/posts-by-id/[postId]',
       operation: 'update_post',
       additionalData: { postId }
-    });
+
   }
 }
 
@@ -382,7 +376,6 @@ export async function GET(
     const validation = await validateApiRequest(request, {
       params: postIdParamSchema,
       paramsObject: params,
-    });
 
     if (!validation.success) {
       return validation.response;
@@ -432,7 +425,7 @@ export async function GET(
           return NextResponse.json(
             { error: 'Post not found' },
             { status: 404 }
-          );
+
         }
       }
     }
@@ -447,12 +440,12 @@ export async function GET(
 
     return NextResponse.json({ post });
     
-  } catch (error) {
+    }   } catch (error) {
     return handleApiError(error, {
       route: '/api/posts-by-id/[postId]',
       operation: 'fetch_post',
       additionalData: { postId }
-    });
+
   }
 }
 
@@ -467,7 +460,6 @@ export async function DELETE(
     const validation = await validateApiRequest(request, {
       params: postIdParamSchema,
       paramsObject: params,
-    });
 
     if (!validation.success) {
       return validation.response;
@@ -516,13 +508,12 @@ export async function DELETE(
     return NextResponse.json({ 
       success: true, 
       message: 'Post deleted successfully' 
-    });
-    
-  } catch (error) {
+
+    }   } catch (error) {
     return handleApiError(error, {
       route: '/api/posts-by-id/[postId]',
       operation: 'delete_post',
       additionalData: { postId }
-    });
+
   }
 }

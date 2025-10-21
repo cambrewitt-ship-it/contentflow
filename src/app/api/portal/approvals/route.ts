@@ -5,7 +5,6 @@ import logger from '@/lib/logger';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!
-);
 
 // Get posts awaiting approval for a client via portal token
 export async function GET(request: NextRequest) {
@@ -19,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Portal token is required' },
         { status: 400 }
-      );
+
     }
 
     // Validate portal token and get client info
@@ -34,14 +33,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Invalid portal token' },
         { status: 401 }
-      );
+
     }
 
     if (!client.portal_enabled) {
       return NextResponse.json(
         { success: false, error: 'Portal access is disabled' },
         { status: 401 }
-      );
+
     }
 
     // Get all projects for this client
@@ -55,7 +54,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Failed to fetch projects' },
         { status: 500 }
-      );
+
     }
 
     if (!projects || projects.length === 0) {
@@ -64,7 +63,7 @@ export async function GET(request: NextRequest) {
         client: { id: client.id, name: client.name },
         projects: [],
         weeks: []
-      });
+
     }
 
     const projectIds = projects.map(p => p.id);
@@ -133,14 +132,13 @@ export async function GET(request: NextRequest) {
       client: { id: client.id, name: client.name },
       projects: projects,
       weeks: weeks
-    });
 
   } catch (error) {
     logger.error('❌ Portal approvals error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
-    );
+
   }
 }
 
@@ -164,13 +162,12 @@ export async function POST(request: NextRequest) {
       approvalStatus: approval_status,
       hasComments: !!client_comments,
       hasEditedCaption: !!edited_caption
-    });
 
     if (!token) {
       return NextResponse.json(
         { success: false, error: 'Portal token is required' },
         { status: 400 }
-      );
+
     }
 
     // Validate portal token
@@ -184,14 +181,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Invalid portal token' },
         { status: 401 }
-      );
+
     }
 
     if (!client.portal_enabled) {
       return NextResponse.json(
         { success: false, error: 'Portal access is disabled' },
         { status: 401 }
-      );
+
     }
 
     // Validate approval_status
@@ -200,14 +197,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: `Invalid approval status: ${approval_status}` },
         { status: 400 }
-      );
+
     }
 
     if (!post_id || !post_type || !approval_status) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
-      );
+
     }
 
     // Update post caption if client edited it
@@ -227,7 +224,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { success: false, error: 'Failed to update caption' },
           { status: 500 }
-        );
+
       }
     }
 
@@ -237,8 +234,7 @@ export async function POST(request: NextRequest) {
     const statusUpdate: any = {
       approval_status,
       updated_at: new Date().toISOString()
-    };
-
+    
     if (approval_status === 'needs_attention') {
       statusUpdate.needs_attention = true;
       statusUpdate.client_feedback = client_comments;
@@ -257,20 +253,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Failed to update post status' },
         { status: 500 }
-      );
+
     }
 
     return NextResponse.json({
       success: true,
       message: 'Approval submitted successfully'
-    });
 
   } catch (error) {
     logger.error('❌ Portal approval submission error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
-    );
+
   }
 }
 
@@ -299,7 +294,7 @@ function groupPostsByWeek(posts: any[]): any[] {
       logger.debug('Skipping expired post', { 
         weekStart: weekStart.toISOString().split('T')[0],
         postId: post.id?.substring(0, 8) + '...' 
-      });
+
       return;
     }
     
@@ -313,23 +308,25 @@ function groupPostsByWeek(posts: any[]): any[] {
     const normalizedPost = {
       ...post,
       scheduled_date: scheduledDate
-    };
     
     weeksMap.get(weekKey)!.push(normalizedPost);
-  });
-  
+
   // Convert to array and sort by week start date
   const weeks = Array.from(weeksMap.entries())
     .map(([weekKey, posts]) => {
-      const weekStart = new Date(weekKey);
-      const weekEnd = new Date(weekStart);
+    };
+
+const weekStart = new Date(weekKey);
+    };
+
+const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekStart.getDate() + 6);
       
       return {
         weekStart,
         weekLabel: `W/C ${weekStart.getDate()} ${weekStart.toLocaleDateString('en-GB', { month: 'short' })}`,
         posts: posts.sort((a, b) => new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime())
-      };
+      
     })
     .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
   

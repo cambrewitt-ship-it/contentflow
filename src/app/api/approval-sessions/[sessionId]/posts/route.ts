@@ -48,7 +48,6 @@ export async function GET(
       sessionIdPreview: sessionId?.substring(0, 8) + '...', 
       limit, 
       includeImages 
-    });
 
     // Validate session (either by ID for internal or token for public)
     let sessionQuery;
@@ -73,7 +72,7 @@ export async function GET(
       return NextResponse.json(
         { error: 'Session not found or expired' },
         { status: 404 }
-      );
+
     }
 
     // Check if session is expired
@@ -81,7 +80,7 @@ export async function GET(
       return NextResponse.json(
         { error: 'Session has expired' },
         { status: 410 }
-      );
+
     }
 
     // First, get the selected post IDs for this session
@@ -95,7 +94,7 @@ export async function GET(
       return NextResponse.json(
         { error: 'Failed to fetch post approvals' },
         { status: 500 }
-      );
+
     }
 
     // Extract selected post IDs by type
@@ -176,16 +175,14 @@ export async function GET(
       d.setDate(diff);
       d.setHours(0, 0, 0, 0);
       return d;
-    };
-
+    
     const formatWeekLabel = (date: Date) => {
       const options: Intl.DateTimeFormatOptions = { 
         day: 'numeric', 
         month: 'long'
-      };
+      
       return `W/C ${date.toLocaleDateString('en-GB', options)}`;
-    };
-
+    
     // Group posts by week
     const weekMap = new Map<string, ApprovalBoardPost[]>();
     
@@ -200,7 +197,6 @@ export async function GET(
         }
         weekMap.get(weekKey)!.push(post);
       }
-    });
 
     // Convert to week data array and sort
     const weeks: WeekData[] = Array.from(weekMap.entries())
@@ -213,7 +209,7 @@ export async function GET(
             new Date(a.scheduled_date + ' ' + (a.scheduled_time || '00:00')).getTime() - 
             new Date(b.scheduled_date + ' ' + (b.scheduled_time || '00:00')).getTime()
           )
-        };
+        
       })
       .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime());
 
@@ -230,13 +226,12 @@ export async function GET(
         includeImages,
         parallelQueries: true
       }
-    });
 
   } catch (error) {
     logger.error('❌ Error in approval posts API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-    );
+
   }
 }

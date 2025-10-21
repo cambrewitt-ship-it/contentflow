@@ -25,7 +25,6 @@ async function disconnectAllLateAccounts(lateProfileId: string) {
         'Authorization': `Bearer ${lateApiKey}`,
         'Content-Type': 'application/json'
       }
-    });
 
     if (!accountsResponse.ok) {
       const errorText = await accountsResponse.text();
@@ -44,18 +43,16 @@ async function disconnectAllLateAccounts(lateProfileId: string) {
     // Disconnect each account
     const disconnectPromises = accounts.map(async (account: any) => {
       try {
-        logger.debug('Disconnecting account', { 
-          platform: account.platform,
-          accountId: account._id?.substring(0, 8) + '...' 
-        });
-        
-        const disconnectResponse = await fetch(`https://getlate.dev/api/v1/accounts/${account._id}`, {
+        logger.debug(, {
+      const 
+    });
+
+    $3disconnectResponse = await fetch(`https://getlate.dev/api/v1/accounts/${account._id}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${lateApiKey}`,
             'Content-Type': 'application/json'
           }
-        });
 
         if (!disconnectResponse.ok) {
           const errorText = await disconnectResponse.text();
@@ -69,7 +66,6 @@ async function disconnectAllLateAccounts(lateProfileId: string) {
         // Don't throw here - we want to try disconnecting all accounts even if some fail
         return false;
       }
-    });
 
     const results = await Promise.all(disconnectPromises);
     const successCount = results.filter(Boolean).length;
@@ -103,14 +99,12 @@ async function deleteLateProfile(lateProfileId: string) {
         'Authorization': `Bearer ${lateApiKey}`,
         'Content-Type': 'application/json'
       }
+
+    logger.debug(, {
+      const 
     });
 
-    logger.debug('LATE profile deletion response', { 
-      status: response.status 
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
+    $3errorText = await response.text();
       logger.error('❌ LATE profile deletion error response:', errorText);
       logger.error('❌ LATE profile deletion error status:', response.status);
       logger.error('❌ LATE profile deletion error statusText:', response.statusText);
@@ -196,14 +190,13 @@ export async function GET(
     return NextResponse.json({
       success: true,
       client: client
-    });
 
   } catch (error: unknown) {
     return handleApiError(error, {
       route: '/api/clients/[clientId]',
       operation: 'fetch_client',
       additionalData: { clientId }
-    });
+
   }
 }
 
@@ -311,14 +304,13 @@ export async function PUT(
     return NextResponse.json({
       success: true,
       client: updatedClient
-    });
 
   } catch (error: unknown) {
     return handleApiError(error, {
       route: '/api/clients/[clientId]',
       operation: 'update_client',
       additionalData: { clientId }
-    });
+
   }
 }
 
@@ -410,13 +402,12 @@ export async function DELETE(
       success: true,
       message: 'Client deleted successfully',
       lateProfileDeleted: lateProfileDeleted
-    });
 
   } catch (error: unknown) {
     return handleApiError(error, {
       route: '/api/clients/[clientId]',
       operation: 'delete_client',
       additionalData: { clientId }
-    });
+
   }
 }

@@ -32,7 +32,7 @@ export async function GET(
     return NextResponse.json({ posts: data });
   } catch (error) {
     logger.error('Error fetching scheduled posts:', error);
-    return NextResponse.json({ error: 'Failed to fetch scheduled posts' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch scheduled posts' 
   }
 }
 
@@ -56,10 +56,11 @@ export async function POST(
       scheduled_time: body.scheduledTime,
       // Note: week_index and day_index columns don't exist in the actual table schema
       image_url: body.postData?.image_url || null // Extract image_url from postData
-    };
     
     // Start a transaction
-    const { data: scheduledPost, error: scheduleError } = await supabase
+    };
+
+const { data: scheduledPost, error: scheduleError } = await supabase
       .from('calendar_scheduled_posts')
       .insert(scheduledPostData)
       .select()
@@ -86,7 +87,7 @@ export async function POST(
     return NextResponse.json({ post: scheduledPost });
   } catch (error) {
     logger.error('Error scheduling post:', error);
-    return NextResponse.json({ error: 'Failed to schedule post' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to schedule post' 
   }
 }
 
@@ -119,9 +120,10 @@ export async function PATCH(
       scheduled_time: body.scheduledTime,
       updated_at: new Date().toISOString(),
       image_url: existingPost.image_url // Preserve the existing image_url
-    };
     
-    const { data, error } = await supabase
+    };
+
+const { data, error } = await supabase
       .from('calendar_scheduled_posts')
       .update(updateData)
       .eq('id', body.postId)
@@ -137,7 +139,7 @@ export async function PATCH(
     return NextResponse.json({ post: data });
   } catch (error) {
     logger.error('Error updating scheduled post:', error);
-    return NextResponse.json({ error: 'Failed to update scheduled post' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update scheduled post' 
   }
 }
 
@@ -191,8 +193,7 @@ export async function DELETE(
           post_data: postToDelete.post_data,
           image_url: postToDelete.image_url, // Preserve image_url
           status: 'draft'
-        });
-      
+
       if (moveError) {
         logger.error('Error moving post back to unscheduled:', moveError);
         // Don't throw here, the post was deleted successfully
@@ -202,6 +203,6 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     logger.error('Error deleting scheduled post:', error);
-    return NextResponse.json({ error: 'Failed to delete scheduled post' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete scheduled post' 
   }
 }

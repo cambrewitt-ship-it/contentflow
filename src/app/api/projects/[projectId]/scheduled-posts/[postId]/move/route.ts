@@ -37,6 +37,6 @@ export async function PATCH(
     return NextResponse.json({ post: data });
   } catch (error) {
     logger.error('Error moving scheduled post:', error);
-    return NextResponse.json({ error: 'Failed to move scheduled post' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to move scheduled post' 
   }
 }

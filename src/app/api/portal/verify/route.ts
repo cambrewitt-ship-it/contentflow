@@ -13,7 +13,7 @@ export async function GET() {
         success: false,
         error: 'Missing Supabase environment variables',
         timestamp: new Date().toISOString()
-      }, { status: 500 });
+      
     }
 
     // Create Supabase client with service role for schema checks
@@ -100,11 +100,9 @@ export async function GET() {
         ? 'Database ready for portal implementation'
         : 'Database not ready for portal implementation - some required tables or columns are missing',
       timestamp: new Date().toISOString()
-    };
-
+    
     return NextResponse.json(response, { 
       status: allChecksPass ? 200 : 400 
-    });
 
   } catch (error) {
     logger.error('💥 Portal verification error:', error);
@@ -113,6 +111,6 @@ export async function GET() {
       error: 'Portal verification failed',
       details: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString()
-    }, { status: 500 });
+    
   }
 }

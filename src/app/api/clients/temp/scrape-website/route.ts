@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: 'Failed to create scrape record', 
         details: createError.message 
-      }, { status: 500 });
+      
     }
 
     try {
@@ -53,9 +53,9 @@ export async function POST(request: NextRequest) {
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; ContentManager/1.0)'
         }
-      });
+    });
 
-      if (!response.ok) {
+    if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -106,7 +106,6 @@ export async function POST(request: NextRequest) {
           scrape_status: 'completed',
           scraped_at: new Date().toISOString()
         }
-      });
 
     } catch (scrapeError) {
       logger.error('❌ Website scraping failed:', scrapeError);
@@ -123,7 +122,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: 'Website scraping failed', 
         details: scrapeError instanceof Error ? scrapeError.message : String(scrapeError)
-      }, { status: 500 });
+      
     }
 
   } catch (error: unknown) {
@@ -131,6 +130,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    
   }
 }

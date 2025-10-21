@@ -217,8 +217,7 @@ export async function GET(req: NextRequest) {
       name: error instanceof Error ? error.name : 'Unknown',
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : 'No stack trace'
-    });
-    
+
     // Try to extract clientId from the error context for better error handling
     let clientId = '';
     let platform = 'unknown';

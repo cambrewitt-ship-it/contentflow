@@ -12,7 +12,6 @@ export async function GET(req: NextRequest) {
     logger.debug('Environment check', {
       hasSupabaseUrl: !!supabaseUrl,
       hasServiceRoleKey: !!supabaseServiceRoleKey
-    });
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
       return NextResponse.json({ 
@@ -20,7 +19,7 @@ export async function GET(req: NextRequest) {
         error: 'Configuration error: Missing Supabase environment variables',
         supabaseUrl: !!supabaseUrl,
         supabaseServiceRoleKey: !!supabaseServiceRoleKey
-      }, { status: 500 });
+      
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -38,7 +37,7 @@ export async function GET(req: NextRequest) {
         error: 'Database connection failed',
         details: connectionError.message,
         code: connectionError.code
-      }, { status: 500 });
+      
     }
 
     // Check if projects table exists
@@ -55,8 +54,7 @@ export async function GET(req: NextRequest) {
       tableStructure = {
         columns: Object.keys(firstProject),
         sampleData: firstProject
-      };
-
+      
     }
 
     // Check clients table structure
@@ -72,8 +70,7 @@ export async function GET(req: NextRequest) {
       clientsStructure = {
         columns: Object.keys(firstClient),
         sampleData: firstClient
-      };
-
+      
     }
 
     // Check for any existing projects
@@ -130,8 +127,7 @@ export async function GET(req: NextRequest) {
         sampleClients: existingClients?.slice(0, 3) || [],
         sampleProjects: existingProjects?.slice(0, 3) || []
       }
-    };
-
+    
     return NextResponse.json(debugInfo);
 
   } catch (error: unknown) {
@@ -140,12 +136,11 @@ export async function GET(req: NextRequest) {
       name: error instanceof Error ? error.name : 'Unknown',
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : 'No stack trace'
-    });
-    
+
     return NextResponse.json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Internal server error',
       type: error instanceof Error ? error.name : 'Unknown error type'
-    }, { status: 500 });
+    
   }
 }

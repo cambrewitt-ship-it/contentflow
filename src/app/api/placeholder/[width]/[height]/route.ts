@@ -24,9 +24,9 @@ export async function GET(
         'Content-Type': 'image/svg+xml',
         'Cache-Control': 'public, max-age=31536000',
       },
-    });
+
   } catch (error) {
     logger.error('Error generating placeholder:', error);
-    return NextResponse.json({ error: 'Failed to generate placeholder' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to generate placeholder' 
   }
 }

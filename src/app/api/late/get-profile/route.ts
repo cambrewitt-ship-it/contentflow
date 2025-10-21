@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ 
         error: 'Database query failed', 
         details: error.message 
-      }, { status: 500 });
+      
     }
 
     if (!profiles || profiles.length === 0) {
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ 
         profileId: null, 
         message: 'No LATE profile found for this client' 
-      });
+
     }
 
     const profile = profiles[0];
@@ -47,13 +47,12 @@ export async function GET(req: NextRequest) {
       profileId: profile.profile_id,
       platform: profile.platform,
       created_at: profile.created_at
-    });
 
   } catch (error: unknown) {
     logger.error('💥 Error in get-profile route:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    
   }
 }

@@ -223,12 +223,126 @@ export async function listCustomerInvoices(customerId: string, limit = 10) {
   return invoices.data;
 }
 
-// Verify webhook signature
+// Verify webhook signature with enhanced security
 export function verifyWebhookSignature(
   payload: string | Buffer,
   signature: string
 ): Stripe.Event {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-  return stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+  
+  if (!webhookSecret) {
+    throw new Error('STRIPE_WEBHOOK_SECRET is not configured');
+  }
+
+  if (!signature) {
+    throw new Error('No webhook signature provided');
+  }
+
+  if (!payload) {
+    throw new Error('No webhook payload provided');
+  }
+
+  try {
+    // Construct and verify the event
+    const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+    
+    // Additional security checks
+    validateWebhookEvent(event);
+    
+    return event;
+  } catch (error) {
+    if (error instanceof Error) {
+      // Log the error for monitoring
+      console.error('Webhook signature verification failed:', {
+        error: error.message,
+        signature: signature.substring(0, 20) + '...',
+        payloadLength: typeof payload === 'string' ? payload.length : payload.length,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Re-throw with sanitized error message
+      throw new Error('Invalid webhook signature');
+    }
+    throw error;
+  }
+}
+
+// Validate webhook event for additional security
+function validateWebhookEvent(event: Stripe.Event): void {
+  // Check event age (prevent replay attacks)
+  const eventAge = Date.now() - (event.created * 1000);
+  const maxAge = 5 * 60 * 1000; // 5 minutes
+  
+  if (eventAge > maxAge) {
+    throw new Error('Webhook event is too old');
+  }
+
+  // Validate event structure
+  if (!event.id || !event.type || !event.created) {
+    throw new Error('Invalid webhook event structure');
+  }
+
+  // Check for suspicious event types
+  const suspiciousTypes = [
+    'account.updated',
+    'capability.updated',
+    'person.updated'
+  ];
+  
+  if (suspiciousTypes.includes(event.type)) {
+    console.warn('Received potentially suspicious webhook event:', {
+      type: event.type,
+      id: event.id,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Validate event data exists
+  if (!event.data || !event.data.object) {
+    throw new Error('Webhook event missing data');
+  }
+}
+
+// Enhanced webhook signature verification with timestamp validation
+export function verifyWebhookSignatureWithTimestamp(
+  payload: string | Buffer,
+  signature: string,
+  tolerance: number = 300 // 5 minutes default tolerance
+): Stripe.Event {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+  
+  if (!webhookSecret) {
+    throw new Error('STRIPE_WEBHOOK_SECRET is not configured');
+  }
+
+  try {
+    // Parse signature header to extract timestamp
+    const elements = signature.split(',');
+    const timestampElement = elements.find(element => element.startsWith('t='));
+    
+    if (timestampElement) {
+      const timestamp = parseInt(timestampElement.split('=')[1]);
+      const currentTime = Math.floor(Date.now() / 1000);
+      
+      // Check timestamp tolerance
+      if (Math.abs(currentTime - timestamp) > tolerance) {
+        throw new Error('Webhook timestamp too old');
+      }
+    }
+
+    // Verify signature
+    const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+    
+    // Additional validation
+    validateWebhookEvent(event);
+    
+    return event;
+  } catch (error) {
+    console.error('Webhook verification failed:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
+    throw error;
+  }
 }
 

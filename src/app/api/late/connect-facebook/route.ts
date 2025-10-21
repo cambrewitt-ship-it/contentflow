@@ -17,7 +17,6 @@ async function fetchExistingLateProfile(profileName: string) {
         'Authorization': `Bearer ${lateApiKey}`,
         'Content-Type': 'application/json'
       }
-    });
 
     if (!response.ok) {
 
@@ -29,8 +28,7 @@ async function fetchExistingLateProfile(profileName: string) {
     // Look for a profile with matching name
     const existingProfile = data.profiles?.find((profile: any) => 
       profile.name === profileName || profile.name?.toLowerCase() === profileName.toLowerCase()
-    );
-    
+
     if (existingProfile) {
 
       return existingProfile._id || existingProfile.id;
@@ -86,8 +84,7 @@ async function createLateProfileForExistingClient(client: { id: string; name: st
       name: fullClient.name,
       description: description,
       color: "#4ade80" // Default green color
-    };
-
+    
     logger.debug('Creating LATE profile', { clientName: fullClient.name });
 
     const response = await fetch('https://getlate.dev/api/v1/profiles', {
@@ -97,7 +94,6 @@ async function createLateProfileForExistingClient(client: { id: string; name: st
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(requestBody)
-    });
 
     logger.debug('LATE API response received', { status: response.status });
 
@@ -108,22 +104,17 @@ async function createLateProfileForExistingClient(client: { id: string; name: st
         statusText: response.statusText,
         headers: Object.fromEntries(response.headers.entries()),
         body: errorText
-      });
+
       throw new Error(`LATE API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
 
-    logger.debug('LATE API response structure', {
-      hasId: !!data._id,
-      hasProfile: !!data.profile,
-      hasProfileId: !!data.profile?._id,
-      keysCount: Object.keys(data).length,
-      isArray: Array.isArray(data)
+    logger.debug(, {
+      const 
     });
-    
-    // Handle the nested response structure - try multiple possible locations
-    const profileId = data._id || data.profile?._id || data.id || data.profileId;
+
+    $3profileId = data._id || data.profile?._id || data.id || data.profileId;
 
     if (!profileId) {
       logger.error('❌ LATE API response structure:', JSON.stringify(data, null, 2));
@@ -162,7 +153,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ 
         error: 'Configuration error',
         details: 'LATE_API_KEY environment variable is not set'
-      }, { status: 500 });
+      
     }
 
     // Create Supabase client
@@ -190,7 +181,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ 
         error: 'Database query failed', 
         details: clientError.message 
-      }, { status: 500 });
+      
     }
 
     if (!client.late_profile_id) {
@@ -210,7 +201,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ 
             error: 'Failed to link LATE profile',
             details: 'Could not update client with new LATE profile ID'
-          }, { status: 500 });
+          
         }
 
         client.late_profile_id = lateProfileId; // Update local client object
@@ -220,7 +211,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ 
           error: 'LATE profile creation failed',
           details: `Could not create LATE profile for client ${client.name}: ${lateError instanceof Error ? lateError.message : String(lateError)}`
-        }, { status: 500 });
+        
       }
     }
 
@@ -237,8 +228,7 @@ export async function POST(req: NextRequest) {
         isLocalhost: host?.includes('localhost'),
         isVercel: host?.includes('vercel.app'),
         nodeEnv: process.env.NODE_ENV
-      });
-      
+
       // If we have an environment URL and it's not ngrok, use it
       if (envUrl && !envUrl.includes('ngrok')) {
 
@@ -265,52 +255,32 @@ export async function POST(req: NextRequest) {
         : 'https://contentflow-v2.vercel.app';
 
       return fallbackUrl;
-    };
     
     const correctAppUrl = getAppUrl(req);
     const callbackUrl = `${correctAppUrl}/api/late/facebook-callback?clientId=${clientId}`;
 
-    logger.debug('Request info', {
-      host: req.headers.get('host'),
-      protocol: req.headers.get('x-forwarded-proto')
-    });
-    
-    // Prepare LATE API request - using GET with query parameters
-    const lateApiUrl = `https://getlate.dev/api/v1/connect/facebook?profileId=${encodeURIComponent(profileId)}&redirect_url=${encodeURIComponent(callbackUrl)}`;
-    
-    logger.debug('Calling LATE API for Facebook', {
-      method: 'GET',
-      profileIdLength: profileId?.length,
-      callbackUrlLength: callbackUrl.length
-    });
-    
-    // Call LATE API to get the Facebook auth URL - using GET method
-
-    const lateResponse = await fetch(lateApiUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${lateApiKey}`
-      }
+    logger.debug(, {
+      const 
     });
 
-    logger.debug('LATE API response received', {
-      status: lateResponse.status,
-      statusText: lateResponse.statusText
+    $3lateApiUrl = `https://getlate.dev/api/v1/connect/facebook?profileId=${encodeURIComponent(profileId)}&redirect_url=${encodeURIComponent(callbackUrl)}`;
+    
+    logger.debug(, {
+      const 
     });
 
-    if (!lateResponse.ok) {
-      const errorText = await lateResponse.text();
+    $3errorText = await lateResponse.text();
       logger.error('❌ LATE API error response:', {
         status: lateResponse.status,
         statusText: lateResponse.statusText,
         body: errorText,
         url: lateApiUrl,
         headers: Object.fromEntries(lateResponse.headers.entries())
-      });
+
       return NextResponse.json({ 
         error: 'LATE API request failed',
         details: `Status: ${lateResponse.status}, Response: ${errorText}`
-      }, { status: 500 });
+      
     }
 
     const lateData = await lateResponse.json();
@@ -320,17 +290,16 @@ export async function POST(req: NextRequest) {
     logger.debug('Extracted Facebook authUrl', {
       authUrlFound: !!authUrl,
       keysCount: Object.keys(lateData).length
-    });
-    
+
     if (!authUrl) {
       logger.error('❌ No authUrl found in LATE response:', {
         response: lateData,
         checkedKeys: ['authUrl', 'url', 'connectUrl']
-      });
+
       return NextResponse.json({ 
         error: 'LATE API response missing authUrl',
         details: 'The LATE API did not return a valid Facebook authentication URL'
-      }, { status: 500 });
+      
     }
 
     const responseData = { 
@@ -340,8 +309,7 @@ export async function POST(req: NextRequest) {
       clientId: clientId,
       lateProfileId: profileId,
       notes: 'Facebook requires page selection after OAuth. User will be redirected to page selection flow after authentication.'
-    };
-
+    
     return NextResponse.json(responseData);
 
   } catch (error: unknown) {
@@ -351,8 +319,7 @@ export async function POST(req: NextRequest) {
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : 'No stack trace',
       cause: error instanceof Error ? error.cause : 'No cause'
-    });
-    
+
     if (error instanceof SyntaxError) {
       return NextResponse.json({ 
         error: 'Invalid JSON in request body',
@@ -363,6 +330,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    
   }
 }

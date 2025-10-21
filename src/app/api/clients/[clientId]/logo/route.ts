@@ -19,21 +19,21 @@ export async function POST(
       return NextResponse.json(
         { error: 'Image data is required' },
         { status: 400 }
-      );
+
     }
     
     if (!filename) {
       return NextResponse.json(
         { error: 'Filename is required' },
         { status: 400 }
-      );
+
     }
     
     if (!clientId) {
       return NextResponse.json(
         { error: 'Client ID is required' },
         { status: 400 }
-      );
+
     }
 
     // Check authentication
@@ -83,7 +83,7 @@ export async function POST(
       return NextResponse.json(
         { error: 'Logo upload not configured' },
         { status: 500 }
-      );
+
     }
 
     // Convert base64 to blob
@@ -106,7 +106,6 @@ export async function POST(
     // Upload to Vercel Blob
     const result = await put(uniqueFilename, blob, {
       access: 'public',
-    });
 
     // Update the client record with the logo URL
     const { data: updatedClient, error: updateError } = await supabase
@@ -124,21 +123,20 @@ export async function POST(
       return NextResponse.json(
         { error: 'Failed to update client with logo URL' },
         { status: 500 }
-      );
+
     }
 
     return NextResponse.json({ 
       success: true, 
       logoUrl: result.url,
       client: updatedClient
-    });
-    
+
   } catch (error) {
     logger.error('❌ Error uploading client logo:', error);
     return NextResponse.json(
       { error: 'Failed to upload client logo' },
       { status: 500 }
-    );
+
   }
 }
 
@@ -153,7 +151,7 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Client ID is required' },
         { status: 400 }
-      );
+
     }
 
     // Check authentication
@@ -213,19 +211,18 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Failed to remove logo from client' },
         { status: 500 }
-      );
+
     }
 
     return NextResponse.json({ 
       success: true, 
       client: updatedClient
-    });
-    
+
   } catch (error) {
     logger.error('❌ Error removing client logo:', error);
     return NextResponse.json(
       { error: 'Failed to remove client logo' },
       { status: 500 }
-    );
+
   }
 }

@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Price ID is required' },
         { status: 400 }
-      );
+
     }
 
     // Get the authorization header
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid price ID' },
         { status: 400 }
-      );
+
     }
 
     // Create checkout session
@@ -85,7 +85,6 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       successUrl: `${baseUrl}/settings/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${baseUrl}/pricing?canceled=true`,
-    });
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
@@ -93,7 +92,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: 'Failed to create checkout session' },
       { status: 500 }
-    );
+
   }
 }
 

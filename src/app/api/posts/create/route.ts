@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(
             { error: `Invalid media URL: ${post.image_url}` },
             { status: 400 }
-          );
+
         }
         // Store the detected media type in the post object for use below
         post._detected_media_type = validation.mediaType;
@@ -92,9 +92,7 @@ export async function POST(request: NextRequest) {
         needs_reapproval: false, // New posts don't need reapproval
         approval_status: 'pending', // Default approval status
         edit_reason: post.edit_reason || null
-      };
-    });
-    
+      
     const { data: postsData, error: postsError } = await supabase
       .from('posts')
       .insert(postsToInsert)
@@ -104,7 +102,7 @@ export async function POST(request: NextRequest) {
       logger.error('Supabase error creating posts:', {
         code: postsError.code,
         message: postsError.message
-      });
+
       throw postsError;
     }
     
@@ -140,6 +138,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       error: 'Failed to create posts',
       details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 });
+    
   }
 }

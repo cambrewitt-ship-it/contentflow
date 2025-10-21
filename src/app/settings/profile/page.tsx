@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
+import { AlertTriangle, Trash2 } from 'lucide-react';
 
 interface UserProfile {
   id: string;
@@ -26,6 +27,9 @@ export default function ProfileSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
 
   useEffect(() => {
     if (!user) {
@@ -80,6 +84,46 @@ export default function ProfileSettingsPage() {
       setError('Failed to update profile');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (confirmText !== 'DELETE') {
+      setError('Please type "DELETE" to confirm account deletion');
+      return;
+    }
+
+    setDeleting(true);
+    setError('');
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session found');
+      }
+
+      const response = await fetch('/api/user/delete-account', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete account');
+      }
+
+      // Account deleted successfully - redirect to home page
+      await signOut();
+      router.push('/');
+    } catch (err) {
+      console.error('Error deleting account:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete account');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -217,6 +261,92 @@ export default function ProfileSettingsPage() {
               Sign Out
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Delete Account Section */}
+      <Card className="border-red-200">
+        <CardHeader>
+          <CardTitle className="text-red-600 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            Danger Zone
+          </CardTitle>
+          <CardDescription>
+            Permanently delete your account and all associated data
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!showDeleteConfirm ? (
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-medium text-red-600">Delete Account</h4>
+                <p className="text-sm text-muted-foreground">
+                  This action cannot be undone. This will permanently delete your account and remove all data from our servers.
+                </p>
+              </div>
+              <Button 
+                variant="destructive" 
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Account
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h4 className="font-medium text-red-800 mb-2">Are you absolutely sure?</h4>
+                <p className="text-sm text-red-700 mb-4">
+                  This action cannot be undone. This will permanently delete your account and remove all of your data from our servers.
+                </p>
+                <div className="space-y-2">
+                  <label htmlFor="confirm-delete" className="text-sm font-medium text-red-800">
+                    Please type <span className="font-mono bg-red-100 px-1 rounded">DELETE</span> to confirm:
+                  </label>
+                  <Input
+                    id="confirm-delete"
+                    type="text"
+                    value={confirmText}
+                    onChange={(e) => setConfirmText(e.target.value)}
+                    placeholder="Type DELETE to confirm"
+                    className="border-red-300 focus:border-red-500 focus:ring-red-500"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="destructive" 
+                  onClick={handleDeleteAccount}
+                  disabled={deleting || confirmText !== 'DELETE'}
+                  className="flex items-center gap-2"
+                >
+                  {deleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Yes, Delete My Account
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setConfirmText('');
+                    setError('');
+                  }}
+                  disabled={deleting}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
