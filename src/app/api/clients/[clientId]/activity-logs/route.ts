@@ -5,6 +5,7 @@ import logger from '@/lib/logger';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!
+);
 
 export async function GET(
   request: NextRequest,
@@ -17,7 +18,7 @@ export async function GET(
       return NextResponse.json(
         { error: 'Client ID is required' },
         { status: 400 }
-
+      );
     }
 
     const now = new Date();
@@ -49,7 +50,7 @@ export async function GET(
         scheduledDate: nextPostData[0].scheduled_date,
         scheduledTime: nextPostData[0].scheduled_time,
         lateStatus: nextPostData[0].late_status
-
+      });
     }
 
     // Fetch all activity data from the last 30 days
@@ -125,7 +126,8 @@ export async function GET(
         isPublished,
         scheduledDate: nextPost.scheduled_date,
         scheduledTime: nextPost.scheduled_time
-
+      });
+      
       activityLogs.push({
         id: `next-post-${nextPost.id}`,
         type: 'next_scheduled',
@@ -145,7 +147,7 @@ export async function GET(
           scheduledTime: nextPost.scheduled_time,
           isPublished
         }
-
+      });
     } else {
       // Add empty state for next post
       activityLogs.push({
@@ -156,7 +158,7 @@ export async function GET(
         status: 'none',
         timeAgo: 'No posts',
         details: null
-
+      });
     }
 
     // Add upload activities
@@ -184,8 +186,8 @@ export async function GET(
             fileType: u.file_type,
             status: u.status
           }))
-
-
+        });
+      });
     } else {
       // Add empty state for uploads if none in last 30 days
       activityLogs.push({
@@ -196,7 +198,7 @@ export async function GET(
         status: 'none',
         timeAgo: 'No uploads',
         details: null
-
+      });
     }
 
     // Add approval activities
@@ -216,9 +218,9 @@ export async function GET(
               scheduledDate: approval.scheduled_date,
               scheduledTime: approval.scheduled_time
             }
-
+          });
         }
-
+      });
     }
 
     // Add scheduled post activities
@@ -236,8 +238,8 @@ export async function GET(
             scheduledTime: post.scheduled_time,
             platforms: post.platforms_scheduled || []
           }
-
-
+        });
+      });
     }
 
     // Add published post activities
@@ -251,6 +253,7 @@ export async function GET(
           // Format platforms list
           const platforms = post.platforms_scheduled.map((p: string) => 
             p.charAt(0).toUpperCase() + p.slice(1)
+          );
 
           const platformsText = platforms.length === 1 
             ? platforms[0]
@@ -270,15 +273,16 @@ export async function GET(
               platforms: post.platforms_scheduled || [],
               lateStatus: post.late_status
             }
-
+          });
         }
-
+      });
     }
 
     // Add portal visit activities
     if (portalActivityResult.data) {
       const portalVisits = portalActivityResult.data.filter(activity => 
         activity.activity_type === 'portal_access'
+      );
 
       portalVisits.forEach(visit => {
         activityLogs.push({
@@ -287,8 +291,8 @@ export async function GET(
           title: 'Client accessed portal',
           timestamp: visit.created_at,
           status: 'completed'
-
-
+        });
+      });
     }
 
     // Sort all activities by timestamp (most recent first)
@@ -299,21 +303,20 @@ export async function GET(
       if (!log.timeAgo) {
         log.timeAgo = getTimeAgo(new Date(log.timestamp));
       }
-
-    // Limit to last 20 activities for performance
+    });
     const recentActivities = activityLogs.slice(0, 20);
 
     return NextResponse.json({
       success: true,
       activities: recentActivities,
       total: activityLogs.length
-
+    });
   } catch (error) {
     logger.error('Activity logs error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-
+    );
   }
 }
 

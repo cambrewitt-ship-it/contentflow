@@ -47,7 +47,7 @@ export async function POST(
           success: true,
           scraped: false, // Not a new scrape
           data: existingScrape
-
+        });
       }
     }
 

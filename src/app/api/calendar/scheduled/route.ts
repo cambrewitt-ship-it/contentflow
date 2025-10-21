@@ -59,7 +59,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ 
         error: 'Failed to fetch scheduled posts', 
         details: error.message 
-      
+      }, { status: 500 });
     }
 
     // Debug: Log approval status and captions of posts (only first few)
@@ -70,8 +70,8 @@ export async function GET(request: Request) {
           postId: post.id?.substring(0, 8) + '...', 
           status: post.approval_status || 'NO STATUS', 
           captionLength: post.caption?.length || 0 
-
-
+        });
+      });
     }
     
     // Fetch client uploads (content from portal)
@@ -95,13 +95,14 @@ export async function GET(request: Request) {
         limit,
         includeImageData
       }
+    });
 
   } catch (error) {
     logger.error('❌ Unexpected error:', error);
     return NextResponse.json({ 
       error: 'Failed to fetch scheduled posts', 
       details: error instanceof Error ? error.message : 'Unknown error'
-    
+    }, { status: 500 });
   }
 }
 
@@ -112,6 +113,7 @@ export async function POST(request: Request) {
     logger.debug('Creating scheduled post', { 
       timestamp: new Date().toISOString(),
       bodyKeys: Object.keys(body) 
+    });
 
     // Validate required fields
     if (!body.scheduledPost) {
@@ -122,11 +124,11 @@ export async function POST(request: Request) {
     // unscheduledId is optional - only needed when moving from unscheduled to scheduled
     const isMovingFromUnscheduled = !!body.unscheduledId;
 
-    logger.debug(, {
-      const 
+    logger.debug('Moving from unscheduled', {
+      unscheduledId: body.unscheduledId
     });
 
-    $3{ data: scheduled, error: scheduleError } = await supabase
+    const { data: scheduled, error: scheduleError } = await supabase
       .from('calendar_scheduled_posts')
       .insert(scheduledPostData)
       .select()
@@ -140,22 +142,23 @@ export async function POST(request: Request) {
       throw scheduleError;
     }
 
-    logger.debug(, {
-      const 
+    logger.debug('Scheduled post created', {
+      postId: scheduled.id
     });
 
-    $3{ error: deleteError } = await supabase
-        .from('calendar_unscheduled_posts')
-        .delete()
-        .eq('id', body.unscheduledId);
-      
-      if (deleteError) {
-        logger.error('❌ Delete error:', deleteError);
-        logger.error('  - Error code:', deleteError.code);
-        logger.error('  - Error message:', deleteError.message);
-        throw deleteError;
-      }
-
+    // Only delete from unscheduled if this was moved from unscheduled
+    if (isMovingFromUnscheduled) {
+      const { error: deleteError } = await supabase
+          .from('calendar_unscheduled_posts')
+          .delete()
+          .eq('id', body.unscheduledId);
+        
+        if (deleteError) {
+          logger.error('❌ Delete error:', deleteError);
+          logger.error('  - Error code:', deleteError.code);
+          logger.error('  - Error message:', deleteError.message);
+          throw deleteError;
+        }
     } else {
       logger.debug('Skipping unscheduled delete - direct create operation');
     }
@@ -175,7 +178,7 @@ export async function POST(request: Request) {
       error: 'Failed to schedule post',
       details: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString()
-    
+    }, { status: 500 });
   }
 }
 
@@ -188,6 +191,7 @@ export async function PATCH(request: Request) {
       ...updates,
       // If image_url is not in updates, don't overwrite it
       ...(updates.image_url === undefined && { image_url: undefined })
+    };
     
     const { data, error } = await supabase
       .from('calendar_scheduled_posts')
@@ -199,7 +203,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     logger.error('PATCH error:', error);
-    return NextResponse.json({ error: 'Failed to update' 
+    return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
   }
 }
 
@@ -236,7 +240,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ 
       error: 'Failed to update post date',
       details: error instanceof Error ? error.message : String(error)
-    
+    }, { status: 500 });
   }
 }
 
@@ -254,6 +258,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     logger.error('Error deleting scheduled post:', error);
-    return NextResponse.json({ error: 'Failed to delete' 
+    return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
   }
 }

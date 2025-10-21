@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-
+    );
   }
 }
 
@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'project_id is required' },
         { status: 400 }
-
+      );
     }
 
     const { data: sessions, error } = await supabase
@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Failed to fetch approval sessions' },
         { status: 500 }
-
+      );
     }
 
     return NextResponse.json({ sessions });
@@ -172,6 +172,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-
+    );
   }
 }

@@ -56,13 +56,13 @@ Content: ${scrapeData.scraped_content || ''}
         scrapeId: scrapeData.id,
         analyzedAt: new Date().toISOString()
       }
-
+    });
   } catch (error: unknown) {
     logger.error('💥 Error in AI analysis:', error);
     return NextResponse.json({ 
       error: 'AI analysis failed', 
       details: error instanceof Error ? error.message : String(error)
-    
+    }, { status: 500 });
   }
 }
 

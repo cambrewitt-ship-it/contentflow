@@ -5,7 +5,7 @@ import logger from '@/lib/logger';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!
-
+);
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ clientId: string }> }
@@ -40,11 +40,11 @@ export async function GET(
         headers: {
           'Authorization': `Bearer ${process.env.LATE_API_KEY}`
         }
-      }
+      });
 
     if (!response.ok) {
       logger.error('LATE API error:', response.status);
-      return NextResponse.json({ error: 'Failed to fetch accounts' 
+      return NextResponse.json({ error: 'Failed to fetch accounts' });
     }
     
     const data = await response.json();
@@ -52,6 +52,6 @@ export async function GET(
     return NextResponse.json({ accounts: data.accounts || [] });
   } catch (error) {
     logger.error('Error fetching accounts:', error);
-    return NextResponse.json({ error: 'Internal server error' 
+    return NextResponse.json({ error: 'Internal server error' });
   }
 }
