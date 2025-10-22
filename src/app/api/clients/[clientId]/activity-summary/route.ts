@@ -18,7 +18,7 @@ export async function GET(
       return NextResponse.json(
         { error: 'Client ID is required' },
         { status: 400 }
-
+      );
     }
 
     const now = new Date();
@@ -148,12 +148,13 @@ export async function GET(
     return NextResponse.json({
       success: true,
       summary
-
+    });
   } catch (error) {
     logger.error('Activity summary error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
+    );
 
   }
 }

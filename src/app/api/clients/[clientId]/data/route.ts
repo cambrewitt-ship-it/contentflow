@@ -69,14 +69,14 @@ export async function GET(
     return NextResponse.json({
       success: true,
       client: client
-
+    });
   } catch (error: unknown) {
     logger.error('💥 Error in get client data route:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)
     
-  }
+    }, { status: 500 });  }
 }
 
 export async function PUT(
@@ -142,7 +142,7 @@ export async function PUT(
       website?: string;
       description?: string;
       updated_at?: string;
-    } = {
+    } = {};
     if (body.website !== undefined) updateData.website = body.website;
     if (body.description !== undefined) updateData.description = body.description;
     
@@ -169,12 +169,12 @@ const { data: updatedClient, error } = await supabase
     return NextResponse.json({
       success: true,
       client: updatedClient
-
+    });
   } catch (error: unknown) {
     logger.error('💥 Error in update client data route:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)
     
-  }
+    }, { status: 500 });  }
 }

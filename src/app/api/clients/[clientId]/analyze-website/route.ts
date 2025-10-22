@@ -100,7 +100,6 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
         max_tokens: 500
       })
     );
-
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }

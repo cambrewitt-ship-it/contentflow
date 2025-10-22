@@ -187,12 +187,12 @@ export async function GET(
     return NextResponse.json({
       success: true,
       scrapes: scrapes || []
-
+    });
   } catch (error: unknown) {
     logger.error('💥 Error in fetch website scrapes:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
-      details: error instanceof Error ? error.message : String(error)
+    });
     
   }
 }
