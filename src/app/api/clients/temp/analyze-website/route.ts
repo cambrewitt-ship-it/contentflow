@@ -1,38 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function POST(request: NextRequest) {
   try {
-    const { scrapeId } = await request.json();
+    const { scrapeData } = await request.json();
     
-    if (!scrapeId) {
-      return NextResponse.json({ error: 'Scrape ID is required' }, { status: 400 });
+    if (!scrapeData) {
+      return NextResponse.json({ error: 'Scraped data is required' }, { status: 400 });
     }
 
-    // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
-    // Fetch the scraped website content (allow any client_id for temp scrapes)
-    const { data: scrapeData, error: fetchError } = await supabase
-      .from('website_scrapes')
-      .select('*')
-      .eq('id', scrapeId)
-      .eq('scrape_status', 'completed')
-      .single();
-
-    if (fetchError || !scrapeData) {
-      logger.error('❌ Failed to fetch scrape data:', fetchError);
-      return NextResponse.json({ 
-        error: 'Failed to fetch scrape data', 
-        details: fetchError?.message || 'Scrape not found' 
-      }, { status: 404 });
+    // Validate required fields in scraped data
+    if (!scrapeData.url || !scrapeData.scraped_content) {
+      return NextResponse.json({ error: 'Invalid scraped data: missing url or content' }, { status: 400 });
     }
 
-    // Prepare content for AI analysis (same as working version)
+    // Prepare content for AI analysis
     const contentForAnalysis = `
 Website: ${scrapeData.url}
 Title: ${scrapeData.page_title || ''}
@@ -40,7 +22,7 @@ Meta Description: ${scrapeData.meta_description || ''}
 Content: ${scrapeData.scraped_content || ''}
     `.trim();
 
-    // AI Analysis using OpenAI (same as working version)
+    // AI Analysis using OpenAI
     const analysisResult = await analyzeWebsiteContent(contentForAnalysis);
 
     return NextResponse.json({
@@ -48,7 +30,6 @@ Content: ${scrapeData.scraped_content || ''}
       analysis: analysisResult,
       source: {
         url: scrapeData.url,
-        scrapeId: scrapeData.id,
         analyzedAt: new Date().toISOString()
       }
     });

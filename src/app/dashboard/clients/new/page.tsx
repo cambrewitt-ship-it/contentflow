@@ -277,7 +277,7 @@ export default function NewClientPageV2() {
       const scrapeData = await scrapeResponse.json();
       console.log('✅ Scrape data received:', scrapeData);
       
-      if (scrapeData.success && scrapeData.data && scrapeData.data.id) {
+      if (scrapeData.success && scrapeData.data) {
         // Now analyze the scraped content with AI using the temp route
         console.log('🤖 Starting AI analysis...');
         const analysisResponse = await fetch('/api/clients/temp/analyze-website', {
@@ -286,7 +286,7 @@ export default function NewClientPageV2() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${getAccessToken() || ''}`,
           },
-          body: JSON.stringify({ scrapeId: scrapeData.data.id })
+          body: JSON.stringify({ scrapeData: scrapeData.data })
         });
 
         console.log('📡 Analysis response status:', analysisResponse.status);
