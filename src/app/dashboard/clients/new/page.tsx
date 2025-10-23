@@ -253,9 +253,25 @@ export default function NewClientPageV2() {
       console.log('📡 Scrape response status:', scrapeResponse.status);
 
       if (!scrapeResponse.ok) {
-        const errorData = await scrapeResponse.json();
-        console.error('❌ Scrape failed:', errorData);
-        throw new Error(errorData.error || 'Failed to scrape website');
+        let errorData;
+        try {
+          errorData = await scrapeResponse.json();
+        } catch (parseError) {
+          console.error('❌ Failed to parse error response:', parseError);
+          errorData = { error: 'Failed to scrape website', details: 'Invalid response format' };
+        }
+        
+        console.error('❌ Scrape failed:', {
+          status: scrapeResponse.status,
+          statusText: scrapeResponse.statusText,
+          errorData
+        });
+        
+        // Extract meaningful error message
+        const errorMessage = errorData?.error || errorData?.message || 'Failed to scrape website';
+        const errorDetails = errorData?.details ? ` (${errorData.details})` : '';
+        
+        throw new Error(`${errorMessage}${errorDetails}`);
       }
 
       const scrapeData = await scrapeResponse.json();
@@ -292,9 +308,24 @@ export default function NewClientPageV2() {
           setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully! Click "Create New Client" to save.' });
           setTimeout(() => setMessage(null), 3000);
         } else {
-          const errorData = await analysisResponse.json();
-          console.error('❌ Analysis failed:', errorData);
-          throw new Error(errorData.error || 'Failed to analyze website content');
+          let errorData;
+          try {
+            errorData = await analysisResponse.json();
+          } catch (parseError) {
+            console.error('❌ Failed to parse analysis error response:', parseError);
+            errorData = { error: 'Failed to analyze website content', details: 'Invalid response format' };
+          }
+          
+          console.error('❌ Analysis failed:', {
+            status: analysisResponse.status,
+            statusText: analysisResponse.statusText,
+            errorData
+          });
+          
+          const errorMessage = errorData?.error || errorData?.message || 'Failed to analyze website content';
+          const errorDetails = errorData?.details ? ` (${errorData.details})` : '';
+          
+          throw new Error(`${errorMessage}${errorDetails}`);
         }
       } else {
         throw new Error('No scrape data received');
@@ -302,8 +333,32 @@ export default function NewClientPageV2() {
 
     } catch (error) {
       console.error('❌ Website processing failed:', error);
-      setMessage({ type: 'error', text: `Failed to process website: ${error instanceof Error ? error.message : 'Unknown error'}` });
-      setTimeout(() => setMessage(null), 3000);
+      
+      // Determine user-friendly error message
+      let errorMessage = 'Failed to process website';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('404')) {
+          errorMessage = 'Website not found. Please check the URL and try again.';
+        } else if (error.message.includes('403')) {
+          errorMessage = 'Access denied. The website may be blocking automated requests.';
+        } else if (error.message.includes('429')) {
+          errorMessage = 'Rate limited. Please wait a moment and try again.';
+        } else if (error.message.includes('timeout')) {
+          errorMessage = 'Request timed out. The website may be slow or unreachable.';
+        } else if (error.message.includes('unreachable') || error.message.includes('ENOTFOUND')) {
+          errorMessage = 'Website is unreachable. Please check the URL and try again.';
+        } else if (error.message.includes('Invalid URL')) {
+          errorMessage = 'Invalid URL format. Please enter a valid website URL.';
+        } else {
+          errorMessage = `Failed to process website: ${error.message}`;
+        }
+      } else {
+        errorMessage = 'An unexpected error occurred while processing the website.';
+      }
+      
+      setMessage({ type: 'error', text: errorMessage });
+      setTimeout(() => setMessage(null), 5000);
     } finally {
       setScraping(false);
     }

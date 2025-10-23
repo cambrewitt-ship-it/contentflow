@@ -13,7 +13,9 @@ import {
   Loader2,
   AlertCircle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Plus,
+  RotateCcw
 } from "lucide-react";
 import Link from "next/link";
 
@@ -268,7 +270,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                     "h-6 px-2 text-xs glass-button"
                   )}
                 >
-                  <Users className="w-3 h-3 mr-1" />
+                  <Plus className="w-3 h-3 mr-1" />
                   Add
                 </Button>
               </Link>
@@ -284,7 +286,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                   "h-6 w-6 p-0 glass-button"
                 )}
               >
-                <Loader2 className="w-3 h-3" />
+                <RotateCcw className="w-3 h-3" />
               </Button>
             </div>
           </div>

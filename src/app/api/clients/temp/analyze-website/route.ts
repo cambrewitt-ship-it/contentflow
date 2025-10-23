@@ -51,13 +51,14 @@ Content: ${scrapeData.scraped_content || ''}
         scrapeId: scrapeData.id,
         analyzedAt: new Date().toISOString()
       }
+    });
 
   } catch (error: unknown) {
     logger.error('💥 Error in temporary AI analysis:', error);
     return NextResponse.json({ 
       error: 'AI analysis failed', 
       details: error instanceof Error ? error.message : String(error)
-    
+    }, { status: 500 });
   }
 }
 
@@ -94,7 +95,7 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
         temperature: 0.3,
         max_tokens: 500
       })
-    );
+    });
 
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);

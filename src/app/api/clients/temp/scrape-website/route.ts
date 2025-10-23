@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // Create a temporary scrape record with a temporary client_id
-    const tempClientId = 'temp-' + Date.now(); // Generate a temporary client ID
+    // Generate a proper UUID for the temporary client ID
+    const tempClientId = crypto.randomUUID();
     const { data: scrapeRecord, error: createError } = await supabase
       .from('website_scrapes')
       .insert([
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: 'Failed to create scrape record', 
         details: createError.message 
-      
+      }, { status: 500 });
     }
 
     try {
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; ContentManager/1.0)'
         }
-    });
+      });
 
     if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -106,6 +107,7 @@ export async function POST(request: NextRequest) {
           scrape_status: 'completed',
           scraped_at: new Date().toISOString()
         }
+      });
 
     } catch (scrapeError) {
       logger.error('❌ Website scraping failed:', scrapeError);
@@ -119,17 +121,44 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', scrapeRecord.id);
 
-      return NextResponse.json({ 
-        error: 'Website scraping failed', 
-        details: scrapeError instanceof Error ? scrapeError.message : String(scrapeError)
+      // Determine appropriate status code based on error type
+      let statusCode = 500;
+      let errorMessage = 'Website scraping failed';
       
+      if (scrapeError instanceof Error) {
+        if (scrapeError.message.includes('HTTP 404')) {
+          statusCode = 404;
+          errorMessage = 'Website not found (404)';
+        } else if (scrapeError.message.includes('HTTP 403')) {
+          statusCode = 403;
+          errorMessage = 'Access denied (403)';
+        } else if (scrapeError.message.includes('HTTP 429')) {
+          statusCode = 429;
+          errorMessage = 'Rate limited (429)';
+        } else if (scrapeError.message.includes('timeout') || scrapeError.message.includes('ETIMEDOUT')) {
+          statusCode = 408;
+          errorMessage = 'Request timeout';
+        } else if (scrapeError.message.includes('ENOTFOUND') || scrapeError.message.includes('ECONNREFUSED')) {
+          statusCode = 503;
+          errorMessage = 'Website is unreachable';
+        }
+      }
+
+      return NextResponse.json({ 
+        success: false,
+        error: errorMessage, 
+        details: scrapeError instanceof Error ? scrapeError.message : String(scrapeError),
+        statusCode: statusCode
+      }, { status: statusCode });
     }
 
   } catch (error: unknown) {
     logger.error('💥 Error in temporary website scraping:', error);
     return NextResponse.json({ 
+      success: false,
       error: 'Internal server error', 
-      details: error instanceof Error ? error.message : String(error)
-    
+      details: error instanceof Error ? error.message : String(error),
+      statusCode: 500
+    }, { status: 500 });
   }
 }

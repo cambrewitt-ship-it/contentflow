@@ -88,7 +88,7 @@ export async function GET(
       logger.error('Error fetching next post:', futureError);
     }
 
-    const nextPost = futurePosts && futurePosts.length > 0 ? futurePosts[0] : null;
+    const nextPost = futurePosts && Array.isArray(futurePosts) && futurePosts.length > 0 ? futurePosts[0] : null;
 
     // Fetch recent portal activity (last 7 days)
     const { data: portalActivity, error: activityError } = await supabase
@@ -103,7 +103,7 @@ export async function GET(
     }
 
     // Count posts pending approval
-    const { data: pendingPosts, error: pendingError } = await supabase
+    const { data: pendingPosts, error: pendingError, count: pendingCount } = await supabase
       .from('calendar_scheduled_posts')
       .select('id', { count: 'exact', head: true })
       .eq('client_id', clientId)
@@ -118,33 +118,40 @@ export async function GET(
       recentActivity: {
         uploads: recentUploads?.length || 0,
         approvals: recentApprovals?.length || 0,
-        portalVisits: portalActivity?.filter(a => a.activity_type === 'portal_access').length || 0,
+        portalVisits: portalActivity?.filter((a: any) => a.activity_type === 'portal_access').length || 0,
       },
       upcomingPosts: {
         thisWeek: thisWeekPosts?.length || 0,
-        nextPost: nextPost ? {
-          id: nextPost.id,
-          date: nextPost.scheduled_date,
-          time: nextPost.scheduled_time,
-          caption: nextPost.caption?.substring(0, 100) || 'No caption',
-          lateStatus: nextPost.late_status,
-          platforms: nextPost.platforms_scheduled || []
-        } : null,
-        pendingApproval: pendingPosts?.length || 0
+        nextPost: nextPost
+          ? {
+              id: nextPost.id,
+              date: nextPost.scheduled_date,
+              time: nextPost.scheduled_time,
+              caption: nextPost.caption?.substring(0, 100) || 'No caption',
+              lateStatus: nextPost.late_status,
+              platforms: nextPost.platforms_scheduled || [],
+            }
+          : null,
+        pendingApproval: typeof pendingCount === 'number'
+          ? pendingCount
+          : (pendingPosts?.length || 0),
       },
       details: {
-        recentUploads: recentUploads?.slice(0, 5).map(upload => ({
-          id: upload.id,
-          fileName: upload.file_name,
-          createdAt: upload.created_at
-        })) || [],
-        recentApprovals: recentApprovals?.slice(0, 5).map(post => ({
-          id: post.id,
-          caption: post.caption?.substring(0, 50) || 'No caption',
-          approvedAt: post.updated_at
-        })) || []
-      }
-    
+        recentUploads:
+          recentUploads?.slice(0, 5).map((upload: any) => ({
+            id: upload.id,
+            fileName: upload.file_name,
+            createdAt: upload.created_at,
+          })) || [],
+        recentApprovals:
+          recentApprovals?.slice(0, 5).map((post: any) => ({
+            id: post.id,
+            caption: post.caption?.substring(0, 50) || 'No caption',
+            approvedAt: post.updated_at,
+          })) || [],
+      },
+    };
+
     return NextResponse.json({
       success: true,
       summary
@@ -155,7 +162,5 @@ export async function GET(
       { error: 'Internal server error' },
       { status: 500 }
     );
-
   }
 }
-

@@ -5,6 +5,7 @@ import logger from '@/lib/logger';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!
+);
 
 export async function GET(
   request: NextRequest,
@@ -17,7 +18,7 @@ export async function GET(
       return NextResponse.json(
         { error: 'Client ID is required' },
         { status: 400 }
-
+      );
     }
 
     // Get client uploads (content inbox)
@@ -44,18 +45,19 @@ export async function GET(
       return NextResponse.json(
         { error: 'Failed to fetch uploads' },
         { status: 500 }
-
+      );
     }
 
     return NextResponse.json({
       success: true,
       uploads: uploads || []
+    });
 
   } catch (error) {
     logger.error('Client uploads error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-
+    );
   }
 }

@@ -54,7 +54,6 @@ async function createLateProfile(clientName: string, brandInfo: {
       name: clientName,
       description: description,
       color: brandInfo.brand_color || "#4ade80"
-    
     };
 
 const response = await fetch('https://getlate.dev/api/v1/profiles', {
@@ -64,6 +63,7 @@ const response = await fetch('https://getlate.dev/api/v1/profiles', {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(requestBody)
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
       }),
       checkAuth: true, // Automatically validates auth token
       maxBodySize: 5 * 1024 * 1024, // 5MB limit for client creation
+    });
 
     if (!validation.success) {
       logger.error('Validation failed');
@@ -139,6 +140,7 @@ export async function POST(req: NextRequest) {
       caption_donts?: string;
       brand_color?: string;
       skipLateProfile?: boolean;
+    }
     
     // Create Supabase client with the user's token
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -165,10 +167,12 @@ export async function POST(req: NextRequest) {
           target_audience: target_audience,
           value_proposition: value_proposition,
           website_url: website_url
+        });
 
       } catch (lateError) {
         logger.error('Failed to create LATE profile, continuing with client creation:', {
           error: lateError instanceof Error ? lateError.message : String(lateError)
+        });
 
         // Don't fail the entire operation if LATE fails
       }
@@ -201,7 +205,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ 
         error: 'Failed to create client', 
         details: insertError.message 
-      
+      }, { status: 500 });
     }
 
     // Track client creation for subscription usage
@@ -213,12 +217,13 @@ export async function POST(req: NextRequest) {
       client: client,
       lateProfileId: lateProfileId, // Include LATE profile ID in response
       lateProfileCreated: !!lateProfileId // Boolean indicating if LATE profile was created
+    });
 
   } catch (error: unknown) {
     logger.error('Error in clients/create route:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error instanceof Error ? error.message : String(error)
-    
+    }, { status: 500 });
   }
 }

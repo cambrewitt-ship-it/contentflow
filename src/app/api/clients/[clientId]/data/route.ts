@@ -63,7 +63,7 @@ export async function GET(
       return NextResponse.json({ 
         error: 'Database query failed', 
         details: error.message 
-      
+      }, { status: 500 });
     }
 
     return NextResponse.json({

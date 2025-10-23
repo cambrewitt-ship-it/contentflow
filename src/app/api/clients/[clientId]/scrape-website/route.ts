@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
@@ -12,7 +13,7 @@ export async function POST(
   try {
     const { clientId } = await params;
     const { url } = await request.json();
-    
+
     if (!url) {
       return NextResponse.json({ error: 'Website URL is required' }, { status: 400 });
     }
@@ -46,7 +47,7 @@ export async function POST(
         return NextResponse.json({
           success: true,
           scraped: false, // Not a new scrape
-          data: existingScrape
+          data: existingScrape,
         });
       }
     }
@@ -58,18 +59,18 @@ export async function POST(
         {
           client_id: clientId,
           url: url,
-          scrape_status: 'pending'
-        }
+          scrape_status: 'pending',
+        },
       ])
       .select()
       .single();
 
     if (createError) {
       logger.error('❌ Failed to create scrape record:', createError);
-      return NextResponse.json({ 
-        error: 'Failed to create scrape record', 
-        details: createError.message 
-      
+      return NextResponse.json({
+        error: 'Failed to create scrape record',
+        details: createError.message,
+      }, { status: 500 });
     }
 
     try {
@@ -78,23 +79,23 @@ export async function POST(
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; ContentManager/1.0)'
-        }
-    });
+          'User-Agent': 'Mozilla/5.0 (compatible; ContentManager/1.0)',
+        },
+      });
 
-    if (!response.ok) {
+      if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const html = await response.text();
-      
+
       // Extract basic information using regex (simple approach)
       const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
       const metaDescMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
-      
+
       const pageTitle = titleMatch ? titleMatch[1].trim() : '';
       const metaDescription = metaDescMatch ? metaDescMatch[1].trim() : '';
-      
+
       // Extract text content (remove HTML tags)
       const textContent = html
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove scripts
@@ -112,7 +113,7 @@ export async function POST(
           meta_description: metaDescription,
           page_title: pageTitle,
           scrape_status: 'completed',
-          scraped_at: new Date().toISOString()
+          scraped_at: new Date().toISOString(),
         })
         .eq('id', scrapeRecord.id);
 
@@ -131,33 +132,59 @@ export async function POST(
           meta_description: metaDescription,
           scraped_content: textContent,
           scrape_status: 'completed',
-          scraped_at: new Date().toISOString()
-        }
-
-    } catch (scrapeError) {
+          scraped_at: new Date().toISOString(),
+        },
+      });
+    } catch (scrapeError: any) {
       logger.error('❌ Website scraping failed:', scrapeError);
-      
+
       // Update scrape record with error
       await supabase
         .from('website_scrapes')
         .update({
           scrape_status: 'failed',
-          scrape_error: scrapeError instanceof Error ? scrapeError.message : String(scrapeError)
+          scrape_error: scrapeError instanceof Error ? scrapeError.message : String(scrapeError),
         })
         .eq('id', scrapeRecord.id);
 
-      return NextResponse.json({ 
-        error: 'Website scraping failed', 
-        details: scrapeError instanceof Error ? scrapeError.message : String(scrapeError)
+      // Determine appropriate status code based on error type
+      let statusCode = 500;
+      let errorMessage = 'Website scraping failed';
       
-    }
+      if (scrapeError instanceof Error) {
+        if (scrapeError.message.includes('HTTP 404')) {
+          statusCode = 404;
+          errorMessage = 'Website not found (404)';
+        } else if (scrapeError.message.includes('HTTP 403')) {
+          statusCode = 403;
+          errorMessage = 'Access denied (403)';
+        } else if (scrapeError.message.includes('HTTP 429')) {
+          statusCode = 429;
+          errorMessage = 'Rate limited (429)';
+        } else if (scrapeError.message.includes('timeout') || scrapeError.message.includes('ETIMEDOUT')) {
+          statusCode = 408;
+          errorMessage = 'Request timeout';
+        } else if (scrapeError.message.includes('ENOTFOUND') || scrapeError.message.includes('ECONNREFUSED')) {
+          statusCode = 503;
+          errorMessage = 'Website is unreachable';
+        }
+      }
 
-  } catch (error: unknown) {
+      return NextResponse.json({
+        success: false,
+        error: errorMessage,
+        details: scrapeError instanceof Error ? scrapeError.message : String(scrapeError),
+        statusCode: statusCode
+      }, { status: statusCode });
+    }
+  } catch (error: any) {
     logger.error('💥 Error in website scraping:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: error instanceof Error ? error.message : String(error)
-    
+    return NextResponse.json({
+      success: false,
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : String(error),
+      statusCode: 500
+    }, { status: 500 });
   }
 }
 
@@ -178,21 +205,21 @@ export async function GET(
 
     if (error) {
       logger.error('❌ Database query failed:', error);
-      return NextResponse.json({ 
-        error: 'Failed to fetch scrapes', 
-        details: error.message 
-      
+      return NextResponse.json({
+        error: 'Failed to fetch scrapes',
+        details: error.message,
+      });
     }
 
     return NextResponse.json({
       success: true,
-      scrapes: scrapes || []
+      scrapes: scrapes || [],
     });
-  } catch (error: unknown) {
+  } catch (error: any) {
     logger.error('💥 Error in fetch website scrapes:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error', 
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : String(error),
     });
-    
   }
 }

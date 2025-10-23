@@ -1192,7 +1192,18 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             <CardContent className="p-8 space-y-10">
               {/* Social Media Platforms Section */}
               <div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Social Media Platforms</h3>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-2xl font-bold text-gray-800" style={{ fontSize: '24px' }}>Social Media Platforms</h3>
+                  {/* Powered by LATE */}
+                  <div className="flex items-center space-x-2 text-gray-500">
+                    <span className="text-sm">Powered by</span>
+                    <img 
+                      src="/getlate-logo.png" 
+                      alt="LATE" 
+                      className="h-5 w-auto rounded"
+                    />
+                  </div>
+                </div>
                 
                 {/* OAuth Success/Error Messages */}
                 {oauthMessage && (

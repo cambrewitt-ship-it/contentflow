@@ -7,75 +7,67 @@ const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 // Helper function to check if projects table exists
 async function checkProjectsTableExists(supabase: SupabaseClient) {
-
   try {
     // Try to query the table structure
-    const { data: tableInfo, error: tableError } = await supabase
+    const { error: tableError } = await supabase
       .from('projects')
       .select('*')
       .limit(0); // Just get schema, no data
-    
-    if (tableError) {
 
+    if (tableError) {
       if (tableError.code === '42P01') {
         logger.debug('Projects table does not exist', { errorCode: tableError.code });
-        return { exists: false, error: tableError 
+        return { exists: false, error: tableError };
       }
-      
-      return { exists: false, error: tableError 
+      return { exists: false, error: tableError };
     }
 
-    return { exists: true, error: null 
+    return { exists: true, error: null };
   } catch (error) {
     logger.error('Unexpected error checking table existence:', error);
-    return { exists: false, error 
+    return { exists: false, error };
   }
 }
 
 // Helper function to get table schema information
 async function getTableSchema(supabase: SupabaseClient, tableName: string) {
   logger.debug('Getting table schema', { tableName });
-  
+
   try {
     // Try to get a sample row to see the structure
     const { data: sampleData, error: sampleError } = await supabase
       .from(tableName)
       .select('*')
       .limit(1);
-    
-    if (sampleError) {
 
-      return { schema: null, error: sampleError 
+    if (sampleError) {
+      return { schema: null, error: sampleError };
     }
-    
+
     if (sampleData && sampleData.length > 0) {
       const columns = Object.keys(sampleData[0]);
-
-      return { schema: columns, error: null 
+      return { schema: columns, error: null };
     } else {
-
-      return { schema: [], error: null 
+      return { schema: [], error: null };
     }
-    
+
   } catch (error) {
     logger.error(`Error getting ${tableName} table schema:`, error);
-    return { schema: null, error 
+    return { schema: null, error };
   }
 }
 
 export async function POST(req: NextRequest) {
-
   logger.debug('POST /api/projects request received');
-  
+
   try {
     const body = await req.json();
     const { client_id, name, description } = body;
 
     if (!client_id || !name) {
-
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Missing required fields: client_id and name are required' 
+      return NextResponse.json({
+        success: false,
+        error: 'Missing required fields: client_id and name are required'
       }, { status: 400 });
     }
 
@@ -83,14 +75,15 @@ export async function POST(req: NextRequest) {
     logger.debug('Environment variables check', {
       hasSupabaseUrl: !!supabaseUrl,
       hasServiceRoleKey: !!supabaseServiceRoleKey
+    });
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
       logger.error('=== ENVIRONMENT ERROR ===');
       logger.error('Missing Supabase environment variables');
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Configuration error: Missing Supabase environment variables' 
-      
+      return NextResponse.json({
+        success: false,
+        error: 'Configuration error: Missing Supabase environment variables'
+      });
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -105,36 +98,37 @@ export async function POST(req: NextRequest) {
       logger.error('Projects table access failed:', {
         exists: tableCheck.exists,
         error: tableCheck.error
+      });
 
       // Check if table doesn't exist
       if (tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error) {
-        const error = tableCheck.error as { code: string; message: string 
+        const error = tableCheck.error as { code: string; message: string };
         if (error.code === '42P01') {
           logger.error('Table does not exist error detected');
-          return NextResponse.json({ 
-            success: false, 
+          return NextResponse.json({
+            success: false,
             error: 'Projects table does not exist. Please run the database setup script.',
             details: error.message,
             code: error.code,
             solution: 'Run the SQL commands in database-setup.sql to create the projects table'
-          
+          });
         }
       }
-      
-      return NextResponse.json({ 
-        success: false, 
+
+      return NextResponse.json({
+        success: false,
         error: 'Database table access failed',
-        details: tableCheck.error && typeof tableCheck.error === 'object' && 'message' in tableCheck.error 
-          ? (tableCheck.error as { message: string }).message 
+        details: tableCheck.error && typeof tableCheck.error === 'object' && 'message' in tableCheck.error
+          ? (tableCheck.error as { message: string }).message
           : 'Unknown table access error',
-        code: tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error 
-          ? (tableCheck.error as { code: string }).code 
+        code: tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error
+          ? (tableCheck.error as { code: string }).code
           : 'UNKNOWN'
-      
+      });
     }
 
     // Get table schema information
-    const schemaInfo = await getTableSchema(supabase, 'projects');
+    await getTableSchema(supabase, 'projects'); // Not used but still called for logging
 
     // Create new project
     const insertData = {
@@ -143,10 +137,9 @@ export async function POST(req: NextRequest) {
       description: description || '',
       status: 'active',
       created_at: new Date().toISOString()
-    
     };
 
-const { data: project, error } = await supabase
+    const { data: project, error } = await supabase
       .from('projects')
       .insert([insertData])
       .select('*')
@@ -160,76 +153,72 @@ const { data: project, error } = await supabase
         details: error.details,
         hint: error.hint,
         fullError: JSON.stringify(error, null, 2)
-
-      return NextResponse.json({ 
-        success: false, 
+      });
+      return NextResponse.json({
+        success: false,
         error: error.message || 'Failed to create project',
         details: error.details,
         code: error.code
-      
+      });
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      project 
+    return NextResponse.json({
+      success: true,
+      project
+    });
 
   } catch (error: unknown) {
     logger.error('=== PROJECTS API POST ERROR ===');
     logger.error('Error type:', typeof error);
-    logger.error('Error constructor:', error?.constructor?.name);
+    logger.error('Error constructor:', (error as any)?.constructor?.name);
     logger.error('Error message:', error instanceof Error ? error.message : String(error));
     logger.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     logger.error('Full error object:', JSON.stringify(error, null, 2));
-    
-    return NextResponse.json({ 
-      success: false, 
+
+    return NextResponse.json({
+      success: false,
       error: error instanceof Error ? error.message : 'Internal server error',
       type: error instanceof Error ? error.name : 'Unknown error type',
       stack: error instanceof Error ? error.stack : 'No stack trace'
-    
+    });
   }
 }
 
 export async function GET(req: NextRequest) {
-
   logger.debug('GET /api/projects request received');
-  
+
   // Simple fallback response to test if route is working
   if (req.url.includes('test=true')) {
-
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Projects API route is working (test mode)',
       timestamp: new Date().toISOString()
-
+    });
   }
-  
-  // Add immediate response for debugging
 
   // Very simple health check - always return something
   if (req.url.includes('health=true')) {
-
-    return NextResponse.json({ 
+    return NextResponse.json({
       status: 'healthy',
       route: 'projects',
       timestamp: new Date().toISOString(),
       message: 'Projects API route is responding'
-
+    });
   }
-  
+
   try {
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get('clientId');
 
-    logger.debug('Request parameters', { 
+    logger.debug('Request parameters', {
       hasClientId: !!clientId,
       paramsCount: Array.from(searchParams.entries()).length
+    });
 
     if (!clientId) {
-
-      return NextResponse.json({ 
-        success: false, 
-        error: 'clientId query parameter is required' 
+      return NextResponse.json({
+        success: false,
+        error: 'clientId query parameter is required'
       }, { status: 400 });
     }
 
@@ -237,14 +226,15 @@ export async function GET(req: NextRequest) {
     logger.debug('Environment variables check', {
       hasSupabaseUrl: !!supabaseUrl,
       hasServiceRoleKey: !!supabaseServiceRoleKey
+    });
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
       logger.error('=== ENVIRONMENT ERROR ===');
       logger.error('Missing Supabase environment variables');
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Configuration error: Missing Supabase environment variables' 
-      
+      return NextResponse.json({
+        success: false,
+        error: 'Configuration error: Missing Supabase environment variables'
+      });
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -259,39 +249,39 @@ export async function GET(req: NextRequest) {
       logger.error('Projects table access failed:', {
         exists: tableCheck.exists,
         error: tableCheck.error
+      });
 
       // Check if table doesn't exist
       if (tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error) {
-        const error = tableCheck.error as { code: string; message: string 
+        const error = tableCheck.error as { code: string; message: string };
         if (error.code === '42P01') {
           logger.error('Table does not exist error detected');
-          return NextResponse.json({ 
-            success: false, 
+          return NextResponse.json({
+            success: false,
             error: 'Projects table does not exist. Please run the database setup script.',
             details: error.message,
             code: error.code,
             solution: 'Run the SQL commands in database-setup.sql to create the projects table'
-          
+          });
         }
       }
-      
-      return NextResponse.json({ 
-        success: false, 
+
+      return NextResponse.json({
+        success: false,
         error: 'Database table access failed',
-        details: tableCheck.error && typeof tableCheck.error === 'object' && 'message' in tableCheck.error 
-          ? (tableCheck.error as { message: string }).message 
+        details: tableCheck.error && typeof tableCheck.error === 'object' && 'message' in tableCheck.error
+          ? (tableCheck.error as { message: string }).message
           : 'Unknown table access error',
-        code: tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error 
-          ? (tableCheck.error as { code: string }).code 
+        code: tableCheck.error && typeof tableCheck.error === 'object' && 'code' in tableCheck.error
+          ? (tableCheck.error as { code: string }).code
           : 'UNKNOWN'
-      
+      });
     }
 
     // Get table schema information
-    const schemaInfo = await getTableSchema(supabase, 'projects');
+    await getTableSchema(supabase, 'projects'); // called for logging
 
     // Test if client exists first
-
     const { data: clientTest, error: clientTestError } = await supabase
       .from('clients')
       .select('id, name')
@@ -305,27 +295,27 @@ export async function GET(req: NextRequest) {
         message: clientTestError.message,
         details: clientTestError.details,
         hint: clientTestError.hint
+      });
 
       if (clientTestError.code === 'PGRST116') {
         logger.error('Client not found error detected');
-        return NextResponse.json({ 
-          success: false, 
+        return NextResponse.json({
+          success: false,
           error: 'Client not found',
           details: `No client found with ID: ${clientId}`,
           code: clientTestError.code
         }, { status: 404 });
       }
-      
-      return NextResponse.json({ 
-        success: false, 
+
+      return NextResponse.json({
+        success: false,
         error: 'Client lookup failed',
         details: clientTestError.message,
         code: clientTestError.code
-      
+      });
     }
 
     // Fetch projects for the client
-
     const query = supabase
       .from('projects')
       .select('*')
@@ -344,35 +334,37 @@ export async function GET(req: NextRequest) {
         details: error.details,
         hint: error.hint,
         fullError: JSON.stringify(error, null, 2)
-
-      return NextResponse.json({ 
-        success: false, 
+      });
+      return NextResponse.json({
+        success: false,
         error: error.message || 'Failed to fetch projects',
         details: error.details,
         code: error.code
-      
+      });
     }
 
     logger.debug('Projects fetched successfully', {
       count: projects?.length || 0
+    });
 
-    return NextResponse.json({ 
-      success: true, 
-      projects: projects || [] 
+    return NextResponse.json({
+      success: true,
+      projects: projects || []
+    });
 
   } catch (error: unknown) {
     logger.error('=== PROJECTS API GET ERROR ===');
     logger.error('Error type:', typeof error);
-    logger.error('Error constructor:', error?.constructor?.name);
+    logger.error('Error constructor:', (error as any)?.constructor?.name);
     logger.error('Error message:', error instanceof Error ? error.message : String(error));
     logger.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     logger.error('Full error object:', JSON.stringify(error, null, 2));
-    
-    return NextResponse.json({ 
-      success: false, 
+
+    return NextResponse.json({
+      success: false,
       error: error instanceof Error ? error.message : 'Internal server error',
       type: error instanceof Error ? error.name : 'Unknown error type',
       stack: error instanceof Error ? error.stack : 'No stack trace'
-    
+    });
   }
 }

@@ -7,12 +7,12 @@ const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ clientId: string }> }
+  { params }: { params: { clientId: string } }
 ) {
   try {
-    const { clientId } = await params;
+    const { clientId } = params;
     const { scrapeId } = await request.json();
-    
+
     if (!scrapeId) {
       return NextResponse.json({ error: 'Scrape ID is required' }, { status: 400 });
     }
@@ -31,9 +31,9 @@ export async function POST(
 
     if (fetchError || !scrapeData) {
       logger.error('❌ Failed to fetch scrape data:', fetchError);
-      return NextResponse.json({ 
-        error: 'Failed to fetch scrape data', 
-        details: fetchError?.message || 'Scrape not found' 
+      return NextResponse.json({
+        error: 'Failed to fetch scrape data',
+        details: fetchError?.message || 'Scrape not found'
       }, { status: 404 });
     }
 
@@ -57,10 +57,10 @@ Content: ${scrapeData.scraped_content || ''}
         analyzedAt: new Date().toISOString()
       }
     });
-  } catch (error: unknown) {
+  } catch (error) {
     logger.error('💥 Error in AI analysis:', error);
-    return NextResponse.json({ 
-      error: 'AI analysis failed', 
+    return NextResponse.json({
+      error: 'AI analysis failed',
       details: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
   }
@@ -79,7 +79,7 @@ async function analyzeWebsiteContent(content: string) {
         messages: [
           {
             role: 'system',
-             content: `You are an expert business analyst. Analyze the provided website content and extract the 5 essential brand information fields. Return ONLY a valid JSON object with the following structure:
+            content: `You are an expert business analyst. Analyze the provided website content and extract the 5 essential brand information fields. Return ONLY a valid JSON object with the following structure:
 
 {
   "company_name": "The official company/business name (e.g., 'Acme Corp', 'TechStart Inc', 'Local Bakery')",
@@ -99,13 +99,14 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
         temperature: 0.3,
         max_tokens: 500
       })
-    );
+    });
+
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
-    const analysisText = data.choices[0]?.message?.content;
+    const analysisText = data.choices?.[0]?.message?.content;
 
     if (!analysisText) {
       throw new Error('No analysis content received from OpenAI');
@@ -117,7 +118,7 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
       // First try to extract JSON from markdown code blocks
       const jsonMatch = analysisText.match(/```json\s*([\s\S]*?)\s*```/);
       const jsonText = jsonMatch ? jsonMatch[1] : analysisText;
-      
+
       // Parse the extracted JSON
       analysis = JSON.parse(jsonText.trim());
     } catch (parseError) {
@@ -125,9 +126,9 @@ Be concise and accurate. If information is unclear, use reasonable inference bas
       logger.error('Raw AI response:', analysisText);
       throw new Error(`Failed to parse AI response as JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
     }
-    
+
     // Validate the structure
-       const requiredFields = ['company_name', 'company_description', 'value_proposition', 'brand_tone', 'target_audience'];
+    const requiredFields = ['company_name', 'company_description', 'value_proposition', 'brand_tone', 'target_audience'];
     for (const field of requiredFields) {
       if (!analysis[field]) {
         throw new Error(`Missing required field: ${field}`);
