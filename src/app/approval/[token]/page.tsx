@@ -221,7 +221,7 @@ export default function PublicApprovalPage() {
       const failures = results.filter(result => result.status === 'rejected');
       if (failures.length > 0) {
         console.error('❌ Some submissions failed:', failures);
-        // @ts-ignore
+        // @ts-expect-error - Promise.allSettled results can have different shapes
         const errorMessages = failures.map(f => (f as any).reason?.message || 'Unknown error');
         throw new Error(`Some submissions failed: ${errorMessages.join(', ')}`);
       }

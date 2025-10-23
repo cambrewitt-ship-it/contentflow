@@ -102,6 +102,12 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   
+  // Configure ESLint to not fail build on warnings
+  // This allows deployment while keeping warnings for future cleanup
+  eslint: {
+    ignoreDuringBuilds: false, // Keep ESLint running but don't fail on warnings
+  },
+  
   // Skip all API routes during static generation and force them to be dynamic
   webpack: (config, { isServer }) => {
     if (isServer) {

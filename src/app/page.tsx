@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Menu, X } from "lucide-react";
 
 interface UserProfile {
   id: string;
@@ -23,6 +24,7 @@ export default function Home() {
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [email, setEmail] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Fetch user profile - ONLY on mount or when user ID changes
   useEffect(() => {
@@ -59,6 +61,8 @@ export default function Home() {
                 className="h-16 w-auto object-contain"
               />
             </div>
+            
+            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                 Features
@@ -96,7 +100,93 @@ export default function Home() {
                 </div>
               )}
             </div>
+
+            {/* Mobile Menu Button */}
+            <div className="md:hidden">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="bg-background/80 backdrop-blur-sm"
+              >
+                {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
+
+          {/* Mobile Navigation Menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              <div className="px-2 pt-2 pb-3 space-y-1">
+                {/* Navigation Links */}
+                <a 
+                  href="#features" 
+                  className="block px-3 py-2 text-base font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Features
+                </a>
+                <a 
+                  href="#pricing" 
+                  className="block px-3 py-2 text-base font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Pricing
+                </a>
+                
+                {/* Auth Section */}
+                <div className="pt-4 pb-3 border-t border-border/40">
+                  {user ? (
+                    <div className="space-y-3">
+                      <div className="px-3 py-2">
+                        <p className="text-sm text-muted-foreground">
+                          Welcome, {profile?.username || profile?.full_name || user.email}
+                        </p>
+                      </div>
+                      <div className="px-3">
+                        <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                          <Button size="sm" className="w-full">
+                            Dashboard
+                          </Button>
+                        </Link>
+                      </div>
+                      <div className="px-3">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={async () => {
+                            await signOut();
+                            router.push('/');
+                            setMobileMenuOpen(false);
+                          }}
+                        >
+                          Sign Out
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="px-3">
+                        <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)}>
+                          <Button variant="outline" size="sm" className="w-full bg-white text-gray-900 hover:bg-gray-50 border-gray-300">
+                            Sign In
+                          </Button>
+                        </Link>
+                      </div>
+                      <div className="px-3">
+                        <Link href="/auth/signup" onClick={() => setMobileMenuOpen(false)}>
+                          <Button size="sm" className="w-full">
+                            Get Started FREE
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
