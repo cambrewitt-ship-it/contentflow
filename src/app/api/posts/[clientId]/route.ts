@@ -12,7 +12,7 @@ export async function GET(
   try {
     const { clientId } = await params;
 
-    // Create Supabase client with service role for admin access (exact same pattern as working APIs)
+    // Create Supabase client with service role for admin access
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     const { data, error } = await supabase
@@ -24,28 +24,26 @@ export async function GET(
       .eq('client_id', clientId)
       .in('status', ['draft', 'ready'])
       .order('created_at', { ascending: false });
-    
+
     if (error) {
       logger.error('❌ Supabase error:', error);
       logger.error('❌ Error details:', {
         code: error.code,
         message: error.message,
         details: error.details,
-        hint: error.hint
-
+        hint: error.hint,
+      });
       throw error;
     }
 
-    if (data && data.length > 0) {
-
-    }
+    // Optionally process/return only if data exists, but even if empty, return an array
     return NextResponse.json({ posts: data || [] });
   } catch (error) {
     logger.error('💥 Error fetching posts:', error);
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Failed to fetch posts',
-      details: error instanceof Error ? error.message : String(error)
-    
+      details: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -62,7 +60,7 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Post ID is required' },
         { status: 400 }
-
+      );
     }
 
     // Use the same Supabase client creation that works in other APIs
@@ -74,28 +72,27 @@ export async function DELETE(
       .delete()
       .eq('id', postId)
       .eq('client_id', clientId); // Ensure user can only delete their client's posts
-    
+
     if (error) {
       logger.error('❌ Supabase delete error:', error);
       logger.error('❌ Error details:', {
         code: error.code,
         message: error.message,
         details: error.details,
-        hint: error.hint
-
+        hint: error.hint,
+      });
       return NextResponse.json(
         { error: `Database error: ${error.message}` },
         { status: 500 }
-
+      );
     }
 
     return NextResponse.json({ success: true, message: 'Post deleted successfully' });
-    
   } catch (error) {
     logger.error('💥 Unexpected error in DELETE:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to delete post' },
       { status: 500 }
-
+    );
   }
 }

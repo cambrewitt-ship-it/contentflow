@@ -29,7 +29,7 @@ export async function GET(
     return NextResponse.json({ posts: data });
   } catch (error) {
     logger.error('Error fetching unscheduled posts:', error);
-    return NextResponse.json({ error: 'Failed to fetch unscheduled posts' 
+    return NextResponse.json({ error: 'Failed to fetch unscheduled posts' });
   }
 }
 
@@ -48,11 +48,10 @@ export async function POST(
     const postData = {
       project_id: projectId,
       post_data: body.postData,
-      image_url: body.postData?.image_url || null // Extract image_url from postData
-    
+      image_url: body.postData?.image_url || null, // Extract image_url from postData
     };
 
-const { data, error } = await supabase
+    const { data, error } = await supabase
       .from('calendar_unscheduled_posts')
       .insert(postData)
       .select()
@@ -66,6 +65,6 @@ const { data, error } = await supabase
     return NextResponse.json({ post: data });
   } catch (error) {
     logger.error('Error creating unscheduled post:', error);
-    return NextResponse.json({ error: 'Failed to create unscheduled post' 
+    return NextResponse.json({ error: 'Failed to create unscheduled post' });
   }
 }

@@ -93,66 +93,6 @@ export default function ContentSuitePage({ params }: PageProps) {
   const [clientRetryCount, setClientRetryCount] = useState(0)
 
   // Fetch client data
-  useEffect(() => {
-    setClientRetryCount(0) // Reset retry count when clientId changes
-    fetchClient()
-  }, [clientId, fetchClient])
-
-  // Check for editPostId URL parameter
-  useEffect(() => {
-    const editPostId = searchParams?.get('editPostId')
-    if (editPostId) {
-      setEditingPostId(editPostId)
-      setIsEditing(true)
-      fetchPostForEditing(editPostId)
-    }
-  }, [searchParams, clientId, fetchPostForEditing])
-
-  // Check for content inbox pre-load parameters
-  useEffect(() => {
-    const uploadId = searchParams?.get('uploadId')
-    
-    if (uploadId) {
-      // Try to get preloaded content from sessionStorage first
-      const storedContent = sessionStorage.getItem('preloadedContent')
-      if (storedContent) {
-        try {
-          const imageData = JSON.parse(storedContent)
-          console.log('🔄 Pre-loading content from sessionStorage:', imageData)
-          setPreloadedContent({
-            image: imageData.image,
-            notes: imageData.notes || '',
-            fileName: imageData.fileName,
-            uploadId: imageData.uploadId || uploadId,
-            scheduledDate: imageData.scheduledDate,
-            scheduledTime: imageData.scheduledTime
-          })
-          // Clear the sessionStorage after use
-          sessionStorage.removeItem('preloadedContent')
-          return
-        } catch (error) {
-          console.error('Error parsing stored content:', error)
-        }
-      }
-      
-      // Fallback to URL parameters (for backward compatibility)
-      const image = searchParams?.get('image')
-      const notes = searchParams?.get('notes')
-      const fileName = searchParams?.get('fileName')
-      
-      if (image && fileName) {
-        console.log('🔄 Pre-loading content from URL params:', { image, notes, fileName, uploadId })
-        setPreloadedContent({
-          image,
-          notes: notes || '',
-          fileName,
-          uploadId: uploadId || null
-        })
-      }
-    }
-  }, [searchParams])
-
-  // Fetch client data
   const fetchClient = useCallback(async () => {
     if (!clientId) return
     
@@ -201,6 +141,7 @@ export default function ContentSuitePage({ params }: PageProps) {
     } finally {
       setClientLoading(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, clientRetryCount, getAccessToken])
 
   // Fetch post data for editing
@@ -268,6 +209,66 @@ export default function ContentSuitePage({ params }: PageProps) {
       fetchProjects()
     }
   }, [clientId])
+
+  // Fetch client data when clientId changes
+  useEffect(() => {
+    setClientRetryCount(0) // Reset retry count when clientId changes
+    fetchClient()
+  }, [clientId, fetchClient])
+
+  // Check for editPostId URL parameter
+  useEffect(() => {
+    const editPostId = searchParams?.get('editPostId')
+    if (editPostId) {
+      setEditingPostId(editPostId)
+      setIsEditing(true)
+      fetchPostForEditing(editPostId)
+    }
+  }, [searchParams, clientId, fetchPostForEditing])
+
+  // Check for content inbox pre-load parameters
+  useEffect(() => {
+    const uploadId = searchParams?.get('uploadId')
+    
+    if (uploadId) {
+      // Try to get preloaded content from sessionStorage first
+      const storedContent = sessionStorage.getItem('preloadedContent')
+      if (storedContent) {
+        try {
+          const imageData = JSON.parse(storedContent)
+          console.log('🔄 Pre-loading content from sessionStorage:', imageData)
+          setPreloadedContent({
+            image: imageData.image,
+            notes: imageData.notes || '',
+            fileName: imageData.fileName,
+            uploadId: imageData.uploadId || uploadId,
+            scheduledDate: imageData.scheduledDate,
+            scheduledTime: imageData.scheduledTime
+          })
+          // Clear the sessionStorage after use
+          sessionStorage.removeItem('preloadedContent')
+          return
+        } catch (error) {
+          console.error('Error parsing stored content:', error)
+        }
+      }
+      
+      // Fallback to URL parameters (for backward compatibility)
+      const image = searchParams?.get('image')
+      const notes = searchParams?.get('notes')
+      const fileName = searchParams?.get('fileName')
+      
+      if (image && fileName) {
+        console.log('🔄 Pre-loading content from URL params:', { image, notes, fileName, uploadId })
+        setPreloadedContent({
+          image,
+          notes: notes || '',
+          fileName,
+          uploadId: uploadId || null
+        })
+      }
+    }
+  }, [searchParams])
 
   // Create new project
   const handleCreateProject = async () => {
@@ -474,15 +475,15 @@ export default function ContentSuitePage({ params }: PageProps) {
       
       if (hasScheduledDate) {
         // Add to scheduled posts (replacing the client upload on the same day)
-        console.log('Adding to scheduled posts on date:', preloadedContent.scheduledDate)
+        console.log('Adding to scheduled posts on date:', preloadedContent?.scheduledDate)
         
         const scheduledPostData = {
           client_id: clientId,
           project_id: selectedProjectId,
           caption: selectedCaption,
           image_url: activeImage.preview,
-          scheduled_date: preloadedContent.scheduledDate,
-          scheduled_time: preloadedContent.scheduledTime,
+          scheduled_date: preloadedContent?.scheduledDate,
+          scheduled_time: preloadedContent?.scheduledTime,
           post_notes: '',
         }
         
@@ -646,6 +647,8 @@ interface ContentSuiteContentProps {
     notes: string;
     fileName: string;
     uploadId: string | null;
+    scheduledDate?: string;
+    scheduledTime?: string;
   } | null
 }
 
@@ -710,16 +713,19 @@ function ContentSuiteContent({
     if (customCaption && customCaption.trim()) {
       // Update the content store with the custom caption
       const captionId = selectedCaptions[0] || 'custom-caption-1'
-      const updatedCaptions = captions.map(cap => 
+      let updatedCaptions = captions.map(cap => 
         cap.id === captionId ? { ...cap, text: customCaption } : cap
       )
       
       // If no caption exists, create a new one
       if (updatedCaptions.length === 0 || !captions.find(cap => cap.id === captionId)) {
-        updatedCaptions.push({
-          id: captionId,
-          text: customCaption
-        })
+        updatedCaptions = [
+          ...updatedCaptions,
+          {
+            id: captionId,
+            text: customCaption
+          }
+        ]
       }
       
       // Update the content store
@@ -1217,6 +1223,4 @@ function ContentSuiteContent({
     </div>
   )
 }
-
-// Export the hook and types for use in other components
 

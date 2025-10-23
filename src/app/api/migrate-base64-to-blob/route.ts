@@ -8,11 +8,11 @@ function base64ToBlob(base64String: string, mimeType: string): Blob {
   const base64Data = base64String.replace(/^data:image\/[a-z]+;base64,/, '');
   const byteCharacters = atob(base64Data);
   const byteNumbers = new Array(byteCharacters.length);
-  
+
   for (let i = 0; i < byteCharacters.length; i++) {
     byteNumbers[i] = byteCharacters.charCodeAt(i);
   }
-  
+
   const byteArray = new Uint8Array(byteNumbers);
   return new Blob([byteArray], { type: mimeType });
 }
@@ -21,9 +21,10 @@ function base64ToBlob(base64String: string, mimeType: string): Blob {
 async function uploadBase64ToBlob(base64String: string, filename: string): Promise<string> {
   const mimeType = base64String.match(/data:([^;]+)/)?.[1] || 'image/jpeg';
   const blob = base64ToBlob(base64String, mimeType);
-  
+
   const result = await put(filename, blob, {
     access: 'public',
+  });
 
   return result.url;
 }
@@ -36,29 +37,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Supabase environment variables are required' },
         { status: 500 }
-
+      );
     }
-    
+
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       return NextResponse.json(
         { error: 'BLOB_READ_WRITE_TOKEN environment variable is required' },
         { status: 500 }
-
+      );
     }
-    
+
     // Create Supabase client inside the function
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_SUPABASE_SERVICE_ROLE
+    );
 
     const { dryRun = false, limit = 10 } = await request.json().catch(() => ({}));
-    
+
     // Get all posts with base64 images from both tables
     const tables = ['calendar_unscheduled_posts', 'calendar_scheduled_posts', 'scheduled_posts'];
     let totalConverted = 0;
     let totalFound = 0;
-    const results = [];
-    
+    const results: any[] = [];
+
     for (const tableName of tables) {
 
       // Get posts with base64 images
@@ -67,50 +69,48 @@ export async function POST(request: NextRequest) {
         .select('id, image_url, caption, created_at')
         .like('image_url', 'data:image%')
         .limit(limit);
-      
+
       if (fetchError) {
         logger.error(`❌ Error fetching from ${tableName}:`, fetchError);
         results.push({
           table: tableName,
           error: fetchError.message,
-          converted: 0
-
+          converted: 0,
+        });
         continue;
       }
-      
-      if (!posts || posts.length === 0) {
 
+      if (!posts || posts.length === 0) {
         results.push({
           table: tableName,
           converted: 0,
-          message: 'No base64 images found'
-
+          message: 'No base64 images found',
+        });
         continue;
       }
-      
+
       totalFound += posts.length;
 
       let tableConverted = 0;
-      
+
       // Process each post
       for (const post of posts) {
         try {
-
-          logger.debug('Processing post', { 
+          logger.debug('Processing post', {
             postId: post.id?.substring(0, 8) + '...',
-            captionLength: post.caption?.length || 0 
+            captionLength: post.caption?.length || 0
+          });
 
           if (dryRun) {
-
             tableConverted++;
             continue;
           }
-          
+
           // Generate filename
           const timestamp = Date.now();
           const fileExtension = post.image_url.match(/data:image\/([a-z]+)/)?.[1] || 'jpg';
           const filename = `migrated-${tableName}-${post.id}-${timestamp}.${fileExtension}`;
-          
+
           // Upload to Vercel Blob
           const blobUrl = await uploadBase64ToBlob(post.image_url, filename);
 
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
             .from(tableName)
             .update({ image_url: blobUrl })
             .eq('id', post.id);
-          
+
           if (updateError) {
             logger.error(`   ❌ Error updating database:`, updateError);
             continue;
@@ -127,21 +127,21 @@ export async function POST(request: NextRequest) {
 
           tableConverted++;
           totalConverted++;
-          
+
           // Small delay to avoid rate limiting
           await new Promise(resolve => setTimeout(resolve, 100));
-          
+
         } catch (error) {
           logger.error(`   ❌ Error processing post ${post.id}:`, error);
           continue;
         }
       }
-      
+
       results.push({
         table: tableName,
         converted: tableConverted,
-        found: posts.length
-
+        found: posts.length,
+      });
     }
 
     return NextResponse.json({
@@ -150,13 +150,14 @@ export async function POST(request: NextRequest) {
       totalFound,
       totalConverted,
       results,
-      dryRun
+      dryRun,
+    });
 
   } catch (error) {
     logger.error('❌ Migration failed:', error);
     return NextResponse.json(
       { error: 'Migration failed', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
-
+    );
   }
 }

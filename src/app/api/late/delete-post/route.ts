@@ -16,10 +16,11 @@ export async function DELETE(request: Request) {
       headers: {
         'Authorization': `Bearer ${process.env.LATE_API_KEY}`
       }
+    });
 
     if (!response.ok) {
-      const error = await response.text();
-      logger.error('LATE delete error:', error);
+      const errorText = await response.text();
+      logger.error('LATE delete error:', errorText);
       throw new Error('Failed to delete from LATE');
     }
 
@@ -27,6 +28,6 @@ export async function DELETE(request: Request) {
     
   } catch (error) {
     logger.error('Error deleting post:', error);
-    return NextResponse.json({ error: 'Failed to delete post' 
+    return NextResponse.json({ error: 'Failed to delete post' });
   }
 }

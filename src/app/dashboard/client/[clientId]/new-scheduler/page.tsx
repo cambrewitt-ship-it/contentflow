@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,11 +30,6 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
   const [loadingPostId, setLoadingPostId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchPosts();
-    fetchAccounts();
-  }, [clientId, fetchPosts, fetchAccounts]);
-
   const fetchPosts = useCallback(async () => {
     try {
       console.log('Fetching posts for client:', clientId);
@@ -60,6 +55,12 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
       console.error('Error fetching accounts:', error);
     }
   }, [clientId]);
+
+  useEffect(() => {
+    fetchPosts();
+    fetchAccounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, fetchPosts, fetchAccounts]);
 
   const toggleAccountForPost = (postId: string, accountId: string) => {
     setScheduledPosts(prev => {
@@ -310,6 +311,7 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
                             return (
                               <button
                                 key={account._id}
+                                type="button"
                                 onClick={() => toggleAccountForPost(post.id, account._id)}
                                 className={`
                                   px-3 py-2 rounded-lg flex items-center gap-2 transition-all
@@ -356,6 +358,7 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
                         <div className="flex gap-3 mt-6">
                           {/* Schedule Button */}
                           <button
+                            type="button"
                             onClick={() => schedulePost(post)}
                             disabled={!scheduled?.selectedAccounts.length || loadingPostId === post.id}
                             className={`
@@ -381,6 +384,7 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
                           
                           {/* Delete Button */}
                           <button
+                            type="button"
                             onClick={() => deletePost(post.id)}
                             className="px-6 py-2 rounded-lg font-medium bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
                           >

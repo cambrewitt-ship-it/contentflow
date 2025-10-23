@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, use } from "react";
+import { useState, useRef, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,6 @@ import {
 import Link from "next/link";
 import { Client, Project } from '@/types/api';
 
-
 export default function ClientDashboardV2({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params);
   const [client, setClient] = useState<Client | null>(null);
@@ -53,16 +52,10 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
 
   console.log('🎬 ClientDashboardV2 component rendering for clientId:', clientId);
 
-  // Fetch client data from Supabase
-  useEffect(() => {
-    console.log('🔥 useEffect triggered for clientId:', clientId);
-    fetchClient()
-  }, [clientId, fetchClient])
-  
   const fetchClient = useCallback(async () => {
-    console.log('🔍 fetchClient called')
-    setLoading(true)
-    
+    console.log('🔍 fetchClient called');
+    setLoading(true);
+
     try {
       // Get auth token from localStorage (assuming it's stored there)
       const token = localStorage.getItem('supabase.auth.token');
@@ -73,8 +66,8 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
         return;
       }
 
-      console.log('📊 About to call API')
-      
+      console.log('📊 About to call API');
+
       const response = await fetch(`/api/clients/${clientId}/data`, {
         method: 'GET',
         headers: {
@@ -112,16 +105,22 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
     } finally {
       setLoading(false);
     }
-  }, [clientId])
+  }, [clientId]);
+
+  // Fetch client data from Supabase
+  useEffect(() => {
+    console.log('🔥 useEffect triggered for clientId:', clientId);
+    fetchClient();
+  }, [clientId, fetchClient]);
 
   // Save client data via API
   const handleSave = async () => {
     if (!client) return;
-    
+
     try {
       setSaving(true);
       console.log('💾 Saving client data via API - website length:', website?.length || 0, 'description length:', description?.length || 0);
-      
+
       // Get auth token from localStorage
       const token = localStorage.getItem('supabase.auth.token');
       if (!token) {
@@ -150,12 +149,12 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
 
       const result = await response.json();
       console.log('✅ Client data saved successfully via API:', result);
-      
+
       setEditing(false);
-      
+
       // Update local client state
       setClient(prev => prev ? { ...prev, website, description } : null);
-      
+
     } catch (err) {
       console.error('❌ Error saving client data:', err);
       alert(`Failed to save: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -170,13 +169,13 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
     for (const file of selected) {
       setUploading(true);
       setUploadProgress(0);
-      
+
       // Simulate upload progress
       for (let i = 1; i <= 100; i += 10) {
         setUploadProgress(i);
         await new Promise((r) => setTimeout(r, 20));
       }
-      
+
       setFiles((prev) => [...prev, file]);
       setUploading(false);
       setUploadProgress(0);
@@ -190,12 +189,12 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
     for (const file of dropped) {
       setUploading(true);
       setUploadProgress(0);
-      
+
       for (let i = 1; i <= 100; i += 10) {
         setUploadProgress(i);
         await new Promise((r) => setTimeout(r, 20));
       }
-      
+
       setFiles((prev) => [...prev, file]);
       setUploading(false);
       setUploadProgress(0);
@@ -285,7 +284,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
+
         {/* Header Section */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
           <div className="flex items-start gap-8">
@@ -293,7 +292,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
             <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-3xl font-bold text-gray-600 flex-shrink-0">
               {client.name ? client.name.charAt(0).toUpperCase() : 'C'}
             </div>
-            
+
             {/* Client Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-4 mb-4">
@@ -302,7 +301,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
                   {industry}
                 </Badge>
               </div>
-              
+
               {/* Website & Founded Date */}
               <div className="flex items-center gap-6 mb-4">
                 {website && (
@@ -321,7 +320,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
                   <span className="text-sm">Founded {foundedDate}</span>
                 </div>
               </div>
-              
+
               {/* Description */}
               <div className="flex items-start gap-3">
                 <p className="text-gray-600 text-base leading-relaxed flex-1">
@@ -342,7 +341,7 @@ export default function ClientDashboardV2({ params }: { params: Promise<{ client
 
         {/* Two-Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          
+
           {/* Left Column: Website & Contact */}
           <Card className="shadow-sm border-gray-200">
             <CardHeader>

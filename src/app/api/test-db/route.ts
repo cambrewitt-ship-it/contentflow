@@ -12,7 +12,7 @@ export async function GET() {
       return NextResponse.json({ 
         error: 'Missing Supabase environment variables',
         timestamp: new Date().toISOString()
-      
+      });
     }
 
     // Create Supabase client
@@ -30,10 +30,10 @@ export async function GET() {
       logger.error('❌ Clients query error:', clientsError);
       return NextResponse.json({ 
         error: 'Database query failed',
-        details: clientsError.message,
-        code: clientsError.code,
+        details: clientsError?.message,
+        code: clientsError?.code,
         timestamp: new Date().toISOString()
-      
+      });
     }
 
     return NextResponse.json({
@@ -42,6 +42,7 @@ export async function GET() {
       clients: clients,
       totalClients: clients?.length || 0,
       timestamp: new Date().toISOString()
+    });
 
   } catch (error) {
     logger.error('💥 Test DB error:', error);
@@ -49,6 +50,6 @@ export async function GET() {
       error: 'Test failed',
       details: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString()
-    
+    });
   }
 }

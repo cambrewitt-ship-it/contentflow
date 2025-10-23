@@ -7,21 +7,22 @@ import logger from '@/lib/logger';
 export async function POST(req: Request) {
   try {
     logger.error('🚀 /api/publishViaLate - Request received');
-    
+
     const body = await req.json();
     logger.error('📥 Incoming request body:', JSON.stringify(body, null, 2));
-    
+
     // Environment variable check
     logger.error('ENV CHECK', {
       LATE_API_KEY: !!process.env.LATE_API_KEY,
       VERCEL_ENV: process.env.VERCEL_ENV || null,
       VERCEL_REGION: process.env.VERCEL_REGION || null
+    });
 
     const LATE_KEY = process.env.LATE_API_KEY;
     if (!LATE_KEY) {
       logger.error('❌ Missing LATE_API_KEY environment variable');
       logger.error('RETURNING ERROR: Missing LATE_API_KEY', { status: 500, body: { error: "Missing LATE_API_KEY" } });
-      return NextResponse.json({ error: "Missing LATE_API_KEY" 
+      return NextResponse.json({ error: "Missing LATE_API_KEY" }, { status: 500 });
     }
 
     // Transform request body to match LATE API format
@@ -29,14 +30,14 @@ export async function POST(req: Request) {
       platforms: body.platforms || [body.platform || 'facebook'], // Handle both formats
       content: body.content || body.message || body.caption || 'No content provided', // Handle multiple field names
       scheduled_time: body.scheduled_time || body.scheduledTime || new Date().toISOString(),
-      // Add any additional fields that LATE API might need
       ...(body.image_url && { image_url: body.image_url }),
       ...(body.client_id && { client_id: body.client_id }),
       ...(body.project_id && { project_id: body.project_id })
-    
+    };
+
     logger.error('🔄 Transformed payload for LATE API:', JSON.stringify(lateApiPayload, null, 2));
     logger.error('🌐 Calling LATE API at: https://api.getlate.dev/v1/posts');
-    
+
     // Make request to LATE API
     const lateResp = await fetch("https://api.getlate.dev/v1/posts", {
       method: "POST",
@@ -45,12 +46,14 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(lateApiPayload),
+    });
 
     logger.error('📡 LATE API response received:', {
       status: lateResp.status,
       statusText: lateResp.statusText,
       ok: lateResp.ok,
       headers: Object.fromEntries(lateResp.headers.entries())
+    });
 
     const responseText = await lateResp.text();
     logger.error('📄 LATE API response body (raw):', responseText);
@@ -61,7 +64,7 @@ export async function POST(req: Request) {
       logger.error('✅ LATE API response parsed as JSON:', data);
     } catch (parseError) {
       logger.error('⚠️ LATE API response is not valid JSON, using raw text');
-      data = { rawResponse: responseText 
+      data = { rawResponse: responseText };
     }
 
     if (lateResp.ok) {
@@ -78,14 +81,14 @@ export async function POST(req: Request) {
       message: err instanceof Error ? err.message : 'Unknown error',
       name: err instanceof Error ? err.name : 'Error',
       stack: err instanceof Error ? err.stack : undefined
-    };
+    });
 
-const errorResponse = { error: "server error", details: String(err) 
+    const errorResponse = { error: "server error", details: String(err) };
     logger.error('RETURNING ERROR:', { status: 500, body: errorResponse, error: err });
-    
+
     return NextResponse.json(
       errorResponse,
       { status: 500 }
-
+    );
   }
 }

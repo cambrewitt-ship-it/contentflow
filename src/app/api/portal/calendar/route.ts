@@ -5,6 +5,7 @@ import logger from '@/lib/logger';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!
+);
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Token is required' },
         { status: 400 }
-
+      );
     }
 
     // Get client info from portal token
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid portal token' },
         { status: 401 }
-
+      );
     }
 
     // Check if portal is enabled
@@ -39,10 +40,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Portal access is disabled' },
         { status: 401 }
-
+      );
     }
 
-    // Build date filter
+    // Build date filter (currently unused in query)
     let dateFilter = '';
     if (startDate && endDate) {
       dateFilter = `scheduled_date >= '${startDate}' AND scheduled_date <= '${endDate}'`;
@@ -75,23 +76,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Failed to fetch scheduled posts' },
         { status: 500 }
-
+      );
     }
 
     // Debug: Log approval status of posts
     if (scheduledPosts && scheduledPosts.length > 0) {
-
       scheduledPosts.slice(0, 3).forEach((post: any, index: number) => {
         logger.debug('Post preview', { 
           postId: post.id?.substring(0, 8) + '...', 
           status: post.approval_status || 'NO STATUS', 
-          captionLength: post.caption?.length || 0 
-
-
+          captionLength: post.caption?.length || 0
+        });
+      });
     }
 
     // Group posts by date
-    const postsByDate = scheduledPosts.reduce((acc, post) => {
+    const postsByDate = scheduledPosts.reduce((acc: Record<string, any[]>, post: any) => {
       const date = post.scheduled_date;
       if (!acc[date]) {
         acc[date] = [];
@@ -104,12 +104,13 @@ export async function GET(request: NextRequest) {
       client,
       posts: postsByDate,
       totalPosts: scheduledPosts.length
+    });
 
   } catch (error) {
     logger.error('Portal calendar error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-
+    );
   }
 }

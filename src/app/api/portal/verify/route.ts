@@ -7,13 +7,12 @@ const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function GET() {
   try {
-
     if (!supabaseUrl || !supabaseServiceRoleKey) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
         error: 'Missing Supabase environment variables',
-        timestamp: new Date().toISOString()
-      
+        timestamp: new Date().toISOString(),
+      });
     }
 
     // Create Supabase client with service role for schema checks
@@ -32,12 +31,12 @@ export async function GET() {
         logger.error('❌ Error checking clients columns:', clientsError);
         clientsUpdated = false;
       } else {
-        const columnNames = clientsColumns?.map(col => col.column_name) || [];
-        clientsUpdated = columnNames.length === 3 && 
-          columnNames.includes('portal_token') && 
-          columnNames.includes('portal_enabled') && 
+        const columnNames = clientsColumns?.map((col: any) => col.column_name) || [];
+        clientsUpdated =
+          columnNames.length === 3 &&
+          columnNames.includes('portal_token') &&
+          columnNames.includes('portal_enabled') &&
           columnNames.includes('portal_settings');
-
       }
     } catch (error) {
       logger.error('❌ Error checking clients table:', error);
@@ -58,7 +57,6 @@ export async function GET() {
         contentInboxExists = false;
       } else {
         contentInboxExists = !!contentInboxTable;
-
       }
     } catch (error) {
       logger.error('❌ Error checking content_inbox table:', error);
@@ -79,7 +77,6 @@ export async function GET() {
         portalActivityExists = false;
       } else {
         portalActivityExists = !!portalActivityTable;
-
       }
     } catch (error) {
       logger.error('❌ Error checking portal_activity table:', error);
@@ -94,23 +91,24 @@ export async function GET() {
       tables: {
         clientsUpdated,
         contentInboxExists,
-        portalActivityExists
+        portalActivityExists,
       },
-      message: allChecksPass 
+      message: allChecksPass
         ? 'Database ready for portal implementation'
         : 'Database not ready for portal implementation - some required tables or columns are missing',
-      timestamp: new Date().toISOString()
-    
-    return NextResponse.json(response, { 
-      status: allChecksPass ? 200 : 400 
+      timestamp: new Date().toISOString(),
+    };
 
-  } catch (error) {
+    return NextResponse.json(response, {
+      status: allChecksPass ? 200 : 400,
+    });
+  } catch (error: any) {
     logger.error('💥 Portal verification error:', error);
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: false,
       error: 'Portal verification failed',
       details: error instanceof Error ? error.message : String(error),
-      timestamp: new Date().toISOString()
-    
+      timestamp: new Date().toISOString(),
+    });
   }
 }

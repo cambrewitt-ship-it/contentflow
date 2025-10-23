@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     
     if (!supabaseUrl || !supabaseKey) {
       logger.error('❌ Missing Supabase environment variables');
-      return NextResponse.json({ error: 'Server configuration error' 
+      return NextResponse.json({ error: 'Server configuration error' });
     }
     
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -25,6 +25,7 @@ export async function POST(request: Request) {
       hasClientId: !!(post?.clientId || post?.client_id),
       hasCaption: !!post?.caption,
       hasImage: !!post?.generatedImage
+    });
 
     // Validate required fields
     if (!projectId) {
@@ -50,9 +51,8 @@ export async function POST(request: Request) {
         return NextResponse.json(
           { error: `Invalid image URL: ${post.generatedImage}` },
           { status: 400 }
-
+        );
       }
-
     }
     
     // Insert into calendar_unscheduled_posts
@@ -68,14 +68,11 @@ export async function POST(request: Request) {
       image_url: post.generatedImage,
       post_notes: post.notes || '',
       approval_status: 'pending' // Set default approval status
-    
-    logger.debug(, {
     };
 
-const 
-    });
+    logger.debug('InsertData', insertData);
 
-    $3{ data, error } = await supabase
+    const { data, error } = await supabase
       .from('calendar_unscheduled_posts')
       .insert(insertData)
       .select()
@@ -88,7 +85,7 @@ const
         message: error.message,
         details: error.details,
         hint: error.hint
-
+      });
       throw error;
     }
 
@@ -96,6 +93,6 @@ const
     
   } catch (error) {
     logger.error('Error adding post to project:', error);
-    return NextResponse.json({ error: 'Failed to add post' 
+    return NextResponse.json({ error: 'Failed to add post' });
   }
 }

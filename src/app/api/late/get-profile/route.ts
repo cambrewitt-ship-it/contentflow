@@ -27,32 +27,32 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       logger.error('❌ Supabase query error:', error);
-      return NextResponse.json({ 
-        error: 'Database query failed', 
-        details: error.message 
-      
+      return NextResponse.json({
+        error: 'Database query failed',
+        details: error.message
+      });
     }
 
     if (!profiles || profiles.length === 0) {
-
-      return NextResponse.json({ 
-        profileId: null, 
-        message: 'No LATE profile found for this client' 
-
+      return NextResponse.json({
+        profileId: null,
+        message: 'No LATE profile found for this client'
+      });
     }
 
     const profile = profiles[0];
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       profileId: profile.profile_id,
       platform: profile.platform,
       created_at: profile.created_at
+    });
 
   } catch (error: unknown) {
     logger.error('💥 Error in get-profile route:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error', 
+    return NextResponse.json({
+      error: 'Internal server error',
       details: error instanceof Error ? error.message : String(error)
-    
+    });
   }
 }

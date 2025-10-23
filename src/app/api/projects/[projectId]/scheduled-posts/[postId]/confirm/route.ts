@@ -38,6 +38,6 @@ export async function PATCH(
     return NextResponse.json({ post: data });
   } catch (error) {
     logger.error('Error confirming scheduled post:', error);
-    return NextResponse.json({ error: 'Failed to confirm scheduled post' 
+    return NextResponse.json({ error: 'Failed to confirm scheduled post' });
   }
 }

@@ -13,7 +13,7 @@ import {
   YouTubeIcon, 
   ThreadsIcon 
 } from '@/components/social-icons'
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -63,9 +63,6 @@ export function SocialPreviewColumn({
   } = useContentStore()
   const { getAccessToken } = useAuth()
 
-
-
-
   // Scheduling state
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [scheduleDate, setScheduleDate] = useState('')
@@ -81,7 +78,7 @@ export function SocialPreviewColumn({
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([])
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set())
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false)
-  
+
   // Platform preview state
   const [selectedPreviewPlatform, setSelectedPreviewPlatform] = useState<string>('facebook')
   const [currentAccountData, setCurrentAccountData] = useState<{
@@ -89,7 +86,6 @@ export function SocialPreviewColumn({
     profilePicture: string;
     username?: string;
   } | null>(null)
-
 
   const selectedCaption =
     selectedCaptions.length > 0
@@ -106,6 +102,7 @@ export function SocialPreviewColumn({
       setCustomCaption(selectedCaption)
       setCaptionConfirmed(false) // Reset confirmation when AI caption is selected
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCaption])
 
   // Call parent component when custom caption changes
@@ -128,25 +125,24 @@ export function SocialPreviewColumn({
     }
   }
 
-
   // Only update content store when we're about to save/update a post
   // This prevents the custom caption from appearing in the AI captions section during live editing
   const updateContentStoreForSaving = () => {
     if (customCaption && customCaption !== selectedCaption) {
       // Update the content store with the custom caption only when saving
       const captionId = selectedCaptions[0] || 'custom-caption-1'
-      const updatedCaptions = captions.map(cap => 
+      let updatedCaptions = captions.map(cap => 
         cap.id === captionId ? { ...cap, text: customCaption } : cap
       )
-      
+
       // If no caption exists, create a new one
       if (updatedCaptions.length === 0 || !captions.find(cap => cap.id === captionId)) {
-        updatedCaptions.push({
+        updatedCaptions = [...updatedCaptions, {
           id: captionId,
           text: customCaption
-        })
+        }]
       }
-      
+
       // Update the content store
       setCaptions(updatedCaptions)
       if (!selectedCaptions.includes(captionId)) {
@@ -156,17 +152,6 @@ export function SocialPreviewColumn({
   }
 
   // Fetch connected accounts on component mount
-  useEffect(() => {
-    fetchConnectedAccounts()
-  }, [clientId, fetchConnectedAccounts])
-
-  // Fetch account data when platform changes
-  useEffect(() => {
-    if (connectedAccounts.length > 0) {
-      fetchAccountDataForPlatform(selectedPreviewPlatform)
-    }
-  }, [selectedPreviewPlatform, connectedAccounts, fetchAccountDataForPlatform])
-
   const fetchConnectedAccounts = useCallback(async () => {
     try {
       setIsLoadingAccounts(true)
@@ -177,7 +162,7 @@ export function SocialPreviewColumn({
       const data = await response.json()
       setConnectedAccounts(data.accounts || [])
       console.log('Connected accounts count:', data.accounts?.length || 0)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching accounts:', error)
       setScheduleError(error instanceof Error ? error.message : 'Failed to load connected accounts')
     } finally {
@@ -185,26 +170,31 @@ export function SocialPreviewColumn({
     }
   }, [clientId])
 
+  useEffect(() => {
+    fetchConnectedAccounts()
+  }, [clientId, fetchConnectedAccounts])
+
+  // Fetch account data when platform changes
   const fetchAccountDataForPlatform = useCallback(async (platform: string) => {
     console.log(`🔍 Fetching ${platform} account data for client:`, clientId)
     console.log(`📋 Available connected accounts:`, connectedAccounts)
     console.log(`🔎 Looking for platform: "${platform}"`)
-    
+
     try {
       // Find the account for the selected platform
       const platformAccount = connectedAccounts.find((acc: ConnectedAccount) => acc.platform === platform)
-      
+
       if (platformAccount) {
         console.log(`✅ Found ${platform} account:`, platformAccount)
         console.log(`📝 Account name: "${platformAccount.name}"`)
         console.log(`📝 Account ID: "${platformAccount.accountId}"`)
         console.log(`📝 Username: "${platformAccount.username}"`)
-        
+
         // Use the actual account name, or accountId as fallback, or a better default
-        const accountName = platformAccount.name || 
-                           platformAccount.accountId || 
-                           `Your ${platform.charAt(0).toUpperCase() + platform.slice(1)} Page`
-        
+        const accountName = platformAccount.name ||
+          platformAccount.accountId ||
+          `Your ${platform.charAt(0).toUpperCase() + platform.slice(1)} Page`
+
         setCurrentAccountData({
           name: accountName,
           profilePicture: platformAccount.profilePicture || '/default-avatar.svg',
@@ -214,15 +204,15 @@ export function SocialPreviewColumn({
       } else {
         console.log(`❌ No ${platform} account found in connected accounts`)
       }
-      
+
       // If no account found, set default data for the platform
       console.log(`⚠️ Setting default ${platform} data`)
       setCurrentAccountData({
         name: `Your ${platform.charAt(0).toUpperCase() + platform.slice(1)} Account`,
         profilePicture: '/default-avatar.svg'
       })
-      
-    } catch (error) {
+
+    } catch (error: any) {
       console.error(`💥 Error fetching ${platform} account data:`, error)
       // Set default data if fetch fails
       setCurrentAccountData({
@@ -232,6 +222,11 @@ export function SocialPreviewColumn({
     }
   }, [clientId, connectedAccounts])
 
+  useEffect(() => {
+    if (connectedAccounts.length > 0) {
+      fetchAccountDataForPlatform(selectedPreviewPlatform)
+    }
+  }, [selectedPreviewPlatform, connectedAccounts, fetchAccountDataForPlatform])
 
   const openScheduleModal = () => {
     // Set default date to tomorrow
@@ -246,7 +241,7 @@ export function SocialPreviewColumn({
   const handleSchedulePost = async () => {
     // Always update content store before saving (for both new posts and edits)
     updateContentStoreForSaving()
-    
+
     // If editing, use the handleSendToScheduler function
     if (isEditing) {
       await handleSendToScheduler(displayCaption, uploadedImages)
@@ -275,8 +270,8 @@ export function SocialPreviewColumn({
       // Parse the date and time
       const [time, period] = scheduleTime.split(' ')
       const [hours, minutes] = time.split(':')
-      let hour24 = parseInt(hours)
-      
+      let hour24 = parseInt(hours, 10)
+
       if (period === 'PM' && hour24 !== 12) {
         hour24 += 12
       } else if (period === 'AM' && hour24 === 12) {
@@ -284,7 +279,7 @@ export function SocialPreviewColumn({
       }
 
       const scheduledDateTime = new Date(scheduleDate)
-      scheduledDateTime.setHours(hour24, parseInt(minutes), 0, 0)
+      scheduledDateTime.setHours(hour24, parseInt(minutes, 10), 0, 0)
 
       // Format for LATE API (YYYY-MM-DDTHH:MM:SS)
       const scheduledDateStr = scheduledDateTime.toISOString().split('T')[0]
@@ -297,7 +292,7 @@ export function SocialPreviewColumn({
       console.log('  - Selected Platforms:', Array.from(selectedPlatforms))
 
       // Get selected accounts
-      const selectedAccounts = connectedAccounts.filter(account => 
+      const selectedAccounts = connectedAccounts.filter(account =>
         selectedPlatforms.has(account.platform)
       )
 
@@ -316,8 +311,8 @@ export function SocialPreviewColumn({
           const response = await fetch(imageData)
           const blob = await response.blob()
           const reader = new FileReader()
-          
-          imageData = await new Promise((resolve, reject) => {
+
+          imageData = await new Promise<string>((resolve, reject) => {
             reader.onloadend = () => resolve(reader.result as string)
             reader.onerror = reject
             reader.readAsDataURL(blob)
@@ -329,10 +324,10 @@ export function SocialPreviewColumn({
       }
 
       const accessToken = getAccessToken()
-      
+
       const mediaResponse = await fetch('/api/late/upload-media', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`
         },
@@ -344,7 +339,7 @@ export function SocialPreviewColumn({
         console.error('Media upload error:', errorText)
         throw new Error('Failed to upload image to LATE')
       }
-      
+
       const { lateMediaUrl } = await mediaResponse.json()
       console.log('✅ Image uploaded to LATE successfully')
 
@@ -363,10 +358,10 @@ export function SocialPreviewColumn({
 
       console.log('Scheduling post via LATE API...')
       const accessToken2 = getAccessToken()
-      
+
       const response = await fetch('/api/late/schedule-post', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken2}`
         },
@@ -379,20 +374,20 @@ export function SocialPreviewColumn({
         throw new Error('Failed to schedule post via LATE')
       }
 
-      const result = await response.json()
+      await response.json()
       console.log('✅ Post scheduled successfully via LATE API')
-      
+
       // Show success message
       const platformNames = selectedAccounts.map(acc => acc.platform).join(', ')
       alert(`Post scheduled successfully for ${scheduledDateTime.toLocaleString()} to ${platformNames}!`)
-      
+
       // Close modal and reset form
       setShowScheduleModal(false)
       setScheduleDate('')
       setScheduleTime('12:00 PM')
       setSelectedPlatforms(new Set())
-      
-    } catch (error) {
+
+    } catch (error: any) {
       console.error('Error scheduling post:', error)
       setScheduleError(error instanceof Error ? error.message : 'Failed to schedule post')
     } finally {
@@ -414,33 +409,33 @@ export function SocialPreviewColumn({
               Your Facebook
             </div>
             <div className="flex items-center text-xs text-gray-500">
-              <span>🌐</span>
+              <span role="img" aria-label="globe">🌐</span>
               <span className="ml-1">Just now</span>
             </div>
           </div>
         </div>
         <div className="text-gray-400 text-lg">⋯</div>
       </div>
-      
+
       {/* Facebook Caption */}
       <div className="px-4 pb-3">
         <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
           {displayCaption}
         </p>
       </div>
-      
+
       {/* Facebook Media (Image or Video Thumbnail) */}
       {activeImageId && (() => {
         const activeMedia = uploadedImages.find(img => img.id === activeImageId);
         const isVideo = activeMedia?.mediaType === 'video';
         // For videos, use thumbnail; for images, use the actual image
-        const mediaSrc = isVideo 
+        const mediaSrc = isVideo
           ? (activeMedia?.videoThumbnail || activeMedia?.preview)
           : (activeMedia?.blobUrl || activeMedia?.preview);
-        
+
         // Don't render if no valid source
         if (!mediaSrc) return null;
-        
+
         return (
           <div className="relative">
             <img
@@ -453,7 +448,7 @@ export function SocialPreviewColumn({
               <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                 <div className="bg-white/90 rounded-full p-4">
                   <svg className="w-8 h-8 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z"/>
+                    <path d="M8 5v14l11-7z" />
                   </svg>
                 </div>
               </div>
@@ -461,18 +456,17 @@ export function SocialPreviewColumn({
           </div>
         );
       })()}
-      
-      
+
       {/* Facebook Engagement Stats */}
       <div className="px-4 py-2 border-t border-gray-100">
         <div className="flex items-center justify-between text-xs text-gray-500">
           <div className="flex items-center">
             <div className="flex -space-x-1">
               <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M7.493 18.75c-.425 0-.82-.236-.975-.632A7.48 7.48 0 016 15.375c0-1.75.599-3.358 1.602-4.634.151-.192.373-.309.6-.397.473-.183.89-.514 1.212-.924a9.042 9.042 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75 2.25 2.25 0 012.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558-.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H14.23c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23h-.777zM2.331 10.977a11.969 11.969 0 00-.831 4.398 12 12 0 00.52 3.507c.26.85 1.084 1.368 1.973 1.368H4.9c.445 0 .72-.498.523-.898a8.963 8.963 0 01-.924-3.977c0-1.708.476-3.305 1.302-4.666.245-.403-.028-.959-.5-.959H4.25c-.832 0-1.612.453-1.918 1.227z"/>
+                <path d="M7.493 18.75c-.425 0-.82-.236-.975-.632A7.48 7.48 0 016 15.375c0-1.75.599-3.358 1.602-4.634.151-.192.373-.309.6-.397.473-.183.89-.514 1.212-.924a9.042 9.042 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75 2.25 2.25 0 012.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558-.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H14.23c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23h-.777zM2.331 10.977a11.969 11.969 0 00-.831 4.398 12 12 0 00.52 3.507c.26.85 1.084 1.368 1.973 1.368H4.9c.445 0 .72-.498.523-.898a8.963 8.963 0 01-.924-3.977c0-1.708.476-3.305 1.302-4.666.245-.403-.028-.959-.5-.959H4.25c-.832 0-1.612.453-1.918 1.227z" />
               </svg>
               <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
               </svg>
             </div>
             <span className="ml-2">436</span>
@@ -483,25 +477,25 @@ export function SocialPreviewColumn({
           </div>
         </div>
       </div>
-      
+
       {/* Facebook Action Buttons */}
       <div className="px-2 py-2 border-t border-gray-100">
         <div className="flex items-center justify-around">
           <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
             </svg>
             <span className="text-sm font-medium">Like</span>
           </button>
           <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M21.99 4c0-1.1-.89-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+              <path d="M21.99 4c0-1.1-.89-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
             </svg>
             <span className="text-sm font-medium">Comment</span>
           </button>
           <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
+              <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z" />
             </svg>
             <span className="text-sm font-medium">Share</span>
           </button>
@@ -526,18 +520,18 @@ export function SocialPreviewColumn({
         </div>
         <div className="text-gray-400 text-lg">⋯</div>
       </div>
-      
+
       {/* Instagram Media (Image or Video Thumbnail) */}
       {activeImageId && (() => {
         const activeMedia = uploadedImages.find(img => img.id === activeImageId);
         const isVideo = activeMedia?.mediaType === 'video';
-        const mediaSrc = isVideo 
+        const mediaSrc = isVideo
           ? (activeMedia?.videoThumbnail || activeMedia?.preview)
           : (activeMedia?.blobUrl || activeMedia?.preview);
-        
+
         // Don't render if no valid source
         if (!mediaSrc) return null;
-        
+
         return (
           <div className="relative">
             <img
@@ -549,7 +543,7 @@ export function SocialPreviewColumn({
               <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                 <div className="bg-white/90 rounded-full p-3">
                   <svg className="w-6 h-6 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z"/>
+                    <path d="M8 5v14l11-7z" />
                   </svg>
                 </div>
               </div>
@@ -557,7 +551,7 @@ export function SocialPreviewColumn({
           </div>
         );
       })()}
-      
+
       {/* Instagram Actions */}
       <div className="px-3 py-3">
         <div className="flex items-center justify-between mb-2">
@@ -576,12 +570,12 @@ export function SocialPreviewColumn({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
         </div>
-        
+
         {/* Likes Count */}
         <div className="mb-2">
           <span className="font-semibold text-gray-900 text-sm">237 likes</span>
         </div>
-        
+
         {/* Instagram Caption */}
         <div className="text-sm">
           <span className="font-semibold text-gray-900 mr-2">
@@ -610,24 +604,24 @@ export function SocialPreviewColumn({
         </div>
         <div className="text-gray-400">⋯</div>
       </div>
-      
+
       {/* Twitter Content */}
       <div className="p-3">
         <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
           {displayCaption}
         </p>
-        
+
         {/* Twitter Media (Image or Video Thumbnail) */}
         {activeImageId && (() => {
           const activeMedia = uploadedImages.find(img => img.id === activeImageId);
           const isVideo = activeMedia?.mediaType === 'video';
-          const mediaSrc = isVideo 
+          const mediaSrc = isVideo
             ? (activeMedia?.videoThumbnail || activeMedia?.preview)
             : (activeMedia?.blobUrl || activeMedia?.preview);
-          
+
           // Don't render if no valid source
           if (!mediaSrc) return null;
-          
+
           return (
             <div className="mt-3 rounded-lg overflow-hidden relative">
               <img
@@ -639,7 +633,7 @@ export function SocialPreviewColumn({
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                   <div className="bg-white/90 rounded-full p-2">
                     <svg className="w-5 h-5 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
+                      <path d="M8 5v14l11-7z" />
                     </svg>
                   </div>
                 </div>
@@ -648,7 +642,7 @@ export function SocialPreviewColumn({
           );
         })()}
       </div>
-      
+
       {/* Twitter Actions */}
       <div className="px-3 py-2 border-t border-gray-100">
         <div className="flex items-center justify-center text-gray-500 text-sm">
@@ -667,7 +661,7 @@ export function SocialPreviewColumn({
             </div>
             <div className="flex items-center">
               <svg className="w-4 h-4 text-pink-500" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
               </svg>
               <span className="ml-1 text-pink-500">24</span>
             </div>
@@ -694,7 +688,7 @@ export function SocialPreviewColumn({
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-              <span className="text-white text-sm font-semibold">📧</span>
+              <span className="text-white text-sm font-semibold" role="img" aria-label="email">📧</span>
             </div>
             <div className="ml-3">
               <div className="font-semibold text-gray-900 text-sm">Email Marketing</div>
@@ -703,20 +697,20 @@ export function SocialPreviewColumn({
           </div>
         </div>
       </div>
-      
+
       {/* Email Content */}
       <div className="p-4">
         {/* Email Media (Image or Video Thumbnail) */}
         {activeImageId && (() => {
           const activeMedia = uploadedImages.find(img => img.id === activeImageId);
           const isVideo = activeMedia?.mediaType === 'video';
-          const mediaSrc = isVideo 
+          const mediaSrc = isVideo
             ? (activeMedia?.videoThumbnail || activeMedia?.preview)
             : (activeMedia?.blobUrl || activeMedia?.preview);
-          
+
           // Don't render if no valid source
           if (!mediaSrc) return null;
-          
+
           return (
             <div className="mb-4 relative">
               <img
@@ -728,7 +722,7 @@ export function SocialPreviewColumn({
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
                   <div className="bg-white/90 rounded-full p-3">
                     <svg className="w-6 h-6 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
+                      <path d="M8 5v14l11-7z" />
                     </svg>
                   </div>
                 </div>
@@ -736,7 +730,7 @@ export function SocialPreviewColumn({
             </div>
           );
         })()}
-        
+
         {/* Email Copy */}
         <div className="text-gray-900 leading-relaxed whitespace-pre-wrap">
           {displayCaption}
@@ -772,7 +766,7 @@ export function SocialPreviewColumn({
         <CardContent>
           <div className="space-y-4">
             {copyType === 'email-marketing' ? (
-              /* Email Marketing Preview */
+              // Email Marketing Preview
               <div className="bg-gray-100 p-4 rounded-lg">
                 <div className="text-center text-xs text-gray-500 mb-2">
                   Email Marketing Preview
@@ -784,7 +778,7 @@ export function SocialPreviewColumn({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
                           <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-                            <span className="text-white text-sm font-semibold">📧</span>
+                            <span className="text-white text-sm font-semibold" role="img" aria-label="email">📧</span>
                           </div>
                           <div className="ml-3">
                             <div className="font-semibold text-gray-900 text-sm">Email Marketing</div>
@@ -793,7 +787,7 @@ export function SocialPreviewColumn({
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Email Content - No Image Placeholder */}
                     <div className="p-4">
                       <div className="mb-4">
@@ -801,7 +795,7 @@ export function SocialPreviewColumn({
                           <span className="text-gray-500 text-sm">No Image</span>
                         </div>
                       </div>
-                      
+
                       {/* Email Copy */}
                       <div className="text-gray-900 leading-relaxed whitespace-pre-wrap">
                         {displayCaption || 'Your email content will appear here...'}
@@ -811,15 +805,15 @@ export function SocialPreviewColumn({
                 )}
               </div>
             ) : (
-              /* Social Media Preview */
+              // Social Media Preview
               <>
                 {/* Platform Selection */}
                 <div className="flex items-center justify-center space-x-2 mb-4">
                   <button
                     onClick={() => setSelectedPreviewPlatform('facebook')}
                     className={`p-2 rounded-lg transition-colors ${
-                      selectedPreviewPlatform === 'facebook' 
-                        ? 'bg-blue-100 text-blue-600' 
+                      selectedPreviewPlatform === 'facebook'
+                        ? 'bg-blue-100 text-blue-600'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -828,8 +822,8 @@ export function SocialPreviewColumn({
                   <button
                     onClick={() => setSelectedPreviewPlatform('instagram')}
                     className={`p-2 rounded-lg transition-colors ${
-                      selectedPreviewPlatform === 'instagram' 
-                        ? 'bg-pink-100 text-pink-600' 
+                      selectedPreviewPlatform === 'instagram'
+                        ? 'bg-pink-100 text-pink-600'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -838,8 +832,8 @@ export function SocialPreviewColumn({
                   <button
                     onClick={() => setSelectedPreviewPlatform('twitter')}
                     className={`p-2 rounded-lg transition-colors ${
-                      selectedPreviewPlatform === 'twitter' 
-                        ? 'bg-blue-100 text-blue-600' 
+                      selectedPreviewPlatform === 'twitter'
+                        ? 'bg-blue-100 text-blue-600'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -864,7 +858,7 @@ export function SocialPreviewColumn({
                             <div className="ml-3">
                               <div className="font-semibold text-gray-900 text-sm">Your Facebook</div>
                               <div className="flex items-center text-xs text-gray-500">
-                                <span>🌐</span>
+                                <span role="img" aria-label="globe">🌐</span>
                                 <span className="ml-1">Just now</span>
                               </div>
                             </div>
@@ -872,7 +866,7 @@ export function SocialPreviewColumn({
                           <div className="text-gray-400 text-lg">⋯</div>
                         </div>
                       )}
-                      
+
                       {selectedPreviewPlatform === 'instagram' && (
                         <div className="flex items-center justify-between px-3 py-3">
                           <div className="flex items-center">
@@ -886,7 +880,7 @@ export function SocialPreviewColumn({
                           <div className="text-gray-400 text-lg">⋯</div>
                         </div>
                       )}
-                      
+
                       {selectedPreviewPlatform === 'twitter' && (
                         <div className="flex items-center p-3 border-b border-gray-100">
                           <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center overflow-hidden">
@@ -899,21 +893,21 @@ export function SocialPreviewColumn({
                           <div className="text-gray-400">⋯</div>
                         </div>
                       )}
-                      
+
                       {/* Caption */}
                       <div className={selectedPreviewPlatform === 'twitter' ? 'p-3' : 'px-4 pb-3'}>
                         <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
                           {displayCaption || 'Your caption will appear here...'}
                         </p>
                       </div>
-                      
+
                       {/* No Image Placeholder */}
                       <div className="relative">
                         <div className={`${selectedPreviewPlatform === 'instagram' ? 'aspect-square' : 'h-48'} bg-gray-200 flex items-center justify-center`}>
                           <span className="text-gray-500 text-sm">No Image</span>
                         </div>
                       </div>
-                      
+
                       {/* Platform-specific bottom sections */}
                       {selectedPreviewPlatform === 'facebook' && (
                         <>
@@ -922,10 +916,10 @@ export function SocialPreviewColumn({
                               <div className="flex items-center">
                                 <div className="flex -space-x-1">
                                   <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M7.493 18.75c-.425 0-.82-.236-.975-.632A7.48 7.48 0 016 15.375c0-1.75.599-3.358 1.602-4.634.151-.192.373-.309.6-.397.473-.183.89-.514 1.212-.924a9.042 9.042 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75 2.25 2.25 0 012.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558-.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H14.23c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23h-.777zM2.331 10.977a11.969 11.969 0 00-.831 4.398 12 12 0 00.52 3.507c.26.85 1.084 1.368 1.973 1.368H4.9c.445 0 .72-.498.523-.898a8.963 8.963 0 01-.924-3.977c0-1.708.476-3.305 1.302-4.666.245-.403-.028-.959-.5-.959H4.25c-.832 0-1.612.453-1.918 1.227z"/>
+                                    <path d="M7.493 18.75c-.425 0-.82-.236-.975-.632A7.48 7.48 0 016 15.375c0-1.75.599-3.358 1.602-4.634.151-.192.373-.309.6-.397.473-.183.89-.514 1.212-.924a9.042 9.042 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75 2.25 2.25 0 012.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558-.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H14.23c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23h-.777zM2.331 10.977a11.969 11.969 0 00-.831 4.398 12 12 0 00.52 3.507c.26.85 1.084 1.368 1.973 1.368H4.9c.445 0 .72-.498.523-.898a8.963 8.963 0 01-.924-3.977c0-1.708.476-3.305 1.302-4.666.245-.403-.028-.959-.5-.959H4.25c-.832 0-1.612.453-1.918 1.227z" />
                                   </svg>
                                   <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                                   </svg>
                                 </div>
                                 <span className="ml-2">436</span>
@@ -940,19 +934,19 @@ export function SocialPreviewColumn({
                             <div className="flex items-center justify-around">
                               <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
                                 <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
                                 </svg>
                                 <span className="text-sm font-medium">Like</span>
                               </button>
                               <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
                                 <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M21.99 4c0-1.1-.89-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+                                  <path d="M21.99 4c0-1.1-.89-2-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
                                 </svg>
                                 <span className="text-sm font-medium">Comment</span>
                               </button>
                               <button className="flex items-center justify-center py-2 px-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-1">
                                 <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
+                                  <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z" />
                                 </svg>
                                 <span className="text-sm font-medium">Share</span>
                               </button>
@@ -960,7 +954,7 @@ export function SocialPreviewColumn({
                           </div>
                         </>
                       )}
-                      
+
                       {selectedPreviewPlatform === 'instagram' && (
                         <div className="px-3 py-3">
                           <div className="flex items-center justify-between mb-2">
@@ -984,7 +978,7 @@ export function SocialPreviewColumn({
                           </div>
                         </div>
                       )}
-                      
+
                       {selectedPreviewPlatform === 'twitter' && (
                         <div className="px-3 py-2 border-t border-gray-100">
                           <div className="flex items-center justify-center text-gray-500 text-sm">
@@ -1003,7 +997,7 @@ export function SocialPreviewColumn({
                               </div>
                               <div className="flex items-center">
                                 <svg className="w-4 h-4 text-pink-500" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                                 </svg>
                                 <span className="ml-1 text-pink-500">24</span>
                               </div>
@@ -1027,54 +1021,53 @@ export function SocialPreviewColumn({
               </>
             )}
 
-                
             {/* Caption Editor */}
             <div className="bg-gray-50 rounded-lg p-4">
-                  <label htmlFor="customCaption" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="customCaption" className="block text-sm font-medium text-gray-700 mb-2">
                 Edit {copyType === 'email-marketing' ? 'Email Copy' : 'Caption'}
-                  </label>
-                  <Textarea
-                    id="customCaption"
-                    value={customCaption}
-                    onChange={(e) => {
-                      setCustomCaption(e.target.value)
-                      setCaptionConfirmed(false) // Reset confirmation when user types
-                    }}
-                    onBlur={handleCaptionConfirm}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        handleCaptionConfirm()
-                      }
-                    }}
-                    placeholder={selectedCaption ? `Edit the AI-generated ${copyType === 'email-marketing' ? 'email copy' : 'caption'} or type your own...` : `Type your ${copyType === 'email-marketing' ? 'email copy' : 'caption'} here...`}
-                    className="w-full min-h-[80px] resize-none"
-                    rows={3}
-                  />
-                  {selectedCaption && !customCaption && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      AI {copyType === 'email-marketing' ? 'Email Copy' : 'Caption'}: {selectedCaption}
-                    </p>
-                  )}
-                  
-                  {customCaption.trim() && (
-                    <div className="mt-2 flex items-center justify-between">
-                      <p className="text-xs text-gray-500">
-                        {captionConfirmed ? (
-                          <span className="text-green-600 flex items-center">
-                            <Check className="w-3 h-3 mr-1" />
-                            Caption confirmed - ready to add to calendar
-                          </span>
-                        ) : (
-                          <span className="text-amber-600">
-                            Click outside the box or press Enter to confirm your caption
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  )}
-                  
+              </label>
+              <Textarea
+                id="customCaption"
+                value={customCaption}
+                onChange={(e) => {
+                  setCustomCaption(e.target.value)
+                  setCaptionConfirmed(false) // Reset confirmation when user types
+                }}
+                onBlur={handleCaptionConfirm}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleCaptionConfirm()
+                  }
+                }}
+                placeholder={selectedCaption ? `Edit the AI-generated ${copyType === 'email-marketing' ? 'email copy' : 'caption'} or type your own...` : `Type your ${copyType === 'email-marketing' ? 'email copy' : 'caption'} here...`}
+                className="w-full min-h-[80px] resize-none"
+                rows={3}
+              />
+              {selectedCaption && !customCaption && (
+                <p className="text-xs text-gray-500 mt-1">
+                  AI {copyType === 'email-marketing' ? 'Email Copy' : 'Caption'}: {selectedCaption}
+                </p>
+              )}
+
+              {customCaption.trim() && (
+                <div className="mt-2 flex items-center justify-between">
+                  <p className="text-xs text-gray-500">
+                    {captionConfirmed ? (
+                      <span className="text-green-600 flex items-center">
+                        <Check className="w-3 h-3 mr-1" />
+                        Caption confirmed - ready to add to calendar
+                      </span>
+                    ) : (
+                      <span className="text-amber-600">
+                        Click outside the box or press Enter to confirm your caption
+                      </span>
+                    )}
+                  </p>
                 </div>
+              )}
+
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -1111,7 +1104,7 @@ export function SocialPreviewColumn({
               Schedule Post
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="text-center py-2">
               <span className="text-sm text-gray-600">When and where would you like to post this content?</span>
@@ -1137,6 +1130,7 @@ export function SocialPreviewColumn({
                   {connectedAccounts.map((account) => (
                     <button
                       key={account._id}
+                      type="button"
                       onClick={() => {
                         const newSelected = new Set(selectedPlatforms)
                         if (newSelected.has(account.platform)) {
@@ -1227,7 +1221,7 @@ export function SocialPreviewColumn({
                   </>
                 )}
               </Button>
-              
+
               <Button
                 onClick={() => setShowScheduleModal(false)}
                 variant="outline"

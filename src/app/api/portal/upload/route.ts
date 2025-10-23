@@ -5,6 +5,7 @@ import logger from '@/lib/logger';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!
+);
 
 // Allowed MIME types
 const ALLOWED_MIME_TYPES = [
@@ -50,7 +51,7 @@ function validateFile(
     return {
       valid: false,
       error: 'Invalid filename: contains forbidden characters'
-    
+    };
   }
 
   // Validate file extension
@@ -59,7 +60,7 @@ function validateFile(
     return {
       valid: false,
       error: `Invalid file type: ${fileExtension}. Allowed types: ${ALLOWED_EXTENSIONS.join(', ')}`
-    
+    };
   }
 
   // Validate MIME type
@@ -67,7 +68,7 @@ function validateFile(
     return {
       valid: false,
       error: `Invalid MIME type: ${fileType}. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`
-    
+    };
   }
 
   // Validate file size
@@ -75,10 +76,10 @@ function validateFile(
     return {
       valid: false,
       error: `File too large: ${(fileSize / (1024 * 1024)).toFixed(2)}MB. Maximum allowed: ${MAX_FILE_SIZE / (1024 * 1024)}MB`
-    
+    };
   }
 
-  return { valid: true 
+  return { valid: true };
 }
 
 export async function GET(request: NextRequest) {
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Token is required' },
         { status: 400 }
-
+      );
     }
 
     // Get client info from portal token
@@ -104,7 +105,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid portal token' },
         { status: 401 }
-
+      );
     }
 
     // Check if portal is enabled
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Portal access is disabled' },
         { status: 401 }
-
+      );
     }
 
     // Get client uploads (content inbox)
@@ -139,19 +140,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Failed to fetch uploads' },
         { status: 500 }
-
+      );
     }
 
     return NextResponse.json({
       client,
       uploads: uploads || []
-
+    });
   } catch (error) {
     logger.error('Portal uploads error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-
+    );
   }
 }
 
@@ -163,7 +164,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
-
+      );
     }
 
     // Validate file parameters
@@ -174,11 +175,11 @@ export async function POST(request: NextRequest) {
         fileType,
         fileSize,
         error: validation.error
-
+      });
       return NextResponse.json(
         { error: validation.error },
         { status: 400 }
-
+      );
     }
 
     // Get client info from portal token
@@ -192,7 +193,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid portal token' },
         { status: 401 }
-
+      );
     }
 
     // Check if portal is enabled
@@ -200,7 +201,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Portal access is disabled' },
         { status: 401 }
-
+      );
     }
 
     // Create upload record with target date
@@ -213,12 +214,11 @@ export async function POST(request: NextRequest) {
       file_url: fileUrl,
       status: 'pending',
       notes: notes || null
-    
-    // If targetDate is provided, set the created_at to that date
-    if (targetDate) {
     };
 
-const targetDateTime = new Date(targetDate + 'T00:00:00.000Z');
+    // If targetDate is provided, set the created_at to that date
+    if (targetDate) {
+      const targetDateTime = new Date(targetDate + 'T00:00:00.000Z');
       uploadData.created_at = targetDateTime.toISOString();
     }
 
@@ -233,19 +233,19 @@ const targetDateTime = new Date(targetDate + 'T00:00:00.000Z');
       return NextResponse.json(
         { error: 'Failed to create upload' },
         { status: 500 }
-
+      );
     }
 
     return NextResponse.json({
       success: true,
       upload
-
+    });
   } catch (error) {
     logger.error('Portal upload creation error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-
+    );
   }
 }
 
@@ -257,7 +257,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
-
+      );
     }
 
     // Get client info from portal token
@@ -271,7 +271,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid portal token' },
         { status: 401 }
-
+      );
     }
 
     // Check if portal is enabled
@@ -279,13 +279,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json(
         { error: 'Portal access is disabled' },
         { status: 401 }
-
+      );
     }
 
     // Update upload notes and/or date
     const updateData: any = {
       updated_at: new Date().toISOString()
-    
+    };
+
     if (notes !== undefined) {
       updateData.notes = notes || null;
     }
@@ -309,26 +310,26 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json(
         { error: 'Failed to update notes' },
         { status: 500 }
-
+      );
     }
 
     if (!upload) {
       return NextResponse.json(
         { error: 'Upload not found' },
         { status: 404 }
-
+      );
     }
 
     return NextResponse.json({
       success: true,
       upload
-
+    });
   } catch (error) {
     logger.error('Portal upload notes update error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-
+    );
   }
 }
 
@@ -340,7 +341,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
-
+      );
     }
 
     // Get client info from portal token
@@ -354,7 +355,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid portal token' },
         { status: 401 }
-
+      );
     }
 
     // Check if portal is enabled
@@ -362,7 +363,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { error: 'Portal access is disabled' },
         { status: 401 }
-
+      );
     }
 
     // Delete upload
@@ -377,17 +378,17 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { error: 'Failed to delete upload' },
         { status: 500 }
-
+      );
     }
 
     return NextResponse.json({
       success: true
-
+    });
   } catch (error) {
     logger.error('Portal upload deletion error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-
+    );
   }
 }

@@ -6,5 +6,5 @@ export async function GET(request: NextRequest) {
     message: 'Simple test endpoint',
     timestamp: new Date().toISOString(),
     pathname: request.nextUrl.pathname,
-
+  });
 }

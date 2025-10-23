@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: 'No signature provided' },
       { status: 400 }
-
+    );
   }
 
   let event: Stripe.Event;
@@ -37,48 +37,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: 'Invalid signature' },
       { status: 400 }
-
+    );
   }
 
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
-    };
-
-const session = event.data.object as Stripe.Checkout.Session;
+        const session = event.data.object as Stripe.Checkout.Session;
         await handleCheckoutCompleted(session);
         break;
       }
 
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
-    };
-
-const subscription = event.data.object as Stripe.Subscription;
+        const subscription = event.data.object as Stripe.Subscription;
         await handleSubscriptionChange(subscription);
         break;
       }
 
       case 'customer.subscription.deleted': {
-    };
-
-const subscription = event.data.object as Stripe.Subscription;
+        const subscription = event.data.object as Stripe.Subscription;
         await handleSubscriptionDeleted(subscription);
         break;
       }
 
       case 'invoice.paid': {
-    };
-
-const invoice = event.data.object as Stripe.Invoice;
+        const invoice = event.data.object as Stripe.Invoice;
         await handleInvoicePaid(invoice);
         break;
       }
 
       case 'invoice.payment_failed': {
-    };
-
-const invoice = event.data.object as Stripe.Invoice;
+        const invoice = event.data.object as Stripe.Invoice;
         await handleInvoicePaymentFailed(invoice);
         break;
       }
@@ -94,7 +84,7 @@ const invoice = event.data.object as Stripe.Invoice;
     return NextResponse.json(
       { error: 'Webhook handler failed' },
       { status: 500 }
-
+    );
   }
 }
 
@@ -122,7 +112,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     max_clients: limits.maxClients,
     max_posts_per_month: limits.maxPostsPerMonth,
     max_ai_credits_per_month: limits.maxAICreditsPerMonth,
-
+  });
 }
 
 async function handleSubscriptionChange(subscription: Stripe.Subscription) {
@@ -157,7 +147,7 @@ async function handleSubscriptionChange(subscription: Stripe.Subscription) {
     max_clients: limits.maxClients,
     max_posts_per_month: limits.maxPostsPerMonth,
     max_ai_credits_per_month: limits.maxAICreditsPerMonth,
-
+  });
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
@@ -176,7 +166,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     stripe_subscription_id: subscription.id,
     subscription_status: 'canceled',
     cancel_at_period_end: false,
-
+  });
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
@@ -209,7 +199,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
     paid_at: invoice.status_transitions.paid_at
       ? new Date(invoice.status_transitions.paid_at * 1000)
       : undefined,
-
+  });
 }
 
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
@@ -229,9 +219,8 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     await updateSubscriptionStatus(
       subscriptionId,
       'past_due'
-
+    );
   }
 
   // TODO: Send email notification to user about failed payment
 }
-

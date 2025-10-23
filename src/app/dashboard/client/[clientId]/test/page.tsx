@@ -1,23 +1,16 @@
 'use client'
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useState, useCallback } from 'react'
 import { Client } from '@/types/api'
 
 export default function TestClientPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params)
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
-  
-  console.log('🎬 TestClientPage rendering for clientId:', clientId)
-  
-  useEffect(() => {
-    console.log('🔥 useEffect triggered for clientId:', clientId)
-    fetchClient()
-  }, [clientId, fetchClient])
-  
+
   const fetchClient = useCallback(async () => {
     console.log('🔍 fetchClient called')
     setLoading(true)
-    
+
     try {
       // Get auth token from localStorage (assuming it's stored there)
       const token = localStorage.getItem('supabase.auth.token');
@@ -31,7 +24,7 @@ export default function TestClientPage({ params }: { params: Promise<{ clientId:
       console.log('  - Client ID:', clientId)
       console.log('  - API endpoint: /api/clients/[clientId]/data')
       console.log('  - AUTH METHOD: Using Bearer token via API route (server-side)')
-      
+
       const response = await fetch(`/api/clients/${clientId}/data`, {
         method: 'GET',
         headers: {
@@ -64,10 +57,18 @@ export default function TestClientPage({ params }: { params: Promise<{ clientId:
       setLoading(false);
     }
   }, [clientId])
-  
+
+  useEffect(() => {
+    console.log('🔥 useEffect triggered for clientId:', clientId)
+    fetchClient()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId])
+
+  console.log('🎬 TestClientPage rendering for clientId:', clientId)
+
   if (loading) return <div>Loading test page...</div>
   if (!client) return <div>Client not found in test page</div>
-  
+
   return (
     <div>
       <h1>Test Client Page</h1>

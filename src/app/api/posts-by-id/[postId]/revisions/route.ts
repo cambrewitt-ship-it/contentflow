@@ -17,28 +17,28 @@ export async function GET(
 
     // Create Supabase client with service role for admin access
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    
+
     // First verify the post exists and get basic info
     const { data: post, error: postError } = await supabase
       .from('posts')
       .select('id, client_id, caption, created_at')
       .eq('id', postId)
       .single();
-    
+
     if (postError) {
       logger.error('❌ Error fetching post:', postError);
       if (postError.code === 'PGRST116') {
         return NextResponse.json(
           { error: 'Post not found' },
           { status: 404 }
-
+        );
       }
       return NextResponse.json(
         { error: `Database error: ${postError.message}` },
         { status: 500 }
-
+      );
     }
-    
+
     // Fetch revisions with editor information
     const { data: revisions, error: revisionsError } = await supabase
       .from('post_revisions')
@@ -49,26 +49,26 @@ export async function GET(
       .eq('post_id', postId)
       .order('edited_at', { ascending: false })
       .range(offset, offset + limit - 1);
-    
+
     if (revisionsError) {
       logger.error('❌ Supabase revisions error:', revisionsError);
       return NextResponse.json(
         { error: `Database error: ${revisionsError.message}` },
         { status: 500 }
-
+      );
     }
-    
+
     // Get total count for pagination
     const { count, error: countError } = await supabase
       .from('post_revisions')
       .select('*', { count: 'exact', head: true })
       .eq('post_id', postId);
-    
+
     if (countError) {
       logger.error('❌ Error getting revision count:', countError);
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       revisions: revisions || [],
       totalCount: count || 0,
       hasMore: (count || 0) > offset + limit,
@@ -77,13 +77,13 @@ export async function GET(
         current_caption: post.caption,
         created_at: post.created_at
       }
-
-  } catch (error) {
+    });
+  } catch (error: any) {
     logger.error('💥 Unexpected error in GET revisions:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch revisions' },
       { status: 500 }
-
+    );
   }
 }
 
@@ -95,45 +95,45 @@ export async function POST(
     const { postId } = await params;
     const body = await request.json();
 
-    const { 
-      previous_caption, 
-      new_caption, 
-      edit_reason, 
-      edited_by_user_id 
+    const {
+      previous_caption,
+      new_caption,
+      edit_reason,
+      edited_by_user_id
     } = body;
-    
+
     // Validate required fields
     if (!previous_caption || !new_caption || !edited_by_user_id) {
       return NextResponse.json(
         { error: 'previous_caption, new_caption, and edited_by_user_id are required' },
         { status: 400 }
-
+      );
     }
-    
+
     // Create Supabase client with service role for admin access
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    
+
     // Verify the post exists
     const { data: post, error: postError } = await supabase
       .from('posts')
       .select('id, client_id')
       .eq('id', postId)
       .single();
-    
+
     if (postError) {
       logger.error('❌ Error fetching post for revision:', postError);
       if (postError.code === 'PGRST116') {
         return NextResponse.json(
           { error: 'Post not found' },
           { status: 404 }
-
+        );
       }
       return NextResponse.json(
         { error: `Database error: ${postError.message}` },
         { status: 500 }
-
+      );
     }
-    
+
     // Get the next revision number
     const { data: maxRevision, error: maxError } = await supabase
       .from('post_revisions')
@@ -142,17 +142,17 @@ export async function POST(
       .order('revision_number', { ascending: false })
       .limit(1)
       .single();
-    
+
     if (maxError && maxError.code !== 'PGRST116') {
       logger.error('❌ Error getting max revision number:', maxError);
       return NextResponse.json(
         { error: `Database error: ${maxError.message}` },
         { status: 500 }
-
+      );
     }
-    
+
     const nextRevisionNumber = (maxRevision?.revision_number || 0) + 1;
-    
+
     // Create the revision
     const { data: revision, error: revisionError } = await supabase
       .from('post_revisions')
@@ -169,25 +169,25 @@ export async function POST(
         edited_by:clients!post_revisions_edited_by_fkey(id, name, email)
       `)
       .single();
-    
+
     if (revisionError) {
       logger.error('❌ Supabase revision creation error:', revisionError);
       return NextResponse.json(
         { error: `Database error: ${revisionError.message}` },
         { status: 500 }
-
+      );
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       revision: revision,
       message: 'Revision created successfully'
-
-  } catch (error) {
+    });
+  } catch (error: any) {
     logger.error('💥 Unexpected error in POST revision:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create revision' },
       { status: 500 }
-
+    );
   }
 }

@@ -16,10 +16,13 @@ export async function POST(req: NextRequest) {
     const authHeader = req.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       logger.error('Portal: No authorization header');
-      return NextResponse.json({ 
-        error: 'Authentication required', 
-        details: 'User must be logged in'
-      }, { status: 401 });
+      return NextResponse.json(
+        { 
+          error: 'Authentication required', 
+          details: 'User must be logged in'
+        }, 
+        { status: 401 }
+      );
     }
 
     const token = authHeader.split(' ')[1];
@@ -32,10 +35,13 @@ export async function POST(req: NextRequest) {
     
     if (authError || !user) {
       logger.error('Portal: Authentication failed:', { error: authError?.message });
-      return NextResponse.json({ 
-        error: 'Authentication required', 
-        details: 'Invalid or expired token'
-      }, { status: 401 });
+      return NextResponse.json(
+        { 
+          error: 'Authentication required', 
+          details: 'Invalid or expired token'
+        }, 
+        { status: 401 }
+      );
     }
 
     // Get user's subscription
@@ -46,7 +52,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'No subscription found', details: 'Please subscribe to a plan first' },
         { status: 404 }
-
+      );
     }
 
     if (!subscription.stripe_customer_id) {
@@ -54,7 +60,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid subscription', details: 'Missing Stripe customer ID' },
         { status: 400 }
-
+      );
     }
 
     // Create customer portal session
@@ -64,13 +70,14 @@ export async function POST(req: NextRequest) {
     const portalSession = await createCustomerPortalSession(
       subscription.stripe_customer_id,
       returnUrl
+    );
 
     if (!portalSession.url) {
       logger.error('Portal: No URL in portal session');
       return NextResponse.json(
         { error: 'Portal session error', details: 'No URL returned from Stripe' },
         { status: 500 }
-
+      );
     }
 
     return NextResponse.json({ url: portalSession.url });
@@ -79,14 +86,13 @@ export async function POST(req: NextRequest) {
       message: error.message,
       type: error.type,
       code: error.code
-
+    });
     return NextResponse.json(
       { 
         error: 'Failed to create portal session',
         details: error.message || 'An unexpected error occurred'
       },
       { status: 500 }
-
+    );
   }
 }
-

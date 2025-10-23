@@ -6,6 +6,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!,
   { auth: { autoRefreshToken: false, persistSession: false } }
+);
 
 // Create or update post approval
 export async function POST(request: NextRequest) {
@@ -21,17 +22,22 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Add detailed validation logging
-    logger.debug(, {
-      const 
+    logger.debug('POST /post-approvals', {
+      session_id,
+      post_id,
+      post_type,
+      approval_status,
+      client_comments,
+      edited_caption,
     });
 
-    $3validStatuses = ['approved', 'rejected', 'needs_attention'];
+    const validStatuses = ['approved', 'rejected', 'needs_attention'];
     if (!validStatuses.includes(approval_status)) {
       logger.error('❌ Invalid approval_status:', approval_status);
       return NextResponse.json(
         { error: `Invalid approval status: ${approval_status}` },
         { status: 400 }
-
+      );
     }
 
     if (!session_id || !post_id || !post_type || !approval_status) {
@@ -39,12 +45,12 @@ export async function POST(request: NextRequest) {
         has_session_id: !!session_id,
         has_post_id: !!post_id,
         has_post_type: !!post_type,
-        has_approval_status: !!approval_status
-
+        has_approval_status: !!approval_status,
+      });
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
-
+      );
     }
 
     // Check if session exists and is not expired
@@ -58,7 +64,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Session not found' },
         { status: 404 }
-
+      );
     }
 
     // Check if session is expired
@@ -66,18 +72,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Session has expired' },
         { status: 410 }
-
+      );
     }
 
     // Update post caption if client edited it
     if (edited_caption && edited_caption.trim() !== '') {
       const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
-      
+
       const { error: captionUpdateError } = await supabase
         .from(tableName)
         .update({ 
           caption: edited_caption,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', post_id);
 
@@ -86,7 +92,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: 'Failed to update caption' },
           { status: 500 }
-
+        );
       }
     }
 
@@ -95,8 +101,9 @@ export async function POST(request: NextRequest) {
 
     const statusUpdate: any = {
       approval_status,
-      updated_at: new Date().toISOString()
-    
+      updated_at: new Date().toISOString(),
+    };
+
     if (approval_status === 'needs_attention') {
       statusUpdate.needs_attention = true;
       statusUpdate.client_feedback = client_comments;
@@ -116,7 +123,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Failed to update post status' },
         { status: 500 }
-
+      );
     }
 
     // Check if approval already exists
@@ -137,7 +144,7 @@ export async function POST(request: NextRequest) {
           approval_status,
           client_comments: client_comments || null,
           approved_at: approval_status === 'approved' ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', existingApproval.id)
         .select()
@@ -148,7 +155,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: 'Failed to update approval' },
           { status: 500 }
-
+        );
       }
 
       approval = data;
@@ -162,7 +169,7 @@ export async function POST(request: NextRequest) {
           post_type,
           approval_status,
           client_comments: client_comments || null,
-          approved_at: approval_status === 'approved' ? new Date().toISOString() : null
+          approved_at: approval_status === 'approved' ? new Date().toISOString() : null,
         })
         .select()
         .single();
@@ -172,7 +179,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: 'Failed to create approval' },
           { status: 500 }
-
+        );
       }
 
       approval = data;
@@ -180,14 +187,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      approval
+      approval,
+    });
 
   } catch (error) {
     logger.error('❌ Error in post-approvals API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-
+    );
   }
 }
 
@@ -201,7 +209,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'session_id is required' },
         { status: 400 }
-
+      );
     }
 
     const { data: approvals, error } = await supabase
@@ -215,7 +223,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Failed to fetch approvals' },
         { status: 500 }
-
+      );
     }
 
     return NextResponse.json({ approvals });
@@ -225,6 +233,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
-
+    );
   }
 }
