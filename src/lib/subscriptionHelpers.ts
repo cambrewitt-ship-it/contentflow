@@ -4,7 +4,7 @@ import { SubscriptionTier, SUBSCRIPTION_TIERS } from './stripe';
 // Create Supabase client with service role for admin operations
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  process.env.NEXT_SUPABASE_SERVICE_ROLE!,
   {
     auth: {
       autoRefreshToken: false,

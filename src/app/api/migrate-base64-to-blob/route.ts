@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   try {
 
     // Check for required environment variables
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_SUPABASE_SERVICE_ROLE) {
       return NextResponse.json(
         { error: 'Supabase environment variables are required' },
         { status: 500 }
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     // Create Supabase client inside the function
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.NEXT_SUPABASE_SERVICE_ROLE
 
     const { dryRun = false, limit = 10 } = await request.json().catch(() => ({}));
     

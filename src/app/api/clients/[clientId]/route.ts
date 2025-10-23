@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { handleApiError, handleDatabaseError, ApiErrors } from '@/lib/apiErrorHandler';
 import { sanitizeUUID } from '@/lib/validators';
 import logger from '@/lib/logger';
+import { decrementUsage } from '@/lib/subscriptionHelpers';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -399,6 +400,16 @@ export async function DELETE(
         userId: user.id,
         clientId: clientId,
       }, 'Failed to delete client');
+    }
+
+    // Decrement the client usage counter in subscription
+    try {
+      await decrementUsage(user.id, 'clients', 1);
+      logger.info('✅ Successfully decremented client usage for user:', user.id);
+    } catch (usageError) {
+      logger.error('⚠️ Failed to decrement client usage, but client was deleted:', usageError);
+      // Don't fail the entire operation if usage decrement fails
+      // The client was successfully deleted, which is the main goal
     }
 
     return NextResponse.json({

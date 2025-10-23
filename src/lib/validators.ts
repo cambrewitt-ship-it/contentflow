@@ -57,6 +57,18 @@ function sanitizedString(maxLength: number, minLength: number = 1) {
 }
 
 /**
+ * Creates an optional sanitized string validator that allows empty strings
+ * @param maxLength - Maximum allowed length
+ * @returns Zod string schema with sanitization that allows empty strings
+ */
+function optionalSanitizedString(maxLength: number) {
+  return z.string()
+    .max(maxLength, `String must be at most ${maxLength} characters`)
+    .transform(sanitizeHtml)
+    .optional();
+}
+
+/**
  * Validates UUID v4 format
  * @param uuid - String to validate
  * @returns true if valid UUID v4, false otherwise
@@ -178,9 +190,9 @@ export const createClientSchema = z.object({
   brand_tone: sanitizedString(1000).optional(),
   target_audience: sanitizedString(2000).optional(),
   value_proposition: sanitizedString(2000).optional(),
-  caption_dos: sanitizedString(2000).optional(),
-  caption_donts: sanitizedString(2000).optional(),
-  brand_voice_examples: sanitizedString(5000).optional(),
+  caption_dos: optionalSanitizedString(2000),
+  caption_donts: optionalSanitizedString(2000),
+  brand_voice_examples: optionalSanitizedString(5000),
   brand_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid hex color format').optional(),
 });
 
