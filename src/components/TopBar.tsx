@@ -73,7 +73,7 @@ export default function TopBar({ className = "" }: TopBarProps) {
             )}
           >
             <Settings className="w-4 h-4" />
-            <span className="hidden sm:inline">Profile Settings</span>
+            <span className="hidden sm:inline">Settings</span>
           </Button>
         </Link>
 
