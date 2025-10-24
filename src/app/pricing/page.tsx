@@ -9,6 +9,21 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const tiers = [
   {
+    name: 'Freemium',
+    id: 'freemium',
+    price: 0,
+    description: 'Perfect for trying out the platform',
+    priceId: null,
+    features: [
+      '1 Client Account',
+      '10 AI Credits per month',
+      'No social media posting',
+      'Basic Analytics',
+      'Community Support',
+    ],
+    highlighted: false,
+  },
+  {
     name: 'Starter',
     id: 'starter',
     price: 35,
@@ -63,7 +78,7 @@ export default function PricingPage() {
   const { getAccessToken } = useAuth();
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
 
-  const handleSubscribe = async (priceId: string, tierId: string) => {
+  const handleSubscribe = async (priceId: string | null, tierId: string) => {
     try {
       setLoadingTier(tierId);
 
@@ -73,6 +88,36 @@ export default function PricingPage() {
         // Not authenticated, redirect to login
         router.push('/auth/login?redirect=/pricing');
         return;
+      }
+
+      // Handle freemium tier (no payment required)
+      if (tierId === 'freemium') {
+        const response = await fetch('/api/subscription/freemium', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            router.push('/auth/login?redirect=/pricing');
+            return;
+          }
+          throw new Error(data.error || 'Failed to activate freemium tier');
+        }
+
+        // Redirect to dashboard
+        router.push('/dashboard');
+        return;
+      }
+
+      // Handle paid tiers
+      if (!priceId) {
+        throw new Error('Price ID is required for paid tiers');
       }
 
       // Call checkout API
@@ -121,7 +166,7 @@ export default function PricingPage() {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 max-w-7xl mx-auto">
           {tiers.map((tier) => (
             <Card
               key={tier.id}
@@ -146,9 +191,9 @@ export default function PricingPage() {
                 <p className="text-gray-600 text-sm mb-4">{tier.description}</p>
                 <div className="flex items-baseline">
                   <span className="text-5xl font-extrabold text-gray-900">
-                    ${tier.price}
+                    {tier.price === 0 ? 'Free' : `$${tier.price}`}
                   </span>
-                  <span className="text-gray-600 ml-2">/month</span>
+                  {tier.price > 0 && <span className="text-gray-600 ml-2">/month</span>}
                 </div>
               </div>
 
@@ -167,6 +212,8 @@ export default function PricingPage() {
                 className={`w-full py-3 ${
                   tier.highlighted
                     ? 'bg-blue-600 hover:bg-blue-700'
+                    : tier.price === 0
+                    ? 'bg-green-600 hover:bg-green-700'
                     : 'bg-gray-800 hover:bg-gray-900'
                 }`}
               >
@@ -193,6 +240,8 @@ export default function PricingPage() {
                     </svg>
                     Loading...
                   </span>
+                ) : tier.price === 0 ? (
+                  'Get Started Free'
                 ) : (
                   'Subscribe Now'
                 )}

@@ -41,6 +41,21 @@ export const stripe = new Stripe(stripeSecretKey, {
 
 // Subscription tier configuration
 export const SUBSCRIPTION_TIERS = {
+  freemium: {
+    name: 'Freemium',
+    priceId: null, // No Stripe price ID for free tier
+    price: 0,
+    maxClients: 1,
+    maxPostsPerMonth: 0, // No posting to social media
+    maxAICreditsPerMonth: 10,
+    features: [
+      '1 Client Account',
+      '10 AI Credits per month',
+      'No social media posting',
+      'Basic Analytics',
+      'Community Support',
+    ],
+  },
   starter: {
     name: 'Starter',
     priceId: process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID!,

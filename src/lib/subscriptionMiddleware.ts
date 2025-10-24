@@ -1,340 +1,300 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import {
-  getUserSubscription,
-  checkSubscriptionLimit,
-  incrementUsage,
-} from './subscriptionHelpers';
-import logger from '@/lib/logger';
+import { verifyJWT } from './auth';
 
-/**
- * Middleware to check if user has an active subscription
- */
-export async function requireActiveSubscription(req: NextRequest) {
+// Create Supabase client with service role for admin operations
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_SUPABASE_SERVICE_ROLE!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+);
+
+export interface SubscriptionCheckResult {
+  allowed: boolean;
+  subscription?: any;
+  error?: string;
+}
+
+// Check if user can perform social media posting
+export async function checkSocialMediaPostingPermission(
+  request: NextRequest
+): Promise<SubscriptionCheckResult> {
   try {
-    // Check for Authorization header first (Bearer token)
-    const authHeader = req.headers.get('authorization');
-    let user = null;
-    let authError = null;
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      // Use service role key to verify the token
-      const token = authHeader.split(' ')[1];
-      const supabaseServiceRole = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_SUPABASE_SERVICE_ROLE!
-      );
-
-      const result = await supabaseServiceRole.auth.getUser(token);
-      user = result.data.user;
-      authError = result.error;
-    } else {
-      // Fall back to cookie-based authentication
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          global: {
-            headers: {
-              Cookie: req.headers.get('cookie') || '',
-            },
-          },
-        }
-      );
-
-      const result = await supabase.auth.getUser();
-      user = result.data.user;
-      authError = result.error;
-    }
-
-    if (authError || !user) {
+    // Verify authentication
+    const authResult = await verifyJWT(request);
+    if (!authResult.success) {
       return {
-        authorized: false,
-        response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+        allowed: false,
+        error: 'Unauthorized'
       };
     }
 
-    const subscription = await getUserSubscription(user.id);
+    const userId = authResult.userId;
 
-    if (!subscription) {
+    // Get user's subscription
+    const { data: subscription, error } = await supabaseAdmin
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No subscription found - user is on freemium by default
+        return {
+          allowed: false,
+          error: 'Social media posting is not available on the freemium plan. Please upgrade to post to social media.'
+        };
+      }
+      console.error('Error fetching subscription:', error);
       return {
-        authorized: false,
-        response: NextResponse.json(
-          { error: 'No active subscription found' },
-          { status: 403 }
-        ),
+        allowed: false,
+        error: 'Failed to check subscription status'
       };
     }
 
-    if (
-      subscription.subscription_status !== 'active' &&
-      subscription.subscription_status !== 'trialing'
-    ) {
+    // Check if user is on freemium tier
+    if (subscription.subscription_tier === 'freemium') {
       return {
-        authorized: false,
-        response: NextResponse.json(
-          {
-            error: 'Your subscription is not active',
-            status: subscription.subscription_status,
-          },
-          { status: 403 }
-        ),
+        allowed: false,
+        subscription,
+        error: 'Social media posting is not available on the freemium plan. Please upgrade to post to social media.'
+      };
+    }
+
+    // Check if subscription is active
+    if (subscription.subscription_status !== 'active' && subscription.subscription_status !== 'trialing') {
+      return {
+        allowed: false,
+        subscription,
+        error: 'Your subscription is not active. Please update your payment method or contact support.'
+      };
+    }
+
+    // Check monthly post limit
+    if (subscription.max_posts_per_month !== -1 && subscription.posts_used_this_month >= subscription.max_posts_per_month) {
+      return {
+        allowed: false,
+        subscription,
+        error: `You have reached your monthly post limit of ${subscription.max_posts_per_month} posts. Please upgrade your plan or wait until next month.`
       };
     }
 
     return {
-      authorized: true,
-      user,
-      subscription,
+      allowed: true,
+      subscription
     };
   } catch (error) {
-    logger.error('Subscription check error:', error);
+    console.error('Subscription check error:', error);
     return {
-      authorized: false,
-      response: NextResponse.json(
-        { error: 'Failed to verify subscription' },
-        { status: 500 }
-      ),
+      allowed: false,
+      error: 'Internal server error'
     };
   }
 }
 
-/**
- * Check if user can add a new client
- */
-export async function canAddClient(userId: string) {
-  const { allowed, current, max } = await checkSubscriptionLimit(
-    userId,
-    'clients'
-  );
+// Check if user can use AI credits
+export async function checkAICreditsPermission(
+  request: NextRequest,
+  creditsNeeded: number = 1
+): Promise<SubscriptionCheckResult> {
+  try {
+    // Verify authentication
+    const authResult = await verifyJWT(request);
+    if (!authResult.success) {
+      return {
+        allowed: false,
+        error: 'Unauthorized'
+      };
+    }
 
-  return {
-    allowed,
-    current,
-    max,
-    message: allowed
-      ? 'Client can be added'
-      : `You have reached your client limit (${current}/${max}). Please upgrade your plan.`,
-  };
-}
+    const userId = authResult.userId;
 
-/**
- * Check if user can schedule a post
- */
-export async function canSchedulePost(userId: string) {
-  const { allowed, current, max } = await checkSubscriptionLimit(
-    userId,
-    'posts'
-  );
+    // Get user's subscription
+    const { data: subscription, error } = await supabaseAdmin
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
 
-  return {
-    allowed,
-    current,
-    max,
-    message: allowed
-      ? 'Post can be scheduled'
-      : `You have reached your monthly post limit (${current}/${max}). Please upgrade your plan or wait for the next billing cycle.`,
-  };
-}
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No subscription found - user is on freemium by default
+        return {
+          allowed: false,
+          error: 'AI credits are not available without a subscription. Please sign up for a plan.'
+        };
+      }
+      console.error('Error fetching subscription:', error);
+      return {
+        allowed: false,
+        error: 'Failed to check subscription status'
+      };
+    }
 
-/**
- * Check if user can use AI credits
- */
-export async function canUseAICredits(userId: string, creditsRequired: number = 1) {
-  const { allowed, current, max } = await checkSubscriptionLimit(
-    userId,
-    'ai_credits'
-  );
+    // Check if subscription is active
+    if (subscription.subscription_status !== 'active' && subscription.subscription_status !== 'trialing') {
+      return {
+        allowed: false,
+        subscription,
+        error: 'Your subscription is not active. Please update your payment method or contact support.'
+      };
+    }
 
-  // Check if user has enough credits for this specific request
-  const hasEnoughCredits = max === -1 || current + creditsRequired <= max;
+    // Check AI credits limit
+    const remainingCredits = subscription.max_ai_credits_per_month - subscription.ai_credits_used_this_month;
+    if (remainingCredits < creditsNeeded) {
+      return {
+        allowed: false,
+        subscription,
+        error: `Insufficient AI credits. You have ${remainingCredits} credits remaining but need ${creditsNeeded}. Please upgrade your plan or wait until next month.`
+      };
+    }
 
-  return {
-    allowed: allowed && hasEnoughCredits,
-    current,
-    max,
-    required: creditsRequired,
-    message:
-      allowed && hasEnoughCredits
-        ? 'AI credits available'
-        : `Insufficient AI credits. You need ${creditsRequired} credits but only have ${max - current} remaining. Please upgrade your plan.`,
-  };
-}
-
-/**
- * Middleware wrapper to check client limits
- */
-export async function withClientLimitCheck(req: NextRequest) {
-  const authCheck = await requireActiveSubscription(req);
-
-  if (!authCheck.authorized) {
-    return authCheck.response!;
+    return {
+      allowed: true,
+      subscription
+    };
+  } catch (error) {
+    console.error('AI credits check error:', error);
+    return {
+      allowed: false,
+      error: 'Internal server error'
+    };
   }
-
-  const canAdd = await canAddClient(authCheck.user!.id);
-
-  if (!canAdd.allowed) {
-    return NextResponse.json(
-      {
-        error: canAdd.message,
-        current: canAdd.current,
-        max: canAdd.max,
-      },
-      { status: 403 }
-    );
-  }
-
-  return {
-    authorized: true,
-    user: authCheck.user,
-    subscription: authCheck.subscription,
-  };
 }
 
-/**
- * Middleware wrapper to check post limits
- */
-export async function withPostLimitCheck(req: NextRequest) {
-  const authCheck = await requireActiveSubscription(req);
+// Check if user can add more clients
+export async function checkClientLimitPermission(
+  request: NextRequest
+): Promise<SubscriptionCheckResult> {
+  try {
+    // Verify authentication
+    const authResult = await verifyJWT(request);
+    if (!authResult.success) {
+      return {
+        allowed: false,
+        error: 'Unauthorized'
+      };
+    }
 
-  if (!authCheck.authorized) {
-    return authCheck.response!;
+    const userId = authResult.userId;
+
+    // Get user's subscription
+    const { data: subscription, error } = await supabaseAdmin
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No subscription found - user is on freemium by default
+        return {
+          allowed: false,
+          error: 'Client management is not available without a subscription. Please sign up for a plan.'
+        };
+      }
+      console.error('Error fetching subscription:', error);
+      return {
+        allowed: false,
+        error: 'Failed to check subscription status'
+      };
+    }
+
+    // Check if subscription is active
+    if (subscription.subscription_status !== 'active' && subscription.subscription_status !== 'trialing') {
+      return {
+        allowed: false,
+        subscription,
+        error: 'Your subscription is not active. Please update your payment method or contact support.'
+      };
+    }
+
+    // Check client limit
+    if (subscription.max_clients !== -1 && subscription.clients_used >= subscription.max_clients) {
+      return {
+        allowed: false,
+        subscription,
+        error: `You have reached your client limit of ${subscription.max_clients} clients. Please upgrade your plan to add more clients.`
+      };
+    }
+
+    return {
+      allowed: true,
+      subscription
+    };
+  } catch (error) {
+    console.error('Client limit check error:', error);
+    return {
+      allowed: false,
+      error: 'Internal server error'
+    };
   }
-
-  const canSchedule = await canSchedulePost(authCheck.user!.id);
-
-  if (!canSchedule.allowed) {
-    return NextResponse.json(
-      {
-        error: canSchedule.message,
-        current: canSchedule.current,
-        max: canSchedule.max,
-      },
-      { status: 403 }
-    );
-  }
-
-  return {
-    authorized: true,
-    user: authCheck.user,
-    subscription: authCheck.subscription,
-  };
 }
 
-/**
- * Middleware wrapper to check AI credit limits
- */
+// Wrapper function for AI credit checking
 export async function withAICreditCheck(
-  req: NextRequest,
-  creditsRequired: number = 1
-) {
-  const authCheck = await requireActiveSubscription(req);
-
-  if (!authCheck.authorized) {
-    return authCheck.response!;
-  }
-
-  const canUse = await canUseAICredits(authCheck.user!.id, creditsRequired);
-
-  if (!canUse.allowed) {
-    return NextResponse.json(
-      {
-        error: canUse.message,
-        current: canUse.current,
-        max: canUse.max,
-        required: canUse.required,
-      },
-      { status: 403 }
-    );
-  }
-
+  request: NextRequest,
+  creditsNeeded: number = 1
+): Promise<{ allowed: boolean; userId?: string; error?: string }> {
+  const result = await checkAICreditsPermission(request, creditsNeeded);
   return {
-    authorized: true,
-    user: authCheck.user,
-    subscription: authCheck.subscription,
+    allowed: result.allowed,
+    userId: result.subscription?.user_id,
+    error: result.error
   };
 }
 
-/**
- * Track client creation (increment usage)
- */
+// Track AI credit usage
+export async function trackAICreditUsage(userId: string, creditsUsed: number = 1) {
+  try {
+    const { error } = await supabaseAdmin
+      .from('subscriptions')
+      .update({
+        ai_credits_used_this_month: supabaseAdmin.raw('ai_credits_used_this_month + ?', [creditsUsed])
+      })
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error tracking AI credit usage:', error);
+    }
+  } catch (error) {
+    console.error('Error tracking AI credit usage:', error);
+  }
+}
+
+// Wrapper function for client limit checking
+export async function withClientLimitCheck(
+  request: NextRequest
+): Promise<{ allowed: boolean; userId?: string; error?: string }> {
+  const result = await checkClientLimitPermission(request);
+  return {
+    allowed: result.allowed,
+    userId: result.subscription?.user_id,
+    error: result.error
+  };
+}
+
+// Track client creation
 export async function trackClientCreation(userId: string) {
   try {
-    await incrementUsage(userId, 'clients', 1);
-    return { success: true };
-  } catch (error) {
-    logger.error('Failed to track client creation:', error);
-    return { success: false, error };
-  }
-}
+    const { error } = await supabaseAdmin
+      .from('subscriptions')
+      .update({
+        clients_used: supabaseAdmin.raw('clients_used + 1')
+      })
+      .eq('user_id', userId);
 
-/**
- * Track post creation (increment usage)
- */
-export async function trackPostCreation(userId: string) {
-  try {
-    await incrementUsage(userId, 'posts', 1);
-    return { success: true };
-  } catch (error) {
-    logger.error('Failed to track post creation:', error);
-    return { success: false, error };
-  }
-}
-
-/**
- * Track AI credit usage (increment usage)
- */
-export async function trackAICreditUsage(userId: string, credits: number = 1) {
-  try {
-    await incrementUsage(userId, 'ai_credits', credits);
-    return { success: true };
-  } catch (error) {
-    logger.error('Failed to track AI credit usage:', error);
-    return { success: false, error };
-  }
-}
-
-/**
- * Helper to get user ID from request
- */
-export async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
-  try {
-    // Check for Authorization header first (Bearer token)
-    const authHeader = req.headers.get('authorization');
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      // Use service role key to verify the token
-      const token = authHeader.split(' ')[1];
-      const supabaseServiceRole = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_SUPABASE_SERVICE_ROLE!
-      );
-
-      const { data: { user } } = await supabaseServiceRole.auth.getUser(token);
-      return user?.id || null;
-    } else {
-      // Fall back to cookie-based authentication
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          global: {
-            headers: {
-              Cookie: req.headers.get('cookie') || '',
-            },
-          },
-        }
-      );
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      return user?.id || null;
+    if (error) {
+      console.error('Error tracking client creation:', error);
     }
   } catch (error) {
-    logger.error('Failed to get user from request:', error);
-    return null;
+    console.error('Error tracking client creation:', error);
   }
 }
-

@@ -1,6 +1,7 @@
 // src/app/api/publishToMeta/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
+import { checkSocialMediaPostingPermission } from '@/lib/subscriptionMiddleware';
 
 // TypeScript interfaces for better type safety
 interface SchedulingResult {
@@ -24,8 +25,17 @@ if (!META_APP_ID || !META_APP_SECRET || !META_PAGE_ID || !META_ACCESS_TOKEN) {
   logger.error('Missing Meta API environment variables. Ensure META_APP_ID, META_APP_SECRET, META_PAGE_ID, and META_ACCESS_TOKEN are set.');
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    // Check subscription permissions for social media posting
+    const permissionCheck = await checkSocialMediaPostingPermission(req);
+    if (!permissionCheck.allowed) {
+      return NextResponse.json(
+        { error: permissionCheck.error },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const { postId, platform, caption, imageUrl, scheduledTime } = body ?? {};
     // Validate required fields

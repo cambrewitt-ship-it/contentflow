@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   stripe_customer_id TEXT UNIQUE NOT NULL,
   stripe_subscription_id TEXT UNIQUE,
   stripe_price_id TEXT,
-  subscription_tier TEXT NOT NULL CHECK (subscription_tier IN ('starter', 'professional', 'agency', 'trial')),
+  subscription_tier TEXT NOT NULL CHECK (subscription_tier IN ('freemium', 'starter', 'professional', 'agency', 'trial')),
   subscription_status TEXT NOT NULL CHECK (subscription_status IN ('active', 'canceled', 'past_due', 'incomplete', 'trialing', 'incomplete_expired', 'unpaid')),
   current_period_start TIMESTAMP WITH TIME ZONE,
   current_period_end TIMESTAMP WITH TIME ZONE,

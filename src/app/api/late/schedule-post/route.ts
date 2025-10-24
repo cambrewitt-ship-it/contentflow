@@ -1,14 +1,24 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
+import { checkSocialMediaPostingPermission } from '@/lib/subscriptionMiddleware';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_SUPABASE_SERVICE_ROLE!
 );
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Check subscription permissions for social media posting
+    const permissionCheck = await checkSocialMediaPostingPermission(request);
+    if (!permissionCheck.allowed) {
+      return NextResponse.json(
+        { error: permissionCheck.error },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
 
     logger.debug('Scheduling post request', { 
