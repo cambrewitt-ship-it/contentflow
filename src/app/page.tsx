@@ -456,19 +456,20 @@ export default function Home() {
                   </CardContent>
 
                   <div className="p-6 pt-0">
-                    <Link href="/auth/signup" className="block w-full">
-                      <Button
-                        className={`w-full ${
-                          tier.highlighted
-                            ? 'bg-blue-600 hover:bg-blue-700'
-                            : tier.price === 0
-                            ? 'bg-green-600 hover:bg-green-700'
-                            : 'bg-gray-800 hover:bg-gray-900'
-                        }`}
-                      >
+                    <Button
+                      asChild
+                      className={`w-full ${
+                        tier.highlighted
+                          ? 'bg-blue-600 hover:bg-blue-700'
+                          : tier.price === 0
+                          ? 'bg-green-600 hover:bg-green-700'
+                          : 'bg-gray-800 hover:bg-gray-900'
+                      }`}
+                    >
+                      <Link href="/auth/signup">
                         {tier.price === 0 ? 'Get Started Free' : 'Start Free Trial'}
-                      </Button>
-                    </Link>
+                      </Link>
+                    </Button>
                   </div>
                 </Card>
               ))}
