@@ -751,7 +751,7 @@ function ContentSuiteContent({
     if (!isEditing) {
       clearAll();
     }
-  }, [isEditing, clearAll]);
+  }, [isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-populate form when editing post
   useEffect(() => {
@@ -788,7 +788,7 @@ function ContentSuiteContent({
         setPostNotes(editingPost.notes);
       }
     }
-  }, [isEditing, editingPost, loadingPost, setCaptions, setSelectedCaptions, setUploadedImages, setActiveImageId, setPostNotes]);
+  }, [isEditing, editingPost, loadingPost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-load content from content inbox
   useEffect(() => {
@@ -815,7 +815,7 @@ function ContentSuiteContent({
         setPostNotes(preloadedContent.notes);
       }
     }
-  }, [preloadedContent, isEditing, setUploadedImages, setActiveImageId, setPostNotes]);
+  }, [preloadedContent, isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleAddToProject = async (post: any, projectId: string) => {

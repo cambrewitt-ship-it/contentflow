@@ -349,6 +349,11 @@ ${brandContext.dos || brandContext.donts ? `📋 AI CAPTION RULES (MANDATORY):
 ${brandContext.dos ? `✅ ALWAYS INCLUDE: ${brandContext.dos}` : ''}
 ${brandContext.donts ? `❌ NEVER INCLUDE: ${brandContext.donts}` : ''}` : ''}
 
+🚫 HASHTAG POLICY (DEFAULT: NO HASHTAGS):
+- DO NOT include hashtags in any captions unless explicitly mentioned in the Brand Information Do's section above
+- Default behavior is NO hashtags for all content types (Email & Social Media)
+- Only include hashtags if the brand explicitly requests them in their Do's
+
 ${brandContext.documents && brandContext.documents.length > 0 ? `📄 BRAND DOCUMENTS: ${brandContext.documents.length} document(s) available for reference` : ''}
 ${brandContext.website ? `🌐 WEBSITE CONTEXT: Available for reference` : ''}`;
     }
@@ -388,13 +393,13 @@ Write exactly ONE email paragraph structured as:
 
 ## Requirements
 ✓ Professional business language (translate casual language to professional tone)
-✓ Email-appropriate formatting (no hashtags, no social media slang)
+✓ Email-appropriate formatting (no hashtags, no social media slang UNLESS explicitly instructed in Brand Information Do's)
 ✓ Specific details when provided (prices, dates, features)
 ✓ Action-oriented CTA appropriate to the business type
 ✓ Concise - maximum 4 sentences total
 ✗ No multiple options or variations
 ✗ No "\\n" literal text - use actual line breaks
-✗ No casual social media language ("DM", "link in bio", emojis)
+✗ No casual social media language ("DM", "link in bio", emojis) unless specified in Brand Information Do's
 
 Generate the email copy now.`
       :
@@ -426,7 +431,7 @@ ${getImageInstructions(imageFocus || 'supporting')}
 - Vary approaches: one short (1-2 lines), one medium (3-4 lines), one longer (5-6 lines)
 - Each caption should offer a different angle while maintaining content consistency
 - Use natural, conversational tone aligned with brand guidelines
-- Include relevant hashtags when appropriate
+- **DO NOT include hashtags UNLESS explicitly instructed to do so in the Brand Information Do's section**
 - Format as ready-to-post social media captions
 
 ## Quality Standards
