@@ -23,13 +23,13 @@ export interface ErrorContext {
   operation: string;
   userId?: string;
   clientId?: string;
-  additionalData?: Record<string, any>;
+  additionalData?: Record<string, unknown>;
 }
 
 /**
  * Sanitizes error messages to prevent information leakage
  */
-function sanitizeErrorMessage(error: any, context: ErrorContext): string {
+function sanitizeErrorMessage(error: unknown, _context: ErrorContext): string {
   const errorMessage = error?.message || error?.toString() || 'Unknown error';
   
   // List of sensitive patterns to remove or replace
@@ -93,7 +93,7 @@ function sanitizeErrorMessage(error: any, context: ErrorContext): string {
 /**
  * Determines appropriate HTTP status code based on error type
  */
-function getStatusCode(error: any, context: ErrorContext): number {
+function getStatusCode(error: unknown, _context: ErrorContext): number {
   // Authentication/Authorization errors
   if (error?.message?.includes('auth') || error?.message?.includes('token') || error?.message?.includes('unauthorized')) {
     return 401;
@@ -158,7 +158,7 @@ function getGenericErrorMessage(status: number, context: ErrorContext): string {
 /**
  * Logs detailed error information server-side
  */
-function logError(error: any, context: ErrorContext, sanitizedMessage: string): void {
+function logError(error: unknown, context: ErrorContext, sanitizedMessage: string): void {
   const logData = {
     timestamp: new Date().toISOString(),
     route: context.route,
@@ -179,7 +179,7 @@ function logError(error: any, context: ErrorContext, sanitizedMessage: string): 
  * Main error handler function
  */
 export function handleApiError(
-  error: any,
+  error: unknown,
   context: ErrorContext
 ): NextResponse {
   const sanitizedMessage = sanitizeErrorMessage(error, context);
@@ -190,7 +190,7 @@ export function handleApiError(
   logError(error, context, sanitizedMessage);
 
   // Return sanitized response to client
-  const response: any = {
+  const response: Record<string, unknown> = {
     error: genericMessage,
     success: false,
   };
@@ -209,7 +209,7 @@ export function handleApiError(
 /**
  * Wrapper for async API route handlers with automatic error handling
  */
-export function withErrorHandling<T extends any[], R>(
+export function withErrorHandling<T extends unknown[], R>(
   handler: (...args: T) => Promise<NextResponse>,
   context: Omit<ErrorContext, 'operation'>
 ) {
@@ -257,7 +257,7 @@ export const ApiErrors = {
  * Database error handler specifically for Supabase errors
  */
 export function handleDatabaseError(
-  error: any,
+  error: unknown,
   context: ErrorContext,
   fallbackMessage = 'Database operation failed'
 ): NextResponse {

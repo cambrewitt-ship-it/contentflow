@@ -351,6 +351,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         }
       })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Empty dependency array - only run on mount/unmount
 
   const addImage = async (file: File) => {

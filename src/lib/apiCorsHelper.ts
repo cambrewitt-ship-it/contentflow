@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { applyCorsHeaders, validateCors } from './corsMiddleware';
 
 // Helper function to wrap API route handlers with CORS
-export function withCors<T extends any[]>(
+export function withCors<T extends unknown[]>(
   handler: (request: NextRequest, ...args: T) => Promise<NextResponse> | NextResponse
 ) {
   return async (request: NextRequest, ...args: T): Promise<NextResponse> => {
@@ -29,7 +29,7 @@ export function withCors<T extends any[]>(
 // Example usage for API routes
 export function createCorsResponse(
   request: NextRequest,
-  data: any,
+  data: unknown,
   status: number = 200,
   additionalHeaders: Record<string, string> = {}
 ): NextResponse {

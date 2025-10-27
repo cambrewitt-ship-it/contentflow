@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { z, ZodSchema, ZodError } from 'zod';
+import { ZodSchema, ZodError } from 'zod';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -25,7 +25,7 @@ interface ValidationResult<T> {
   };
 }
 
-interface ValidatedRequest<TBody = any, TParams = any, TQuery = any> {
+interface ValidatedRequest<TBody = unknown, TParams = unknown, TQuery = unknown> {
   body: TBody;
   params: TParams;
   query: TQuery;
@@ -148,7 +148,7 @@ export async function validateBody<T>(
  * Validate URL params with a Zod schema
  */
 export async function validateParams<T>(
-  params: Promise<any> | any,
+  params: Promise<unknown> | unknown,
   schema: ZodSchema<T>
 ): Promise<ValidationResult<T>> {
   try {
@@ -215,22 +215,22 @@ export function validateQuery<T>(
 /**
  * Validate all request parts (body, params, query) at once
  */
-export async function validateRequest<TBody = any, TParams = any, TQuery = any>(
+export async function validateRequest<TBody = unknown, TParams = unknown, TQuery = unknown>(
   request: NextRequest,
   schemas: {
     body?: ZodSchema<TBody>;
     params?: ZodSchema<TParams>;
     query?: ZodSchema<TQuery>;
   },
-  paramsObject?: Promise<any> | any
+  paramsObject?: Promise<unknown> | unknown
 ): Promise<ValidationResult<ValidatedRequest<TBody, TParams, TQuery>>> {
-  const validated: any = {};
+  const validated: Record<string, unknown> = {};
 
   // Validate body
   if (schemas.body) {
     const bodyResult = await validateBody(request, schemas.body);
     if (!bodyResult.success) {
-      return bodyResult as ValidationResult<any>;
+      return bodyResult as ValidationResult<unknown>;
     }
     validated.body = bodyResult.data;
   }
@@ -239,7 +239,7 @@ export async function validateRequest<TBody = any, TParams = any, TQuery = any>(
   if (schemas.params && paramsObject) {
     const paramsResult = await validateParams(paramsObject, schemas.params);
     if (!paramsResult.success) {
-      return paramsResult as ValidationResult<any>;
+      return paramsResult as ValidationResult<unknown>;
     }
     validated.params = paramsResult.data;
   }
@@ -248,7 +248,7 @@ export async function validateRequest<TBody = any, TParams = any, TQuery = any>(
   if (schemas.query) {
     const queryResult = validateQuery(request, schemas.query);
     if (!queryResult.success) {
-      return queryResult as ValidationResult<any>;
+      return queryResult as ValidationResult<unknown>;
     }
     validated.query = queryResult.data;
   }
@@ -350,13 +350,13 @@ export function validateAuthToken(request: NextRequest): {
  * }
  * ```
  */
-export async function validateApiRequest<TBody = any, TParams = any, TQuery = any>(
+export async function validateApiRequest<TBody = unknown, TParams = unknown, TQuery = unknown>(
   request: NextRequest,
   options: {
     body?: ZodSchema<TBody>;
     params?: ZodSchema<TParams>;
     query?: ZodSchema<TQuery>;
-    paramsObject?: Promise<any> | any;
+    paramsObject?: Promise<unknown> | unknown;
     checkAuth?: boolean;
     maxBodySize?: number;
   }
@@ -450,7 +450,7 @@ export async function validateApiRequest<TBody = any, TParams = any, TQuery = an
 // EXPORT ALL UTILITIES
 // ============================================================================
 
-export default {
+const validationMiddleware = {
   validateBody,
   validateParams,
   validateQuery,
@@ -461,4 +461,6 @@ export default {
   formatZodError,
   validationErrorResponse,
 };
+
+export default validationMiddleware;
 

@@ -270,7 +270,6 @@ async function analyzeImage(openai: OpenAI, imageData: string, prompt?: string) 
 async function generateCaptions(
   openai: OpenAI,
   imageData: string,
-  existingCaptions: string[] = [],
   aiContext?: string,
   clientId?: string,
   copyType?: string,
@@ -444,7 +443,7 @@ ${getImageInstructions(imageFocus || 'supporting')}
 ${finalInstruction}`;
 
     // Prepare the user message content
-    const userContent: any[] = [
+    const userContent: Array<{ type: string; text?: string; image_url?: { url: string; detail: string } }> = [
       {
         type: 'text',
         text: copyType === 'email-marketing'
@@ -927,7 +926,7 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
     const content = response.choices[0]?.message?.content || '';
 
     // Parse the new format response
-    let ideas: any[] = [];
+    let ideas: Array<{ idea: string; angle: string; visualSuggestion: string; timing: string; holidayConnection: string }> = [];
     try {
       // Match IDEA X: ... blocks with their sub-lines
       const ideaMatches = content.match(/IDEA \d+: (.+?)\n\*\*Purpose:\*\* (.+?)\n\*\*Visual:\*\* (.+?)\n\*\*Hook:\*\* (.+?)(?=\nIDEA \d+:|\n\n|$)/gs);
@@ -1021,6 +1020,7 @@ function extractIndustry(companyDescription: string): string {
 }
 
 // Helper function to provide industry-specific content guidance
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getIndustryContentGuidance(companyDescription: string): string {
   const industry = extractIndustry(companyDescription);
 
@@ -1142,7 +1142,7 @@ function getIndustryContentGuidance(companyDescription: string): string {
 }
 
 // Handle CORS preflight requests
-export async function OPTIONS(_request: NextRequest) {
+export async function OPTIONS(_request: Request) {
   return new NextResponse(null, {
     status: 200,
     headers: {

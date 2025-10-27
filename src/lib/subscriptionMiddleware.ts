@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Create Supabase client with service role for admin operations
@@ -13,9 +13,21 @@ const supabaseAdmin = createClient(
   }
 );
 
+export interface Subscription {
+  user_id: string;
+  subscription_status: string;
+  subscription_tier: string;
+  max_posts_per_month: number;
+  posts_used_this_month: number;
+  max_ai_credits_per_month: number;
+  ai_credits_used_this_month: number;
+  max_clients: number;
+  clients_used: number;
+}
+
 export interface SubscriptionCheckResult {
   allowed: boolean;
-  subscription?: any;
+  subscription?: Subscription;
   error?: string;
 }
 

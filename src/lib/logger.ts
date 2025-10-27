@@ -51,7 +51,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 /**
  * Redacts sensitive data from objects
  */
-function redactSensitiveData(data: any): any {
+function redactSensitiveData(data: unknown): unknown {
   if (data === null || data === undefined) {
     return data;
   }
@@ -63,7 +63,7 @@ function redactSensitiveData(data: any): any {
 
   // Handle objects
   if (typeof data === 'object') {
-    const redacted: any = {};
+    const redacted: Record<string, unknown> = {};
     
     for (const [key, value] of Object.entries(data)) {
       const lowerKey = key.toLowerCase();
@@ -92,7 +92,7 @@ function redactSensitiveData(data: any): any {
 /**
  * Sanitizes arguments before logging
  */
-function sanitizeArgs(...args: any[]): any[] {
+function sanitizeArgs(...args: unknown[]): unknown[] {
   return args.map(arg => {
     if (typeof arg === 'object' && arg !== null) {
       return redactSensitiveData(arg);
@@ -120,7 +120,7 @@ class Logger {
    * Debug logs - only appear in development
    * Use for detailed debugging information
    */
-  debug(...args: any[]): void {
+  debug(...args: unknown[]): void {
     if (shouldLog('debug')) {
       const sanitized = sanitizeArgs(...args);
       console.log('[DEBUG]', ...sanitized);
@@ -131,7 +131,7 @@ class Logger {
    * Info logs - only appear in development
    * Use for general information
    */
-  info(...args: any[]): void {
+  info(...args: unknown[]): void {
     if (shouldLog('info')) {
       const sanitized = sanitizeArgs(...args);
       console.log('[INFO]', ...sanitized);
@@ -142,7 +142,7 @@ class Logger {
    * Warning logs - appear in all environments
    * Use for warning conditions that aren't errors
    */
-  warn(...args: any[]): void {
+  warn(...args: unknown[]): void {
     if (shouldLog('warn')) {
       const sanitized = sanitizeArgs(...args);
       console.warn('[WARN]', ...sanitized);
@@ -153,7 +153,7 @@ class Logger {
    * Error logs - appear in all environments
    * Use for error conditions
    */
-  error(...args: any[]): void {
+  error(...args: unknown[]): void {
     if (shouldLog('error')) {
       const sanitized = sanitizeArgs(...args);
       console.error('[ERROR]', ...sanitized);
@@ -164,7 +164,7 @@ class Logger {
    * Manually redact sensitive data from any value
    * Useful when you need to log something but want to ensure it's safe
    */
-  redact(data: any): any {
+  redact(data: unknown): unknown {
     return redactSensitiveData(data);
   }
 }

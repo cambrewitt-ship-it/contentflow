@@ -54,7 +54,7 @@ export async function GET(
 
     if (error) {
       logger.error('❌ Supabase query error:', error);
-      if ((error as any).code === 'PGRST116') {
+      if (error.code === 'PGRST116') {
         return NextResponse.json({
           error: 'Client not found'
         }, { status: 404 });
@@ -70,7 +70,7 @@ export async function GET(
       client: client
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('💥 Error in get client data route:', error);
     return NextResponse.json({
       error: 'Internal server error',
@@ -169,7 +169,7 @@ export async function PUT(
       client: updatedClient
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('💥 Error in update client data route:', error);
     return NextResponse.json({
       error: 'Internal server error',

@@ -31,7 +31,7 @@ export interface Subscription {
   posts_used_this_month: number;
   ai_credits_used_this_month: number;
   usage_reset_date: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }

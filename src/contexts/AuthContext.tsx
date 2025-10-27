@@ -135,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           errorMessage: error.message || 'No message',
           errorStatus: error.status || 'No status',
           errorName: error.name || 'No name',
-          errorCode: (error as any)?.code || 'No code',
+          errorCode: (error as { code?: string })?.code || 'No code',
           userEmail: email,
           fullError: JSON.stringify(error, null, 2), // Serialize to see all properties
         });

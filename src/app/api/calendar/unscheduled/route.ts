@@ -47,7 +47,7 @@ export async function GET(request: Request) {
 
     // Debug logging for captions
     if (data && data.length > 0) {
-      data.forEach((post, index) => {
+      data.forEach(() => {
         // Debug logging can be added here if needed
       });
     }

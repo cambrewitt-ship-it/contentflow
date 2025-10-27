@@ -6,7 +6,7 @@ import logger from '@/lib/logger';
 interface PortalClient {
   id: string;
   name: string;
-  portal_settings: any;
+  portal_settings: Record<string, unknown>;
 }
 
 interface PortalContextType {

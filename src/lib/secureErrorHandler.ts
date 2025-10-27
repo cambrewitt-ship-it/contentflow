@@ -45,11 +45,11 @@ interface ErrorContext {
   operation?: string;
   ip?: string;
   userAgent?: string;
-  additionalData?: Record<string, any>;
+  additionalData?: Record<string, unknown>;
 }
 
 // Sanitize error details for production
-function sanitizeErrorDetails(error: any, isProduction: boolean): string {
+function sanitizeErrorDetails(error: unknown, isProduction: boolean): string {
   if (!isProduction) {
     return error instanceof Error ? error.message : String(error);
   }
@@ -78,7 +78,7 @@ function sanitizeErrorDetails(error: any, isProduction: boolean): string {
 }
 
 // Determine error severity
-function getErrorSeverity(error: any, context: ErrorContext): ErrorSeverity {
+function getErrorSeverity(error: unknown, context: ErrorContext): ErrorSeverity {
   // Critical errors that need immediate attention
   if (error instanceof Error) {
     if (error.message.includes('service role') || error.message.includes('admin')) {
@@ -106,7 +106,7 @@ function getErrorSeverity(error: any, context: ErrorContext): ErrorSeverity {
 }
 
 // Log error with appropriate level
-function logError(error: any, context: ErrorContext, severity: ErrorSeverity) {
+function logError(error: unknown, context: ErrorContext, severity: ErrorSeverity) {
   const logData = {
     severity,
     error: error instanceof Error ? {
@@ -143,7 +143,7 @@ function logError(error: any, context: ErrorContext, severity: ErrorSeverity) {
 
 // Main error handler function
 export function handleApiError(
-  error: any,
+  error: unknown,
   context: ErrorContext = {},
   customErrorCode?: ErrorCode
 ): NextResponse {
@@ -232,10 +232,10 @@ export const ApiErrors = {
   validationError: (message: string, context: ErrorContext = {}) => 
     handleApiError(new Error(message), context, 'VALIDATION_ERROR'),
   
-  databaseError: (error: any, context: ErrorContext = {}) => 
+  databaseError: (error: unknown, context: ErrorContext = {}) => 
     handleApiError(error, context, 'DATABASE_ERROR'),
   
-  internalError: (error: any, context: ErrorContext = {}) => 
+  internalError: (error: unknown, context: ErrorContext = {}) => 
     handleApiError(error, context, 'INTERNAL_ERROR'),
 };
 

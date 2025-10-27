@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     // Debug: Log approval status and captions of posts (only first few)
     if (data && data.length > 0) {
 
-      data.slice(0, 3).forEach((post: Record<string, any>, index: number) => {
+      data.slice(0, 3).forEach((post: Record<string, unknown>) => {
         logger.debug('Post preview', { 
           postId: post.id?.substring(0, 8) + '...', 
           status: post.approval_status || 'NO STATUS', 
@@ -193,7 +193,7 @@ export async function PATCH(request: Request) {
       ...(updates.image_url === undefined && { image_url: undefined })
     };
     
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('calendar_scheduled_posts')
       .update(updateData)
       .eq('id', postId);

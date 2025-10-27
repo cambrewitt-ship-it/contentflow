@@ -17,7 +17,7 @@ export type PortalActionType =
 interface LogPortalActivityParams {
   clientId: string | null;
   action: PortalActionType;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   ipAddress?: string | null;
   userAgent?: string | null;
 }
@@ -131,7 +131,7 @@ export function extractUserAgent(request: Request): string | null {
 export async function logPortalAccess(
   clientId: string | null,
   request: Request,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): Promise<void> {
   const ipAddress = extractClientIP(request);
   const userAgent = extractUserAgent(request);
@@ -151,7 +151,7 @@ export async function logPortalAccess(
 export async function logContentUpload(
   clientId: string,
   request: Request,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): Promise<void> {
   const ipAddress = extractClientIP(request);
   const userAgent = extractUserAgent(request);
@@ -171,7 +171,7 @@ export async function logContentUpload(
 export async function logApprovalView(
   clientId: string,
   request: Request,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): Promise<void> {
   const ipAddress = extractClientIP(request);
   const userAgent = extractUserAgent(request);
@@ -191,7 +191,7 @@ export async function logApprovalView(
 export async function logCalendarView(
   clientId: string,
   request: Request,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): Promise<void> {
   const ipAddress = extractClientIP(request);
   const userAgent = extractUserAgent(request);

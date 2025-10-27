@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withApiRateLimit } from './rateLimitMiddleware';
 
 // Higher-order function to wrap API route handlers with rate limiting
-export function withRateLimit<T extends any[]>(
+export function withRateLimit<T extends unknown[]>(
   handler: (...args: T) => Promise<NextResponse>
 ) {
   return withApiRateLimit(handler);
