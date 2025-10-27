@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Check } from "lucide-react";
 
 interface UserProfile {
   id: string;
@@ -18,6 +18,66 @@ interface UserProfile {
   company_name: string;
   role: string;
 }
+
+const pricingTiers = [
+  {
+    name: 'Free',
+    id: 'freemium',
+    price: 0,
+    description: 'Available to everyone',
+    features: [
+      '1 Client profile',
+      'AI copy generation',
+      'AI content ideas',
+      'Content calendar',
+      '10 AI Credits per month',
+    ],
+    highlighted: false,
+  },
+  {
+    name: 'Starter',
+    id: 'starter',
+    price: 35,
+    description: 'For marketing managers',
+    trialText: '14-day free trial',
+    features: [
+      'Everything in Free',
+      '30 Posts per month',
+      'Email Support',
+      '100 AI Credits per month',
+    ],
+    highlighted: false,
+  },
+  {
+    name: 'Professional',
+    id: 'professional',
+    price: 79,
+    description: 'For freelancers and agencies',
+    trialText: '14-day free trial',
+    features: [
+      'Everything in Starter',
+      '5 Client profiles',
+      '150 Scheduled posts per month',
+      '500 AI Credits per month',
+    ],
+    highlighted: true,
+  },
+  {
+    name: 'Agency',
+    id: 'agency',
+    price: 199,
+    description: 'For larger marketing agencies',
+    trialText: '14-day free trial',
+    features: [
+      'Everything in Professional',
+      'Unlimited Client profiles',
+      'Unlimited Scheduled posts',
+      'White-Label Branding',
+      '2,000 AI Credits per month',
+    ],
+    highlighted: false,
+  },
+];
 
 export default function Home() {
   const { user, signOut } = useAuth();
@@ -329,6 +389,89 @@ export default function Home() {
                   </ul>
                 </CardContent>
               </Card>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-20 sm:py-32 bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+              Simple, transparent pricing
+            </h2>
+            <p className="mt-6 text-lg leading-8 text-muted-foreground">
+              Start with a 14-day free trial. Cancel anytime.
+            </p>
+          </div>
+          
+          <div className="mt-16 mx-auto max-w-7xl">
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
+              {pricingTiers.map((tier) => (
+                <Card
+                  key={tier.id}
+                  className={`relative flex flex-col h-full ${
+                    tier.highlighted
+                      ? 'border-2 border-blue-500 shadow-xl'
+                      : 'border border-gray-200 shadow-lg'
+                  }`}
+                >
+                  {tier.highlighted && (
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                      <span className="bg-blue-500 text-white px-4 py-1 rounded-full text-sm font-medium">
+                        Most Popular
+                      </span>
+                    </div>
+                  )}
+
+                  <CardHeader className="text-center">
+                    <CardTitle className="text-2xl font-bold">{tier.name}</CardTitle>
+                    <CardDescription className="text-sm">{tier.description}</CardDescription>
+                    <div className="mt-4">
+                      <div className="flex items-baseline justify-center">
+                        <span className="text-4xl font-extrabold text-foreground">
+                          {tier.price === 0 ? '$0' : `$${tier.price}`}
+                        </span>
+                        <span className="text-muted-foreground ml-2">/month</span>
+                      </div>
+                      {tier.trialText && (
+                        <p className="text-blue-600 text-sm font-medium mt-2">{tier.trialText}</p>
+                      )}
+                      {tier.price === 0 && !tier.trialText && (
+                        <p className="text-blue-600 text-sm font-medium mt-2">No credit card needed</p>
+                      )}
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="flex-grow">
+                    <ul className="space-y-3">
+                      {tier.features.map((feature, index) => (
+                        <li key={index} className="flex items-start">
+                          <Check className="h-5 w-5 text-green-500 mr-3 flex-shrink-0 mt-0.5" />
+                          <span className="text-sm text-muted-foreground">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+
+                  <div className="p-6 pt-0">
+                    <Link href="/auth/signup" className="block w-full">
+                      <Button
+                        className={`w-full ${
+                          tier.highlighted
+                            ? 'bg-blue-600 hover:bg-blue-700'
+                            : tier.price === 0
+                            ? 'bg-green-600 hover:bg-green-700'
+                            : 'bg-gray-800 hover:bg-gray-900'
+                        }`}
+                      >
+                        {tier.price === 0 ? 'Get Started Free' : 'Start Free Trial'}
+                      </Button>
+                    </Link>
+                  </div>
+                </Card>
+              ))}
             </div>
           </div>
         </div>
