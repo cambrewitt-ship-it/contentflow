@@ -182,22 +182,43 @@ export function PortalKanbanCalendar({
               </p>
             </div>
             
-            {/* Horizontal Posts Queue */}
-            <div className="w-full overflow-x-auto">
-              <div className="flex space-x-4 p-4">
-                {weekPosts.length === 0 ? (
-                  <div className="text-center text-gray-500 text-sm py-8 w-full">
-                    No posts scheduled for this week
-                  </div>
-                ) : (
-                  weekPosts.map((post) => {
-                    const postKey = `${post.post_type}-${post.id}`;
-                    const selectedStatus = selectedPosts[postKey];
-                    
-                    // Get the date and day for this post
-                    const postDate = new Date(post.scheduled_date + 'T00:00:00');
+            {/* Posts by Date */}
+            <div className="w-full p-4">
+              {weekPosts.length === 0 ? (
+                <div className="text-center text-gray-500 text-sm py-8 w-full">
+                  No posts scheduled for this week
+                </div>
+              ) : (
+                (() => {
+                  // Group posts by date
+                  const postsByDate = weekPosts.reduce((acc, post) => {
+                    const dateKey = post.scheduled_date;
+                    if (!acc[dateKey]) {
+                      acc[dateKey] = [];
+                    }
+                    acc[dateKey].push(post);
+                    return acc;
+                  }, {} as Record<string, typeof weekPosts>);
+
+                  return Object.entries(postsByDate).map(([dateKey, datePosts]) => {
+                    const firstPost = datePosts[0];
+                    const postDate = new Date(firstPost.scheduled_date + 'T00:00:00');
                     const dayName = postDate.toLocaleDateString('en-NZ', { weekday: 'long' });
                     const dateStr = postDate.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' });
+                    
+                    return (
+                      <div key={dateKey} className="mb-6 last:mb-0">
+                        {/* Date Header */}
+                        <div className="mb-3 pb-2 border-b border-gray-200">
+                          <h4 className="font-semibold text-base text-gray-800">{dayName}</h4>
+                          <p className="text-sm text-gray-600">{dateStr}</p>
+                        </div>
+                        
+                        {/* Posts for this date - side by side */}
+                        <div className="flex flex-wrap gap-4">
+                          {datePosts.map((post) => {
+                    const postKey = `${post.post_type}-${post.id}`;
+                    const selectedStatus = selectedPosts[postKey];
                     
                     // Determine card styling based on selected status or existing approval status
                     const getCardStyling = () => {
@@ -217,24 +238,21 @@ export function PortalKanbanCalendar({
                     return (
                       <div
                         key={postKey}
-                        className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow ${getCardStyling()}`}
+                        className={`flex-shrink-0 w-72 border rounded-lg p-3 hover:shadow-md transition-shadow ${getCardStyling()}`}
                       >
-                        {/* Post Title - Date and Day */}
-                        <div className="mb-3 pb-2 border-b border-gray-200">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h4 className="font-semibold text-sm text-gray-700">{dayName}</h4>
-                              <p className="text-xs text-gray-600">{dateStr}</p>
-                            </div>
-                            {/* Approval Selection Checkbox */}
-                            <div className="flex items-center">
-                              <input
-                                type="checkbox"
-                                checked={!!selectedStatus}
-                                onChange={(e) => onPostSelection(postKey, e.target.checked ? 'approved' : null)}
-                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                              />
-                            </div>
+                        {/* Post Header */}
+                        <div className="mb-3 pb-2 border-b border-gray-200 flex items-center justify-between">
+                          <div className="text-xs text-gray-600">
+                            {post.scheduled_time && formatTimeTo12Hour(post.scheduled_time)}
+                          </div>
+                          {/* Approval Selection Checkbox */}
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={!!selectedStatus}
+                              onChange={(e) => onPostSelection(postKey, e.target.checked ? 'approved' : null)}
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                            />
                           </div>
                         </div>
 
@@ -271,7 +289,7 @@ export function PortalKanbanCalendar({
 
                         {/* Post Media (Image or Video) */}
                         {post.image_url && (
-                          <div className="w-full mb-2 rounded overflow-hidden">
+                          <div className="w-full mb-3 rounded overflow-hidden">
                             <LazyPortalImage
                               src={post.image_url}
                               alt="Post"
@@ -280,11 +298,6 @@ export function PortalKanbanCalendar({
                             />
                           </div>
                         )}
-                        
-                        {/* Time */}
-                        <div className="text-xs text-gray-600 mb-2">
-                          {post.scheduled_time && formatTimeTo12Hour(post.scheduled_time)}
-                        </div>
                         
                         {/* Caption */}
                         <div className="flex items-start justify-between mb-2">
@@ -375,9 +388,13 @@ export function PortalKanbanCalendar({
                           </div>
                         </div>
                       </div>
+                      );
+                    })}
+                        </div>
+                      </div>
                     );
-                  })
-                )}
+                  });
+                })()}
               </div>
             </div>
           </div>
