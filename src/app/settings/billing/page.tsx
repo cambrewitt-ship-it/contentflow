@@ -20,7 +20,7 @@ import {
 interface Subscription {
   subscription_tier: string;
   subscription_status: string;
-  current_period_end: string;
+  current_period_end: string | null;
   cancel_at_period_end: boolean;
   max_clients: number;
   max_posts_per_month: number;
@@ -43,12 +43,14 @@ interface BillingRecord {
 }
 
 const tierNames: Record<string, string> = {
+  freemium: 'Free',
   starter: 'Starter',
   professional: 'Professional',
   agency: 'Agency',
 };
 
 const tierPrices: Record<string, number> = {
+  freemium: 0,
   starter: 35,
   professional: 79,
   agency: 199,
@@ -158,8 +160,17 @@ export default function BillingSettingsPage() {
     );
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '';
+    
+    const date = new Date(dateString);
+    
+    // Check if the date is invalid or is epoch date (January 1, 1970)
+    if (isNaN(date.getTime()) || date.getTime() === 0) {
+      return '';
+    }
+    
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -229,37 +240,48 @@ export default function BillingSettingsPage() {
               {getStatusBadge(subscription.subscription_status)}
             </div>
             <p className="text-3xl font-bold text-blue-600">
-              ${tierPrices[subscription.subscription_tier]}
-              <span className="text-lg text-gray-600 font-normal">/month</span>
+              {subscription.subscription_tier === 'freemium' ? (
+                <span>FREE</span>
+              ) : (
+                <>
+                  ${tierPrices[subscription.subscription_tier]}
+                  <span className="text-lg text-gray-600 font-normal">/month</span>
+                </>
+              )}
             </p>
           </div>
-          <Button
-            onClick={handleManageBilling}
-            disabled={actionLoading}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <CreditCard className="h-4 w-4" />
-            Manage Billing
-          </Button>
-        </div>
-
-        <div className="border-t pt-4">
-          <div className="flex items-center text-gray-600 mb-2">
-            <Calendar className="h-4 w-4 mr-2" />
-            <span>
-              {subscription.cancel_at_period_end
-                ? `Cancels on ${formatDate(subscription.current_period_end)}`
-                : `Renews on ${formatDate(subscription.current_period_end)}`}
-            </span>
-          </div>
-          {subscription.cancel_at_period_end && (
-            <p className="text-sm text-yellow-600 mt-2">
-              Your subscription will be canceled at the end of the current billing
-              period. You&apos;ll still have access until then.
-            </p>
+          {subscription.subscription_tier !== 'freemium' && (
+            <Button
+              onClick={handleManageBilling}
+              disabled={actionLoading}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <CreditCard className="h-4 w-4" />
+              Manage Billing
+            </Button>
           )}
         </div>
+
+        {/* Only show renewal date for paid subscriptions */}
+        {subscription.subscription_tier !== 'freemium' && subscription.current_period_end && formatDate(subscription.current_period_end) && (
+          <div className="border-t pt-4">
+            <div className="flex items-center text-gray-600 mb-2">
+              <Calendar className="h-4 w-4 mr-2" />
+              <span>
+                {subscription.cancel_at_period_end
+                  ? `Cancels on ${formatDate(subscription.current_period_end)}`
+                  : `Renews on ${formatDate(subscription.current_period_end)}`}
+              </span>
+            </div>
+            {subscription.cancel_at_period_end && (
+              <p className="text-sm text-yellow-600 mt-2">
+                Your subscription will be canceled at the end of the current billing
+                period. You&apos;ll still have access until then.
+              </p>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* Usage Stats */}

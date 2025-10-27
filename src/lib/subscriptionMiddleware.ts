@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { verifyJWT } from './auth';
 
 // Create Supabase client with service role for admin operations
 const supabaseAdmin = createClient(
@@ -25,16 +24,28 @@ export async function checkSocialMediaPostingPermission(
   request: NextRequest
 ): Promise<SubscriptionCheckResult> {
   try {
-    // Verify authentication
-    const authResult = await verifyJWT(request);
-    if (!authResult.success) {
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return {
         allowed: false,
-        error: 'Unauthorized'
+        error: 'Authentication required'
       };
     }
 
-    const userId = authResult.userId;
+    const token = authHeader.split(' ')[1];
+    
+    // Get the authenticated user using the token
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (authError || !user) {
+      return {
+        allowed: false,
+        error: 'Authentication required'
+      };
+    }
+
+    const userId = user.id;
 
     // Get user's subscription
     const { data: subscription, error } = await supabaseAdmin
@@ -104,16 +115,28 @@ export async function checkAICreditsPermission(
   creditsNeeded: number = 1
 ): Promise<SubscriptionCheckResult> {
   try {
-    // Verify authentication
-    const authResult = await verifyJWT(request);
-    if (!authResult.success) {
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return {
         allowed: false,
-        error: 'Unauthorized'
+        error: 'Authentication required'
       };
     }
 
-    const userId = authResult.userId;
+    const token = authHeader.split(' ')[1];
+    
+    // Get the authenticated user using the token
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (authError || !user) {
+      return {
+        allowed: false,
+        error: 'Authentication required'
+      };
+    }
+
+    const userId = user.id;
 
     // Get user's subscription
     const { data: subscription, error } = await supabaseAdmin
@@ -174,16 +197,28 @@ export async function checkClientLimitPermission(
   request: NextRequest
 ): Promise<SubscriptionCheckResult> {
   try {
-    // Verify authentication
-    const authResult = await verifyJWT(request);
-    if (!authResult.success) {
+    // Get the authorization header
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return {
         allowed: false,
-        error: 'Unauthorized'
+        error: 'Authentication required'
       };
     }
 
-    const userId = authResult.userId;
+    const token = authHeader.split(' ')[1];
+    
+    // Get the authenticated user using the token
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (authError || !user) {
+      return {
+        allowed: false,
+        error: 'Authentication required'
+      };
+    }
+
+    const userId = user.id;
 
     // Get user's subscription
     const { data: subscription, error } = await supabaseAdmin
