@@ -333,3 +333,40 @@ export async function trackClientCreation(userId: string) {
     console.error('Error tracking client creation:', error);
   }
 }
+
+// Check if user can add more posts
+export async function checkPostLimitPermission(
+  request: NextRequest
+): Promise<SubscriptionCheckResult> {
+  return checkSocialMediaPostingPermission(request);
+}
+
+// Wrapper function for post limit checking
+export async function withPostLimitCheck(
+  request: NextRequest
+): Promise<{ allowed: boolean; userId?: string; error?: string }> {
+  const result = await checkPostLimitPermission(request);
+  return {
+    allowed: result.allowed,
+    userId: result.subscription?.user_id,
+    error: result.error
+  };
+}
+
+// Track post creation
+export async function trackPostCreation(userId: string) {
+  try {
+    const { error } = await supabaseAdmin
+      .from('subscriptions')
+      .update({
+        posts_used_this_month: supabaseAdmin.raw('posts_used_this_month + 1')
+      })
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error tracking post creation:', error);
+    }
+  } catch (error) {
+    console.error('Error tracking post creation:', error);
+  }
+}

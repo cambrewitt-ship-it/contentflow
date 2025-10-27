@@ -34,7 +34,7 @@ const tiers = [
     name: 'Starter',
     id: 'starter',
     price: 35,
-    description: 'For in-house marketing managers',
+    description: 'For marketing managers',
     priceId: process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID!,
     longDescription: 'Everything in Free, plus higher capacity and the ability to schedule posts.',
     trialText: '14-day free trial',
@@ -52,7 +52,7 @@ const tiers = [
     name: 'Professional',
     id: 'professional',
     price: 79,
-    description: 'For freelancers and social agencies',
+    description: 'For freelancers and agencies',
     priceId: process.env.NEXT_PUBLIC_STRIPE_PROFESSIONAL_PRICE_ID!,
     longDescription: 'Everything in Starter, plus capacity for multiple clients, advanced analytics, and custom branding.',
     trialText: '14-day free trial',
@@ -105,28 +105,9 @@ export default function PricingPage() {
         return;
       }
 
-      // Handle freemium tier (no payment required)
+      // Handle freemium tier (redirect to login)
       if (tierId === 'freemium') {
-        const response = await fetch('/api/subscription/freemium', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          if (response.status === 401) {
-            router.push('/auth/login?redirect=/pricing');
-            return;
-          }
-          throw new Error(data.error || 'Failed to activate freemium tier');
-        }
-
-        // Redirect to dashboard
-        router.push('/dashboard');
+        router.push('/auth/login?redirect=/pricing');
         return;
       }
 
@@ -193,7 +174,7 @@ export default function PricingPage() {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 max-w-7xl mx-auto items-stretch">
           {tiers.map((tier) => (
             <Card
               key={tier.id}
@@ -211,23 +192,45 @@ export default function PricingPage() {
                 </div>
               )}
 
+              {/* Structured header section with consistent heights */}
               <div className="mb-8">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                  {tier.name}
-                </h3>
-                <p className="text-gray-600 text-sm mb-4">{tier.description}</p>
-                <div className="flex items-baseline">
-                  <span className="text-5xl font-extrabold text-gray-900">
-                    {tier.price === 0 ? '$0' : `$${tier.price}`}
-                  </span>
-                  <span className="text-gray-600 ml-2">/month</span>
+                {/* Title section - min-height 80px */}
+                <div className="min-h-[100px] mb-1">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                    {tier.name}
+                  </h3>
+                  <p className="text-gray-600 text-sm">{tier.description}</p>
                 </div>
-                {(tier as any).trialText && (
-                  <p className="text-blue-600 text-sm font-medium mt-2">{(tier as any).trialText}</p>
-                )}
-                {(tier as any).longDescription && (
-                  <p className="text-gray-600 text-xs mt-2">{(tier as any).longDescription}</p>
-                )}
+
+                {/* Price section - min-height 120px */}
+                <div className="min-h-[120px] flex flex-col justify-start mb-2 -mt-8">
+                  <div className="flex items-baseline">
+                    <span className="text-5xl font-extrabold text-gray-900">
+                      {tier.price === 0 ? '$0' : `$${tier.price}`}
+                    </span>
+                    <span className="text-gray-600 ml-2">/month</span>
+                  </div>
+                </div>
+
+                {/* Trial badge section - min-height 40px (with invisible spacer for Free tier) */}
+                <div className="min-h-[40px] mb-2">
+                  {(tier as any).trialText ? (
+                    <p className="text-blue-600 text-sm font-medium -mt-[50px]">{(tier as any).trialText}</p>
+                  ) : tier.price === 0 ? (
+                    <p className="text-blue-600 text-sm font-medium -mt-[50px]">No credit card needed</p>
+                  ) : (
+                    <div className="invisible">Placeholder</div>
+                  )}
+                </div>
+
+                {/* Description section - min-height 60px */}
+                <div className="min-h-[60px]">
+                  {(tier as any).longDescription ? (
+                    <p className="text-gray-600 text-xs">{(tier as any).longDescription}</p>
+                  ) : (
+                    <div className="invisible">Placeholder</div>
+                  )}
+                </div>
               </div>
 
               {/* Features */}
@@ -271,14 +274,6 @@ export default function PricingPage() {
                 </div>
               ) : (
                 <div className="mb-6"></div>
-              )}
-
-              {/* Best For */}
-              {(tier as any).bestFor && (
-                <div className="mb-6">
-                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Best for:</h4>
-                  <p className="text-gray-600 text-sm">{(tier as any).bestFor}</p>
-                </div>
               )}
 
               {/* Spacer to push button to bottom */}

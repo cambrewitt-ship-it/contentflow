@@ -14,16 +14,26 @@ export async function POST(request: NextRequest) {
   try {
     // SUBSCRIPTION: Check post limits
     const subscriptionCheck = await withPostLimitCheck(request);
-    if (subscriptionCheck instanceof NextResponse) {
-      return subscriptionCheck;
+    
+    // Check if subscription check failed
+    if (!subscriptionCheck.allowed) {
+      logger.error('Subscription check failed:', subscriptionCheck.error);
+      return NextResponse.json({ 
+        error: subscriptionCheck.error || 'Post limit reached',
+        details: subscriptionCheck.error
+      }, { status: 403 });
     }
-
-    // Type guard: at this point subscriptionCheck has the authorized property
-    if (!('authorized' in subscriptionCheck) || !subscriptionCheck.authorized) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    
+    // Validate that userId exists
+    if (!subscriptionCheck.userId) {
+      logger.error('User ID not found in subscription check');
+      return NextResponse.json({ 
+        error: 'User identification failed',
+        details: 'Could not identify user for post creation'
+      }, { status: 401 });
     }
-
-    const userId = subscriptionCheck.user!.id;
+    
+    const userId = subscriptionCheck.userId;
 
     const body = await request.json();
 

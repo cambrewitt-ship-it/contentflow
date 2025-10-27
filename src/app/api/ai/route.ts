@@ -102,11 +102,26 @@ export async function POST(request: NextRequest) {
 
     // SUBSCRIPTION: Check AI credit limits
     const subscriptionCheck = await withAICreditCheck(request, 1);
-    if (subscriptionCheck instanceof NextResponse) {
-      return subscriptionCheck;
+    
+    // Check if subscription check failed
+    if (!subscriptionCheck.allowed) {
+      logger.error('Subscription check failed:', subscriptionCheck.error);
+      return NextResponse.json({ 
+        error: subscriptionCheck.error || 'AI credit limit reached',
+        details: subscriptionCheck.error
+      }, { status: 403 });
     }
-
-    const userId = subscriptionCheck.user!.id;
+    
+    // Validate that userId exists
+    if (!subscriptionCheck.userId) {
+      logger.error('User ID not found in subscription check');
+      return NextResponse.json({ 
+        error: 'User identification failed',
+        details: 'Could not identify user for AI request'
+      }, { status: 401 });
+    }
+    
+    const userId = subscriptionCheck.userId;
 
     // SECURITY: Comprehensive input validation with Zod
     const validation = await validateApiRequest(request, {

@@ -92,11 +92,26 @@ export async function POST(req: NextRequest) {
   try {
     // SUBSCRIPTION: Check client limits
     const subscriptionCheck = await withClientLimitCheck(req);
-    if (subscriptionCheck instanceof NextResponse) {
-      return subscriptionCheck;
+    
+    // Check if subscription check failed
+    if (!subscriptionCheck.allowed) {
+      logger.error('Subscription check failed:', subscriptionCheck.error);
+      return NextResponse.json({ 
+        error: subscriptionCheck.error || 'Client limit reached',
+        details: subscriptionCheck.error
+      }, { status: 403 });
     }
     
-    const userId = subscriptionCheck.user!.id;
+    // Validate that userId exists
+    if (!subscriptionCheck.userId) {
+      logger.error('User ID not found in subscription check');
+      return NextResponse.json({ 
+        error: 'User identification failed',
+        details: 'Could not identify user for client creation'
+      }, { status: 401 });
+    }
+    
+    const userId = subscriptionCheck.userId;
     
     // SECURITY: Comprehensive input validation with Zod
     const validation = await validateApiRequest(req, {
