@@ -15,6 +15,9 @@ export const metadata: Metadata = {
   title: "Content Manager - AI-Powered Social Media Management",
   description: "Upload content, generate captions with AI, and schedule posts across all platforms. Built specifically for marketing agencies managing multiple clients.",
   keywords: "social media management, AI captions, marketing agencies, content scheduling",
+  icons: {
+    icon: "/cm-logo.png",
+  },
 };
 
 export default function RootLayout({
