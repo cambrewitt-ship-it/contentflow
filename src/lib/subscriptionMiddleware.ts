@@ -301,10 +301,23 @@ export async function withAICreditCheck(
 // Track AI credit usage
 export async function trackAICreditUsage(userId: string, creditsUsed: number = 1) {
   try {
+    // First get the current subscription to verify it exists and get current value
+    const { data: subscription, error: fetchError } = await supabaseAdmin
+      .from('subscriptions')
+      .select('ai_credits_used_this_month')
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError || !subscription) {
+      console.error('Error fetching subscription for AI credit tracking:', fetchError);
+      return;
+    }
+
+    // Update with increment
     const { error } = await supabaseAdmin
       .from('subscriptions')
       .update({
-        ai_credits_used_this_month: supabaseAdmin.raw('ai_credits_used_this_month + ?', [creditsUsed])
+        ai_credits_used_this_month: subscription.ai_credits_used_this_month + creditsUsed
       })
       .eq('user_id', userId);
 
@@ -331,10 +344,23 @@ export async function withClientLimitCheck(
 // Track client creation
 export async function trackClientCreation(userId: string) {
   try {
+    // First get the current subscription to verify it exists and get current value
+    const { data: subscription, error: fetchError } = await supabaseAdmin
+      .from('subscriptions')
+      .select('clients_used')
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError || !subscription) {
+      console.error('Error fetching subscription for client tracking:', fetchError);
+      return;
+    }
+
+    // Update with increment
     const { error } = await supabaseAdmin
       .from('subscriptions')
       .update({
-        clients_used: supabaseAdmin.raw('clients_used + 1')
+        clients_used: subscription.clients_used + 1
       })
       .eq('user_id', userId);
 
@@ -368,10 +394,23 @@ export async function withPostLimitCheck(
 // Track post creation
 export async function trackPostCreation(userId: string) {
   try {
+    // First get the current subscription to verify it exists and get current value
+    const { data: subscription, error: fetchError } = await supabaseAdmin
+      .from('subscriptions')
+      .select('posts_used_this_month')
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError || !subscription) {
+      console.error('Error fetching subscription for post tracking:', fetchError);
+      return;
+    }
+
+    // Update with increment
     const { error } = await supabaseAdmin
       .from('subscriptions')
       .update({
-        posts_used_this_month: supabaseAdmin.raw('posts_used_this_month + 1')
+        posts_used_this_month: subscription.posts_used_this_month + 1
       })
       .eq('user_id', userId);
 

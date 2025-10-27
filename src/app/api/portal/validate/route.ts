@@ -46,14 +46,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if portal is enabled for this client
-    if (!client.portal_enabled) {
-      return NextResponse.json(
-        { success: false, error: 'Portal access is disabled for this client' },
-        { status: 401 }
-      );
-    }
-
+    // Portal is always enabled - removed portal_enabled check
     return NextResponse.json({
       success: true,
       client: {

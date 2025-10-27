@@ -24,21 +24,13 @@ export async function GET(request: NextRequest) {
     // Get client info from portal token
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('id, portal_enabled')
+      .select('id')
       .eq('portal_token', token)
       .single();
 
     if (clientError || !client) {
       return NextResponse.json(
         { error: 'Invalid portal token' },
-        { status: 401 }
-      );
-    }
-
-    // Check if portal is enabled
-    if (!client.portal_enabled) {
-      return NextResponse.json(
-        { error: 'Portal access is disabled' },
         { status: 401 }
       );
     }

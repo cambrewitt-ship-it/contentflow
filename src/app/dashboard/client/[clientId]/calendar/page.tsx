@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Grid3X3, Copy, ExternalLink, Link as LinkIcon, CheckCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Grid3X3, Copy, ExternalLink, Link as LinkIcon, CheckCircle } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
@@ -184,6 +184,23 @@ export default function CalendarPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
   const [viewMode, setViewMode] = useState<'week' | 'month'>('month');
+  const calendarScrollRef = useRef<HTMLDivElement>(null);
+  const weekScrollRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  
+  // Scroll functions for week containers
+  const scrollWeekLeft = (weekIndex: number) => {
+    const scrollElement = weekScrollRefs.current.get(weekIndex);
+    if (scrollElement) {
+      scrollElement.scrollBy({ left: -400, behavior: 'smooth' });
+    }
+  };
+  
+  const scrollWeekRight = (weekIndex: number) => {
+    const scrollElement = weekScrollRefs.current.get(weekIndex);
+    if (scrollElement) {
+      scrollElement.scrollBy({ left: 400, behavior: 'smooth' });
+    }
+  };
   
   // Client Portal states
   const [portalToken, setPortalToken] = useState<string | null>(null);
@@ -507,10 +524,22 @@ export default function CalendarPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]); // Only depend on clientId to prevent infinite loop
 
+  // Scroll to current week when navigating
+  useEffect(() => {
+    if (calendarScrollRef.current) {
+      // Find the current week element
+      setTimeout(() => {
+        const currentWeekElement = calendarScrollRef.current?.querySelector('[data-current-week="true"]');
+        if (currentWeekElement) {
+          currentWeekElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100); // Small delay to ensure DOM is updated
+    }
+  }, [weekOffset]);
 
   const getWeeksToDisplay = () => {
     const weeks = [];
-    for (let i = 0; i < 1; i++) {
+    for (let i = -1; i <= 1; i++) {
       weeks.push(getStartOfWeek(weekOffset + i));
     }
     return weeks;
@@ -1696,15 +1725,7 @@ export default function CalendarPage() {
         <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
           <div className="p-4">
           <div className="flex items-center justify-between mb-4">
-            {viewMode === 'week' && (
-              <button
-                onClick={() => setWeekOffset(weekOffset - 1)}
-                className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Previous Week
-              </button>
-            )}
+            <div className="flex-1"></div>
             <div className="flex items-center justify-center">
               <h2 className="text-lg font-semibold">
                 {selectedProjectFilter === 'all' 
@@ -1714,7 +1735,7 @@ export default function CalendarPage() {
                     : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'week' ? 'Week' : 'Month'} View`}
               </h2>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-1 justify-end">
               {/* View Toggle */}
               <div className="flex items-center bg-gray-100 rounded-lg p-1">
                 <button
@@ -1740,16 +1761,6 @@ export default function CalendarPage() {
                   Month
                 </button>
               </div>
-              
-              {viewMode === 'week' && (
-                <button
-                  onClick={() => setWeekOffset(weekOffset + 1)}
-                  className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
-                >
-                  Next Week
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -1757,20 +1768,50 @@ export default function CalendarPage() {
 
             <div className="p-4 space-y-4">
             {viewMode === 'week' ? (
-              <div className="">
-                <div className="space-y-4" style={{ gap: '16px' }}>
-                {getWeeksToDisplay().map((weekStart, weekIndex) => {
-                  const isCurrentWeek = weekOffset + weekIndex === 0;
-                  return (
-                  <div key={weekIndex} className={`border rounded-lg bg-white min-h-32 flex-1 ${
-                    isCurrentWeek ? 'ring-4 ring-blue-400 border-blue-400' : ''
-                  }`}>
+              <div className="relative">
+                {/* Up Navigation Button */}
+                <button
+                  onClick={() => setWeekOffset(weekOffset - 1)}
+                  className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-12 h-12 bg-white hover:bg-gray-50 text-gray-700 rounded-full shadow-lg border border-gray-200 flex items-center justify-center transition-all hover:scale-110"
+                  title="Previous Week"
+                >
+                  <ChevronUp className="w-6 h-6" />
+                </button>
+
+                {/* Scrollable Container with Partial Week Views - No manual scrolling */}
+                <div 
+                  ref={calendarScrollRef}
+                  className="relative overflow-hidden"
+                  style={{ 
+                    height: '600px'
+                  }}
+                >
+                  <div className="space-y-4" style={{ gap: '16px' }}>
+                    {getWeeksToDisplay().map((weekStart, weekIndex) => {
+                      const isCurrentWeek = weekOffset + weekIndex === 0;
+                      const isPreviousWeek = weekOffset + weekIndex < 0;
+                      const isNextWeek = weekOffset + weekIndex === 1;
+                      
+                      // Show all days for all weeks
+                      const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                      const daysToShow = daysOfWeek;
+                      
+                      // Use week start date to determine consistent alternating color
+                      const weekStartTime = weekStart.getTime();
+                      const weekNumber = Math.floor(weekStartTime / (7 * 24 * 60 * 60 * 1000));
+                      const isAlternatingWeek = weekNumber % 2 === 1;
+                      
+                      return (
+                  <div key={weekIndex} data-current-week={isCurrentWeek} className={`border rounded-lg min-h-32 flex-1 bg-white transition-all duration-500 ease-in-out ${
+                    isCurrentWeek ? 'ring-4 ring-blue-400 border-blue-400' : 'ring-0 ring-transparent border-gray-200'
+                  } ${isPreviousWeek ? 'opacity-60' : 'opacity-100'}`}>
                     {/* Week Header - Above the days */}
-                    <div className={`p-3 border-b ${
-                      isCurrentWeek ? 'bg-blue-100' : 'bg-gray-50'
+                    <div className={`p-3 border-b transition-colors duration-500 ease-in-out ${
+                      isCurrentWeek ? 'bg-blue-100' : 
+                      isAlternatingWeek ? 'bg-gray-300' : 'bg-gray-50'
                     }`}>
-                      <h3 className={`font-semibold text-sm ${
-                        isCurrentWeek ? 'text-blue-700' : ''
+                      <h3 className={`font-semibold text-sm transition-colors duration-500 ease-in-out ${
+                        isCurrentWeek ? 'text-blue-700' : 'text-gray-900'
                       }`}>
                         {formatWeekCommencing(weekStart)}
                         {isCurrentWeek && ' (Current Week)'}
@@ -1781,9 +1822,19 @@ export default function CalendarPage() {
                       </p>
                     </div>
                     
-                    <div className="p-2 flex-1 overflow-x-auto">
-                      <div className="flex space-x-1 min-w-max">
-                          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, dayIndex) => {
+                    {/* Scrollable container with arrows */}
+                    <div className="relative">
+                      <div 
+                        ref={(el) => {
+                          if (el) {
+                            weekScrollRefs.current.set(weekIndex, el);
+                          }
+                        }}
+                        className="p-2 flex-1 overflow-x-auto scrollbar-hide"
+                      >
+                        <div className="flex space-x-1 min-w-max">
+                          {daysToShow.map((day, displayIndex) => {
+                            const dayIndex = displayIndex;
                         const dayDate = new Date(weekStart);
                         dayDate.setDate(weekStart.getDate() + dayIndex);
                         const isToday = dayDate.toDateString() === new Date().toDateString();
@@ -2388,13 +2439,42 @@ export default function CalendarPage() {
                           </div>
                         );
                       })}
+                        </div>
                       </div>
+                      
+                      {/* Left scroll arrow */}
+                      <button
+                        onClick={() => scrollWeekLeft(weekIndex)}
+                        className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10 w-10 h-10 bg-white hover:bg-gray-50 text-gray-700 rounded-full shadow-md border border-gray-200 flex items-center justify-center transition-all hover:scale-110 opacity-90 hover:opacity-100"
+                        title="Scroll left"
+                      >
+                        <ChevronLeft className="w-6 h-6" />
+                      </button>
+                      
+                      {/* Right scroll arrow */}
+                      <button
+                        onClick={() => scrollWeekRight(weekIndex)}
+                        className="absolute right-0 top-1/2 transform -translate-y-1/2 z-10 w-10 h-10 bg-white hover:bg-gray-50 text-gray-700 rounded-full shadow-md border border-gray-200 flex items-center justify-center transition-all hover:scale-110 opacity-90 hover:opacity-100"
+                        title="Scroll right"
+                      >
+                        <ChevronRight className="w-6 h-6" />
+                      </button>
                     </div>
                   </div>
-                  );
-                })}
-                </div>
+                );
+              })}
               </div>
+            </div>
+                
+            {/* Down Navigation Button */}
+            <button
+              onClick={() => setWeekOffset(weekOffset + 1)}
+              className="absolute bottom-0 left-1/2 transform -translate-x-1/2 z-20 w-12 h-12 bg-white hover:bg-gray-50 text-gray-700 rounded-full shadow-lg border border-gray-200 flex items-center justify-center transition-all hover:scale-110"
+              title="Next Week"
+            >
+              <ChevronDown className="w-6 h-6" />
+            </button>
+          </div>
             ) : (
               <div className="bg-white rounded-lg shadow">
                 <MonthViewCalendar 

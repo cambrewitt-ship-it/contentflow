@@ -25,20 +25,13 @@ export async function GET(request: NextRequest) {
     // Validate portal token and get client info
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('id, name, portal_enabled')
+      .select('id, name')
       .eq('portal_token', token)
       .single();
 
     if (clientError || !client) {
       return NextResponse.json(
         { success: false, error: 'Invalid portal token' },
-        { status: 401 }
-      );
-    }
-
-    if (!client.portal_enabled) {
-      return NextResponse.json(
-        { success: false, error: 'Portal access is disabled' },
         { status: 401 }
       );
     }
@@ -175,20 +168,13 @@ export async function POST(request: NextRequest) {
     // Validate portal token
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('id, portal_enabled')
+      .select('id')
       .eq('portal_token', token)
       .single();
 
     if (clientError || !client) {
       return NextResponse.json(
         { success: false, error: 'Invalid portal token' },
-        { status: 401 }
-      );
-    }
-
-    if (!client.portal_enabled) {
-      return NextResponse.json(
-        { success: false, error: 'Portal access is disabled' },
         { status: 401 }
       );
     }
