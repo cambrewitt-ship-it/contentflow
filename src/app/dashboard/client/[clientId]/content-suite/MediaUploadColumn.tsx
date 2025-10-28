@@ -10,7 +10,7 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu'
-import { Upload, X, Image as ImageIcon, Video as VideoIcon, ChevronDown } from 'lucide-react'
+import { X, Image as ImageIcon, Video as VideoIcon, ChevronDown } from 'lucide-react'
 
 export function MediaUploadColumn() {
   const {
@@ -102,13 +102,7 @@ export function MediaUploadColumn() {
             onDrop={handleDrop}
             onClick={() => document.getElementById('media-upload')?.click()}
           >
-            <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-            <p className="text-sm font-medium text-gray-700 mb-1">
-              Drop images or videos here or click to upload
-            </p>
-            <p className="text-xs text-gray-500">
-              Images: JPG, PNG, GIF, WebP (up to 10MB) | Videos: MP4, MOV, WebM (up to 100MB)
-            </p>
+            <div className="text-6xl font-light text-gray-400">+</div>
             <input
               id="media-upload"
               type="file"
