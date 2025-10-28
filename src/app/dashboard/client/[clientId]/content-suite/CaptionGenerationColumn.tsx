@@ -67,7 +67,9 @@ export function CaptionGenerationColumn() {
         await generateAICaptions(activeImage.id, postNotes.trim(), copyType, accessToken)
       } else {
         console.log('🖼️ Generating captions for image - using AI vision + Post Notes')
-        await generateAICaptions(activeImage.id, postNotes.trim() || undefined, copyType, accessToken)
+        // Ensure aiContext is never empty - provide default value for API validation
+        const aiContext = postNotes?.trim() || 'Generate engaging social media captions for this content.'
+        await generateAICaptions(activeImage.id, aiContext, copyType, accessToken)
       }
       
       console.log('Caption generation completed')

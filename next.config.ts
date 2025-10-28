@@ -57,10 +57,11 @@ function buildCSP(): string {
     
     // API Connections: Allow same origin + Supabase backend
     // - Supabase URL is dynamically included from environment variable
+    // - blob:: Required for fetching blob URLs (e.g., image caption generation)
     // - In development, also allow localhost variants
     isDevelopment
-      ? `connect-src 'self' ${supabaseUrl} http://localhost:* ws://localhost:* wss://localhost:*`
-      : `connect-src 'self' ${supabaseUrl}`,
+      ? `connect-src 'self' blob: ${supabaseUrl} http://localhost:* ws://localhost:* wss://localhost:*`
+      : `connect-src 'self' blob: ${supabaseUrl}`,
     
     // Media: Allow same origin + blob (for video/audio if needed)
     "media-src 'self' blob:",
