@@ -8,29 +8,39 @@ const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 // Get the correct app URL - prefer environment variable, but fallback to detecting from request
 function getAppUrl(req: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const host = req.headers.get('host');
   
-  // If environment URL is ngrok, try to detect the real URL from the request
-  if (envUrl && envUrl.includes('ngrok')) {
+  // PRIORITY 1: Check for localhost FIRST (before checking env URL)
+  // This prevents production URL from overriding localhost development
+  if (host && host.includes('localhost')) {
+    const protocol = req.headers.get('x-forwarded-proto') || 'http';
+    const detectedUrl = `${protocol}://${host}`;
+    return detectedUrl;
+  }
+  
+  // PRIORITY 2: Check if host is vercel
+  if (host && (host.includes('vercel.app') || host.includes('contentflow'))) {
+    const protocol = req.headers.get('x-forwarded-proto') || 'https';
+    const detectedUrl = `${protocol}://${host}`;
+    return detectedUrl;
+  }
 
-    // Try to get the host from the request
-    const host = req.headers.get('host');
+  // PRIORITY 3: Check environment URL (for ngrok or other special cases)
+  if (envUrl && envUrl.includes('ngrok')) {
+    // Try to detect the real URL from the request
     if (host && !host.includes('ngrok')) {
       const protocol = req.headers.get('x-forwarded-proto') || 'https';
       const detectedUrl = `${protocol}://${host}`;
-
       return detectedUrl;
     }
   }
   
-  // If no environment URL or it's production URL, try to detect localhost from request
-  const host = req.headers.get('host');
-  if (host && host.includes('localhost')) {
-    const protocol = req.headers.get('x-forwarded-proto') || 'http';
-    const detectedUrl = `${protocol}://${host}`;
-
-    return detectedUrl;
+  // PRIORITY 4: Use environment URL if it exists and it's not ngrok
+  if (envUrl && !envUrl.includes('ngrok')) {
+    return envUrl;
   }
   
+  // Fallback
   return envUrl || 'http://localhost:3000';
 }
 

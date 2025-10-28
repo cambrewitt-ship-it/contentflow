@@ -199,27 +199,32 @@ export async function POST(req: NextRequest) {
         nodeEnv: process.env.NODE_ENV
       });
 
-      // If we have an environment URL and it's not ngrok, use it
-      if (envUrl && !envUrl.includes('ngrok')) {
-        return envUrl;
-      }
-      
-      // If host is localhost, use localhost with http
+      // PRIORITY 1: Check for localhost FIRST (before checking env URL)
+      // This prevents production URL from overriding localhost development
       if (host && host.includes('localhost')) {
         const localhostUrl = `http://${host}`;
+        logger.debug('Using localhost URL', { localhostUrl });
         return localhostUrl;
       }
       
-      // If host is vercel, use https with the host
+      // PRIORITY 2: Check if host is vercel
       if (host && (host.includes('vercel.app') || host.includes('contentflow'))) {
         const vercelUrl = `https://${host}`;
+        logger.debug('Using Vercel host URL', { vercelUrl });
         return vercelUrl;
+      }
+
+      // PRIORITY 3: Use environment URL if it exists and it's not ngrok
+      if (envUrl && !envUrl.includes('ngrok')) {
+        logger.debug('Using environment URL', { envUrl });
+        return envUrl;
       }
       
       // Fallback based on environment
       const fallbackUrl = process.env.NODE_ENV === 'development' 
         ? 'http://localhost:3000' 
         : 'https://contentflow-v2.vercel.app';
+      logger.debug('Using fallback URL', { fallbackUrl });
       return fallbackUrl;
     };
     

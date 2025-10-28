@@ -120,11 +120,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userMetadata.full_name = `${metadata.firstName || ''} ${metadata.lastName || ''}`.trim();
       }
 
+      // Encode the current pathname in state to redirect back after OAuth
+      const currentPathname = window.location.pathname;
+      const stateData = { returnUrl: currentPathname };
+      const encodedState = btoa(JSON.stringify(stateData));
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?state=${encodedState}`,
           data: userMetadata,
         },
       });
@@ -175,9 +180,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
-  const resetPassword = async (email: string) => {
+    const resetPassword = async (email: string) => {
+    // Encode the current pathname in state to redirect back after OAuth
+    const currentPathname = window.location.pathname;
+    const stateData = { returnUrl: currentPathname };
+    const encodedState = btoa(JSON.stringify(stateData));
+    
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
+      redirectTo: `${window.location.origin}/auth/reset-password?state=${encodedState}`,
     });
     return { error };
   };

@@ -14,12 +14,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const { user, loading } = useAuth();
   
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated (give it time for OAuth callback)
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/auth/login');
-    }
-  }, [user, loading, router]);
+    // Add a small delay to allow OAuth callback to complete
+    const timer = setTimeout(() => {
+      if (!loading && !user && pathname?.startsWith('/dashboard')) {
+        router.push('/auth/login');
+      }
+    }, 1000); // Wait 1 second before redirecting
+    
+    return () => clearTimeout(timer);
+  }, [user, loading, router, pathname]);
 
   // Show loading state while checking authentication
   if (loading) {
