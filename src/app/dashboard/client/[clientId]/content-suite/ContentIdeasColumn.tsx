@@ -137,7 +137,7 @@ export function ContentIdeasColumn() {
   return (
     <div className="space-y-6 h-full flex flex-col">
       {/* Content Ideas Generation */}
-      <Card className="h-20">
+      <Card className="min-h-[180px]">
         <div className="h-full flex items-center justify-between px-6">
           <CardTitle className="card-title-26">Content Ideas</CardTitle>
           <Button
