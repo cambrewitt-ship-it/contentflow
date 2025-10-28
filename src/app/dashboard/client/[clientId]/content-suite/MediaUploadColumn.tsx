@@ -253,9 +253,6 @@ export function MediaUploadColumn() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Choose the writing style and tone for AI-generated captions.
-            </p>
           </div>
         </CardContent>
       </Card>
