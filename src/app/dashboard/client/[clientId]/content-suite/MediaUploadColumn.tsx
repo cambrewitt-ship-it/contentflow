@@ -205,9 +205,6 @@ export function MediaUploadColumn() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Specify how the AI should prioritize media analysis in caption generation.
-            </p>
           </div>
 
           {/* Post Notes Section */}
