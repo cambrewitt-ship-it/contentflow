@@ -390,6 +390,34 @@ export async function GET(
   let postId: string | undefined;
 
   try {
+    // SECURITY: Authentication check
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      logger.warn('Unauthorized access attempt to posts-by-id', {
+        operation: 'get_post',
+        hasAuthHeader: !!authHeader
+      });
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.split(' ')[1];
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      logger.error('Authentication failed for posts-by-id', {
+        operation: 'get_post',
+        error: authError?.message || 'Invalid token'
+      });
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     // SECURITY: Validate URL parameters
     const validation = await validateApiRequest(request, {
       params: postIdParamSchema,
@@ -403,13 +431,11 @@ export async function GET(
     const { params: validatedParams } = validation.data;
     postId = validatedParams!.postId;
 
-    // Create Supabase client with service role for admin access
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
+    // Supabase client already created during authentication above
     // First try to find the post in the main posts table
     let { data: post, error } = await supabase
       .from('posts')
-      .select('*')
+      .select('*, clients!inner(user_id)')
       .eq('id', postId)
       .single();
 
@@ -452,6 +478,42 @@ export async function GET(
         },
         'Post not found'
       );
+    }
+
+    // SECURITY: Verify user owns this post
+    if (post) {
+      let postOwnerId: string | undefined;
+      
+      // Extract owner ID from different post types
+      if ('clients' in post && post.clients) {
+        // If post has joined client data
+        postOwnerId = (post.clients as any).user_id;
+      } else if ('client_id' in post) {
+        // For calendar posts, we need to fetch the client to get user_id
+        const { data: client } = await supabase
+          .from('clients')
+          .select('user_id')
+          .eq('id', (post as any).client_id)
+          .single();
+        
+        if (client) {
+          postOwnerId = client.user_id;
+        }
+      }
+      
+      // Verify ownership
+      if (postOwnerId && postOwnerId !== user.id) {
+        logger.warn('Unauthorized post access attempt', {
+          operation: 'get_post',
+          requestingUserId: user.id,
+          postOwnerId,
+          postId
+        });
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 403 }
+        );
+      }
     }
 
     return NextResponse.json({ post });

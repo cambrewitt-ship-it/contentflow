@@ -29,10 +29,20 @@ interface UserProfile {
   role: string;
 }
 
+type SubscriptionTier = 'freemium' | 'starter' | 'professional' | 'agency' | 'enterprise';
+
+interface Subscription {
+  id: string;
+  user_id: string;
+  subscription_tier: SubscriptionTier;
+  subscription_status: string;
+}
+
 export default function Dashboard() {
   const { user, signOut, getAccessToken } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -60,6 +70,38 @@ export default function Dashboard() {
 
     fetchProfile();
   }, [user?.id]); // ✅ Only depend on user ID, not entire user object
+
+  // Fetch user subscription
+  useEffect(() => {
+    async function fetchSubscription() {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .select('id, user_id, subscription_tier, subscription_status')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching subscription:', error);
+          // Set to freemium if not found
+          setSubscription({ id: '', user_id: user.id, subscription_tier: 'freemium', subscription_status: 'active' });
+        } else if (data) {
+          setSubscription(data);
+        } else {
+          // No subscription found, default to freemium
+          setSubscription({ id: '', user_id: user.id, subscription_tier: 'freemium', subscription_status: 'active' });
+        }
+      } catch (err) {
+        console.error('Error fetching subscription:', err);
+        // Default to freemium on error
+        setSubscription({ id: '', user_id: user.id, subscription_tier: 'freemium', subscription_status: 'active' });
+      }
+    }
+
+    fetchSubscription();
+  }, [user?.id]);
 
   // Fetch user's clients - ONLY on mount or when user ID changes
   useEffect(() => {
@@ -176,11 +218,46 @@ export default function Dashboard() {
     );
   }
 
+  // Get plan label
+  const getPlanLabel = () => {
+    if (!subscription) return 'FREE';
+    const tier = subscription.subscription_tier || 'freemium';
+    // Show "FREE" instead of "FREEMIUM"
+    if (tier === 'freemium') return 'FREE';
+    return tier.toUpperCase();
+  };
+
+  // Get plan badge color
+  const getPlanBadgeColor = () => {
+    const tier = subscription?.subscription_tier || 'freemium';
+    switch (tier) {
+      case 'freemium':
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+      case 'starter':
+        return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'professional':
+        return 'bg-purple-100 text-purple-800 border-purple-300';
+      case 'agency':
+        return 'bg-green-100 text-green-800 border-green-300';
+      case 'enterprise':
+        return 'bg-amber-100 text-amber-800 border-amber-300';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
+
   return (
     <div className="flex-1 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8 text-center mt-[50px]">
+          {/* Current Plan Badge */}
+          <div className="mb-4">
+            <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold border-2 ${getPlanBadgeColor()}`}>
+              {getPlanLabel()}{subscription?.subscription_tier !== 'freemium' ? ' PLAN' : ''}
+            </span>
+          </div>
+
           {/* NZST Clock */}
           <div className="mb-6">
             <p className="text-4xl font-bold font-mono text-foreground">

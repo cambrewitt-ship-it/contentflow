@@ -187,25 +187,6 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   logger.debug('GET /api/projects request received');
 
-  // Simple fallback response to test if route is working
-  if (req.url.includes('test=true')) {
-    return NextResponse.json({
-      success: true,
-      message: 'Projects API route is working (test mode)',
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  // Very simple health check - always return something
-  if (req.url.includes('health=true')) {
-    return NextResponse.json({
-      status: 'healthy',
-      route: 'projects',
-      timestamp: new Date().toISOString(),
-      message: 'Projects API route is responding'
-    });
-  }
-
   try {
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get('clientId');

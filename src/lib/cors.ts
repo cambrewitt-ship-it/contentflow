@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 // Define allowed origins
 const ALLOWED_ORIGINS = {
   production: [
-    'https://your-production-domain.com', // Replace with your actual production domain
-    'https://www.your-production-domain.com', // Replace with your actual production domain
+    'https://content-manager.io',
+    'https://www.content-manager.io',
   ],
   development: [
     'http://localhost:3000',
