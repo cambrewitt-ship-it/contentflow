@@ -1200,7 +1200,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     <img 
                       src="/lateapi-logo.png" 
                       alt="LATE" 
-                      className="h-5 w-auto rounded"
+                      className="h-5 w-auto rounded border border-black"
                     />
                   </div>
                 </div>
