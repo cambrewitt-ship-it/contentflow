@@ -134,9 +134,6 @@ export function CaptionGenerationColumn() {
                 <option value="social-media">Social Media Copy</option>
                 <option value="email-marketing">Email Marketing Copy</option>
               </select>
-              <p className="text-xs text-muted-foreground mt-2">
-                Select the type of copy you want to generate for your content
-              </p>
             </div>
 
             {/* AI Caption Generation */}
