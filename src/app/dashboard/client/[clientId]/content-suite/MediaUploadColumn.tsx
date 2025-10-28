@@ -88,13 +88,13 @@ export function MediaUploadColumn() {
   }
 
   return (
-    <div className="space-y-6 h-full flex flex-col">
+    <div className="space-y-6 h-full flex flex-col flex-1">
       {/* Combined Upload, Media, and Post Notes Card */}
-      <Card>
+      <Card className="h-full flex flex-col">
         <CardHeader>
           <CardTitle className="card-title-26">Upload Media</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="flex-1 flex flex-col">
           {/* Upload Area */}
           <div
             className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors cursor-pointer w-full h-[100px] flex flex-col items-center justify-center"

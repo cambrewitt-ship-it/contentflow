@@ -1056,25 +1056,45 @@ function ContentSuiteContent({
       )}
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-6 pt-4 pb-8">
         {/* Grid Container for all content */}
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-3 gap-6 items-stretch">
           {/* Row 1: Content Ideas Section - spans 2 columns */}
-          <div className="col-span-2 mb-8">
+          <div className="col-span-2 mb-2">
             <ContentIdeasColumn />
           </div>
           
           {/* Row 1: Action Buttons in third column - aligned with Content Ideas */}
-          <div className="mb-8 space-y-4">
+          <div className="mb-2 space-y-4">
             {/* Action Buttons Section - Only show when not editing */}
             {!isEditing && (
-              <div className="bg-white rounded-lg border border-gray-200 p-6 min-h-[180px]">
-                <div className="space-y-3">
+              <div className="bg-white rounded-lg border border-gray-200 flex h-[116px]">
+                <div className="w-full flex flex-col gap-3 px-6 py-4">
+                  {/* Add to Calendar Button */}
+                  <Button
+                    onClick={() => {
+                      // Use custom caption from preview if available, otherwise use selected caption
+                      const caption = customCaptionFromPreview.trim() || getSelectedCaption()
+                      handleSendToScheduler(caption, uploadedImages)
+                    }}
+                    disabled={isSendingToScheduler || (!customCaptionFromPreview.trim() && !getSelectedCaption())}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                  >
+                    {isSendingToScheduler ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      <>
+                        <Calendar className="w-5 h-5 mr-2" />
+                        Add to Calendar
+                      </>
+                    )}
+                  </Button>
+                  
                   {/* Project Selector */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tag with Project (Optional)
-                    </label>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button 
@@ -1120,47 +1140,30 @@ function ContentSuiteContent({
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-                  
-                  {/* Add to Calendar Button */}
-                  <Button
-                    onClick={() => {
-                      // Use custom caption from preview if available, otherwise use selected caption
-                      const caption = customCaptionFromPreview.trim() || getSelectedCaption()
-                      handleSendToScheduler(caption, uploadedImages)
-                    }}
-                    disabled={isSendingToScheduler || (!customCaptionFromPreview.trim() && !getSelectedCaption())}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-                  >
-                    {isSendingToScheduler ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Adding...
-                      </>
-                    ) : (
-                      <>
-                        <Calendar className="w-5 h-5 mr-2" />
-                        Add to Calendar
-                      </>
-                    )}
-                  </Button>
                 </div>
               </div>
             )}
           </div>
 
           {/* Content Suite Columns */}
-          <MediaUploadColumn />
-          <CaptionGenerationColumn />
+          <div className="flex h-full">
+            <MediaUploadColumn />
+          </div>
+          <div className="flex h-full">
+            <CaptionGenerationColumn />
+          </div>
 
           {/* Column 3: Social Preview */}
-          <SocialPreviewColumn
-            clientId={clientId}
-            handleSendToScheduler={handleSendToScheduler}
-            isSendingToScheduler={isSendingToScheduler || updatingPost}
-            isEditing={isEditing}
-            updatingPost={updatingPost}
-            onCustomCaptionChange={handleCustomCaptionChange}
-          />
+          <div className="flex h-full">
+            <SocialPreviewColumn
+              clientId={clientId}
+              handleSendToScheduler={handleSendToScheduler}
+              isSendingToScheduler={isSendingToScheduler || updatingPost}
+              isEditing={isEditing}
+              updatingPost={updatingPost}
+              onCustomCaptionChange={handleCustomCaptionChange}
+            />
+          </div>
         </div>
 
         {/* Create New Project Modal */}

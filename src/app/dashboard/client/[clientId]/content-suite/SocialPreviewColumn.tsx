@@ -753,9 +753,9 @@ export function SocialPreviewColumn({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col flex-1">
       {/* Content Preview */}
-      <Card>
+      <Card className="h-full flex flex-col">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="card-title-26">
@@ -763,7 +763,7 @@ export function SocialPreviewColumn({
             </CardTitle>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 flex flex-col">
           <div className="space-y-4">
             {copyType === 'email-marketing' ? (
               // Email Marketing Preview

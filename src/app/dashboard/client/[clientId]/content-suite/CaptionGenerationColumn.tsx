@@ -117,13 +117,13 @@ export function CaptionGenerationColumn() {
   }
 
   return (
-    <div className="space-y-6 h-full flex flex-col">
+    <div className="space-y-6 h-full flex flex-col flex-1">
       {/* Copy Type Selection & AI Caption Generation */}
-      <Card>
+      <Card className="h-full flex flex-col">
         <CardHeader>
           <CardTitle className="card-title-26">Copy Type</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 flex flex-col">
           <div className="space-y-4">
             <div>
               <select 

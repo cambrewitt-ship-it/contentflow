@@ -1198,7 +1198,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <div className="flex items-center space-x-2 text-gray-500">
                     <span className="text-sm">Powered by</span>
                     <img 
-                      src="/getlate-logo.png" 
+                      src="/lateapi-logo.png" 
                       alt="LATE" 
                       className="h-5 w-auto rounded"
                     />

@@ -252,132 +252,125 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
       {/* Clients List */}
       <div className="flex-1 p-4 overflow-y-auto">
         {!collapsed && (
-          <div className="flex items-center justify-between mb-3">
-            <h3 className={getThemeClasses(
-              "text-sm font-medium text-gray-500",
-              "text-sm font-medium glass-text-muted"
-            )}>All Clients</h3>
-            
-            <div className="flex items-center gap-2">
-              {/* Add Client Button */}
-              <Link href="/dashboard/clients/new">
+          <>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className={getThemeClasses(
+                "text-sm font-medium text-gray-500",
+                "text-sm font-medium glass-text-muted"
+              )}>All Clients</h3>
+              
+              <div className="flex items-center gap-2">
+                {/* Add Client Button */}
+                <Link href="/dashboard/clients/new">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    title="Add new client"
+                    className={getThemeClasses(
+                      "h-6 px-2 text-xs",
+                      "h-6 px-2 text-xs glass-button"
+                    )}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add
+                  </Button>
+                </Link>
+                
+                {/* Refresh Button */}
                 <Button 
                   size="sm" 
-                  variant="outline"
-                  title="Add new client"
+                  variant="outline" 
+                  onClick={refreshClients}
+                  title="Refresh clients list"
                   className={getThemeClasses(
-                    "h-6 px-2 text-xs",
-                    "h-6 px-2 text-xs glass-button"
+                    "h-6 w-6 p-0",
+                    "h-6 w-6 p-0 glass-button"
                   )}
                 >
-                  <Plus className="w-3 h-3 mr-1" />
-                  Add
+                  <RotateCcw className="w-3 h-3" />
                 </Button>
-              </Link>
-              
-              {/* Refresh Button */}
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={refreshClients}
-                title="Refresh clients list"
-                className={getThemeClasses(
-                  "h-6 w-6 p-0",
-                  "h-6 w-6 p-0 glass-button"
-                )}
-              >
-                <RotateCcw className="w-3 h-3" />
-              </Button>
+              </div>
             </div>
-          </div>
-        )}
-        
-        {clients.length === 0 ? (
-          <div className="text-center py-8">
-            <Users className={getThemeClasses(
-              "w-8 h-8 text-gray-400 mx-auto mb-2",
-              "w-8 h-8 glass-text-muted mx-auto mb-2"
-            )} />
-            <p className={getThemeClasses(
-              "text-sm text-gray-500",
-              "text-sm glass-text-muted"
-            )}>No clients yet</p>
-            <p className={getThemeClasses(
-              "text-xs text-gray-400",
-              "text-xs glass-text-muted"
-            )}>Create your first client to get started</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {clients.map((client) => {
-              const isActive = currentClientId === client.id;
-              const isActiveClient = pathname?.includes(`/dashboard/client/${client.id}`);
-              
-              return (
-                <Card 
-                  key={client.id} 
-                  className={getThemeClasses(
-                    `cursor-pointer transition-all hover:shadow-md ${
-                      isActiveClient ? 'ring-2 ring-blue-500' : 'hover:bg-gray-50'
-                    }`,
-                    `cursor-pointer transition-all glass-card ${
-                      isActiveClient ? 'ring-2 ring-white/50' : 'hover:bg-white/5'
-                    }`
-                  )}
-                  onClick={() => router.push(`/dashboard/client/${client.id}`)}
-                  title={collapsed ? client.name : undefined}
-                >
-                  <CardContent className={`p-3 ${collapsed ? 'p-2' : ''}`}>
-                    <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
-                      <div className={`${collapsed ? '' : 'flex-1 min-w-0'}`}>
-                        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2'}`}>
-                          <div className={`rounded-full flex items-center justify-center overflow-hidden ${
-                            client.logo_url 
-                              ? '' 
-                              : getThemeClasses(
-                                  `bg-blue-100 text-xs font-medium text-blue-700 ${
-                                    collapsed ? 'w-8 h-8' : 'w-6 h-6'
-                                  }`,
-                                  `glass-card text-xs font-medium glass-text-primary ${
-                                    collapsed ? 'w-8 h-8' : 'w-6 h-6'
-                                  }`
+            
+            {clients.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className={getThemeClasses(
+                  "w-8 h-8 text-gray-400 mx-auto mb-2",
+                  "w-8 h-8 glass-text-muted mx-auto mb-2"
+                )} />
+                <p className={getThemeClasses(
+                  "text-sm text-gray-500",
+                  "text-sm glass-text-muted"
+                )}>No clients yet</p>
+                <p className={getThemeClasses(
+                  "text-xs text-gray-400",
+                  "text-xs glass-text-muted"
+                )}>Create your first client to get started</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {clients.map((client) => {
+                  const isActive = currentClientId === client.id;
+                  const isActiveClient = pathname?.includes(`/dashboard/client/${client.id}`);
+                  
+                  return (
+                    <Card 
+                      key={client.id} 
+                      className={getThemeClasses(
+                        `cursor-pointer transition-all hover:shadow-md ${
+                          isActiveClient ? 'ring-2 ring-blue-500' : 'hover:bg-gray-50'
+                        }`,
+                        `cursor-pointer transition-all glass-card ${
+                          isActiveClient ? 'ring-2 ring-white/50' : 'hover:bg-white/5'
+                        }`
+                      )}
+                      onClick={() => router.push(`/dashboard/client/${client.id}`)}
+                      title={client.name}
+                    >
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <div className={`rounded-full flex items-center justify-center overflow-hidden w-6 h-6 ${
+                                client.logo_url ? '' : getThemeClasses(
+                                  "bg-blue-100 text-xs font-medium text-blue-700",
+                                  "glass-card text-xs font-medium glass-text-primary"
                                 )
-                          } ${collapsed ? 'w-8 h-8' : 'w-6 h-6'}`}>
-                            {client.logo_url ? (
-                              <img 
-                                src={client.logo_url} 
-                                alt={`${client.name} logo`}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <span>{client.name.charAt(0).toUpperCase()}</span>
+                              }`}>
+                                {client.logo_url ? (
+                                  <img 
+                                    src={client.logo_url} 
+                                    alt={`${client.name} logo`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span>{client.name.charAt(0).toUpperCase()}</span>
+                                )}
+                              </div>
+                              <span className={getThemeClasses(
+                                "font-bold truncate text-gray-600",
+                                "font-bold truncate glass-text-secondary"
+                              )} style={{ fontSize: '20px', fontWeight: '800' }}>
+                                {client.name}
+                              </span>
+                            </div>
+                            {client.description && (
+                              <p className={getThemeClasses(
+                                "text-xs text-gray-500 truncate mt-1",
+                                "text-xs glass-text-muted truncate mt-1"
+                              )}>
+                                {client.description}
+                              </p>
                             )}
                           </div>
-                          {!collapsed && (
-                            <span className={getThemeClasses(
-                              `font-bold truncate text-gray-600`,
-                              `font-bold truncate glass-text-secondary`
-                            )} style={{ fontSize: '20px', fontWeight: '800' }}>
-                              {client.name}
-                            </span>
-                          )}
                         </div>
-                        {!collapsed && client.description && (
-                          <p className={getThemeClasses(
-                            "text-xs text-gray-500 truncate mt-1",
-                            "text-xs glass-text-muted truncate mt-1"
-                          )}>
-                            {client.description}
-                          </p>
-                        )}
-                      </div>
-                      
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
 
