@@ -261,30 +261,35 @@ export default function Home() {
               Upload content, generate captions with AI, and schedule posts across all platforms. 
               Built specifically for marketing agencies managing multiple clients.
             </p>
-            <div className="mt-10 flex items-center justify-center gap-3 max-w-2xl mx-auto px-4">
-              <input
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="flex-1 px-4 py-3 text-base rounded-lg border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent shadow-sm"
-              />
-              <Button 
-                size="lg" 
-                className="px-8 py-3 text-base whitespace-nowrap" 
-                onClick={() => {
-                  if (user) {
-                    router.push('/dashboard');
-                  } else {
-                    const signupUrl = email 
-                      ? `/auth/signup?email=${encodeURIComponent(email)}`
-                      : '/auth/signup';
-                    router.push(signupUrl);
-                  }
-                }}
-              >
-                Get Started FREE
-              </Button>
+            <div className="mt-10 max-w-2xl mx-auto px-4">
+              <div className="flex items-center justify-center gap-3">
+                <input
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="flex-1 px-4 py-3 text-base rounded-lg border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent shadow-sm"
+                />
+                <Button 
+                  size="lg" 
+                  className="px-8 py-3 text-base whitespace-nowrap" 
+                  onClick={() => {
+                    if (user) {
+                      router.push('/dashboard');
+                    } else {
+                      const signupUrl = email 
+                        ? `/auth/signup?email=${encodeURIComponent(email)}`
+                        : '/auth/signup';
+                      router.push(signupUrl);
+                    }
+                  }}
+                >
+                  Get Started FREE
+                </Button>
+              </div>
+              <p className="text-center text-sm text-muted-foreground mt-3">
+                Free forever. No credit card required.
+              </p>
             </div>
           </div>
           
