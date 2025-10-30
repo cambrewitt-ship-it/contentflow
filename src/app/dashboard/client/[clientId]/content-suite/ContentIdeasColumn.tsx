@@ -187,8 +187,8 @@ export function ContentIdeasColumn() {
 
       {/* Generated Content Ideas */}
       {contentIdeas.length > 0 && (
-        <Card>
-          <CardHeader>
+        <Card className="w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] max-w-none">
+          <CardHeader className="px-6">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="card-title-26">
@@ -210,8 +210,8 @@ export function ContentIdeasColumn() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4">
+          <CardContent className="px-6">
+            <div className="grid grid-cols-3 gap-4 w-full max-w-none">
               {contentIdeas.map((idea, index) => (
                 <div
                   key={index}
