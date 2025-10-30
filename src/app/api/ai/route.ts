@@ -136,6 +136,15 @@ export async function POST(request: NextRequest) {
 
     const body = validation.data.body!;
 
+    // Debug: log received payload (omit large fields)
+    try {
+      const { imageData: _img, ...debugBody } = body as Record<string, unknown>;
+      logger.info('📥 /api/ai received body:', {
+        ...debugBody,
+        hasImageData: !!(body as Record<string, unknown>).imageData,
+      });
+    } catch (_) {}
+
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         { error: 'OpenAI API key not configured' },
@@ -154,11 +163,11 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'generate_captions':
+        // Accept aiContext from either aiContext or postNotes, allowing empty string for videos
         result = await generateCaptions(
           openai,
           body.imageData as string,
-          body.existingCaptions as string[] | undefined,
-          body.aiContext as string | undefined,
+          body.aiContext ?? (body as Record<string, unknown>).postNotes as string | undefined,
           body.clientId as string | undefined,
           body.copyType as 'social-media' | 'email-marketing' | undefined,
           body.copyTone as 'promotional' | 'educational' | 'personal' | 'testimonial' | 'engagement' | undefined,
@@ -311,8 +320,8 @@ async function generateCaptions(
       validation = isValidImageData(imageData);
     }
 
-    // Videos require post notes since we can't analyze them visually
-    if (isVideo && !(aiContext && aiContext.trim())) {
+    // Videos require post notes reference to guide copy, but allow empty string
+    if (isVideo && (aiContext === undefined || aiContext === null)) {
       throw new Error('Post Notes are required for video content. AI cannot analyze videos visually.');
     }
 
@@ -373,7 +382,7 @@ You are a professional email copywriter creating promotional email content.
 - **Value Proposition:** ${brandContext?.value_proposition || 'Not specified'}
 
 ## Content Inputs
-**User's Message Intent:** ${aiContext || 'Not provided'}
+**Post Notes (Highest Priority):** ${aiContext || 'Not provided'}
 **Visual Content:** ${imageData ? 'Image provided for analysis' : 'No image provided'}
 
 ## Task
@@ -389,6 +398,12 @@ Write exactly ONE email paragraph structured as:
 [2-3 professional sentences conveying the message and value]
 
 [Clear call-to-action]
+
+## CRITICAL PRIORITY — POST NOTES
+✓ The Post Notes are the HIGHEST-PRIORITY input and override all other guidance
+✓ You MUST directly reference and explicitly mention the Post Notes content using the same key phrases
+✓ Do NOT water down, generalize, or omit critical wording from the Post Notes
+✓ When Post Notes are empty or not provided, proceed without fabricating content and rely on brand context
 
 ## Requirements
 ✓ Professional business language (translate casual language to professional tone)
@@ -408,6 +423,12 @@ Generate the email copy now.`
 **Copy Tone:** ${copyTone || 'General'}
 **Post Notes Style:** ${postNotesStyle || 'Paraphrase'}
 **Image Focus:** ${imageFocus || 'Supporting'}
+
+## CRITICAL PRIORITY — POST NOTES
+- The Post Notes are the TOP priority and override brand context and image analysis
+- Every caption MUST directly reference and explicitly mention the Post Notes using the same key phrases
+- Do NOT generalize away or omit critical wording from the Post Notes
+- If Post Notes are empty or not provided, do NOT fabricate details; rely on brand context and image cues
 
 ## Copy Tone Instructions
 ${getCopyToneInstructions(copyTone || 'promotional')}
@@ -476,7 +497,8 @@ ${finalInstruction}`;
         },
         {
           role: 'user',
-          content: userContent
+          // Casting due to OpenAI SDK type expectations for multimodal content structure
+          content: userContent as any
         }
       ],
       max_tokens: 800,

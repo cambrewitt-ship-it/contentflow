@@ -280,16 +280,10 @@ export default function Dashboard() {
 
         {/* Clients Section */}
         <div className="mb-8">
-          <div className="flex items-center justify-center gap-4 mb-6">
+          <div className="mb-6 text-center">
             <h2 className="text-2xl font-bold text-foreground">
               Your Clients
             </h2>
-          <Link href="/dashboard/clients/new">
-            <Button className="flex items-center space-x-2">
-                <Plus className="w-4 h-4" />
-                <span>Add Client</span>
-              </Button>
-            </Link>
           </div>
 
           {clients.length === 0 ? (

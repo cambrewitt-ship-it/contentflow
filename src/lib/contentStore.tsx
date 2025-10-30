@@ -523,11 +523,13 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         action: 'generate_captions',
         imageData: imageData,
         aiContext: notes || postNotes,
+        postNotes: notes || postNotes,
         clientId: clientId,
         copyType: copyType || 'social-media',
         copyTone: copyTone,
         postNotesStyle: notesInterpretation,
         imageFocus: contentFocus,
+        contentType: isVideo ? 'video' : 'image'
       }
 
       const bodyString = JSON.stringify(requestBody)
@@ -536,6 +538,15 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       if (bodyString.length > 10 * 1024 * 1024) {
         logger.warn('⚠️ Large request body detected:', bodySizeMB, 'MB')
       }
+
+      // Debug: Log what's being sent to the API (without huge payloads)
+      try {
+        const { imageData: _, ...debugBody } = requestBody
+        logger.info('🛰️ Sending AI request body:', {
+          ...debugBody,
+          hasImageData: !!imageData,
+        })
+      } catch (_) {}
 
       let response
       try {
