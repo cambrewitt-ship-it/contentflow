@@ -6,25 +6,13 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     
-    // Extract query parameters
-    const token = searchParams.get('token');
-    const type = searchParams.get('type');
-    const redirectTo = searchParams.get('redirect_to');
-
-    // Build the Supabase verification URL with query parameters
+    // Build the Supabase verification URL with all query parameters
     const verifyUrl = new URL(SUPABASE_VERIFY_URL);
     
-    if (token) {
-      verifyUrl.searchParams.set('token', token);
-    }
-    
-    if (type) {
-      verifyUrl.searchParams.set('type', type);
-    }
-    
-    if (redirectTo) {
-      verifyUrl.searchParams.set('redirect_to', redirectTo);
-    }
+    // Pass all query parameters to the Supabase URL
+    searchParams.forEach((value, key) => {
+      verifyUrl.searchParams.set(key, value);
+    });
 
     // Redirect to Supabase verification endpoint
     return NextResponse.redirect(verifyUrl.toString());
