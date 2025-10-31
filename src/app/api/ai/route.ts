@@ -786,13 +786,20 @@ async function generateContentIdeas(openai: OpenAI, clientId: string) {
 ### STEP 3: Holiday & Seasonal Relevance Filter
 **STRICT FILTERING RULES:**
 
+**CRITICAL DATE VALIDATION:**
+- **ONLY suggest holidays and events that occur AFTER the current date (${currentContext.date})**
+- **NEVER suggest past events - always verify the event date is in the future**
+- **If a holiday has already passed this year, do not suggest it**
+
 **NEVER suggest holidays unless:**
 - Direct audience overlap (Mother's Day → family-focused brands)
 - Natural business connection (Small Business Saturday → B2B services)
 - Major cultural relevance (Christmas, New Year, Valentine's Day)
 - Industry-specific events (World Mental Health Day → wellness brands)
+- **AND the event date is in the FUTURE**
 
 **AUTOMATICALLY REJECT holidays that are:**
+- **Already passed (date is before ${currentContext.date})**
 - Completely unrelated to target audience
 - Tone-deaf to industry context
 - Too niche for broad business appeal
@@ -839,6 +846,7 @@ async function generateContentIdeas(openai: OpenAI, clientId: string) {
 ✅ Does this differentiate from typical industry content?
 ✅ Could this reasonably drive business results?
 ✅ Is this appropriate for the industry and audience?
+✅ **Is this event/holiday in the FUTURE? (After ${currentContext.date})**
 
 **If any answer is NO, generate a different idea.**
 
@@ -846,7 +854,7 @@ async function generateContentIdeas(openai: OpenAI, clientId: string) {
 
 **STRATEGIC DISTRIBUTION:**
 - Generate 3 distinctly different content approaches
-- Maximum 1 seasonal/holiday idea (only if highly relevant)
+- Maximum 1 seasonal/holiday idea (only if highly relevant AND in the future)
 - Maximum 1 promotional/giveaway idea
 - Prioritize evergreen content that works year-round
 - Ensure variety in content types and strategic purposes
@@ -889,12 +897,13 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
 - **Audience-First Approach:** What would genuinely interest their customers?
 - **Business Results Focus:** Every idea should have a clear path to business value
 - **Quality Over Creativity:** Solid, strategic ideas beat clever but irrelevant content
+- **Future-Focused Only:** Never suggest content for events that have already occurred
 
 **Context Variables:**
-- **Current Date:** ${currentContext.date}
+- **Current Date:** ${currentContext.date} - ONLY SUGGEST EVENTS AFTER THIS DATE
 - **Season:** ${currentContext.season} (New Zealand)
 - **Location:** Wellington, New Zealand
-- **Available Holidays:** ${holidays.filter(h => h.daysUntil <= 30).map(h => `${h.name} - ${h.date} (${h.daysUntil} days)`).join(', ')}
+- **Available FUTURE Holidays:** ${holidays.filter(h => h.daysUntil >= 0 && h.daysUntil <= 30).map(h => `${h.name} - ${h.date} (in ${h.daysUntil} days)`).join(', ') || 'No major holidays in the next 30 days'}
 - **Client Information:** Company: ${clientData.company_description || 'Not specified'}, Industry: ${clientData.industry || 'General Business'}, Target Audience: ${clientData.target_audience || 'General consumers'}, Brand Tone: ${clientData.brand_tone || 'Professional'}${clientData.brand_voice_examples ? `, Brand Voice: ${clientData.brand_voice_examples.slice(0, 200)}...` : ''}`;
     };
 
