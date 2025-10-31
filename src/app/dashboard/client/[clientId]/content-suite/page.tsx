@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { ArrowLeft, Loader2, Plus, Calendar, Edit3, X, User, Settings, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Calendar, Edit3, X, User, Settings, ChevronDown, Lightbulb, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { MediaUploadColumn } from './MediaUploadColumn'
 import { CaptionGenerationColumn } from './CaptionGenerationColumn'
@@ -697,6 +697,7 @@ function ContentSuiteContent({
     setPostNotes,
     setActiveImageId
   } = useContentStore()
+  const { contentIdeas } = useContentStore()
   
   const { user } = useAuth()
 
@@ -1055,17 +1056,16 @@ function ContentSuiteContent({
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 pt-4 pb-8">
-        {/* Grid Container for all content */}
-        <div className="grid grid-cols-3 gap-6 items-stretch">
-          {/* Row 1: Content Ideas Section - spans 2 columns */}
-          <div className="col-span-2 mb-2">
+      {/* Top Section: Content Ideas and Add to Calendar Cards */}
+      <div className="max-w-7xl mx-auto px-6 pt-4">
+        <div className="grid grid-cols-3 gap-6">
+          {/* Content Ideas Section - spans 2 columns */}
+          <div className="col-span-2">
             <ContentIdeasColumn />
           </div>
           
-          {/* Row 1: Action Buttons in third column - aligned with Content Ideas */}
-          <div className="mb-2 space-y-4">
+          {/* Add to Calendar Card - third column */}
+          <div>
             {/* Action Buttons Section - Only show when not editing */}
             {!isEditing && (
               <div className="bg-white rounded-lg border border-gray-200 flex h-[116px]">
@@ -1144,7 +1144,62 @@ function ContentSuiteContent({
               </div>
             )}
           </div>
+        </div>
+      </div>
 
+      {/* Full-width Generated Ideas Section */}
+      {contentIdeas.length > 0 && (
+        <div className="w-full">
+          <div className="px-6 py-8">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-800">Generated Ideas ({contentIdeas.length})</h2>
+                <p className="text-sm text-muted-foreground">AI-generated content ideas tailored to your brand and upcoming holidays</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {contentIdeas.map((idea, index) => (
+                <div key={index} className="border rounded-lg p-3 transition-all hover:border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 h-full">
+                  <div className="space-y-2">
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-purple-600 font-semibold text-sm">{index + 1}</span>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2">{idea.idea}</h3>
+                      </div>
+                    </div>
+                    <div className="space-y-3 ml-2">
+                      <div className="flex items-start space-x-2">
+                        <div className="flex-shrink-0 w-5 h-5 text-purple-500 mt-0.5">
+                          <Lightbulb className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-gray-700 mb-0.5">Marketing Angle</p>
+                          <p className="text-sm text-gray-600">{idea.angle}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start space-x-2">
+                        <div className="flex-shrink-0 w-5 h-5 text-green-500 mt-0.5">
+                          <Clock className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-gray-700 mb-0.5">Post Example</p>
+                          <p className="text-sm text-gray-600">{idea.timing}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content: Three Columns */}
+      <div className="max-w-7xl mx-auto px-6 pb-8">
+        <div className="grid grid-cols-3 gap-6 items-stretch">
           {/* Content Suite Columns */}
           <div className="flex h-full">
             <MediaUploadColumn />
@@ -1165,60 +1220,60 @@ function ContentSuiteContent({
             />
           </div>
         </div>
-
-        {/* Create New Project Modal */}
-        {!isEditing && (
-          <Dialog open={showNewProjectForm} onOpenChange={setShowNewProjectForm}>
-            <DialogContent className="bg-white/90">
-              <DialogHeader>
-                <DialogTitle>Create New Project</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Project Name *
-                  </label>
-                  <Input
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                    placeholder="Enter project name..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
-                  <Textarea
-                    value={newProjectDescription}
-                    onChange={(e) => setNewProjectDescription(e.target.value)}
-                    placeholder="Enter project description..."
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowNewProjectForm(false)
-                    setNewProjectName("")
-                    setNewProjectDescription("")
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleCreateProject}
-                  disabled={creatingProject}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  {creatingProject ? 'Creating...' : 'Create Project'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
       </div>
+
+      {/* Create New Project Modal */}
+      {!isEditing && (
+        <Dialog open={showNewProjectForm} onOpenChange={setShowNewProjectForm}>
+          <DialogContent className="bg-white/90">
+            <DialogHeader>
+              <DialogTitle>Create New Project</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Project Name *
+                </label>
+                <Input
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="Enter project name..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <Textarea
+                  value={newProjectDescription}
+                  onChange={(e) => setNewProjectDescription(e.target.value)}
+                  placeholder="Enter project description..."
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowNewProjectForm(false)
+                  setNewProjectName("")
+                  setNewProjectDescription("")
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleCreateProject}
+                disabled={creatingProject}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {creatingProject ? 'Creating...' : 'Create Project'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
