@@ -1153,8 +1153,7 @@ function ContentSuiteContent({
           <div className="px-6 py-8">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-2xl font-semibold text-gray-800">Generated Ideas ({contentIdeas.length})</h2>
-                <p className="text-sm text-muted-foreground">AI-generated content ideas tailored to your brand and upcoming holidays</p>
+                <h2 className="text-2xl font-semibold text-gray-800">Generated Ideas</h2>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
