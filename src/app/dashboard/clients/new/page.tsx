@@ -14,8 +14,7 @@ import {
   Globe, 
   CheckCircle, 
   AlertCircle,
-  Upload, 
-  FileText
+  Upload
 } from "lucide-react";
 import Link from "next/link";
 
@@ -55,16 +54,19 @@ export default function NewClientPageV2() {
     brand_color: "#4ade80" // Default green color for LATE profile
   });
   
-  const [uploading, setUploading] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [scraping, setScraping] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [loadingStage, setLoadingStage] = useState<'idle' | 'creating' | 'setting-up-social' | 'success' | 'error'>('idle');
+  const [loadingStage, setLoadingStage] = useState<'idle' | 'creating' | 'setting-up-social' | 'uploading-logo' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [brandDocuments] = useState<BrandDocument[]>([]);
   const [websiteScrapes] = useState<WebsiteScrape[]>([]);
-  const [lateProfileCreated, setLateProfileCreated] = useState(false);
   const isSubmittingRef = useRef(false);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoFileData, setLogoFileData] = useState<{ base64: string; filename: string } | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
 
   const validateForm = () => {
@@ -156,20 +158,28 @@ export default function NewClientPageV2() {
       const clientId = newClientId;
       console.log('✅ New client created:', clientId);
       console.log('🎯 LATE profile created:', lateProfileCreated, lateProfileId);
-      
-      // Show success message with LATE profile status
-      if (lateProfileCreated) {
-        setMessage({ 
-          type: 'success', 
-          text: `Client created successfully! Social media profile is ready with LATE integration.` 
-        });
-      } else {
-        setMessage({ 
-          type: 'success', 
-          text: `Client created successfully! Note: Social media profile setup encountered an issue but client was saved.` 
-        });
+
+      let finalMessageType: 'success' | 'error' = 'success';
+      let finalMessageText = lateProfileCreated
+        ? 'Client created successfully! Social media profile is ready with LATE integration.'
+        : 'Client created successfully! Note: Social media profile setup encountered an issue but client was saved.';
+
+      if (logoFileData) {
+        try {
+          await uploadLogoForCreatedClient(clientId);
+          finalMessageText += ' Logo uploaded successfully.';
+        } catch (logoError) {
+          console.error('❌ Logo upload failed after client creation:', logoError);
+          finalMessageType = 'error';
+          finalMessageText = `Client created but failed to upload logo: ${logoError instanceof Error ? logoError.message : 'Unknown error'}`;
+        }
       }
-      
+
+      setMessage({
+        type: finalMessageType,
+        text: finalMessageText
+      });
+
       // Clear the form after successful creation
       setFormData({
         name: "",
@@ -184,14 +194,16 @@ export default function NewClientPageV2() {
         brand_color: "#4ade80"
       });
       
-      // Redirect after a short delay to show the success message
-      setTimeout(() => {
-        // Trigger sidebar refresh by dispatching a custom event
-        window.dispatchEvent(new CustomEvent('clientCreated', { detail: { clientId } }));
-        
-        // Redirect to the client's dashboard
-        router.push(`/dashboard/client/${clientId}`);
-      }, 2000);
+      if (finalMessageType === 'success') {
+        // Redirect after a short delay to show the success message
+        setTimeout(() => {
+          // Trigger sidebar refresh by dispatching a custom event
+          window.dispatchEvent(new CustomEvent('clientCreated', { detail: { clientId } }));
+          
+          // Redirect to the client's dashboard
+          router.push(`/dashboard/client/${clientId}`);
+        }, 2000);
+      }
       
     } catch (error) {
       console.error("❌ Unexpected error creating client:", error);
@@ -204,27 +216,124 @@ export default function NewClientPageV2() {
       isSubmittingRef.current = false;
     }
   };
-
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('filename', file.name);
+    setLogoError(null);
 
-      // For new client, we'll use a temporary upload approach
-      // This would need to be implemented in the backend
-      setMessage({ type: 'error', text: 'File upload not yet implemented for new clients. Please create the client first, then upload documents.' });
-      setTimeout(() => setMessage(null), 5000);
+    if (!file.type.startsWith('image/')) {
+      setLogoError('Please select an image file.');
+      if (logoInputRef.current) {
+        logoInputRef.current.value = '';
+      }
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setLogoError('File size must be less than 5MB.');
+      if (logoInputRef.current) {
+        logoInputRef.current.value = '';
+      }
+      return;
+    }
+
+    const validateSquareImage = (fileToValidate: File): Promise<boolean> => {
+      return new Promise((resolve) => {
+        const img = new window.Image();
+        img.onload = () => {
+          resolve(img.width === img.height);
+        };
+        img.onerror = () => resolve(false);
+        img.src = URL.createObjectURL(fileToValidate);
+      });
+    };
+
+    setUploadingLogo(true);
+
+    try {
+      const isSquare = await validateSquareImage(file);
+      if (!isSquare) {
+        setLogoError('Logo must be a square image (equal width and height).');
+        setUploadingLogo(false);
+        if (logoInputRef.current) {
+          logoInputRef.current.value = '';
+        }
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64Data = reader.result as string;
+        setLogoPreview(base64Data);
+        setLogoFileData({ base64: base64Data, filename: file.name });
+        setUploadingLogo(false);
+        if (logoInputRef.current) {
+          logoInputRef.current.value = '';
+        }
+      };
+      reader.onerror = () => {
+        setLogoError('Failed to read the selected image.');
+        setUploadingLogo(false);
+        if (logoInputRef.current) {
+          logoInputRef.current.value = '';
+        }
+      };
+      reader.readAsDataURL(file);
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to upload document' });
-      setTimeout(() => setMessage(null), 3000);
-    } finally {
-      setUploading(false);
+      console.error('❌ Error processing logo:', error);
+      setLogoError('Failed to process the selected image. Please try again.');
+      setUploadingLogo(false);
+      if (logoInputRef.current) {
+        logoInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleLogoRemove = () => {
+    setLogoPreview(null);
+    setLogoFileData(null);
+    setLogoError(null);
+    if (logoInputRef.current) {
+      logoInputRef.current.value = '';
+    }
+  };
+
+  const uploadLogoForCreatedClient = async (clientId: string) => {
+    if (!logoFileData) return;
+
+    setLoadingStage('uploading-logo');
+
+    const response = await fetch(`/api/clients/${clientId}/logo`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAccessToken() || ''}`,
+      },
+      body: JSON.stringify({
+        imageData: logoFileData.base64,
+        filename: logoFileData.filename,
+      }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to upload logo';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch (parseError) {
+        console.error('❌ Failed to parse logo upload error response:', parseError);
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    console.log('✅ Logo uploaded for new client:', data.logoUrl);
+
+    setLogoPreview(null);
+    setLogoFileData(null);
+    if (logoInputRef.current) {
+      logoInputRef.current.value = '';
     }
   };
 
@@ -414,46 +523,110 @@ export default function NewClientPageV2() {
             <CardHeader>
               <CardTitle className="text-lg">Brand Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* AI Brand Info Generation Card */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">
-                  💡 AI Brand Info Generation
-                </h3>
-                <p className="text-blue-800 text-sm mb-4">
-                  Enter your website URL below and our AI will analyze your business to pre-fill your brand profile. Review and edit any details to ensure accuracy.
-                </p>
-                
-                {/* Website URL */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Website URL
-                  </label>
-                  {true ? (
-                    <div className="flex gap-2">
-                      <Input
-                        value={formData.website_url}
-                        onChange={(e) => handleInputChange('website_url', e.target.value)}
-                        placeholder="https://example.com"
-                        type="url"
-                      />
-                      <Button
-                        onClick={handleWebsiteScrape}
-                        disabled={scraping || !formData.website_url}
-                        size="sm"
-                      >
-                        {scraping ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Globe className="w-4 h-4 mr-2" />
-                        )}
-                        Scrape
-                      </Button>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                {/* AI Brand Info Generation Card */}
+                <div className="lg:col-span-3 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                    💡 AI Brand Info Generation
+                  </h3>
+                  <p className="text-blue-800 text-sm mb-4">
+                    Enter your website URL below and our AI will analyze your business to pre-fill your brand profile. Review and edit any details to ensure accuracy.
+                  </p>
+                  
+                  {/* Website URL */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Website URL
+                    </label>
+                    {true ? (
+                      <div className="flex gap-2">
+                        <Input
+                          value={formData.website_url}
+                          onChange={(e) => handleInputChange('website_url', e.target.value)}
+                          placeholder="https://example.com"
+                          type="url"
+                        />
+                        <Button
+                          onClick={handleWebsiteScrape}
+                          disabled={scraping || !formData.website_url}
+                          size="sm"
+                        >
+                          {scraping ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Globe className="w-4 h-4 mr-2" />
+                          )}
+                          Scrape
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
+                        {formData.website_url || 'No website URL provided'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Client Logo Upload Card */}
+                <div className="lg:col-span-1 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
+                    Client Logo
+                  </h3>
+
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="h-24 w-24 flex items-center justify-center">
+                      {logoPreview ? (
+                        <img
+                          src={logoPreview}
+                          alt="Client logo preview"
+                          className="h-24 w-24 rounded-full object-cover border border-gray-200"
+                        />
+                      ) : (
+                        <div className="h-24 w-24 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-sm">
+                          Logo
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
-                      {formData.website_url || 'No website URL provided'}
-                    </p>
+
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      className="hidden"
+                      onChange={handleLogoSelection}
+                    />
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => logoInputRef.current?.click()}
+                      disabled={uploadingLogo || loading}
+                      className="w-32 justify-center"
+                    >
+                      {uploadingLogo ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4 mr-2" />
+                      )}
+                      {logoPreview ? 'Change' : 'Upload'}
+                    </Button>
+
+                    {logoPreview && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleLogoRemove}
+                        disabled={loading}
+                        className="w-32 justify-center"
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+
+                  {logoError && (
+                    <p className="text-sm text-red-600 mt-3">{logoError}</p>
                   )}
                 </div>
               </div>
@@ -687,6 +860,7 @@ export default function NewClientPageV2() {
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   {loadingStage === 'creating' ? 'Creating client...' : 
                    loadingStage === 'setting-up-social' ? 'Setting up social media...' : 
+                   loadingStage === 'uploading-logo' ? 'Uploading logo...' :
                    'Creating...'}
                 </>
               ) : (
