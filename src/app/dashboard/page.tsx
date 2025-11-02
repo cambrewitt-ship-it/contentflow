@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 interface Client {
   id: string;
@@ -40,6 +41,7 @@ interface Subscription {
 
 export default function Dashboard() {
   const { user, signOut, getAccessToken } = useAuth();
+  const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -47,6 +49,19 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
+
+  // Check for password reset hash fragments and redirect if needed
+  // This handles cases where Supabase redirects to the dashboard instead of reset-password
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash;
+      if (hash && hash.includes('type=recovery')) {
+        // We have a password reset token in the hash, redirect to reset-password page
+        // The hash will be preserved by the browser
+        router.push('/auth/reset-password');
+      }
+    }
+  }, [router]);
 
   // Fetch user profile - ONLY on mount or when user ID changes
   useEffect(() => {

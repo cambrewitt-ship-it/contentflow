@@ -95,6 +95,19 @@ export default function Home() {
   const [email, setEmail] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Check for password reset hash fragments and redirect if needed
+  // This handles cases where Supabase redirects to the home page instead of reset-password
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash;
+      if (hash && hash.includes('type=recovery')) {
+        // We have a password reset token in the hash, redirect to reset-password page
+        // The hash will be preserved by the browser
+        router.push('/auth/reset-password');
+      }
+    }
+  }, [router]);
+
   // Fetch user profile - ONLY on mount or when user ID changes
   useEffect(() => {
     async function fetchProfile() {

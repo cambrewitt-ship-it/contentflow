@@ -778,6 +778,28 @@ async function generateContentIdeas(openai: OpenAI, clientId: string, userId: st
     const generateContentIdeasPrompt = (clientData: ClientData, holidays: HolidayData[], currentContext: CurrentContext) => {
       return `You are a strategic marketing consultant with 10+ years of experience generating high-converting social media content across diverse industries. Your expertise lies in creating content that drives genuine business results, not just engagement vanity metrics.
 
+## ⚠️ CRITICAL DATE REQUIREMENT - READ FIRST ⚠️
+
+**CURRENT DATE: ${currentContext.date}**
+
+**ABSOLUTE RULE: ONLY SUGGEST CONTENT IDEAS FOR FUTURE DATES AND EVENTS**
+
+🚫 **NEVER SUGGEST:**
+- Any holiday, event, or seasonal occasion that has ALREADY PASSED
+- Christmas, New Year, Valentine's Day, or any holiday that occurred before ${currentContext.date}
+- Seasonal events (summer sales, winter promotions) that have already occurred this year
+- Past dates or events that cannot be used for future content
+
+✅ **ONLY SUGGEST:**
+- Events and holidays that occur AFTER ${currentContext.date}
+- Future seasonal opportunities
+- Upcoming holidays listed in the "Available FUTURE Holidays" section below
+
+**BEFORE generating ANY idea related to a holiday, seasonal event, or specific date, you MUST verify:**
+1. Check if the event date is AFTER ${currentContext.date}
+2. If the date has passed, DO NOT use it - generate a different idea instead
+3. If you are unsure about a date, default to evergreen content instead of seasonal content
+
 ## Content Generation Process
 
 ### STEP 1: Industry & Context Analysis
@@ -799,9 +821,11 @@ async function generateContentIdeas(openai: OpenAI, clientId: string, userId: st
 **STRICT FILTERING RULES:**
 
 **CRITICAL DATE VALIDATION:**
-- **ONLY suggest holidays and events that occur AFTER the current date (${currentContext.date})**
+- **CURRENT DATE IS: ${currentContext.date} - ONLY suggest holidays and events that occur AFTER this date**
 - **NEVER suggest past events - always verify the event date is in the future**
-- **If a holiday has already passed this year, do not suggest it**
+- **If a holiday or seasonal event has already passed this year, DO NOT suggest it - generate evergreen content instead**
+- **For seasonal content (Christmas, Valentine's Day, etc.): If the event date is before ${currentContext.date}, it has PASSED and must be excluded**
+- **Before suggesting any holiday-related idea, verify the holiday date is in the future by checking the "Available FUTURE Holidays" list below**
 
 **NEVER suggest holidays unless:**
 - Direct audience overlap (Mother's Day → family-focused brands)
@@ -858,15 +882,17 @@ async function generateContentIdeas(openai: OpenAI, clientId: string, userId: st
 ✅ Does this differentiate from typical industry content?
 ✅ Could this reasonably drive business results?
 ✅ Is this appropriate for the industry and audience?
-✅ **Is this event/holiday in the FUTURE? (After ${currentContext.date})**
+✅ **CRITICAL: Is this event/holiday date in the FUTURE? (Must be AFTER ${currentContext.date})**
+✅ **CRITICAL: If this idea references a holiday or seasonal event, have I verified it hasn't passed already?**
 
-**If any answer is NO, generate a different idea.**
+**If ANY answer is NO, especially the date verification, generate a different idea.**
 
 ## Content Generation Rules
 
 **STRATEGIC DISTRIBUTION:**
 - Generate 3 distinctly different content approaches
-- Maximum 1 seasonal/holiday idea (only if highly relevant AND in the future)
+- Maximum 1 seasonal/holiday idea (only if highly relevant AND the event date is AFTER ${currentContext.date})
+- **If no future holidays are available, generate only evergreen content ideas**
 - Maximum 1 promotional/giveaway idea
 - Prioritize evergreen content that works year-round
 - Ensure variety in content types and strategic purposes
@@ -909,7 +935,7 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
 - **Audience-First Approach:** What would genuinely interest their customers?
 - **Business Results Focus:** Every idea should have a clear path to business value
 - **Quality Over Creativity:** Solid, strategic ideas beat clever but irrelevant content
-- **Future-Focused Only:** Never suggest content for events that have already occurred
+- **Future-Focused Only - MANDATORY:** NEVER suggest content for events, holidays, or seasonal occasions that have already occurred. Current date is ${currentContext.date}. Only use dates and events AFTER this date.
 
 **Context Variables:**
 - **Current Date:** ${currentContext.date} - ONLY SUGGEST EVENTS AFTER THIS DATE
@@ -959,7 +985,7 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
         },
         {
           role: 'user',
-          content: 'Generate 5 content ideas for this client based on upcoming holidays and brand context.'
+          content: `Generate 5 content ideas for this client. Current date is ${currentDate}. IMPORTANT: Only suggest ideas for future holidays and events that occur AFTER ${currentDate}. If a holiday or seasonal event has already passed, use evergreen content ideas instead. Only use the holidays listed in the "Available FUTURE Holidays" section - do not suggest holidays that are not listed there or that have already passed.`
         }
       ],
       max_tokens: 1500,

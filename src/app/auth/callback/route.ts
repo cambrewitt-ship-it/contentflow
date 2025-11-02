@@ -5,6 +5,19 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
+  const type = requestUrl.searchParams.get('type');
+
+  // Check if this is a password reset flow
+  // Supabase sends recovery tokens in hash fragments, which we can't access server-side
+  // But if the type parameter is 'recovery' or if we detect it might be a recovery flow,
+  // redirect to reset-password page - the hash will be preserved by the browser
+  if (type === 'recovery' || requestUrl.pathname.includes('reset') || 
+      requestUrl.searchParams.has('type') && requestUrl.searchParams.get('type')?.includes('recovery')) {
+    const resetPasswordUrl = requestUrl.origin + '/auth/reset-password';
+    console.log('🔄 Password reset flow detected, redirecting to reset-password page');
+    // Redirect to reset-password - browser will preserve hash fragment automatically
+    return NextResponse.redirect(resetPasswordUrl);
+  }
 
   if (code) {
     const supabase = createRouteHandlerClient({ cookies });

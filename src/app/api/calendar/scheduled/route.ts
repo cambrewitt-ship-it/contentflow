@@ -128,6 +128,17 @@ export async function POST(request: Request) {
       unscheduledId: body.unscheduledId
     });
 
+    // Build the scheduled post data object from the request
+    const scheduledPostData = {
+      project_id: body.scheduledPost.project_id,
+      client_id: body.scheduledPost.client_id,
+      caption: body.scheduledPost.caption,
+      image_url: body.scheduledPost.image_url || null,
+      post_notes: body.scheduledPost.post_notes || null,
+      scheduled_date: body.scheduledPost.scheduled_date,
+      scheduled_time: body.scheduledPost.scheduled_time
+    };
+
     const { data: scheduled, error: scheduleError } = await supabase
       .from('calendar_scheduled_posts')
       .insert(scheduledPostData)

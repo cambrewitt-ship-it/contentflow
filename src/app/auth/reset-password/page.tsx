@@ -21,12 +21,24 @@ function ResetPasswordForm() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    // Check if we have the reset token
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const accessToken = hashParams.get('access_token');
-    const type = hashParams.get('type');
+    // Check if we have the reset token in the hash fragment
+    // Supabase sends password reset tokens in the URL hash (e.g., #type=recovery&access_token=...)
+    const hash = window.location.hash;
+    
+    if (hash) {
+      const hashParams = new URLSearchParams(hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      const type = hashParams.get('type');
 
-    if (type !== 'recovery' || !accessToken) {
+      if (type === 'recovery' && accessToken) {
+        // We have a valid recovery token - clear any errors
+        setError('');
+      } else {
+        // Invalid token format
+        setError('Invalid or expired reset link. Please request a new one.');
+      }
+    } else {
+      // No hash found - invalid or expired link
       setError('Invalid or expired reset link. Please request a new one.');
     }
   }, []);
