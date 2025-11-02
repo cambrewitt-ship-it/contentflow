@@ -115,8 +115,7 @@ export function MediaUploadColumn() {
 
           {/* Uploaded Media */}
           {uploadedImages.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">Uploaded Media ({uploadedImages.length})</h3>
+            <div className="mt-6">
               <div className="grid grid-cols-4 gap-3">
                 {uploadedImages.map((media) => (
                   <div
@@ -129,13 +128,18 @@ export function MediaUploadColumn() {
                     onClick={() => setActiveImageId(media.id)}
                   >
                     {/* Media Type Indicator */}
-                    <div className="absolute top-1 left-1 z-10 bg-black/60 rounded px-1.5 py-0.5 flex items-center gap-1">
+                    <div className="absolute top-1 left-1 z-10 bg-black/60 rounded-full p-1 flex items-center justify-center">
                       {media.mediaType === 'video' ? (
-                        <VideoIcon className="w-3 h-3 text-white" />
+                        <>
+                          <VideoIcon className="w-3 h-3 text-white" />
+                          <span className="sr-only">Video</span>
+                        </>
                       ) : (
-                        <ImageIcon className="w-3 h-3 text-white" />
+                        <>
+                          <ImageIcon className="w-3 h-3 text-white" />
+                          <span className="sr-only">Image</span>
+                        </>
                       )}
-                      <span className="text-xs text-white">{media.mediaType === 'video' ? 'Video' : 'Image'}</span>
                     </div>
 
                     {/* Media Preview - Show thumbnail for videos, image for images */}
