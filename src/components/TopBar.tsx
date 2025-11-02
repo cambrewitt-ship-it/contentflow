@@ -3,12 +3,12 @@
 import { Button } from "@/components/ui/button";
 import { 
   Settings, 
-  User,
-  ChevronDown
+  User
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUIThemeStyles } from "@/hooks/useUITheme";
 import Link from "next/link";
+import CreditBadge from "@/components/CreditBadge";
 
 interface TopBarProps {
   className?: string;
@@ -35,6 +35,7 @@ export default function TopBar({ className = "" }: TopBarProps) {
 
       {/* Right side - Profile Menu */}
       <div className="flex items-center space-x-4">
+        <CreditBadge className="hidden sm:inline-flex" />
         {/* Profile Info */}
         <div className="flex items-center space-x-3">
           <div className={getThemeClasses(

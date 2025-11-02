@@ -14,7 +14,8 @@ import {
   Globe, 
   CheckCircle, 
   AlertCircle,
-  Upload
+  Upload,
+  X
 } from "lucide-react";
 import Link from "next/link";
 
@@ -575,13 +576,24 @@ export default function NewClientPageV2() {
                   </h3>
 
                   <div className="flex flex-col items-center gap-3">
-                    <div className="h-24 w-24 flex items-center justify-center">
+                    <div className="relative h-24 w-24">
                       {logoPreview ? (
-                        <img
-                          src={logoPreview}
-                          alt="Client logo preview"
-                          className="h-24 w-24 rounded-full object-cover border border-gray-200"
-                        />
+                        <>
+                          <img
+                            src={logoPreview}
+                            alt="Client logo preview"
+                            className="h-24 w-24 rounded-full object-cover border border-gray-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleLogoRemove}
+                            disabled={loading}
+                            aria-label="Remove logo"
+                            className="absolute top-1 right-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </>
                       ) : (
                         <div className="h-24 w-24 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-sm">
                           Logo
@@ -612,17 +624,6 @@ export default function NewClientPageV2() {
                       {logoPreview ? 'Change' : 'Upload'}
                     </Button>
 
-                    {logoPreview && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={handleLogoRemove}
-                        disabled={loading}
-                        className="w-32 justify-center"
-                      >
-                        Remove
-                      </Button>
-                    )}
                   </div>
 
                   {logoError && (

@@ -8,6 +8,7 @@ import { validateApiRequest } from '../../../lib/validationMiddleware';
 import { aiRequestSchema } from '../../../lib/validators';
 import { withAICreditCheck, trackAICreditUsage } from '../../../lib/subscriptionMiddleware';
 import logger from '@/lib/logger';
+import { checkAndDeductCredit } from '@/lib/utils/credits';
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
@@ -188,7 +189,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'generate_content_ideas':
-        result = await generateContentIdeas(openai, body.clientId as string);
+        result = await generateContentIdeas(openai, body.clientId as string, userId);
         break;
 
       default:
@@ -698,7 +699,7 @@ async function remixCaption(
   }
 }
 
-async function generateContentIdeas(openai: OpenAI, clientId: string) {
+async function generateContentIdeas(openai: OpenAI, clientId: string, userId: string) {
   try {
     if (!clientId) {
       return NextResponse.json(
@@ -706,6 +707,18 @@ async function generateContentIdeas(openai: OpenAI, clientId: string) {
         { status: 400 }
       );
     }
+
+    const creditResult = await checkAndDeductCredit(userId, 'content_generation');
+
+    if (!creditResult.success) {
+      return NextResponse.json({
+        success: false,
+        error: { code: 'INSUFFICIENT_CREDITS', showUpgradeModal: true },
+        creditsRemaining: creditResult.creditsRemaining ?? 0
+      });
+    }
+
+    const creditsRemaining = creditResult.creditsRemaining ?? 0;
 
     // Get upcoming holidays
     const upcomingHolidays = getUpcomingHolidays(8);
@@ -1019,7 +1032,8 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
 
     return NextResponse.json({
       success: true,
-      ideas: ideas
+      ideas: ideas,
+      creditsRemaining
     });
   } catch (error) {
     return handleApiError(error, {

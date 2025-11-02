@@ -6,12 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Lightbulb, RefreshCw, Calendar, Eye, Clock, AlertCircle, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCredits } from '@/lib/contexts/CreditsContext'
 
 // TypeScript types for API responses
+interface InsufficientCreditsErrorPayload {
+  code: string
+  showUpgradeModal?: boolean
+}
+
 interface ContentIdeasResponse {
   success: boolean
-  ideas: ContentIdea[]
-  error?: string
+  ideas?: ContentIdea[]
+  creditsRemaining?: number
+  error?: string | InsufficientCreditsErrorPayload
 }
 
 interface ContentIdeasError {
@@ -22,6 +29,7 @@ interface ContentIdeasError {
 export function ContentIdeasColumn() {
   const { clientId, contentIdeas, setContentIdeas } = useContentStore()
   const { getAccessToken } = useAuth()
+  const { refreshCredits } = useCredits()
   const [generatingIdeas, setGeneratingIdeas] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasGeneratedIdeas, setHasGeneratedIdeas] = useState(false)
@@ -70,24 +78,44 @@ export function ContentIdeasColumn() {
       }
 
       const data: ContentIdeasResponse = await response.json()
-      
+
+      const insufficientCredits =
+        !data.success &&
+        typeof data.error === 'object' &&
+        data.error !== null &&
+        'code' in data.error &&
+        (data.error as InsufficientCreditsErrorPayload).code === 'INSUFFICIENT_CREDITS'
+
+      if (insufficientCredits) {
+        alert('Out of credits')
+        setError('You are out of credits. Please upgrade to continue generating ideas.')
+        console.warn('Content ideas request blocked due to insufficient credits.', data)
+        return
+      }
+
       if (data.success && data.ideas && Array.isArray(data.ideas)) {
         if (data.ideas.length === 0) {
           setError('No content ideas were generated. Please try again.')
           return
         }
-        
+
         setContentIdeas(data.ideas)
         setHasGeneratedIdeas(true)
-        console.log('Content ideas generated successfully:', data.ideas)
+        console.log('Content ideas generated successfully:', data.ideas, 'Remaining credits:', data.creditsRemaining)
       } else {
-        throw new Error(data.error || 'Invalid response format from server')
+        const fallbackError = typeof data.error === 'string' ? data.error : 'Invalid response format from server'
+        throw new Error(fallbackError)
       }
     } catch (error) {
       console.error('Failed to generate content ideas:', error)
       const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
       setError(`Failed to generate content ideas: ${errorMessage}`)
     } finally {
+      try {
+        await refreshCredits()
+      } catch (refreshError) {
+        console.error('Failed to refresh credits:', refreshError)
+      }
       setGeneratingIdeas(false)
     }
   }
@@ -177,6 +205,13 @@ export function ContentIdeasColumn() {
                   >
                     <RotateCcw className="w-4 h-4 mr-2" />
                     Try Again
+                  </Button>
+                  <Button
+                    asChild
+                    size="sm"
+                    className="mt-3 ml-3 bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    <a href="/pricing">Plans</a>
                   </Button>
                 </div>
               </div>

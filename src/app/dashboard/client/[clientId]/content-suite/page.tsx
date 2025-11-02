@@ -1058,7 +1058,7 @@ function ContentSuiteContent({
 
       {/* Top Section: Content Ideas and Add to Calendar Cards */}
       <div className="max-w-7xl mx-auto px-6 pt-4">
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-3 gap-6 mb-8">
           {/* Content Ideas Section - spans 2 columns */}
           <div className="col-span-2">
             <ContentIdeasColumn />
