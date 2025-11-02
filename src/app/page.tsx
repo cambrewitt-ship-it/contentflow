@@ -8,6 +8,15 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, X, Check } from "lucide-react";
+import { 
+  FacebookIcon, 
+  InstagramIcon, 
+  TwitterIcon, 
+  LinkedInIcon, 
+  TikTokIcon, 
+  YouTubeIcon, 
+  ThreadsIcon 
+} from "@/components/social-icons";
 
 interface UserProfile {
   id: string;
@@ -294,30 +303,70 @@ export default function Home() {
           </div>
           
           {/* Hero Image/Illustration */}
-          <div className="mt-16 mx-auto max-w-4xl">
+          <div className="mt-16 mx-auto max-w-6xl">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-3xl"></div>
-              <div className="relative bg-card border border-border rounded-2xl p-8 shadow-2xl">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-4">
-                    <div className="h-32 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
-                      <div className="text-blue-600 text-4xl">📸</div>
-                    </div>
-                    <div className="h-20 bg-muted rounded-lg"></div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="h-20 bg-gradient-to-br from-green-100 to-green-200 rounded-lg flex items-center justify-center">
-                      <div className="text-green-600 text-2xl">✨</div>
-                    </div>
-                    <div className="h-32 bg-muted rounded-lg"></div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="h-20 bg-muted rounded-lg"></div>
-                    <div className="h-32 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex items-center justify-center">
-                      <div className="text-purple-600 text-4xl">📅</div>
-                    </div>
-                  </div>
+              <div className="relative bg-card border border-border rounded-2xl p-2 shadow-2xl">
+                <img 
+                  src="/content-suite-screenshot.png" 
+                  alt="Content Suite Screenshot" 
+                  className="w-full h-auto rounded-lg"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Social Media Platforms Section */}
+      <section className="py-20 sm:py-32 bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-4xl text-center">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl mb-12">
+              Schedule to social media
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-8 items-center justify-items-center">
+              <div className="flex flex-col items-center space-y-3">
+                <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center transition-transform hover:scale-110">
+                  <FacebookIcon size={32} className="text-white" />
                 </div>
+                <span className="text-sm font-medium text-foreground">Facebook</span>
+              </div>
+              <div className="flex flex-col items-center space-y-3">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center transition-transform hover:scale-110">
+                  <InstagramIcon size={32} className="text-white" />
+                </div>
+                <span className="text-sm font-medium text-foreground">Instagram</span>
+              </div>
+              <div className="flex flex-col items-center space-y-3">
+                <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
+                  <TwitterIcon size={32} className="text-white" />
+                </div>
+                <span className="text-sm font-medium text-foreground">Twitter</span>
+              </div>
+              <div className="flex flex-col items-center space-y-3">
+                <div className="w-16 h-16 rounded-full bg-blue-700 flex items-center justify-center transition-transform hover:scale-110">
+                  <LinkedInIcon size={32} className="text-white" />
+                </div>
+                <span className="text-sm font-medium text-foreground">LinkedIn</span>
+              </div>
+              <div className="flex flex-col items-center space-y-3">
+                <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
+                  <TikTokIcon size={32} className="text-white" />
+                </div>
+                <span className="text-sm font-medium text-foreground">TikTok</span>
+              </div>
+              <div className="flex flex-col items-center space-y-3">
+                <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center transition-transform hover:scale-110">
+                  <YouTubeIcon size={32} className="text-white" />
+                </div>
+                <span className="text-sm font-medium text-foreground">YouTube</span>
+              </div>
+              <div className="flex flex-col items-center space-y-3">
+                <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
+                  <ThreadsIcon size={32} className="text-white" />
+                </div>
+                <span className="text-sm font-medium text-foreground">Threads</span>
               </div>
             </div>
           </div>

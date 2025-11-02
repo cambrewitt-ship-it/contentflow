@@ -30,6 +30,8 @@ export async function middleware(req: NextRequest) {
     '/auth/login',
     '/auth/signup',
     '/auth/callback',
+    '/auth/forgot-password',
+    '/auth/reset-password',
     '/pricing',
   ];
 
