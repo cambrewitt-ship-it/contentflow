@@ -8,7 +8,6 @@ import { validateApiRequest } from '../../../lib/validationMiddleware';
 import { aiRequestSchema } from '../../../lib/validators';
 import { withAICreditCheck, trackAICreditUsage } from '../../../lib/subscriptionMiddleware';
 import logger from '@/lib/logger';
-import { checkAndDeductCredit } from '@/lib/utils/credits';
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
@@ -201,7 +200,19 @@ export async function POST(request: NextRequest) {
 
     // Track AI credit usage if request was successful
     if (result?.status === 200) {
-      await trackAICreditUsage(userId, 1);
+      const bodyData = body as Record<string, unknown>;
+      await trackAICreditUsage(
+        userId,
+        1,
+        body.action as string,
+        bodyData.clientId as string | undefined,
+        {
+          copyType: bodyData.copyType as string | undefined,
+          copyTone: bodyData.copyTone as string | undefined,
+          postNotesStyle: bodyData.postNotesStyle as string | undefined,
+          imageFocus: bodyData.imageFocus as string | undefined,
+        }
+      );
     }
 
     return result;
@@ -708,18 +719,6 @@ async function generateContentIdeas(openai: OpenAI, clientId: string, userId: st
       );
     }
 
-    const creditResult = await checkAndDeductCredit(userId, 'content_generation');
-
-    if (!creditResult.success) {
-      return NextResponse.json({
-        success: false,
-        error: { code: 'INSUFFICIENT_CREDITS', showUpgradeModal: true },
-        creditsRemaining: creditResult.creditsRemaining ?? 0
-      });
-    }
-
-    const creditsRemaining = creditResult.creditsRemaining ?? 0;
-
     // Get upcoming holidays
     const upcomingHolidays = getUpcomingHolidays(8);
 
@@ -1032,8 +1031,7 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
 
     return NextResponse.json({
       success: true,
-      ideas: ideas,
-      creditsRemaining
+      ideas: ideas
     });
   } catch (error) {
     return handleApiError(error, {

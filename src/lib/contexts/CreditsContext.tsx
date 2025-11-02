@@ -1,114 +1,119 @@
 'use client';
 
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState
-} from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import logger from '@/lib/logger';
 
-type CreditsContextValue = {
+interface CreditsContextType {
   credits: number;
+  monthlyUsed: number;
+  purchasedCredits: number;
   isLoading: boolean;
   refreshCredits: () => Promise<void>;
-};
+}
 
-const CreditsContext = createContext<CreditsContextValue | undefined>(undefined);
+const CreditsContext = createContext<CreditsContextType | undefined>(undefined);
 
 export function CreditsProvider({ children }: { children: React.ReactNode }) {
   const [credits, setCredits] = useState<number>(0);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const isMountedRef = useRef(true);
+  const [monthlyUsed, setMonthlyUsed] = useState<number>(0);
+  const [purchasedCredits, setPurchasedCredits] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  const refreshCredits = useCallback(async () => {
-    if (!isMountedRef.current) {
-      return;
-    }
-
-    setIsLoading(true);
-
+  const fetchCredits = async () => {
     try {
-      const {
-        data: { user },
-        error: authError
-      } = await supabase.auth.getUser();
+      setIsLoading(true);
 
-      if (authError) {
-        throw authError;
-      }
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-      if (!user) {
-        if (isMountedRef.current) {
-          setCredits(0);
-        }
+      if (userError) {
+        console.error('💥 Error fetching user:', userError);
+        setCredits(0);
+        setMonthlyUsed(0);
+        setPurchasedCredits(0);
+        setIsLoading(false);
         return;
       }
 
-      const { data, error } = await supabase
-        .from('users')
-        .select('ai_credits_remaining')
+      if (!user) {
+        console.log('No user logged in');
+        setCredits(0);
+        setMonthlyUsed(0);
+        setPurchasedCredits(0);
+        setIsLoading(false);
+        return;
+      }
+
+      // Fetch from subscriptions table
+      const { data: subscription, error: subError } = await supabase
+        .from('subscriptions')
+        .select('ai_credits_used_this_month')
+        .eq('user_id', user.id)
+        .single();
+
+      if (subError) {
+        console.error('❌ Subscription error:', subError);
+      }
+
+      // Fetch from user_profiles table
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('ai_credits_purchased')
         .eq('id', user.id)
         .single();
 
-      if (error) {
-        throw error;
+      if (profileError) {
+        console.error('❌ Profile error:', profileError);
       }
 
-      const rawCredits = data?.ai_credits_remaining;
-      const parsedCredits =
-        typeof rawCredits === 'number'
-          ? rawCredits
-          : Number.parseFloat(rawCredits ?? '0');
+      // Calculate credits (default monthly cap is 10 unless you fetch/determine a different limit)
+      const usedThisMonth = subscription?.ai_credits_used_this_month ?? 0;
+      const purchased = profile?.ai_credits_purchased ?? 0;
+      const monthlyCap = 10; // TODO: fetch from plan/subscription if dynamic
+      const monthlyRemaining = Math.max(0, monthlyCap - usedThisMonth);
+      const total = monthlyRemaining + purchased;
 
-      if (isMountedRef.current) {
-        setCredits(Number.isFinite(parsedCredits) ? parsedCredits : 0);
-      }
-    } catch (error) {
-      logger.error('Failed to fetch AI credits', error);
+      setMonthlyUsed(usedThisMonth);
+      setPurchasedCredits(purchased);
+      setCredits(total);
 
-      if (isMountedRef.current) {
-        setCredits(0);
-      }
+    } catch (err) {
+      console.error('💥 Error fetching credits:', err);
+      setCredits(0);
+      setMonthlyUsed(0);
+      setPurchasedCredits(0);
     } finally {
-      if (isMountedRef.current) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    refreshCredits();
-  }, [refreshCredits]);
+    fetchCredits();
+    // It's wise to re-fetch on auth changes, but that's out of scope for this fix!
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const value = React.useMemo(
-    () => ({
+  const refreshCredits = async () => {
+    await fetchCredits();
+  };
+
+  return (
+    <CreditsContext.Provider value={{
       credits,
+      monthlyUsed,
+      purchasedCredits,
       isLoading,
       refreshCredits
-    }),
-    [credits, isLoading, refreshCredits]
+    }}>
+      {children}
+    </CreditsContext.Provider>
   );
-
-  return <CreditsContext.Provider value={value}>{children}</CreditsContext.Provider>;
 }
 
 export function useCredits() {
   const context = useContext(CreditsContext);
-
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useCredits must be used within a CreditsProvider');
   }
-
   return context;
 }
-

@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { ArrowLeft, Loader2, Plus, Calendar, Edit3, X, User, Settings, ChevronDown, Lightbulb, Clock } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
+import { ArrowLeft, Loader2, Plus, Calendar, Edit3, X, User, Settings, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { MediaUploadColumn } from './MediaUploadColumn'
 import { CaptionGenerationColumn } from './CaptionGenerationColumn'
@@ -697,9 +697,76 @@ function ContentSuiteContent({
     setPostNotes,
     setActiveImageId
   } = useContentStore()
-  const { contentIdeas } = useContentStore()
+  const { contentIdeas, setContentIdeas } = useContentStore()
   
   const { user } = useAuth()
+  
+  // State for refreshing content ideas
+  const [refreshingIdeas, setRefreshingIdeas] = useState(false)
+  const [showCreditDialog, setShowCreditDialog] = useState(false)
+
+  // Function to refresh/generate new content ideas
+  const handleRefreshIdeas = async () => {
+    if (!clientId) {
+      alert('Client ID not found. Please refresh the page and try again.')
+      return
+    }
+
+    setRefreshingIdeas(true)
+    try {
+      const accessToken = getAccessToken()
+      
+      if (!accessToken) {
+        throw new Error('Authentication required. Please log in and try again.')
+      }
+
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          action: 'generate_content_ideas',
+          clientId: clientId,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Network error' }))
+        const errorMessage = errorData.error || `Server error (${response.status})`
+        
+        // Check if it's an insufficient credits error
+        if (errorMessage.includes('Insufficient AI credits') || errorMessage.includes('credit')) {
+          setShowCreditDialog(true)
+          setRefreshingIdeas(false)
+          return
+        }
+        
+        throw new Error(errorMessage)
+      }
+
+      const data = await response.json()
+
+      if (data.success && data.ideas && Array.isArray(data.ideas)) {
+        if (data.ideas.length === 0) {
+          alert('No content ideas were generated. Please try again.')
+          return
+        }
+
+        setContentIdeas(data.ideas)
+        console.log('Content ideas refreshed successfully:', data.ideas)
+      } else {
+        throw new Error('Invalid response format from server')
+      }
+    } catch (error) {
+      console.error('Failed to refresh content ideas:', error)
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
+      alert(`Failed to refresh content ideas: ${errorMessage}`)
+    } finally {
+      setRefreshingIdeas(false)
+    }
+  }
 
   // Helper function to get selected caption from store
   const getSelectedCaption = () => {
@@ -1058,7 +1125,7 @@ function ContentSuiteContent({
 
       {/* Top Section: Content Ideas and Add to Calendar Cards */}
       <div className="max-w-7xl mx-auto px-6 pt-4">
-        <div className="grid grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-3 gap-6 mb-2">
           {/* Content Ideas Section - spans 2 columns */}
           <div className="col-span-2">
             <ContentIdeasColumn />
@@ -1150,11 +1217,29 @@ function ContentSuiteContent({
       {/* Full-width Generated Ideas Section */}
       {contentIdeas.length > 0 && (
         <div className="w-full">
-          <div className="px-6 py-8">
+          <div className="px-6 py-4">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-2xl font-semibold text-gray-800">Generated Ideas</h2>
               </div>
+              <Button
+                onClick={handleRefreshIdeas}
+                disabled={refreshingIdeas}
+                variant="outline"
+                className="flex items-center gap-2 bg-white hover:bg-gray-50"
+              >
+                {refreshingIdeas ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Refreshing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Refresh Ideas
+                  </>
+                )}
+              </Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {contentIdeas.map((idea, index) => (
@@ -1174,7 +1259,7 @@ function ContentSuiteContent({
                           <Lightbulb className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-sm font-black text-gray-700 mb-0.5">Marketing Angle</p>
+                          <p className="text-sm font-extrabold text-gray-800 mb-0.5">Marketing Angle</p>
                           <p className="text-sm text-gray-600">{idea.angle}</p>
                         </div>
                       </div>
@@ -1183,7 +1268,7 @@ function ContentSuiteContent({
                           <Clock className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-sm font-black text-gray-700 mb-0.5">Post Example</p>
+                          <p className="text-sm font-extrabold text-gray-800 mb-0.5">Post Example</p>
                           <p className="text-sm text-gray-600">{idea.timing}</p>
                         </div>
                       </div>
@@ -1273,6 +1358,32 @@ function ContentSuiteContent({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Insufficient Credits Dialog for Refresh Ideas */}
+      <Dialog open={showCreditDialog} onOpenChange={setShowCreditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-orange-500" />
+              Out of Credits
+            </DialogTitle>
+            <DialogDescription>
+              Failed to refresh content ideas: Insufficient AI credits. You have 0 credits remaining - Please upgrade your plan or wait until next month.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowCreditDialog(false)
+                window.location.href = '/pricing'
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              Upgrade Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

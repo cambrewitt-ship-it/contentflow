@@ -29,6 +29,7 @@ export interface SubscriptionCheckResult {
   allowed: boolean;
   subscription?: Subscription;
   error?: string;
+  userId?: string;
 }
 
 // Check if user can perform social media posting
@@ -150,6 +151,15 @@ export async function checkAICreditsPermission(
 
     const userId = user.id;
 
+    // Get user's purchased credits
+    const { data: userProfile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('ai_credits_purchased')
+      .eq('id', userId)
+      .single();
+    
+    const purchasedCredits = userProfile?.ai_credits_purchased ?? 0;
+
     // Get user's subscription
     const { data: subscription, error } = await supabaseAdmin
       .from('subscriptions')
@@ -159,41 +169,83 @@ export async function checkAICreditsPermission(
 
     if (error) {
       if (error.code === 'PGRST116') {
-        // No subscription found - user is on freemium by default
+        // No subscription found - check if user has purchased credits
+        if (purchasedCredits >= creditsNeeded) {
+          return {
+            allowed: true,
+            subscription: undefined,
+            userId
+          };
+        }
         return {
           allowed: false,
-          error: 'AI credits are not available without a subscription. Please sign up for a plan.'
+          error: 'AI credits are not available without a subscription. Please sign up for a plan.',
+          userId
         };
       }
       console.error('Error fetching subscription:', error);
       return {
         allowed: false,
-        error: 'Failed to check subscription status'
+        error: 'Failed to check subscription status',
+        userId
       };
     }
 
     // Check if subscription is active
     if (subscription.subscription_status !== 'active' && subscription.subscription_status !== 'trialing') {
+      // Even if subscription is not active, check purchased credits
+      if (purchasedCredits >= creditsNeeded) {
+        return {
+          allowed: true,
+          subscription,
+          userId
+        };
+      }
       return {
         allowed: false,
         subscription,
-        error: 'Your subscription is not active. Please update your payment method or contact support.'
+        error: 'Your subscription is not active. Please update your payment method or contact support.',
+        userId
       };
     }
 
     // Check AI credits limit
-    const remainingCredits = subscription.max_ai_credits_per_month - subscription.ai_credits_used_this_month;
-    if (remainingCredits < creditsNeeded) {
+    // -1 means unlimited credits
+    if (subscription.max_ai_credits_per_month === -1) {
+      // Unlimited credits - always allow
+      return {
+        allowed: true,
+        subscription,
+        userId
+      };
+    }
+    
+    // Calculate total available credits: purchased + monthly remaining
+    const monthlyMax = subscription.max_ai_credits_per_month;
+    let monthlyRemaining = 0;
+    
+    if (monthlyMax === -1) {
+      // Unlimited credits - always allow
+      monthlyRemaining = 999999; // Large number for calculation
+    } else {
+      monthlyRemaining = Math.max(0, monthlyMax - subscription.ai_credits_used_this_month);
+    }
+    
+    const totalAvailableCredits = purchasedCredits + monthlyRemaining;
+    
+    if (totalAvailableCredits < creditsNeeded) {
       return {
         allowed: false,
         subscription,
-        error: `Insufficient AI credits. You have ${remainingCredits} credits remaining but need ${creditsNeeded}. Please upgrade your plan or wait until next month.`
+        error: `Insufficient AI credits. You have ${totalAvailableCredits} credits remaining (${purchasedCredits} purchased + ${monthlyRemaining} monthly) but need ${creditsNeeded}. Please purchase more credits or wait until next month.`,
+        userId
       };
     }
 
     return {
       allowed: true,
-      subscription
+      subscription,
+      userId
     };
   } catch (error) {
     console.error('AI credits check error:', error);
@@ -293,36 +345,99 @@ export async function withAICreditCheck(
   const result = await checkAICreditsPermission(request, creditsNeeded);
   return {
     allowed: result.allowed,
-    userId: result.subscription?.user_id,
+    userId: result.userId,
     error: result.error
   };
 }
 
 // Track AI credit usage
-export async function trackAICreditUsage(userId: string, creditsUsed: number = 1) {
+// Prioritizes purchased credits first, then monthly credits
+export async function trackAICreditUsage(
+  userId: string, 
+  creditsUsed: number = 1,
+  actionType: string = 'generate_captions',
+  clientId?: string,
+  metadata?: Record<string, unknown>
+) {
   try {
-    // First get the current subscription to verify it exists and get current value
-    const { data: subscription, error: fetchError } = await supabaseAdmin
-      .from('subscriptions')
-      .select('ai_credits_used_this_month')
-      .eq('user_id', userId)
+    // First check if user has purchased credits available
+    const { data: userProfile, error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('ai_credits_purchased')
+      .eq('id', userId)
       .single();
 
-    if (fetchError || !subscription) {
-      console.error('Error fetching subscription for AI credit tracking:', fetchError);
-      return;
+    if (profileError && profileError.code !== 'PGRST116') {
+      console.error('Error fetching user profile for credit tracking:', profileError);
     }
 
-    // Update with increment
-    const { error } = await supabaseAdmin
-      .from('subscriptions')
-      .update({
-        ai_credits_used_this_month: subscription.ai_credits_used_this_month + creditsUsed
-      })
-      .eq('user_id', userId);
+    const purchasedCredits = userProfile?.ai_credits_purchased ?? 0;
+    let creditType: 'purchased' | 'monthly' = 'monthly';
+    let updateError = null;
 
-    if (error) {
-      console.error('Error tracking AI credit usage:', error);
+    // Prioritize purchased credits: use them first if available
+    if (purchasedCredits > 0) {
+      // Decrement purchased credits
+      const newPurchasedCredits = Math.max(0, purchasedCredits - creditsUsed);
+      
+      const { error: purchaseError } = await supabaseAdmin
+        .from('user_profiles')
+        .update({
+          ai_credits_purchased: newPurchasedCredits
+        })
+        .eq('id', userId);
+
+      if (purchaseError) {
+        console.error('Error decrementing purchased credits:', purchaseError);
+        updateError = purchaseError;
+      }
+      creditType = 'purchased';
+    } else {
+      // No purchased credits available, use monthly credits
+      const { data: subscription, error: subscriptionError } = await supabaseAdmin
+        .from('subscriptions')
+        .select('ai_credits_used_this_month')
+        .eq('user_id', userId)
+        .single();
+
+      if (subscriptionError || !subscription) {
+        console.error('Error fetching subscription for AI credit tracking:', subscriptionError);
+        return;
+      }
+
+      // Increment monthly usage
+      const { error: monthlyError } = await supabaseAdmin
+        .from('subscriptions')
+        .update({
+          ai_credits_used_this_month: subscription.ai_credits_used_this_month + creditsUsed
+        })
+        .eq('user_id', userId);
+
+      if (monthlyError) {
+        console.error('Error tracking monthly AI credit usage:', monthlyError);
+        updateError = monthlyError;
+      }
+    }
+
+    // Log to ai_credit_usage table for analytics (even if there was an update error)
+    try {
+      await supabaseAdmin
+        .from('ai_credit_usage')
+        .insert({
+          user_id: userId,
+          credit_type: creditType,
+          action_type: actionType,
+          credits_used: creditsUsed,
+          client_id: clientId || null,
+          metadata: metadata || {}
+        });
+    } catch (logError) {
+      // Log error but don't fail the whole operation
+      console.error('Error logging to ai_credit_usage table:', logError);
+    }
+
+    if (updateError) {
+      console.error('Error tracking AI credit usage:', updateError);
     }
   } catch (error) {
     console.error('Error tracking AI credit usage:', error);

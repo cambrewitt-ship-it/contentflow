@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { verifyWebhookSignature, getTierByPriceId } from '@/lib/stripe';
+import { verifyWebhookSignature, getTierByPriceId, stripe } from '@/lib/stripe';
 import {
   upsertSubscription,
   updateSubscriptionStatus,
@@ -8,7 +8,9 @@ import {
   deleteSubscription,
   createBillingRecord,
   getTierLimits,
+  addPurchasedCredits,
 } from '@/lib/subscriptionHelpers';
+import { getCreditPackageByPriceId } from '@/lib/creditPackages';
 import logger from '@/lib/logger';
 
 // Force dynamic rendering - prevents static generation at build time
@@ -92,12 +94,31 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.userId;
   const customerId = session.customer as string;
   const subscriptionId = session.subscription as string;
+  const purchaseType = session.metadata?.type;
 
   if (!userId || !customerId) {
     logger.error('Missing userId or customerId in session metadata');
     return;
   }
 
+  // Handle credit purchases (one-time payments)
+  if (purchaseType === 'credit_purchase') {
+    const credits = session.metadata?.credits;
+
+    if (credits) {
+      try {
+        await addPurchasedCredits(userId, parseInt(credits, 10));
+        logger.info(`✅ Added ${credits} credits to user ${userId} from purchase`);
+      } catch (error) {
+        logger.error('Failed to add purchased credits:', error);
+      }
+    } else {
+      logger.error('Credits not found in session metadata for credit purchase');
+    }
+    return; // Don't process subscription creation for credit purchases
+  }
+
+  // Handle subscription checkouts
   // We'll get the full subscription details from the subscription.created event
   // For now, just create a basic record
   const tier = 'starter'; // Default tier, will be updated by subscription.created event

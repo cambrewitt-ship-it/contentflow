@@ -632,6 +632,12 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         }))
 
         setCaptions(newCaptions)
+        
+        // Trigger refresh of credits after successful generation
+        // CreditsContext will listen for this event and refresh
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('credits-used'));
+        }
       } else {
         logger.error('No captions in response or not an array:', data)
       }

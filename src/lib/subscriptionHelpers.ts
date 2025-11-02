@@ -336,3 +336,32 @@ export async function updateSubscriptionTier(
   return data;
 }
 
+// Add purchased credits to subscription
+// This increases max_ai_credits_per_month (not ai_credits_used_this_month)
+export async function addPurchasedCredits(
+  userId: string,
+  credits: number
+) {
+  const subscription = await getUserSubscription(userId);
+
+  if (!subscription) {
+    throw new Error('No subscription found for user');
+  }
+
+  const newMaxCredits = subscription.max_ai_credits_per_month === -1 
+    ? -1 // Unlimited stays unlimited
+    : subscription.max_ai_credits_per_month + credits;
+
+  const { data, error } = await supabaseAdmin
+    .from('subscriptions')
+    .update({
+      max_ai_credits_per_month: newMaxCredits,
+    })
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+

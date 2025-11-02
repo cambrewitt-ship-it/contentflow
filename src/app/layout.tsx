@@ -4,7 +4,7 @@ import "./globals.css";
 import "../styles/glassmorphism.css";
 import { UIThemeProvider } from "../contexts/UIThemeContext";
 import { AuthProvider } from "../contexts/AuthContext";
-import CreditsProviderGate from "./CreditsProviderGate";
+import ConditionalCreditsProvider from "./ConditionalCreditsProvider";
 
 const poppins = Poppins({ 
   subsets: ["latin"],
@@ -27,11 +27,11 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${poppins.className} antialiased`}>
         <AuthProvider>
-          <CreditsProviderGate>
+          <ConditionalCreditsProvider>
             <UIThemeProvider>
               {children}
             </UIThemeProvider>
-          </CreditsProviderGate>
+          </ConditionalCreditsProvider>
         </AuthProvider>
       </body>
     </html>

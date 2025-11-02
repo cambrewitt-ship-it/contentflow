@@ -1,12 +1,27 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { CreditsProvider } from '@/lib/contexts/CreditsContext';
+import { CreditsProvider, useCredits } from '@/lib/contexts/CreditsContext';
 
 type CreditsProviderGateProps = {
   children: React.ReactNode;
 };
+
+// Inner component that refreshes credits when user changes
+function CreditsRefreshTrigger({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const { refreshCredits } = useCredits();
+
+  useEffect(() => {
+    // Refresh credits when user changes
+    if (user) {
+      refreshCredits();
+    }
+  }, [user?.id, refreshCredits]);
+
+  return <>{children}</>;
+}
 
 export default function CreditsProviderGate({ children }: CreditsProviderGateProps) {
   const { user, loading } = useAuth();
@@ -15,6 +30,10 @@ export default function CreditsProviderGate({ children }: CreditsProviderGatePro
     return <>{children}</>;
   }
 
-  return <CreditsProvider>{children}</CreditsProvider>;
+  return (
+    <CreditsProvider>
+      <CreditsRefreshTrigger>{children}</CreditsRefreshTrigger>
+    </CreditsProvider>
+  );
 }
 
