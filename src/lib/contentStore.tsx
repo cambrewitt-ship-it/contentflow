@@ -581,13 +581,46 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         }
       }
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        logger.error('API response error:', response.status, errorText)
-        throw new Error(`Failed to generate captions: ${response.status}`)
+      // Parse response as JSON even if response.ok is false (to check for insufficient credits)
+      let data
+      try {
+        const responseText = await response.text()
+        try {
+          data = JSON.parse(responseText)
+        } catch (parseError) {
+          // If parsing fails, log and throw generic error
+          logger.error('API response error - failed to parse JSON:', response.status, responseText)
+          throw new Error(`Failed to generate captions: ${response.status}`)
+        }
+      } catch (readError) {
+        // If reading fails entirely
+        logger.error('API response error - failed to read response:', response.status)
+        throw readError instanceof Error ? readError : new Error(`Failed to generate captions: ${response.status}`)
       }
 
-      const data = await response.json()
+      // Check for insufficient credits error (may come from withAICreditCheck middleware with 403 status)
+      const is403Error = !response.ok && response.status === 403
+      const hasInsufficientCreditsError = data &&
+        typeof data.error === 'object' &&
+        data.error !== null &&
+        'code' in data.error &&
+        (data.error as { code: string }).code === 'INSUFFICIENT_CREDITS'
+      const hasCreditErrorMessage = data &&
+        typeof data.error === 'string' &&
+        (data.error.includes('credit') || data.error.includes('Credit') || data.error.includes('AI credit'))
+
+      const insufficientCredits = is403Error || hasInsufficientCreditsError || hasCreditErrorMessage
+
+      if (insufficientCredits) {
+        const error = new Error('INSUFFICIENT_CREDITS')
+        error.name = 'InsufficientCreditsError'
+        throw error
+      }
+
+      if (!response.ok) {
+        logger.error('API response error:', response.status, data)
+        throw new Error(`Failed to generate captions: ${response.status}`)
+      }
 
       if (data.captions && Array.isArray(data.captions)) {
 
@@ -605,7 +638,12 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     } catch (error) {
       logger.error('Error generating AI captions:', error)
       
-      // Show user-friendly error message
+      // Re-throw insufficient credits error to let the component handle it with a Dialog
+      if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
+        throw error
+      }
+      
+      // Show user-friendly error message for other errors
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       if (errorMessage.includes('too large')) {
         alert(errorMessage + '\n\nTip: You can compress your image before uploading using online tools.')

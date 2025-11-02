@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Brain, RefreshCw, Check, Video, AlertCircle } from 'lucide-react'
 import { useState } from 'react'
 
@@ -28,6 +29,7 @@ export function CaptionGenerationColumn() {
   const { getAccessToken } = useAuth()
   const [generatingCaptions, setGeneratingCaptions] = useState(false)
   const [remixingCaption, setRemixingCaption] = useState<string | null>(null)
+  const [showCreditDialog, setShowCreditDialog] = useState(false)
 
   const activeImage = uploadedImages.find((img) => img.id === activeImageId)
   const isVideoSelected = activeImage?.mediaType === 'video'
@@ -76,7 +78,13 @@ export function CaptionGenerationColumn() {
       // Success - captions will be added automatically
     } catch (error) {
       console.error('Failed to generate captions:', error)
-      alert(`Failed to generate captions: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      
+      // Check for insufficient credits error
+      if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
+        setShowCreditDialog(true)
+      } else {
+        alert(`Failed to generate captions: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
     } finally {
       setGeneratingCaptions(false)
     }
@@ -280,7 +288,31 @@ export function CaptionGenerationColumn() {
         </CardContent>
       </Card>
 
-
+      {/* Insufficient Credits Dialog */}
+      <Dialog open={showCreditDialog} onOpenChange={setShowCreditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-orange-500" />
+              Out of Credits
+            </DialogTitle>
+            <DialogDescription>
+              Failed to generate captions: Insufficient AI credits. You have 0 credits remaining - Please upgrade your plan or wait until next month.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowCreditDialog(false)
+                window.location.href = '/pricing'
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Upgrade Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -115,7 +115,7 @@ export function MediaUploadColumn() {
 
           {/* Uploaded Media */}
           {uploadedImages.length > 0 && (
-            <div className="mt-6">
+            <div className="mt-6 mb-6">
               <div className="grid grid-cols-4 gap-3">
                 {uploadedImages.map((media) => (
                   <div

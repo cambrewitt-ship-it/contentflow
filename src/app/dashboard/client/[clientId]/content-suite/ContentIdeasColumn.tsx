@@ -3,6 +3,7 @@
 import { useContentStore, ContentIdea } from '@/lib/contentStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Lightbulb, RefreshCw, Calendar, Eye, Clock, AlertCircle, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -33,6 +34,7 @@ export function ContentIdeasColumn() {
   const [generatingIdeas, setGeneratingIdeas] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasGeneratedIdeas, setHasGeneratedIdeas] = useState(false)
+  const [showCreditDialog, setShowCreditDialog] = useState(false)
 
   const handleGenerateIdeas = async () => {
     if (!clientId) {
@@ -87,7 +89,7 @@ export function ContentIdeasColumn() {
         (data.error as InsufficientCreditsErrorPayload).code === 'INSUFFICIENT_CREDITS'
 
       if (insufficientCredits) {
-        alert('Out of credits')
+        setShowCreditDialog(true)
         setError('You are out of credits. Please upgrade to continue generating ideas.')
         console.warn('Content ideas request blocked due to insufficient credits.', data)
         return
@@ -187,8 +189,8 @@ export function ContentIdeasColumn() {
         </div>
       </Card>
 
-      {/* Error Message - Only show when there's an error */}
-      {error && (
+      {/* Error Message - Only show when there's an error (but not for credit errors - those use Dialog) */}
+      {error && !error.includes('out of credits') && (
         <Card>
           <CardContent>
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -245,6 +247,32 @@ export function ContentIdeasColumn() {
           </CardContent>
         </Card>
       )}
+
+      {/* Insufficient Credits Dialog */}
+      <Dialog open={showCreditDialog} onOpenChange={setShowCreditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-orange-500" />
+              Out of Credits
+            </DialogTitle>
+            <DialogDescription>
+              Failed to generate content ideas: Insufficient AI credits. You have 0 credits remaining - Please upgrade your plan or wait until next month.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowCreditDialog(false)
+                window.location.href = '/pricing'
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              Upgrade Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
