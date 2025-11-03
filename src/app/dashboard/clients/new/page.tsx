@@ -52,6 +52,7 @@ export default function NewClientPageV2() {
     caption_dos: "",
     caption_donts: "",
     brand_voice_examples: "",
+    region: "",
     brand_color: "#4ade80" // Default green color for LATE profile
   });
   
@@ -191,7 +192,8 @@ export default function NewClientPageV2() {
         value_proposition: "",
         caption_dos: "",
         caption_donts: "",
-    brand_voice_examples: "",
+        brand_voice_examples: "",
+        region: "",
         brand_color: "#4ade80"
       });
       
@@ -832,6 +834,77 @@ export default function NewClientPageV2() {
                     </p>
                   </div>
                 )}
+              </div>
+
+              {/* Region */}
+              <div className="border-t border-gray-200 pt-6 mt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Client Region *
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Select your client&apos;s region to ensure content ideas only reference relevant regional holidays and events.
+                </p>
+                <select
+                  value={formData.region}
+                  onChange={(e) => handleInputChange('region', e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">-- Select Region --</option>
+                  <optgroup label="New Zealand">
+                    <option value="New Zealand - Wellington">New Zealand - Wellington</option>
+                    <option value="New Zealand - Auckland">New Zealand - Auckland</option>
+                    <option value="New Zealand - Christchurch">New Zealand - Christchurch</option>
+                    <option value="New Zealand - Dunedin">New Zealand - Dunedin</option>
+                    <option value="New Zealand - Nelson">New Zealand - Nelson</option>
+                    <option value="New Zealand - Taranaki">New Zealand - Taranaki</option>
+                    <option value="New Zealand - Otago">New Zealand - Otago</option>
+                    <option value="New Zealand - Tasman">New Zealand - Tasman</option>
+                    <option value="New Zealand - Southland">New Zealand - Southland</option>
+                    <option value="New Zealand - Other">New Zealand - Other</option>
+                  </optgroup>
+                  <optgroup label="Australia">
+                    <option value="Australia - New South Wales">Australia - New South Wales</option>
+                    <option value="Australia - Victoria">Australia - Victoria</option>
+                    <option value="Australia - Queensland">Australia - Queensland</option>
+                    <option value="Australia - Western Australia">Australia - Western Australia</option>
+                    <option value="Australia - South Australia">Australia - South Australia</option>
+                    <option value="Australia - Tasmania">Australia - Tasmania</option>
+                    <option value="Australia - Northern Territory">Australia - Northern Territory</option>
+                    <option value="Australia - Australian Capital Territory">Australia - Australian Capital Territory</option>
+                    <option value="Australia - Other">Australia - Other</option>
+                  </optgroup>
+                  <optgroup label="United States">
+                    <option value="USA - California">USA - California</option>
+                    <option value="USA - New York">USA - New York</option>
+                    <option value="USA - Texas">USA - Texas</option>
+                    <option value="USA - Florida">USA - Florida</option>
+                    <option value="USA - Illinois">USA - Illinois</option>
+                    <option value="USA - Pennsylvania">USA - Pennsylvania</option>
+                    <option value="USA - Ohio">USA - Ohio</option>
+                    <option value="USA - Georgia">USA - Georgia</option>
+                    <option value="USA - North Carolina">USA - North Carolina</option>
+                    <option value="USA - Michigan">USA - Michigan</option>
+                    <option value="USA - Other">USA - Other</option>
+                  </optgroup>
+                  <optgroup label="United Kingdom">
+                    <option value="UK - England">UK - England</option>
+                    <option value="UK - Scotland">UK - Scotland</option>
+                    <option value="UK - Wales">UK - Wales</option>
+                    <option value="UK - Northern Ireland">UK - Northern Ireland</option>
+                    <option value="UK - Other">UK - Other</option>
+                  </optgroup>
+                  <optgroup label="Canada">
+                    <option value="Canada - Ontario">Canada - Ontario</option>
+                    <option value="Canada - Quebec">Canada - Quebec</option>
+                    <option value="Canada - British Columbia">Canada - British Columbia</option>
+                    <option value="Canada - Alberta">Canada - Alberta</option>
+                    <option value="Canada - Other">Canada - Other</option>
+                  </optgroup>
+                  <optgroup label="Other">
+                    <option value="International - General">International - General</option>
+                    <option value="Other">Other (Please specify)</option>
+                  </optgroup>
+                </select>
               </div>
             </CardContent>
           </Card>

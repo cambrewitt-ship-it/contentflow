@@ -40,6 +40,7 @@ export interface Client {
   founded_date?: string;
   late_profile_id?: string;
   logo_url?: string;
+  region?: string;
   created_at: string;
   updated_at: string;
 }
@@ -147,6 +148,7 @@ export interface ClientFormData {
   caption_donts?: string;
   brand_voice_examples?: string;
   late_profile_id?: string;
+  region?: string;
 }
 
 // LATE API Types

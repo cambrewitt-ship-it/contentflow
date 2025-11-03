@@ -269,6 +269,7 @@ export async function PUT(
       brand_voice_examples?: string;
       value_proposition?: string;
       portal_enabled?: boolean;
+      region?: string;
       updated_at?: string;
     } = {};
     
@@ -284,6 +285,7 @@ export async function PUT(
     if (body.brand_voice_examples !== undefined) updateData.brand_voice_examples = body.brand_voice_examples;
     if (body.value_proposition !== undefined) updateData.value_proposition = body.value_proposition;
     if (body.portal_enabled !== undefined) updateData.portal_enabled = body.portal_enabled;
+    if (body.region !== undefined) updateData.region = body.region;
     
     // Add updated_at timestamp
     updateData.updated_at = new Date().toISOString();

@@ -26,7 +26,7 @@ async function getBrandContext(clientId: string) {
     // Get client brand information
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('company_description, website_url, brand_tone, target_audience, value_proposition, caption_dos, caption_donts, brand_voice_examples')
+      .select('company_description, website_url, brand_tone, target_audience, value_proposition, caption_dos, caption_donts, brand_voice_examples, region')
       .eq('id', clientId)
       .single();
 
@@ -70,6 +70,7 @@ async function getBrandContext(clientId: string) {
       dos: client.caption_dos,
       donts: client.caption_donts,
       voice_examples: client.brand_voice_examples,
+      region: client.region,
       documents: documents || [],
       website: scrapes && Array.isArray(scrapes) && scrapes.length > 0 ? scrapes[0] : null,
     };
@@ -719,10 +720,7 @@ async function generateContentIdeas(openai: OpenAI, clientId: string, userId: st
       );
     }
 
-    // Get upcoming holidays
-    const upcomingHolidays = getUpcomingHolidays(8);
-
-    // Get client brand context
+    // Get client brand context first (needed for region)
     const brandContext = await getBrandContext(clientId);
     if (!brandContext) {
       return NextResponse.json(
@@ -731,22 +729,83 @@ async function generateContentIdeas(openai: OpenAI, clientId: string, userId: st
       );
     }
 
+    // Get client region
+    const clientRegion = brandContext.region || 'New Zealand - Wellington';
+
+    // Get upcoming holidays - filter by region
+    const allUpcomingHolidays = getUpcomingHolidays(8);
+    
+    // Filter holidays by client region
+    const upcomingHolidays = allUpcomingHolidays.filter(holiday => {
+      // Always include international holidays
+      if (holiday.type === 'international') {
+        return true;
+      }
+      
+      // Include national holidays if client is in the same country
+      if (holiday.category === 'National') {
+        // Check if client region matches country
+        if (clientRegion.includes('New Zealand') && (holiday.name.includes('Waitangi') || holiday.name.includes('ANZAC'))) {
+          return true;
+        }
+        return true; // Include national holidays for now
+      }
+      
+      // Filter regional holidays - only include if they match the client's region
+      if (holiday.category === 'Regional') {
+        // Extract region name from holiday (e.g., "Wellington Anniversary Day" -> "Wellington")
+        const holidayRegion = holiday.name.replace(' Anniversary Day', '').replace(' Day', '');
+        
+        // Check if client region includes the holiday region
+        if (clientRegion.includes(holidayRegion)) {
+          return true;
+        }
+        return false; // Exclude regional holidays from other regions
+      }
+      
+      // Include public holidays and other types by default
+      return true;
+    });
+
+    // Determine locale based on client region
+    let locale = 'en-NZ';
+    if (clientRegion.includes('USA') || clientRegion.includes('United States')) {
+      locale = 'en-US';
+    } else if (clientRegion.includes('UK') || clientRegion.includes('United Kingdom')) {
+      locale = 'en-GB';
+    } else if (clientRegion.includes('Australia')) {
+      locale = 'en-AU';
+    } else if (clientRegion.includes('Canada')) {
+      locale = 'en-CA';
+    }
+
     // Get current date and season info
     const now = new Date();
-    const currentDate = now.toLocaleDateString('en-NZ', {
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Set to midnight for accurate date comparison
+    const currentDate = now.toLocaleDateString(locale, {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
 
-    // Determine current season in New Zealand
+    // Determine current season based on region (southern hemisphere vs northern)
     const month = now.getMonth() + 1;
+    const isSouthernHemisphere = clientRegion.includes('New Zealand') || clientRegion.includes('Australia');
     let season = '';
-    if (month === 12 || month === 1 || month === 2) season = 'Summer';
-    else if (month >= 3 && month <= 5) season = 'Autumn';
-    else if (month >= 6 && month <= 8) season = 'Winter';
-    else season = 'Spring';
+    if (isSouthernHemisphere) {
+      // Southern hemisphere seasons
+      if (month === 12 || month === 1 || month === 2) season = 'Summer';
+      else if (month >= 3 && month <= 5) season = 'Autumn';
+      else if (month >= 6 && month <= 8) season = 'Winter';
+      else season = 'Spring';
+    } else {
+      // Northern hemisphere seasons
+      if (month === 12 || month === 1 || month === 2) season = 'Winter';
+      else if (month >= 3 && month <= 5) season = 'Spring';
+      else if (month >= 6 && month <= 8) season = 'Summer';
+      else season = 'Autumn';
+    }
 
     // Build industry-specific content guidance
     const industry = extractIndustry(brandContext.company || '');
@@ -775,7 +834,7 @@ async function generateContentIdeas(openai: OpenAI, clientId: string, userId: st
       weatherContext: string;
     }
 
-    const generateContentIdeasPrompt = (clientData: ClientData, holidays: HolidayData[], currentContext: CurrentContext) => {
+    const generateContentIdeasPrompt = (clientData: ClientData, holidays: HolidayData[], currentContext: CurrentContext, clientRegion: string) => {
       return `You are a strategic marketing consultant with 10+ years of experience generating high-converting social media content across diverse industries. Your expertise lies in creating content that drives genuine business results, not just engagement vanity metrics.
 
 ## ⚠️ CRITICAL DATE REQUIREMENT - READ FIRST ⚠️
@@ -939,16 +998,17 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
 
 **Context Variables:**
 - **Current Date:** ${currentContext.date} - ONLY SUGGEST EVENTS AFTER THIS DATE
-- **Season:** ${currentContext.season} (New Zealand)
-- **Location:** Wellington, New Zealand
-- **Available FUTURE Holidays:** ${holidays.filter(h => h.daysUntil >= 0 && h.daysUntil <= 30).map(h => `${h.name} - ${h.date} (in ${h.daysUntil} days)`).join(', ') || 'No major holidays in the next 30 days'}
+- **Season:** ${currentContext.season}
+- **Client Region:** ${clientRegion || 'Not specified'}
+- **CRITICAL REGION RULE:** ONLY suggest regional holidays that are relevant to the client's region (${clientRegion}). DO NOT suggest regional holidays from other regions. For example, if the client is in "New Zealand - Wellington", DO NOT suggest "Auckland Anniversary Day" or regional holidays from other cities/countries.
+- **Available FUTURE Holidays (Filtered by Region):** ${holidays.filter(h => h.daysUntil >= 0 && h.daysUntil <= 30).map(h => `${h.name} - ${h.date} (in ${h.daysUntil} days)`).join(', ') || 'No major holidays in the next 30 days'}
 - **Client Information:** Company: ${clientData.company_description || 'Not specified'}, Industry: ${clientData.industry || 'General Business'}, Target Audience: ${clientData.target_audience || 'General consumers'}, Brand Tone: ${clientData.brand_tone || 'Professional'}${clientData.brand_voice_examples ? `, Brand Voice: ${clientData.brand_voice_examples.slice(0, 200)}...` : ''}`;
     };
 
     const currentContext: CurrentContext = {
       date: currentDate,
       season: season,
-      weatherContext: `${season} weather patterns in Wellington`
+      weatherContext: `${season} weather patterns in ${clientRegion}`
     };
 
     const clientData: ClientData = {
@@ -962,19 +1022,26 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
       caption_donts: brandContext.donts
     };
 
-    const formattedHolidays: HolidayData[] = upcomingHolidays.map(holiday => {
+    // Filter to only future holidays (exclude past dates)
+    const futureHolidays = upcomingHolidays.filter(holiday => {
       const holidayDate = new Date(holiday.date);
-      const today = new Date();
+      holidayDate.setHours(0, 0, 0, 0); // Set to midnight for accurate comparison
+      return holidayDate >= today; // Only include holidays on or after today
+    });
+
+    const formattedHolidays: HolidayData[] = futureHolidays.map(holiday => {
+      const holidayDate = new Date(holiday.date);
+      holidayDate.setHours(0, 0, 0, 0);
       const daysUntil = Math.ceil((holidayDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       return {
         name: holiday.name,
-        date: holidayDate.toLocaleDateString('en-NZ'),
-        daysUntil: daysUntil,
+        date: holidayDate.toLocaleDateString(locale),
+        daysUntil: Math.max(0, daysUntil), // Ensure non-negative
         marketingAngle: holiday.marketingAngle
       };
     });
 
-    const systemPrompt = generateContentIdeasPrompt(clientData, formattedHolidays, currentContext);
+    const systemPrompt = generateContentIdeasPrompt(clientData, formattedHolidays, currentContext, clientRegion);
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
@@ -985,7 +1052,7 @@ IDEA 3: [Strategic title reflecting business purpose - no colons, single line]
         },
         {
           role: 'user',
-          content: `Generate 5 content ideas for this client. Current date is ${currentDate}. IMPORTANT: Only suggest ideas for future holidays and events that occur AFTER ${currentDate}. If a holiday or seasonal event has already passed, use evergreen content ideas instead. Only use the holidays listed in the "Available FUTURE Holidays" section - do not suggest holidays that are not listed there or that have already passed.`
+          content: `Generate 5 content ideas for this client. Current date is ${currentDate}. Client region: ${clientRegion}. IMPORTANT: Only suggest ideas for future holidays and events that occur AFTER ${currentDate}. DO NOT suggest regional holidays from other regions - only use regional holidays relevant to ${clientRegion}. If a holiday or seasonal event has already passed, use evergreen content ideas instead. Only use the holidays listed in the "Available FUTURE Holidays" section - do not suggest holidays that are not listed there or that have already passed.`
         }
       ],
       max_tokens: 1500,

@@ -195,6 +195,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Extract region from body if provided
+    const { region } = body as { region?: string };
+
     // Insert the new client with LATE profile ID and user association
     const { data: client, error: insertError } = await supabase
       .from('clients')
@@ -209,6 +212,7 @@ export async function POST(req: NextRequest) {
           caption_dos: caption_dos?.trim() || null,
           caption_donts: caption_donts?.trim() || null,
           brand_voice_examples: brand_voice_examples?.trim() || null, // Add brand voice examples
+          region: region?.trim() || null, // Add region
           late_profile_id: lateProfileId, // Add LATE profile ID
           user_id: user.id, // Associate with authenticated user
           created_at: new Date().toISOString(),
