@@ -540,7 +540,7 @@ export function ColumnViewCalendar({
           return (
             <div
               key={columnIndex}
-              className={`flex-shrink-0 w-80 ${isCurrent ? 'bg-blue-50' : 'bg-gray-50'} rounded-lg border-2 ${isCurrent ? 'border-blue-300' : 'border-gray-300'} p-4 shadow-sm hover:shadow-md transition-all duration-200`}
+              className={`flex-shrink-0 w-80 rounded-lg border-2 border-transparent p-4 transition-all duration-200`}
             >
               {/* Column Header */}
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-300">
