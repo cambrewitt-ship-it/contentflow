@@ -118,10 +118,13 @@ export default function Home() {
           .from('user_profiles')
           .select('*')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
-        if (error) throw error;
-        setProfile(data);
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching profile:', error);
+        }
+        // Set profile to null if not found (instead of throwing error)
+        setProfile(data || null);
       } catch (err) {
         console.error('Error fetching profile:', err);
       }

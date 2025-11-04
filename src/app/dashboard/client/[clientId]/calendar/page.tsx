@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Grid3X3, Copy, ExternalLink, Link as LinkIcon, CheckCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Grid3X3, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
@@ -183,7 +183,7 @@ export default function CalendarPage() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
-  const [viewMode, setViewMode] = useState<'week' | 'month'>('month');
+  const [viewMode, setViewMode] = useState<'week' | 'month' | 'column'>('week');
   const calendarScrollRef = useRef<HTMLDivElement>(null);
   const weekScrollRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   
@@ -564,26 +564,70 @@ export default function CalendarPage() {
     // Set custom drag image for consistent thumbnail
     try {
       if (post.image_url) {
-        // Create a temporary image element to use as drag image
-        const dragImage = new Image();
-        dragImage.src = post.image_url;
-        dragImage.style.width = '60px';
-        dragImage.style.height = '60px';
-        dragImage.style.objectFit = 'cover';
-        dragImage.style.borderRadius = '8px';
-        dragImage.style.border = '2px solid #3B82F6';
+        // Find the image element in the drag source (should already be loaded since it's visible)
+        const dragElement = e.currentTarget as HTMLElement;
+        const imgElement = dragElement.querySelector('img') as HTMLImageElement;
         
-        // Wait for image to load, then set as drag image
-        dragImage.onload = () => {
-          e.dataTransfer.setDragImage(dragImage, 30, 30); // Center the image
-        };
-        
-        // Fallback: if image doesn't load quickly, use the original element
-        setTimeout(() => {
-          if (dragImage.complete) {
-            e.dataTransfer.setDragImage(dragImage, 30, 30);
+        if (imgElement) {
+          // Check if image is loaded
+          if (imgElement.complete && imgElement.naturalWidth > 0) {
+            // Image is already loaded - clone it for drag preview
+            const dragImage = imgElement.cloneNode(true) as HTMLImageElement;
+            dragImage.style.width = '80px';
+            dragImage.style.height = '80px';
+            dragImage.style.objectFit = 'cover';
+            dragImage.style.borderRadius = '8px';
+            dragImage.style.border = '2px solid #3B82F6';
+            dragImage.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+            
+            // Temporarily add to DOM (required for setDragImage)
+            dragImage.style.position = 'absolute';
+            dragImage.style.top = '-9999px';
+            dragImage.style.left = '-9999px';
+            dragImage.style.zIndex = '10000';
+            document.body.appendChild(dragImage);
+            
+            // Set as drag image immediately (synchronously)
+            e.dataTransfer.setDragImage(dragImage, 40, 40); // Center the image
+            
+            // Clean up after drag ends
+            setTimeout(() => {
+              if (document.body.contains(dragImage)) {
+                document.body.removeChild(dragImage);
+              }
+            }, 0);
+          } else {
+            // Image might be loading - try to create a canvas-based preview
+            // Create a new image and try to use it if cached
+            const dragImage = new Image();
+            dragImage.src = post.image_url;
+            
+            // If image is cached/complete, use it immediately
+            if (dragImage.complete && dragImage.naturalWidth > 0) {
+              dragImage.style.width = '80px';
+              dragImage.style.height = '80px';
+              dragImage.style.objectFit = 'cover';
+              dragImage.style.borderRadius = '8px';
+              dragImage.style.border = '2px solid #3B82F6';
+              dragImage.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+              dragImage.style.position = 'absolute';
+              dragImage.style.top = '-9999px';
+              dragImage.style.left = '-9999px';
+              dragImage.style.zIndex = '10000';
+              document.body.appendChild(dragImage);
+              
+              e.dataTransfer.setDragImage(dragImage, 40, 40);
+              
+              setTimeout(() => {
+                if (document.body.contains(dragImage)) {
+                  document.body.removeChild(dragImage);
+                }
+              }, 0);
+            }
+            // If not cached, we can't show it (browser limitation)
+            // The default drag image will be used
           }
-        }, 50);
+        }
       }
     } catch (error) {
       console.log('Could not set custom drag image:', error);
@@ -1673,6 +1717,11 @@ export default function CalendarPage() {
                           src={post.image_url || '/api/placeholder/100/100'}
                           alt="Post"
                           className="w-full h-full object-cover"
+                          loading="eager"
+                          onLoad={(e) => {
+                            // Image is loaded - ensure it's ready for drag preview
+                            (e.target as HTMLImageElement).decode().catch(() => {});
+                          }}
                           onError={(e) => {
                             console.log('Image failed to load, using placeholder for post:', post.id);
                             e.currentTarget.src = '/api/placeholder/100/100';
@@ -1729,10 +1778,10 @@ export default function CalendarPage() {
             <div className="flex items-center justify-center">
               <h2 className="text-lg font-semibold">
                 {selectedProjectFilter === 'all' 
-                  ? `All Projects - ${viewMode === 'week' ? 'Week' : 'Month'} View` 
+                  ? `All Projects - ${viewMode === 'week' ? 'Week' : viewMode === 'month' ? 'Month' : 'Column'} View` 
                   : selectedProjectFilter === 'untagged' 
-                    ? `Untagged Posts - ${viewMode === 'week' ? 'Week' : 'Month'} View`
-                    : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'week' ? 'Week' : 'Month'} View`}
+                    ? `Untagged Posts - ${viewMode === 'week' ? 'Week' : viewMode === 'month' ? 'Month' : 'Column'} View`
+                    : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'week' ? 'Week' : viewMode === 'month' ? 'Month' : 'Column'} View`}
               </h2>
             </div>
             <div className="flex items-center gap-3 flex-1 justify-end">
@@ -1759,6 +1808,17 @@ export default function CalendarPage() {
                 >
                   <Calendar className="w-4 h-4" />
                   Month
+                </button>
+                <button
+                  onClick={() => setViewMode('column')}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                    viewMode === 'column' 
+                      ? 'bg-white text-gray-900 shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Columns className="w-4 h-4" />
+                  Column
                 </button>
               </div>
             </div>
@@ -1788,9 +1848,11 @@ export default function CalendarPage() {
                 >
                   <div className="space-y-4" style={{ gap: '16px' }}>
                     {getWeeksToDisplay().map((weekStart, weekIndex) => {
-                      const isCurrentWeek = weekOffset + weekIndex === 0;
-                      const isPreviousWeek = weekOffset + weekIndex < 0;
-                      const isNextWeek = weekOffset + weekIndex === 1;
+                      // Compare the week start date with the actual current week start date
+                      const currentWeekStart = getStartOfWeek(0);
+                      const isCurrentWeek = weekStart.getTime() === currentWeekStart.getTime();
+                      const isPreviousWeek = weekStart.getTime() < currentWeekStart.getTime();
+                      const isNextWeek = weekStart.getTime() > currentWeekStart.getTime();
                       
                       // Show all days for all weeks
                       const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -2475,7 +2537,7 @@ export default function CalendarPage() {
               <ChevronDown className="w-6 h-6" />
             </button>
           </div>
-            ) : (
+            ) : viewMode === 'month' ? (
               <div className="bg-white rounded-lg shadow">
                 <MonthViewCalendar 
                   posts={Object.values(scheduledPosts).flat()} 
@@ -2488,6 +2550,10 @@ export default function CalendarPage() {
                   onDrop={handleMonthViewDrop}
                   dragOverDate={dragOverDate}
                 />
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow">
+                {/* Column view - to be implemented */}
               </div>
             )}
           </div>

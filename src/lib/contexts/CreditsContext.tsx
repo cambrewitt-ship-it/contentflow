@@ -60,9 +60,9 @@ export function CreditsProvider({ children }: { children: React.ReactNode }) {
         .from('user_profiles')
         .select('ai_credits_purchased')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (profileError) {
+      if (profileError && profileError.code !== 'PGRST116') {
         console.error('❌ Profile error:', profileError);
       }
 

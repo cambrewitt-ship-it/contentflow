@@ -73,10 +73,13 @@ export default function Dashboard() {
           .from('user_profiles')
           .select('*')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
-        if (error) throw error;
-        setProfile(data);
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching profile:', error);
+        }
+        // Set profile to null if not found (instead of throwing error)
+        setProfile(data || null);
       } catch (err) {
         console.error('Error fetching profile:', err);
         // Don't set error state for profile fetch failure
@@ -380,7 +383,7 @@ export default function Dashboard() {
                           className="w-full bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white font-bold shadow-md hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
                           style={{ borderRadius: '8px', height: '40px' }}
                         >
-                          <PenTool className="w-4 h-4" />
+                          <Plus className="w-4 h-4" />
                           <span className="text-sm">Create Content</span>
                         </Button>
                       </Link>

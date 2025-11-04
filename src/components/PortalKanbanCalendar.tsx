@@ -109,6 +109,7 @@ export function PortalKanbanCalendar({
   onCommentChange,
   onCaptionChange
 }: PortalKanbanCalendarProps) {
+  const currentWeekRef = useRef<HTMLDivElement>(null);
   
   // Helper function to format week commencing date as "W/C 8th Sept"
   const formatWeekCommencing = (weekStart: Date | string) => {
@@ -142,6 +143,18 @@ export function PortalKanbanCalendar({
     return `${hour12}:${minutes} ${ampm}`;
   };
 
+  // Scroll current week to top on mount to ensure it's visible
+  useEffect(() => {
+    if (currentWeekRef.current) {
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        if (currentWeekRef.current) {
+          currentWeekRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
+        }
+      });
+    }
+  }, [weeks]);
+
   // Early return if no weeks data
   if (!weeks || weeks.length === 0) {
     return (
@@ -151,9 +164,12 @@ export function PortalKanbanCalendar({
     );
   }
 
+  // Filter to only show current week (index 0) and next week (index 1)
+  const visibleWeeks = weeks.slice(0, 2);
+
   return (
-    <div className="space-y-4">
-      {weeks.map((week, weekIndex) => {
+    <div className="space-y-0">
+      {visibleWeeks.map((week, weekIndex) => {
         // Get all posts for this week and sort them
         const weekPosts = week.posts.sort((a, b) => {
           // Sort by date, then by time
@@ -165,13 +181,26 @@ export function PortalKanbanCalendar({
           return (a.scheduled_time || '').localeCompare(b.scheduled_time || '');
         });
 
+        const isCurrentWeek = weekIndex === 0;
+        const isNextWeek = weekIndex === 1;
+        
         return (
-          <div key={weekIndex} className="bg-white border rounded-lg overflow-hidden">
+          <div 
+            key={weekIndex} 
+            ref={isCurrentWeek ? currentWeekRef : null}
+            className={`bg-white border rounded-lg ${isNextWeek ? 'overflow-hidden relative' : ''}`}
+            style={isNextWeek ? { 
+              maxHeight: '280px',
+              position: 'relative',
+              maskImage: 'linear-gradient(to bottom, black 0%, black 80%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 80%, transparent 100%)'
+            } : undefined}
+          >
             {/* Week Header */}
             <div className="bg-gray-50 p-4 border-b">
               <h3 className="font-semibold text-lg">
                 {formatWeekCommencing(week.weekStart)}
-                {weekIndex === 0 && ' (Current)'}
+                {isCurrentWeek && ' (Current)'}
               </h3>
               <p className="text-sm text-gray-600">
                 {(() => {
@@ -183,7 +212,7 @@ export function PortalKanbanCalendar({
             </div>
             
             {/* Posts by Date */}
-            <div className="w-full p-4">
+            <div className={`w-full p-4 ${isNextWeek ? 'overflow-hidden' : ''}`}>
               {weekPosts.length === 0 ? (
                 <div className="text-center text-gray-500 text-sm py-8 w-full">
                   No posts scheduled for this week

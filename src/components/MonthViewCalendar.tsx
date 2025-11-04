@@ -422,7 +422,7 @@ export function MonthViewCalendar({
                         if (statuses.includes('needs_attention')) {
                           return (
                             <span className="text-xs font-medium text-orange-400 bg-orange-100 px-2 py-1 rounded-full">
-                              NEEDS ATTENTION
+                              IMPROVE
                             </span>
                           )
                         }

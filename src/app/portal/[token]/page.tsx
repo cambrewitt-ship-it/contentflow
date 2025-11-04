@@ -127,7 +127,7 @@ export default function PortalCalendarPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
   // View mode state
-  const [viewMode, setViewMode] = useState<'week' | 'month'>('month');
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
 
   // Get NZ timezone start of week (Monday)
   const getStartOfWeek = (offset: number = 0) => {

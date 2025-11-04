@@ -44,10 +44,14 @@ export default function ProfileSettingsPage() {
         .from('user_profiles')
         .select('*')
         .eq('id', user?.id)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
-      setProfile(data);
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error);
+        setError('Failed to load profile');
+      }
+      // Set profile to null if not found (instead of throwing error)
+      setProfile(data || null);
     } catch (err) {
       console.error('Error fetching profile:', err);
       setError('Failed to load profile');
