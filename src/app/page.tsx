@@ -319,7 +319,15 @@ export default function Home() {
           </div>
           
           {/* Hero Image/Illustration */}
-          <div className="mt-16 mx-auto max-w-6xl">
+          <div className="mt-16 mx-auto max-w-4xl">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
+                Content Manager - Plan, Create, Schedule
+              </h2>
+              <p className="text-lg text-muted-foreground">
+                Like ChatGPT + Trello + Social Scheduler
+              </p>
+            </div>
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-3xl"></div>
               <div className="relative bg-card border border-border rounded-2xl p-2 shadow-2xl">

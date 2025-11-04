@@ -2563,6 +2563,7 @@ export default function CalendarPage() {
                   clientUploads={clientUploads}
                   loading={isLoadingScheduledPosts}
                   formatWeekCommencing={formatWeekCommencing}
+                  clientId={clientId}
                   onDrop={async (e: React.DragEvent, dateKey: string) => {
                     // Handle native HTML5 drag from unscheduled posts
                     const postData = e.dataTransfer.getData('post');

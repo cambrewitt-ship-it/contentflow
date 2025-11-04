@@ -230,6 +230,21 @@ export default function ContentSuitePage({ params }: PageProps) {
   // Check for content inbox pre-load parameters
   useEffect(() => {
     const uploadId = searchParams?.get('uploadId')
+    const scheduledDate = searchParams?.get('scheduledDate')
+    
+    // Check if scheduledDate is provided (from calendar + button)
+    if (scheduledDate && !uploadId) {
+      console.log('🔄 Pre-loading scheduled date from URL params:', scheduledDate)
+      setPreloadedContent({
+        image: '',
+        notes: '',
+        fileName: '',
+        uploadId: null,
+        scheduledDate: scheduledDate,
+        scheduledTime: undefined
+      })
+      return
+    }
     
     if (uploadId) {
       // Try to get preloaded content from sessionStorage first
@@ -243,7 +258,7 @@ export default function ContentSuitePage({ params }: PageProps) {
             notes: imageData.notes || '',
             fileName: imageData.fileName,
             uploadId: imageData.uploadId || uploadId,
-            scheduledDate: imageData.scheduledDate,
+            scheduledDate: imageData.scheduledDate || scheduledDate,
             scheduledTime: imageData.scheduledTime
           })
           // Clear the sessionStorage after use
@@ -265,7 +280,9 @@ export default function ContentSuitePage({ params }: PageProps) {
           image,
           notes: notes || '',
           fileName,
-          uploadId: uploadId || null
+          uploadId: uploadId || null,
+          scheduledDate: scheduledDate || undefined,
+          scheduledTime: undefined
         })
       }
     }
@@ -472,11 +489,14 @@ export default function ContentSuitePage({ params }: PageProps) {
       const activeImage = uploadedImages[0] // Use first image for now
       
       // Check if this upload came from a specific date in the calendar
-      const hasScheduledDate = preloadedContent?.scheduledDate && preloadedContent?.scheduledTime
+      const hasScheduledDate = preloadedContent?.scheduledDate
       
       if (hasScheduledDate) {
-        // Add to scheduled posts (replacing the client upload on the same day)
-        console.log('Adding to scheduled posts on date:', preloadedContent?.scheduledDate)
+        // Add to scheduled posts on the specified date
+        // If no time is provided, use a default time of 12:00 PM
+        const scheduledTime = preloadedContent?.scheduledTime || '12:00 PM'
+        
+        console.log('Adding to scheduled posts on date:', preloadedContent?.scheduledDate, 'at time:', scheduledTime)
         
         const scheduledPostData = {
           client_id: clientId,
@@ -484,7 +504,7 @@ export default function ContentSuitePage({ params }: PageProps) {
           caption: selectedCaption,
           image_url: activeImage.preview,
           scheduled_date: preloadedContent?.scheduledDate,
-          scheduled_time: preloadedContent?.scheduledTime,
+          scheduled_time: scheduledTime,
           post_notes: '',
         }
         

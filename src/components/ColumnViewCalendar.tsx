@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, Clock } from 'lucide-react';
+import { Calendar, Clock, Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   DragEndEvent,
@@ -49,6 +50,7 @@ interface ColumnViewCalendarProps {
   onDateClick?: (date: Date) => void;
   formatWeekCommencing: (weekStart: Date) => string;
   onDrop?: (e: React.DragEvent, dateKey: string) => void;
+  clientId?: string;
 }
 
 // Lazy loading image component
@@ -205,7 +207,8 @@ function DroppableDayRow({
   onNativeDrop,
   onNativeDragOver,
   onNativeDragEnter,
-  onNativeDragLeave
+  onNativeDragLeave,
+  clientId
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -215,7 +218,9 @@ function DroppableDayRow({
   onNativeDragOver?: (e: React.DragEvent) => void;
   onNativeDragEnter?: (e: React.DragEvent) => void;
   onNativeDragLeave?: (e: React.DragEvent) => void;
+  clientId?: string;
 }) {
+  const router = useRouter();
   const { setNodeRef } = useDroppable({
     id: dayRow.dateKey,
   });
@@ -300,9 +305,16 @@ function DroppableDayRow({
       >
         <div className="space-y-2 max-h-[400px] overflow-y-auto min-h-[60px]">
           {dayRow.posts.length === 0 ? (
-            <div className="text-center text-gray-400 text-xs py-4 border-2 border-dashed border-gray-300 rounded pointer-events-none">
-              No posts
-            </div>
+            <button
+              onClick={() => {
+                if (clientId) {
+                  router.push(`/dashboard/client/${clientId}/content-suite?scheduledDate=${dayRow.dateKey}`);
+                }
+              }}
+              className="w-full flex items-center justify-center py-4 border-2 border-dashed border-gray-300 rounded hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 group"
+            >
+              <Plus className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+            </button>
           ) : (
             dayRow.posts.map((post) => {
               const postKey = `${post.post_type || 'post'}-${post.id}`;
@@ -328,7 +340,8 @@ export function ColumnViewCalendar({
   loading = false,
   onPostMove,
   formatWeekCommencing,
-  onDrop
+  onDrop,
+  clientId
 }: ColumnViewCalendarProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
@@ -569,6 +582,7 @@ export function ColumnViewCalendar({
                       isDragOver={isDragOver}
                       getDayNumber={getDayNumber}
                       onNativeDrop={onDrop}
+                      clientId={clientId}
                     />
                   );
                 })}
