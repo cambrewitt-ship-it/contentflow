@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Plus, ArrowLeft, Loa
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
+import { ColumnViewCalendar } from '@/components/ColumnViewCalendar';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
@@ -86,6 +87,7 @@ interface Project {
 
 interface Post {
   id: string;
+  post_type?: string; // Added for column view compatibility
   project_id: string | null;
   caption: string;
   image_url: string;
@@ -108,6 +110,8 @@ interface Post {
   needs_reapproval?: boolean;
   original_caption?: string;
   status?: 'draft' | 'ready' | 'scheduled' | 'published' | 'archived' | 'deleted';
+  post_notes?: string;
+  platform?: string;
 }
 
 interface ClientUpload {
@@ -2552,8 +2556,202 @@ export default function CalendarPage() {
                 />
               </div>
             ) : (
-              <div className="bg-white rounded-lg shadow">
-                {/* Column view - to be implemented */}
+              <div className="bg-white rounded-lg shadow p-4">
+                <ColumnViewCalendar
+                  weeks={getWeeksToDisplay()}
+                  scheduledPosts={scheduledPosts as any}
+                  clientUploads={clientUploads}
+                  loading={isLoadingScheduledPosts}
+                  formatWeekCommencing={formatWeekCommencing}
+                  onDrop={async (e: React.DragEvent, dateKey: string) => {
+                    // Handle native HTML5 drag from unscheduled posts
+                    const postData = e.dataTransfer.getData('post');
+                    if (!postData) return;
+                    
+                    const post = JSON.parse(postData);
+                    const targetDate = new Date(dateKey + 'T00:00:00');
+                    
+                    // Find the week index and day index for the target date
+                    const weeks = getWeeksToDisplay();
+                    let weekIndex = -1;
+                    let dayIndex = -1;
+                    
+                    weeks.forEach((week, wIdx) => {
+                      for (let d = 0; d < 7; d++) {
+                        const dayDate = new Date(week);
+                        dayDate.setDate(week.getDate() + d);
+                        if (dayDate.toLocaleDateString('en-CA') === dateKey) {
+                          weekIndex = wIdx;
+                          dayIndex = d;
+                          break;
+                        }
+                      }
+                    });
+                    
+                    if (weekIndex === -1 || dayIndex === -1) {
+                      // Calculate week offset if not in current visible weeks
+                      const targetWeekStart = new Date(targetDate);
+                      const dayOfWeek = targetWeekStart.getDay();
+                      const diff = targetWeekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+                      targetWeekStart.setDate(diff);
+                      targetWeekStart.setHours(0, 0, 0, 0);
+                      
+                      const currentWeekStart = getStartOfWeek(0);
+                      const diffTime = targetWeekStart.getTime() - currentWeekStart.getTime();
+                      const weekOffsetCalc = Math.floor(diffTime / (7 * 24 * 60 * 60 * 1000));
+                      
+                      setWeekOffset(weekOffsetCalc);
+                      dayIndex = targetDate.getDay() === 0 ? 6 : targetDate.getDay() - 1;
+                      weekIndex = 1; // Middle week
+                    }
+                    
+                    // Use existing handleDrop logic
+                    const targetWeekStart = weeks[weekIndex] || getWeeksToDisplay()[1];
+                    const targetDateObj = new Date(targetWeekStart);
+                    targetDateObj.setDate(targetWeekStart.getDate() + dayIndex);
+                    
+                    const time = '12:00';
+                    const scheduledDate = targetDateObj.toLocaleDateString('en-CA');
+                    const scheduledTime = time + ':00';
+                    
+                    setMovingPostId(post.id);
+                    
+                    try {
+                      const requestBody = {
+                        unscheduledId: post.id,
+                        scheduledPost: {
+                          project_id: post.project_id,
+                          client_id: clientId,
+                          caption: post.caption,
+                          image_url: post.image_url,
+                          post_notes: post.post_notes,
+                          scheduled_date: scheduledDate,
+                          scheduled_time: scheduledTime
+                        }
+                      };
+                      
+                      const response = await fetch('/api/calendar/scheduled', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestBody)
+                      });
+                      
+                      if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`API Error: ${response.status} - ${errorText}`);
+                      }
+                      
+                      const responseData = await response.json();
+                      
+                      setProjectPosts(prevPosts => prevPosts.filter(p => p.id !== post.id));
+                      
+                      const newScheduledPost: Post = {
+                        ...post,
+                        id: responseData.post.id,
+                        post_type: post.post_type || 'post', // Default post_type if not set
+                        scheduled_date: scheduledDate,
+                        scheduled_time: scheduledTime
+                      };
+                      
+                      setScheduledPosts(prevScheduled => ({
+                        ...prevScheduled,
+                        [scheduledDate]: [...(prevScheduled[scheduledDate] || []), newScheduledPost]
+                      }));
+                    } catch (error) {
+                      console.error('Error dropping post:', error);
+                      setError(error instanceof Error ? error.message : 'Failed to plan post');
+                    } finally {
+                      setMovingPostId(null);
+                    }
+                  }}
+                  onPostMove={async (postKey: string, newDate: string) => {
+                    // Extract post type and id from postKey (format: "post_type-id")
+                    // Split on the first hyphen only (UUIDs contain hyphens)
+                    // Key format: "post-123e4567-e89b-12d3-a456-426614174000"
+                    const firstHyphenIndex = postKey.indexOf('-');
+                    if (firstHyphenIndex === -1) {
+                      console.error('Invalid postKey format:', postKey);
+                      return;
+                    }
+                    
+                    const postType = postKey.substring(0, firstHyphenIndex);
+                    const postId = postKey.substring(firstHyphenIndex + 1);
+                    
+                    console.log('🔵 onPostMove called:', { postKey, postType, postId, newDate });
+                    
+                    // Find the post in scheduledPosts
+                    let postToMove: Post | null = null;
+                    let oldDateKey: string | null = null;
+                    
+                    Object.entries(scheduledPosts).forEach(([dateKey, posts]) => {
+                      const foundPost = posts.find(p => {
+                        const pId = p.id;
+                        const pType = p.post_type || 'post';
+                        return pId === postId && pType === postType;
+                      });
+                      if (foundPost) {
+                        postToMove = foundPost;
+                        oldDateKey = dateKey;
+                      }
+                    });
+                    
+                    if (!postToMove || !oldDateKey) {
+                      console.error('Post not found for move:', { postKey, postType, postId, scheduledPostsKeys: Object.keys(scheduledPosts) });
+                      return;
+                    }
+                    
+                    // Set loading state
+                    setMovingPostId((postToMove as Post).id);
+                    
+                    try {
+                      // Update the post's scheduled date
+                      const response = await fetch('/api/calendar/scheduled', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          postId: (postToMove as Post).id,
+                          updates: {
+                            scheduled_date: newDate
+                          }
+                        })
+                      });
+                      
+                      if (!response.ok) {
+                        throw new Error(`Failed to move post: ${response.statusText}`);
+                      }
+                      
+                      // Update local state
+                      setScheduledPosts(prev => {
+                        const updated = { ...prev };
+                        
+                        // Remove from old date
+                        if (updated[oldDateKey!]) {
+                          updated[oldDateKey!] = updated[oldDateKey!].filter(
+                            p => !(p.id === postToMove!.id && (p.post_type || 'post') === (postToMove!.post_type || 'post'))
+                          );
+                          if (updated[oldDateKey!].length === 0) {
+                            delete updated[oldDateKey!];
+                          }
+                        }
+                        
+                        // Add to new date
+                        const updatedPost: Post = {
+                          ...postToMove!,
+                          post_type: postToMove!.post_type || 'post', // Ensure post_type is set
+                          scheduled_date: newDate
+                        };
+                        updated[newDate] = [...(updated[newDate] || []), updatedPost];
+                        
+                        return updated;
+                      });
+                    } catch (error) {
+                      console.error('Error moving post:', error);
+                      setError(error instanceof Error ? error.message : 'Failed to move post');
+                    } finally {
+                      setMovingPostId(null);
+                    }
+                  }}
+                />
               </div>
             )}
           </div>
