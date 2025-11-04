@@ -283,8 +283,7 @@ export default function Home() {
               AI-Powered Social Media Management
             </h1>
             <p className="mt-6 text-lg leading-8 text-muted-foreground max-w-3xl mx-auto">
-              Upload content, generate captions with AI, and schedule posts across all platforms. 
-              Built specifically for marketing agencies managing multiple clients.
+              Upload content, generate captions with AI, and schedule posts across all platforms.
             </p>
             <div className="mt-10 max-w-2xl mx-auto px-4">
               <div className="flex items-center justify-center gap-3">
@@ -320,11 +319,11 @@ export default function Home() {
           
           {/* Hero Image/Illustration */}
           <div className="mt-16 mx-auto max-w-4xl">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
+            <div className="flex flex-col items-center mb-8">
+              <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-2 whitespace-nowrap block">
                 Content Manager - Plan, Create, Schedule
               </h2>
-              <p className="text-lg text-muted-foreground">
+              <p className="text-xl sm:text-2xl font-bold text-muted-foreground block text-center">
                 Like ChatGPT + Trello + Social Scheduler
               </p>
             </div>

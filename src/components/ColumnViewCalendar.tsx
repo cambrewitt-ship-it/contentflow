@@ -31,7 +31,8 @@ interface Post {
   scheduled_date?: string;
   scheduled_time?: string | null;
   platform?: string;
-  project_id?: string | null;
+  project_id?: string | null | undefined;
+  [key: string]: any; // Allow additional properties
 }
 
 interface DayRow {
@@ -39,6 +40,12 @@ interface DayRow {
   dayDate: Date;
   dateKey: string;
   posts: Post[];
+}
+
+interface Project {
+  id: string;
+  name: string;
+  [key: string]: any;
 }
 
 interface ColumnViewCalendarProps {
@@ -51,6 +58,12 @@ interface ColumnViewCalendarProps {
   formatWeekCommencing: (weekStart: Date) => string;
   onDrop?: (e: React.DragEvent, dateKey: string) => void;
   clientId?: string;
+  handleEditScheduledPost?: (post: any, newTime: string) => Promise<void>;
+  editingPostId?: string | null;
+  setEditingPostId?: (postId: string | null) => void;
+  editingTimePostIds?: Set<string>;
+  formatTimeTo12Hour?: (time24: string) => string;
+  projects?: Project[];
 }
 
 // Lazy loading image component
@@ -115,10 +128,22 @@ const LazyImage = ({
 // Sortable Post Card Component
 function SortablePostCard({ 
   post, 
-  postKey
+  postKey,
+  handleEditScheduledPost,
+  editingPostId,
+  setEditingPostId,
+  editingTimePostIds,
+  formatTimeTo12Hour,
+  projects
 }: {
   post: Post;
   postKey: string;
+  handleEditScheduledPost?: (post: any, newTime: string) => Promise<void>;
+  editingPostId?: string | null;
+  setEditingPostId?: (postId: string | null) => void;
+  editingTimePostIds?: Set<string>;
+  formatTimeTo12Hour?: (time24: string) => string;
+  projects?: Project[];
 }) {
   const {
     attributes,
@@ -134,8 +159,11 @@ function SortablePostCard({
     transition,
   };
 
-  // Helper function to convert 24-hour time to 12-hour format
-  const formatTimeTo12Hour = (time24?: string) => {
+  // Use passed formatTimeTo12Hour or fallback to local function
+  const formatTime = (time24?: string) => {
+    if (formatTimeTo12Hour) {
+      return formatTimeTo12Hour(time24 || '');
+    }
     if (!time24) return '';
     
     if (time24.includes('AM') || time24.includes('PM')) {
@@ -152,6 +180,37 @@ function SortablePostCard({
     return `${hour12}:${minutes} ${ampm}`;
   };
 
+  const isEditingTime = editingTimePostIds?.has(post.id) || false;
+  const isEditing = editingPostId === post.id;
+
+  // Helper function to format date
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' });
+  };
+
+  // Get status tag styling
+  const getStatusTag = () => {
+    if (!post.approval_status) return null;
+    
+    const statusConfig = {
+      'approved': { bg: 'bg-green-100', text: 'text-green-700', label: 'Approved' },
+      'rejected': { bg: 'bg-red-100', text: 'text-red-700', label: 'Rejected' },
+      'needs_attention': { bg: 'bg-orange-100', text: 'text-orange-700', label: 'Needs Attention' },
+      'pending': { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Pending' },
+      'draft': { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Draft' },
+    };
+    
+    const config = statusConfig[post.approval_status as keyof typeof statusConfig] || statusConfig.pending;
+    
+    return (
+      <span className={`text-xs px-1.5 py-0.5 rounded ${config.bg} ${config.text}`}>
+        {config.label}
+      </span>
+    );
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -160,8 +219,16 @@ function SortablePostCard({
       {...listeners}
       className={`rounded-lg border-2 border-gray-200 bg-white p-2 mb-2 shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing ${
         isDragging ? 'opacity-50 scale-105' : ''
-      }`}
+      } ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''}`}
     >
+      {/* Header with Date and Status */}
+      <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
+        <div className="text-xs text-gray-600">
+          {post.scheduled_date ? formatDate(post.scheduled_date) : ''}
+        </div>
+        {getStatusTag()}
+      </div>
+
       {/* Post Image */}
       {post.image_url && (
         <div className="w-full mb-2 rounded overflow-hidden">
@@ -178,11 +245,60 @@ function SortablePostCard({
         {post.caption || 'No caption'}
       </p>
 
-      {/* Time */}
+      {/* Time and Project - Editable */}
       {post.scheduled_time && (
-        <div className="flex items-center gap-1 text-xs text-gray-500">
-          <Clock className="w-3 h-3" />
-          <span>{formatTimeTo12Hour(post.scheduled_time)}</span>
+        <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
+          <div className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {isEditing ? (
+              <input
+                type="time"
+                defaultValue={post.scheduled_time?.slice(0, 5) || '12:00'}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (handleEditScheduledPost && setEditingPostId) {
+                      handleEditScheduledPost(post, e.currentTarget.value);
+                      setEditingPostId(null);
+                    }
+                  }
+                  if (e.key === 'Escape') {
+                    if (setEditingPostId) {
+                      setEditingPostId(null);
+                    }
+                  }
+                }}
+                onBlur={(e) => {
+                  if (handleEditScheduledPost && setEditingPostId) {
+                    handleEditScheduledPost(post, e.target.value);
+                    setEditingPostId(null);
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs p-1 rounded border bg-white shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                autoFocus
+              />
+            ) : isEditingTime ? (
+              <span className="text-purple-600">Updating time...</span>
+            ) : (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (setEditingPostId) {
+                    setEditingPostId(post.id);
+                  }
+                }}
+                className="cursor-pointer bg-white border border-gray-300 rounded px-2 py-1 hover:border-blue-500 hover:text-blue-600"
+                title="Click to edit time"
+              >
+                {formatTime(post.scheduled_time)}
+              </span>
+            )}
+          </div>
+          {post.project_id && projects && projects.find(p => p.id === post.project_id) && (
+            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
+              {projects.find(p => p.id === post.project_id)?.name}
+            </span>
+          )}
         </div>
       )}
 
@@ -208,7 +324,12 @@ function DroppableDayRow({
   onNativeDragOver,
   onNativeDragEnter,
   onNativeDragLeave,
-  clientId
+  clientId,
+  handleEditScheduledPost,
+  editingPostId,
+  setEditingPostId,
+  editingTimePostIds,
+  formatTimeTo12Hour
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -219,6 +340,11 @@ function DroppableDayRow({
   onNativeDragEnter?: (e: React.DragEvent) => void;
   onNativeDragLeave?: (e: React.DragEvent) => void;
   clientId?: string;
+  handleEditScheduledPost?: (post: any, newTime: string) => Promise<void>;
+  editingPostId?: string | null;
+  setEditingPostId?: (postId: string | null) => void;
+  editingTimePostIds?: Set<string>;
+  formatTimeTo12Hour?: (time24: string) => string;
 }) {
   const router = useRouter();
   const { setNodeRef } = useDroppable({
@@ -292,9 +418,6 @@ function DroppableDayRow({
             {getDayNumber(dayRow.dayDate)}
           </span>
         </div>
-        <span className="text-xs text-gray-500">
-          {dayRow.posts.length}
-        </span>
       </div>
 
       {/* Posts in Day Row */}
@@ -324,6 +447,12 @@ function DroppableDayRow({
                   key={postKey}
                   post={post}
                   postKey={postKey}
+                  handleEditScheduledPost={handleEditScheduledPost}
+                  editingPostId={editingPostId}
+                  setEditingPostId={setEditingPostId}
+                  editingTimePostIds={editingTimePostIds}
+                  formatTimeTo12Hour={formatTimeTo12Hour}
+                  projects={projects}
                 />
               );
             })
@@ -341,7 +470,13 @@ export function ColumnViewCalendar({
   onPostMove,
   formatWeekCommencing,
   onDrop,
-  clientId
+  clientId,
+  handleEditScheduledPost,
+  editingPostId,
+  setEditingPostId,
+  editingTimePostIds,
+  formatTimeTo12Hour,
+  projects
 }: ColumnViewCalendarProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
@@ -583,6 +718,11 @@ export function ColumnViewCalendar({
                       getDayNumber={getDayNumber}
                       onNativeDrop={onDrop}
                       clientId={clientId}
+                      handleEditScheduledPost={handleEditScheduledPost}
+                      editingPostId={editingPostId}
+                      setEditingPostId={setEditingPostId}
+                      editingTimePostIds={editingTimePostIds}
+                      formatTimeTo12Hour={formatTimeTo12Hour}
                     />
                   );
                 })}
