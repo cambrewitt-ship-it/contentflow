@@ -693,7 +693,7 @@ Remember: You're not filling a template. You're solving business challenges usin
           !line.match(/^(Funnel Stage|Primary Platform|Content Format|Business Goal|Target Audience|Content Angle|Visual|Hook|Content Structure|CTA|Hashtag|Success|Pro Tip)/i) &&
           line.length > 5
         ) || lines[0] || 'Content Idea';
-        const idea = titleLine.replace(/^\*\*|\*\*$/g, '').replace(/^[\d\.\-\*]+[\s\.]+/g, '').trim();
+        const idea = titleLine.replace(/^\*\*|\*\*$/g, '').replace(/^[\d\.\-\*]+[\s\.]+/g, '').trim().replace(/^["']+|["']+$/g, '');
         
         // Extract Content Angle
         const angleMatch = ideaText.match(/Content Angle[:\s]+\*?\*?(.*?)(?=\n(?:\*\*)?(?:Visual|Hook|Content Structure|CTA|$))/is);
@@ -756,7 +756,7 @@ Remember: You're not filling a template. You're solving business challenges usin
                 holidayConnection: currentIdea.holidayConnection || 'Evergreen content'
               });
             }
-            currentIdea = { idea: line.replace(/^[\*\-\d\.\s]+|IDEA\s+\d+:?\s*/gi, '').trim() };
+            currentIdea = { idea: line.replace(/^[\*\-\d\.\s]+|IDEA\s+\d+:?\s*/gi, '').trim().replace(/^["']+|["']+$/g, '') };
           } else if (currentIdea.idea && line.length > 20) {
             // If we have an idea started, accumulate details
             if (!currentIdea.angle) {
@@ -789,7 +789,7 @@ Remember: You're not filling a template. You're solving business challenges usin
           const chunk = chunks[i];
           const firstLine = chunk.split('\n')[0]?.trim() || 'Content Idea';
           parsedIdeas.push({
-            idea: firstLine.replace(/^[\*\-\d\.\s]+/g, '').substring(0, 100),
+            idea: firstLine.replace(/^[\*\-\d\.\s]+/g, '').replace(/^["']+|["']+$/g, '').substring(0, 100),
             angle: chunk.substring(0, 200),
             visualSuggestion: 'Engaging visual content',
             timing: firstLine.substring(0, 100),

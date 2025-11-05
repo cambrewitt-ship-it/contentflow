@@ -329,7 +329,8 @@ function DroppableDayRow({
   editingPostId,
   setEditingPostId,
   editingTimePostIds,
-  formatTimeTo12Hour
+  formatTimeTo12Hour,
+  projects
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -345,6 +346,7 @@ function DroppableDayRow({
   setEditingPostId?: (postId: string | null) => void;
   editingTimePostIds?: Set<string>;
   formatTimeTo12Hour?: (time24: string) => string;
+  projects?: Project[];
 }) {
   const router = useRouter();
   const { setNodeRef } = useDroppable({
@@ -723,6 +725,7 @@ export function ColumnViewCalendar({
                       setEditingPostId={setEditingPostId}
                       editingTimePostIds={editingTimePostIds}
                       formatTimeTo12Hour={formatTimeTo12Hour}
+                      projects={projects}
                     />
                   );
                 })}
