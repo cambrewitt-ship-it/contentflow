@@ -17,6 +17,7 @@ function ResetPasswordForm() {
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [sessionEstablished, setSessionEstablished] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -28,11 +29,39 @@ function ResetPasswordForm() {
     if (hash) {
       const hashParams = new URLSearchParams(hash.substring(1));
       const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
       const type = hashParams.get('type');
 
-      if (type === 'recovery' && accessToken) {
-        // We have a valid recovery token - clear any errors
-        setError('');
+      if (type === 'recovery' && accessToken && refreshToken) {
+        // We have valid recovery tokens - set the session
+        const establishSession = async () => {
+          try {
+            const { data, error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+            if (sessionError) {
+              setError('Failed to verify reset link. Please request a new one.');
+              console.error('Session establishment error:', sessionError);
+              return;
+            }
+
+            if (data.session) {
+              setSessionEstablished(true);
+              setError('');
+              // Clear the hash from URL for security
+              window.history.replaceState(null, '', window.location.pathname);
+            } else {
+              setError('Invalid or expired reset link. Please request a new one.');
+            }
+          } catch (err) {
+            setError('Failed to verify reset link. Please request a new one.');
+            console.error('Error establishing session:', err);
+          }
+        };
+
+        establishSession();
       } else {
         // Invalid token format
         setError('Invalid or expired reset link. Please request a new one.');
@@ -55,6 +84,12 @@ function ResetPasswordForm() {
     setLoading(true);
     setError('');
 
+    if (!sessionEstablished) {
+      setError('Please wait for the reset link to be verified.');
+      setLoading(false);
+      return;
+    }
+
     if (!isPasswordValid) {
       setError('Password must be at least 6 characters and contain uppercase, lowercase, and a number');
       setLoading(false);
@@ -67,16 +102,19 @@ function ResetPasswordForm() {
       return;
     }
 
+    // Now update the password - session should already be established
     const { error: updateError } = await supabase.auth.updateUser({
       password: password
     });
     
     if (updateError) {
-      setError(updateError.message);
+      setError(updateError.message || 'Failed to update password. Please try again.');
       setLoading(false);
     } else {
       setSuccess(true);
       setLoading(false);
+      // Sign out to clear the recovery session
+      await supabase.auth.signOut();
       // Redirect to login after successful reset
       setTimeout(() => {
         router.push('/auth/login');
@@ -185,9 +223,9 @@ function ResetPasswordForm() {
               <Button 
                 type="submit" 
                 className="w-full" 
-                disabled={loading || !isPasswordValid || !passwordsMatch}
+                disabled={loading || !isPasswordValid || !passwordsMatch || !sessionEstablished}
               >
-                {loading ? 'Updating...' : 'Update Password'}
+                {loading ? 'Updating...' : sessionEstablished ? 'Update Password' : 'Verifying link...'}
               </Button>
             </form>
           )}
