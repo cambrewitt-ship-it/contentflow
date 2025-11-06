@@ -18,6 +18,140 @@ export const runtime = 'nodejs'; // Use Node.js runtime for better performance
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
+function getCopyToneInstructions(copyTone: string) {
+  const toneMap: Record<string, string> = {
+    promotional: `
+**Promotional Focus:**
+- Lead with compelling offers, benefits, or value propositions
+- Include clear, actionable calls-to-action
+- Create urgency where appropriate ("limited time", "don't miss out")
+- Highlight specific deals, prices, or exclusive opportunities
+- Use persuasive language that drives immediate action`,
+
+    educational: `
+**Educational Focus:**
+- Share valuable insights, tips, or industry knowledge
+- Position the brand as a trusted expert and resource
+- Use informative, helpful language that teaches or guides
+- Include practical advice or actionable takeaways
+- Build authority through expertise demonstration`,
+
+    personal: `
+**Personal Focus:**
+- Use authentic, behind-the-scenes storytelling
+- Share personal experiences, insights, or day-in-the-life content
+- Create genuine connections with a conversational tone
+- Include personal anecdotes or authentic moments
+- Build trust through transparency and relatability`,
+
+    testimonial: `
+**Testimonial Focus:**
+- Highlight client success stories and positive outcomes
+- Use social proof to build credibility and trust
+- Include specific results, achievements, or transformations
+- Feature client quotes, reviews, or feedback when available
+- Demonstrate value through real-world examples`,
+
+    engagement: `
+**Engagement Focus:**
+- Ask questions to encourage audience interaction
+- Create conversation starters and community discussion
+- Use interactive elements like polls, opinions, or experiences
+- Invite audience to share their thoughts or stories
+- Build community through two-way communication`
+  };
+
+  return toneMap[copyTone] || '**General Social Media Copy:** Create engaging, brand-appropriate content that drives social interaction.';
+}
+
+function getPostNotesApproach(style: string) {
+  const approaches: Record<string, string> = {
+    'quote-directly': 'Use exact wording and specific details from notes',
+    paraphrase: "Rewrite notes content in brand voice while keeping all key information",
+    'use-as-inspiration': 'Capture the essence and intent of notes with creative interpretation'
+  };
+  return approaches[style] || 'Incorporate notes content appropriately';
+}
+
+function getImageRole(focus: string) {
+  const roles: Record<string, string> = {
+    'main-focus': 'Primary Content Driver',
+    supporting: 'Content Enhancer',
+    background: 'Context Provider',
+    none: 'Not Used'
+  };
+  return roles[focus] || 'Supporting';
+}
+
+function getImageDescription(focus: string) {
+  const descriptions: Record<string, string> = {
+    'main-focus': "Build captions around what's shown in the image",
+    supporting: 'Use image details to enhance and support the main message',
+    background: 'Reference image elements briefly for context',
+    none: 'Focus entirely on text content, ignore image'
+  };
+  return descriptions[focus] || 'Use image details to support content';
+}
+
+function getPostNotesInstructions(style: string) {
+  const instructions: Record<string, string> = {
+    'quote-directly': 'Include specific phrases, numbers, and details exactly as written. If notes mention "$50 special offer", your caption must include "$50 special offer".',
+    paraphrase: "Rewrite the notes content in the brand's voice while preserving all key information, prices, dates, and important details.",
+    'use-as-inspiration': 'Capture the core message and intent from the notes, using them as a foundation for brand-appropriate content.'
+  };
+  return instructions[style] || 'Incorporate the notes content appropriately based on context.';
+}
+
+function getImageInstructions(focus: string) {
+  const instructions: Record<string, string> = {
+    'main-focus': `
+**Primary Image Focus:**
+- Describe the key elements, setting, and visual story
+- Build captions around what's prominently featured
+- Connect all content back to the main visual elements
+- Use the image as the central narrative foundation`,
+
+    supporting: `
+**Supporting Image Role:**
+- Identify relevant visual elements that enhance the message
+- Connect image details to the main content theme
+- Use visuals to add credibility and context
+- Balance image references with primary content focus`,
+
+    background: `
+**Background Image Context:**
+- Briefly acknowledge the setting or context shown
+- Use minimal image references to support the message
+- Focus primarily on text content with light visual mentions
+- Keep image descriptions concise and contextual`,
+
+    none: `
+**Text-Only Focus:**
+- Do not reference or describe image elements
+- Focus entirely on post notes and brand messaging
+- Create content independent of visual elements
+- Treat this as text-based content creation`
+  };
+
+  return instructions[focus] || instructions.supporting;
+}
+
+function getContentHierarchy(aiContext: string | undefined, postNotesStyle: string, imageFocus: string) {
+  if (aiContext) {
+    return `
+**Content Priority Order:**
+1. **Post Notes Content** (Primary) - ${getPostNotesApproach(postNotesStyle)}
+2. **Brand Voice & Guidelines** (Secondary) - Apply brand personality to content
+3. **Image Elements** (${getImageRole(imageFocus)}) - ${getImageDescription(imageFocus)}`;
+  }
+
+  return `
+**Content Priority Order:**
+1. **Brand Context** (Primary) - Use company values, tone, and target audience
+2. **Image Analysis** (${getImageRole(imageFocus)}) - ${getImageDescription(imageFocus)}
+3. **Brand Guidelines** (Always) - Apply dos/don'ts and style rules consistently`;
+}
+
 // Fetch brand context for a client
 async function getBrandContext(clientId: string) {
   try {
@@ -282,6 +416,380 @@ async function analyzeImage(openai: OpenAI, imageData: string, prompt?: string) 
       route: '/api/ai',
       operation: 'analyze_image',
       additionalData: { hasPrompt: !!prompt }
+    });
+  }
+}
+
+async function generateCaptions(
+  openai: OpenAI,
+  imageData: string,
+  existingCaptions: string[] = [],
+  aiContext?: string,
+  clientId?: string,
+  copyType?: 'social-media' | 'email-marketing',
+  copyTone?: 'promotional' | 'educational' | 'personal' | 'testimonial' | 'engagement',
+  postNotesStyle?: 'quote-directly' | 'paraphrase' | 'use-as-inspiration',
+  imageFocus?: 'main-focus' | 'supporting' | 'background' | 'none'
+) {
+  try {
+    const isVideoPlaceholder = imageData === 'VIDEO_PLACEHOLDER' || imageData === '';
+    const isVideo = isVideoPlaceholder;
+
+    let validation: { isValid: boolean; type: 'base64' | 'blob' | 'invalid' } = { isValid: true, type: 'base64' };
+    if (!isVideoPlaceholder) {
+      const mediaValidation = isValidMediaData(imageData);
+      if (!mediaValidation.isValid) {
+        throw new Error('Invalid media data - must be blob URL or base64');
+      }
+
+      validation = isValidImageData(imageData);
+    }
+
+    if (isVideo && !aiContext?.trim()) {
+      throw new Error('Post Notes are required for video content. AI cannot analyze videos visually.');
+    }
+
+    let brandContext: Awaited<ReturnType<typeof getBrandContext>> | null = null;
+    if (clientId) {
+      brandContext = await getBrandContext(clientId);
+    }
+
+    let brandContextSection = '';
+    if (brandContext) {
+      brandContextSection = `
+🎨 BRAND CONTEXT (ESSENTIAL FOR ALL CAPTIONS):
+${brandContext.company ? `💼 COMPANY: ${brandContext.company}` : ''}
+${brandContext.tone ? `🎭 BRAND TONE: ${brandContext.tone}` : ''}
+${brandContext.audience ? `👥 TARGET AUDIENCE: ${brandContext.audience}` : ''}
+${brandContext.value_proposition ? `🎯 VALUE PROPOSITION: ${brandContext.value_proposition}` : ''}
+
+${brandContext.voice_examples ? `🎤 BRAND VOICE EXAMPLES (ABSOLUTE PRIORITY - NON-NEGOTIABLE):
+${brandContext.voice_examples}
+
+🚨 CRITICAL INSTRUCTION FOR BRAND VOICE:
+- These examples show the EXACT tone, style, and personality your brand uses
+- You MUST replicate this voice precisely in every caption
+- Study the language patterns, expressions, and writing style
+- Match the same level of formality/informality
+- Use similar sentence structures and vocabulary
+- If brand voice examples are provided, you MUST use them - generic content is unacceptable
+- These examples take PRIORITY over all other brand guidelines` : ''}
+
+${brandContext.dos || brandContext.donts ? `📋 AI CAPTION RULES (MANDATORY):
+${brandContext.dos ? `✅ ALWAYS INCLUDE: ${brandContext.dos}` : ''}
+${brandContext.donts ? `❌ NEVER INCLUDE: ${brandContext.donts}` : ''}` : ''}
+
+${brandContext.documents && brandContext.documents.length > 0 ? `📄 BRAND DOCUMENTS: ${brandContext.documents.length} document(s) available for reference` : ''}
+${brandContext.website ? `🌐 WEBSITE CONTEXT: Available for reference` : ''}`;
+    }
+
+    const finalInstruction = copyType === 'email-marketing' ? '' : 'Provide only 3 captions, separated by blank lines. No introduction or explanation.';
+
+    const systemPrompt = copyType === 'email-marketing'
+      ? `# Professional Email Copy Generator
+
+## Your Role
+You are a professional email copywriter creating promotional email content.
+
+## Brand Context
+- **Company:** ${brandContext?.company || 'Not specified'} - ${brandContext?.value_proposition || 'Not specified'}
+- **Tone:** ${brandContext?.tone || 'Professional'}
+- **Audience:** ${brandContext?.audience || 'Not specified'}
+- **Value Proposition:** ${brandContext?.value_proposition || 'Not specified'}
+
+## Content Inputs
+**User's Message Intent:** ${aiContext || 'Not provided'}
+**Visual Content:** ${imageData ? 'Image provided for analysis' : 'No image provided'}
+
+## Task
+Transform the user's message intent into professional email copy that:
+1. Communicates the core message in refined, professional language
+2. References relevant visual elements from the image naturally
+3. Creates value and urgency appropriate for the business
+4. Maintains the brand's voice and tone
+
+## Output Format
+Write exactly ONE email paragraph structured as:
+
+[2-3 professional sentences conveying the message and value]
+
+[Clear call-to-action]
+
+## Requirements
+✓ Professional business language (translate casual language to professional tone)
+✓ Email-appropriate formatting (no hashtags, no social media slang)
+✓ Specific details when provided (prices, dates, features)
+✓ Action-oriented CTA appropriate to the business type
+✓ Concise - maximum 4 sentences total
+✗ No multiple options or variations
+✗ No "\n" literal text - use actual line breaks
+✗ No casual social media language ("DM", "link in bio", emojis)
+
+Generate the email copy now.`
+      : `# Social Media Content Creation System
+
+## Content Strategy
+**Copy Tone:** ${copyTone || 'General'}
+**Post Notes Style:** ${postNotesStyle || 'Paraphrase'}
+**Image Focus:** ${imageFocus || 'Supporting'}
+
+## Copy Tone Instructions
+${getCopyToneInstructions(copyTone || 'promotional')}
+
+## Content Hierarchy & Approach
+${getContentHierarchy(aiContext, postNotesStyle || 'paraphrase', imageFocus || 'supporting')}
+
+${aiContext ? `## Post Notes Content
+${aiContext}
+
+**Processing Instructions:** ${getPostNotesInstructions(postNotesStyle || 'paraphrase')}` : ''}
+
+${brandContextSection}
+
+## Image Analysis Guidelines
+${getImageInstructions(imageFocus || 'supporting')}
+
+## Output Requirements
+- Generate exactly 3 distinct captions
+- Vary approaches: one short (1-2 lines), one medium (3-4 lines), one longer (5-6 lines)
+- Each caption should offer a different angle while maintaining content consistency
+- Use natural, conversational tone aligned with brand guidelines
+- Include relevant hashtags when appropriate
+- Format as ready-to-post social media captions
+
+## Quality Standards
+- Every caption must align with the selected copy tone
+- Content must reflect the specified post notes handling approach
+- Image elements should be integrated according to focus level
+- Brand voice and rules must be consistently applied
+- Captions should be platform-appropriate and engaging
+
+${finalInstruction}`;
+
+    const userContent: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string; detail: 'high' } }> = [
+      {
+        type: 'text',
+        text:
+          copyType === 'email-marketing'
+            ? aiContext
+              ? `Generate ONE single email paragraph (2-3 concise sentences + CTA) based on your Post Notes: "${aiContext}". Write as a professional email with actual line breaks between the main text and CTA. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. NO hashtags or social media formatting.`
+              : 'Generate ONE single email paragraph (2-3 concise sentences + CTA) for this image. Write as a professional email with actual line breaks between the main text and CTA. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. NO hashtags or social media formatting.'
+            : aiContext
+              ? `CRITICAL: Your Post Notes are "${aiContext}". Generate exactly 3 social media captions that DIRECTLY mention and use these Post Notes. Every caption must include the actual content from your notes. Do not create generic captions - make the Post Notes the main focus of each caption. Start with the first caption immediately, no introduction needed.`
+              : 'Generate exactly 3 social media captions for this image based on what you see. Start with the first caption immediately, no introduction needed.'
+      }
+    ];
+
+    if (validation.isValid && imageData && !isVideo && !isVideoPlaceholder) {
+      userContent.push({
+        type: 'image_url',
+        image_url: {
+          url: imageData,
+          detail: 'high'
+        }
+      });
+    }
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: userContent
+        }
+      ],
+      max_tokens: 800,
+      temperature: 0.8
+    });
+
+    const content = response.choices[0]?.message?.content || '';
+
+    let captions: string[] = [];
+
+    if (copyType === 'email-marketing') {
+      let processedContent = content.trim();
+      processedContent = processedContent.replace(/\\n\\n/g, '\n\n');
+      processedContent = processedContent.replace(/\\n/g, '\n');
+      processedContent = processedContent.replace(/\.\s*([A-Z][^.!?]*[.!?]?)$/gm, '.\n\n$1');
+      processedContent = processedContent.replace(/\n{3,}/g, '\n\n');
+
+      if (processedContent.length > 20) {
+        captions = [processedContent];
+      }
+    } else {
+      let potentialCaptions = content.split(/\n\n+/);
+
+      if (potentialCaptions.length < 3) {
+        potentialCaptions = content.split(/\n/);
+      }
+
+      if (potentialCaptions.length < 3) {
+        potentialCaptions = content.split(/\n-|\n\d+\./);
+      }
+
+      captions = potentialCaptions
+        .map(caption => caption.trim())
+        .filter(caption =>
+          caption.length > 15 &&
+          !caption.toLowerCase().startsWith('here are') &&
+          !caption.toLowerCase().startsWith('captions for') &&
+          !caption.toLowerCase().startsWith('engaging captions') &&
+          !caption.toLowerCase().startsWith('three captions')
+        )
+        .slice(0, 3);
+
+      if (captions.length < 3) {
+        const allLines = content
+          .split(/\n/)
+          .map(line => line.trim())
+          .filter(line => line.length > 10);
+
+        if (allLines.length >= 3) {
+          captions = allLines.slice(0, 3);
+        }
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      captions
+    });
+  } catch (error) {
+    return handleApiError(error, {
+      route: '/api/ai',
+      operation: 'generate_captions',
+      clientId,
+      additionalData: {
+        copyType,
+        hasImageData: !!imageData,
+        hasContext: !!aiContext,
+        existingCaptionCount: existingCaptions.length
+      }
+    });
+  }
+}
+
+async function remixCaption(
+  openai: OpenAI,
+  imageData: string,
+  prompt: string,
+  existingCaptions: string[] = [],
+  aiContext?: string,
+  clientId?: string
+) {
+  try {
+    const validation = isValidImageData(imageData);
+    if (!validation.isValid) {
+      throw new Error('Invalid image data - must be blob URL or base64');
+    }
+
+    let brandContext: Awaited<ReturnType<typeof getBrandContext>> | null = null;
+    if (clientId) {
+      brandContext = await getBrandContext(clientId);
+    }
+
+    let systemPrompt = 'You are a creative social media copywriter specializing in brand-aware content creation. The user wants you to create a fresh variation of an existing caption.\n\n';
+    systemPrompt += '🎯 YOUR TASK:\n';
+    systemPrompt += 'Create a NEW version of the original caption that:\n';
+    systemPrompt += '- Maintains the EXACT same meaning and message\n';
+    systemPrompt += '- Uses DIFFERENT words and phrasing\n';
+    systemPrompt += '- Keeps the SAME style, tone, and structure\n';
+    systemPrompt += "- Incorporates the user's post notes naturally\n\n";
+    systemPrompt += '🚨 CRITICAL REQUIREMENTS:\n';
+    systemPrompt += '- DO NOT change the core message or meaning\n';
+    systemPrompt += '- DO create a fresh variation with different wording\n';
+    systemPrompt += '- DO maintain the same emotional tone and style\n';
+    systemPrompt += "- DO include the post notes content naturally\n";
+    systemPrompt += '- DO NOT add any explanations, introductions, or commentary\n';
+    systemPrompt += '- DO NOT mention the image or try to analyze it\n\n';
+    systemPrompt += '🎭 TONE MATCHING (HIGHEST PRIORITY):\n';
+    systemPrompt += "- Study the original caption's tone, style, and personality\n";
+    systemPrompt += '- Match the exact emotional feel and writing style\n';
+    systemPrompt += '- If the original is casual and friendly, keep it casual and friendly\n';
+    systemPrompt += '- If the original is professional and formal, keep it professional and formal\n';
+    systemPrompt += '- Copy the same level of enthusiasm, humor, or seriousness\n\n';
+
+    if (aiContext) {
+      systemPrompt += '📝 POST NOTES (MANDATORY - include this content):\n';
+      systemPrompt += `${aiContext}\n\n`;
+      systemPrompt += 'IMPORTANT: Weave the post notes content naturally into your variation. If the notes mention specific details (like "$50", "available online"), these must appear in your caption.\n\n';
+    }
+
+    if (brandContext) {
+      systemPrompt += '🎨 BRAND CONTEXT (use for tone and style):\n';
+      systemPrompt += `- Company: ${brandContext.company || 'Not specified'}\n`;
+      systemPrompt += `- Brand Tone: ${brandContext.tone || 'Not specified'}\n`;
+      systemPrompt += `- Target Audience: ${brandContext.audience || 'Not specified'}\n`;
+      systemPrompt += `- Value Proposition: ${brandContext.value_proposition || 'Not specified'}\n\n`;
+
+      if (brandContext.voice_examples) {
+        systemPrompt += '🎤 BRAND VOICE EXAMPLES (MATCH THIS STYLE):\n';
+        systemPrompt += `${brandContext.voice_examples}\n\n`;
+        systemPrompt += '🚨 CRITICAL: Study these examples and ensure your variation matches this exact style and voice.\n\n';
+      }
+
+      systemPrompt += "Use this brand context to ensure your variation matches the company's voice and style.\n\n";
+    }
+
+    if (brandContext?.dos || brandContext?.donts) {
+      systemPrompt += '📋 STYLE RULES:\n';
+      if (brandContext.dos) {
+        systemPrompt += `✅ DO: ${brandContext.dos}\n`;
+      }
+      if (brandContext.donts) {
+        systemPrompt += `❌ DON'T: ${brandContext.donts}\n`;
+      }
+      systemPrompt += '\n';
+    }
+
+    if (existingCaptions.length > 0) {
+      systemPrompt += `📚 EXISTING CAPTIONS FOR REFERENCE: ${existingCaptions.join(', ')}\n\n`;
+    }
+
+    systemPrompt += '🎯 FINAL INSTRUCTION:\n';
+    systemPrompt += 'Generate exactly 1 caption variation that rephrases the original while keeping the same meaning, style, and tone.\n';
+    systemPrompt += 'Make it fresh and different, but maintain the core message completely.\n\n';
+    systemPrompt += '🚨 OUTPUT FORMAT:\n';
+    systemPrompt += '- Provide ONLY the new caption text\n';
+    systemPrompt += '- NO explanations, introductions, or commentary\n';
+    systemPrompt += '- NO "I\'m unable to comment on the image" or similar text\n';
+    systemPrompt += '- NO "here\'s a caption remix:" or similar phrases\n';
+    systemPrompt += '- Just the pure caption text, nothing else';
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: `Create a fresh variation of this caption: "${prompt.split('Original caption: "')[1]?.replace('"', '') || 'Unknown caption'}"`
+        }
+      ],
+      max_tokens: 400,
+      temperature: 0.7
+    });
+
+    return NextResponse.json({
+      success: true,
+      caption: response.choices[0]?.message?.content || 'No caption generated'
+    });
+  } catch (error) {
+    return handleApiError(error, {
+      route: '/api/ai',
+      operation: 'remix_caption',
+      clientId,
+      additionalData: {
+        hasImageData: !!imageData,
+        hasContext: !!aiContext,
+        hasExistingCaptions: existingCaptions.length > 0
+      }
     });
   }
 }
