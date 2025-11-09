@@ -136,6 +136,64 @@ function getImageInstructions(focus: string) {
   return instructions[focus] || instructions.supporting;
 }
 
+function isRefusalResponse(content?: string | null): boolean {
+  if (!content) return false;
+  const normalized = content.toLowerCase();
+  const refusalPhrases = [
+    "i'm sorry",
+    'i am sorry',
+    'i cannot assist',
+    "i can't assist",
+    'i cannot help',
+    "i can't help",
+    "i'm unable to",
+    'i am unable to',
+    'cannot comply',
+    'cannot fulfill',
+    'i will not comply',
+    'i cannot provide that',
+    'i cannot provide',
+    'i do not have the ability to',
+    'refuse to'
+  ];
+
+  return refusalPhrases.some(phrase => normalized.includes(phrase));
+}
+
+function sanitizeFallbackText(text?: string | null): string | undefined {
+  if (!text) return text ?? undefined;
+
+  const sensitiveTerms = [
+    'suicide',
+    'kill',
+    'murder',
+    'weapon',
+    'gun',
+    'knife',
+    'violence',
+    'blood',
+    'drugs',
+    'nude',
+    'sexual',
+    'sex',
+    'porn',
+    'explicit',
+    'hate',
+    'terror',
+    'bomb',
+    'weaponry',
+    'shoot'
+  ];
+
+  let sanitized = text;
+  for (const term of sensitiveTerms) {
+    const regex = new RegExp(term, 'gi');
+    sanitized = sanitized.replace(regex, '[redacted]');
+  }
+
+  return sanitized;
+}
+
 function getContentHierarchy(aiContext: string | undefined, postNotesStyle: string, imageFocus: string) {
   if (aiContext) {
     return `
@@ -300,7 +358,8 @@ export async function POST(request: NextRequest) {
         result = await generateCaptions(
           openai,
           body.imageData as string,
-          body.aiContext ?? (body as Record<string, unknown>).postNotes as string | undefined,
+          body.existingCaptions as string[] | undefined,
+          (body.aiContext ?? (body as Record<string, unknown>).postNotes) as string | undefined,
           body.clientId as string | undefined,
           body.copyType as 'social-media' | 'email-marketing' | undefined,
           body.copyTone as 'promotional' | 'educational' | 'personal' | 'testimonial' | 'engagement' | undefined,
@@ -606,7 +665,70 @@ ${finalInstruction}`;
       temperature: 0.8
     });
 
-    const content = response.choices[0]?.message?.content || '';
+    let content = response.choices[0]?.message?.content || '';
+    const finishReason = response.choices[0]?.finish_reason;
+
+    if (
+      (typeof finishReason === 'string' && finishReason.toLowerCase() === 'content_filter') ||
+      isRefusalResponse(content) ||
+      content.trim().length === 0
+    ) {
+      logger.warn('Caption generation initial attempt refused or filtered. Retrying with safety fallback.', {
+        finishReason,
+        clientId,
+        hasContext: !!aiContext,
+        isVideo,
+        contentLength: content.length
+      });
+
+      const sanitizedContext = sanitizeFallbackText(aiContext);
+      const fallbackSystemPrompt = `You are a policy-compliant social media copywriter. Produce safe, positive captions that follow all usage guidelines. If the provided context includes sensitive or disallowed content, omit or neutralize it while still delivering helpful, brand-friendly captions. Provide the safest possible alternative instead of refusing.`;
+
+      const fallbackUserMessage =
+        copyType === 'email-marketing'
+          ? sanitizedContext
+            ? `Write one compliant, brand-safe promotional email paragraph plus a call-to-action based on this context. Remove or neutralize any sensitive details: "${sanitizedContext}".`
+            : 'Write one compliant, brand-safe promotional email paragraph with a call-to-action. Keep the tone professional and positive.'
+          : sanitizedContext
+            ? `Create three short, brand-safe social media captions. Use this context where it is safe to do so, but remove or neutralize any sensitive details: "${sanitizedContext}".`
+            : 'Create three short, brand-safe social media captions suitable for a generic promotional post. Keep them positive and compliant.';
+
+      const fallbackResponse = await openai.chat.completions.create({
+        model: process.env.OPENAI_FALLBACK_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: fallbackSystemPrompt
+          },
+          {
+            role: 'user',
+            content: fallbackUserMessage
+          }
+        ],
+        max_tokens: copyType === 'email-marketing' ? 500 : 600,
+        temperature: 0.7
+      });
+
+      const fallbackContent = fallbackResponse.choices[0]?.message?.content || '';
+
+      if (fallbackContent.trim().length > 0 && !isRefusalResponse(fallbackContent)) {
+        content = fallbackContent;
+      } else {
+        logger.error('Caption generation failed after fallback attempt.', {
+          clientId,
+          hasContext: !!aiContext,
+          fallbackContentLength: fallbackContent.length
+        });
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'AI safety filters prevented caption generation. Please adjust your media or notes and try again.'
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     let captions: string[] = [];
 
