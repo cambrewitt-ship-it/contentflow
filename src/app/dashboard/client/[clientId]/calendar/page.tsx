@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Grid3X3, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
@@ -181,30 +181,14 @@ export default function CalendarPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [movingPostId, setMovingPostId] = useState<string | null>(null);
   const [deletingPostIds, setDeletingPostIds] = useState<Set<string>>(new Set());
+  const [deletingUploadIds, setDeletingUploadIds] = useState<Set<string>>(new Set());
   const [deletingUnscheduledPostIds, setDeletingUnscheduledPostIds] = useState<Set<string>>(new Set());
   const [schedulingPostIds, setSchedulingPostIds] = useState<Set<string>>(new Set());
   const [editingTimePostIds, setEditingTimePostIds] = useState<Set<string>>(new Set());
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
-  const [viewMode, setViewMode] = useState<'week' | 'month' | 'column'>('week');
-  const calendarScrollRef = useRef<HTMLDivElement>(null);
-  const weekScrollRefs = useRef<Map<number, HTMLDivElement>>(new Map());
-  
-  // Scroll functions for week containers
-  const scrollWeekLeft = (weekIndex: number) => {
-    const scrollElement = weekScrollRefs.current.get(weekIndex);
-    if (scrollElement) {
-      scrollElement.scrollBy({ left: -400, behavior: 'smooth' });
-    }
-  };
-  
-  const scrollWeekRight = (weekIndex: number) => {
-    const scrollElement = weekScrollRefs.current.get(weekIndex);
-    if (scrollElement) {
-      scrollElement.scrollBy({ left: 400, behavior: 'smooth' });
-    }
-  };
+  const [viewMode, setViewMode] = useState<'month' | 'column'>('column');
   
   // Client Portal states
   const [portalToken, setPortalToken] = useState<string | null>(null);
@@ -527,19 +511,6 @@ export default function CalendarPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]); // Only depend on clientId to prevent infinite loop
-
-  // Scroll to current week when navigating
-  useEffect(() => {
-    if (calendarScrollRef.current) {
-      // Find the current week element
-      setTimeout(() => {
-        const currentWeekElement = calendarScrollRef.current?.querySelector('[data-current-week="true"]');
-        if (currentWeekElement) {
-          currentWeekElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 100); // Small delay to ensure DOM is updated
-    }
-  }, [weekOffset]);
 
   const getWeeksToDisplay = () => {
     const weeks = [];
@@ -1209,6 +1180,117 @@ export default function CalendarPage() {
     }
   };
 
+  const handleDeleteScheduledPost = async (post: Post) => {
+    const confirmMessage = 'Are you sure you want to delete this scheduled post? This action cannot be undone.';
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setDeletingPostIds(prev => {
+      const next = new Set(prev);
+      next.add(post.id);
+      return next;
+    });
+
+    try {
+      if (post.late_post_id) {
+        await fetch(`/api/late/delete-post?latePostId=${post.late_post_id}`, {
+          method: 'DELETE',
+        });
+      }
+
+      const response = await fetch('/api/calendar/scheduled', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ postId: post.id }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete post (${response.status})`);
+      }
+
+      setScheduledPosts(prev => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach(dateKey => {
+          updated[dateKey] = updated[dateKey].filter(p => p.id !== post.id);
+          if (updated[dateKey].length === 0) {
+            delete updated[dateKey];
+          }
+        });
+        return updated;
+      });
+
+      setSelectedPosts(prev => {
+        const next = new Set(prev);
+        next.delete(post.id);
+        return next;
+      });
+    } catch (error) {
+      console.error('Error deleting scheduled post:', error);
+      alert(`Failed to delete post: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDeletingPostIds(prev => {
+        const next = new Set(prev);
+        next.delete(post.id);
+        return next;
+      });
+    }
+  };
+
+  const handleDeleteClientUpload = async (upload: ClientUpload) => {
+    if (!confirm('Are you sure you want to delete this client upload? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeletingUploadIds(prev => {
+      const next = new Set(prev);
+      next.add(upload.id);
+      return next;
+    });
+
+    try {
+      const response = await fetch(`/api/clients/${clientId}/uploads/${upload.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        let errorMessage = `Failed to delete upload (${response.status})`;
+        try {
+          const data = await response.json();
+          errorMessage = data.error || errorMessage;
+        } catch {
+          // ignore JSON parse errors
+        }
+        throw new Error(errorMessage);
+      }
+
+      setClientUploads(prev => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach(dateKey => {
+          updated[dateKey] = updated[dateKey].filter(item => item.id !== upload.id);
+          if (updated[dateKey].length === 0) {
+            delete updated[dateKey];
+          }
+        });
+        return updated;
+      });
+    } catch (error) {
+      console.error('Error deleting client upload:', error);
+      alert(`Failed to delete upload: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDeletingUploadIds(prev => {
+        const next = new Set(prev);
+        next.delete(upload.id);
+        return next;
+      });
+    }
+  };
+
   const handleDeleteUnscheduledPost = async (postId: string) => {
     try {
       // Add to deleting state
@@ -1782,26 +1864,15 @@ export default function CalendarPage() {
             <div className="flex items-center justify-center">
               <h2 className="text-lg font-semibold">
                 {selectedProjectFilter === 'all' 
-                  ? `All Projects - ${viewMode === 'week' ? 'Week' : viewMode === 'month' ? 'Month' : 'Column'} View` 
+                  ? `All Projects - ${viewMode === 'month' ? 'Month' : 'Column'} View` 
                   : selectedProjectFilter === 'untagged' 
-                    ? `Untagged Posts - ${viewMode === 'week' ? 'Week' : viewMode === 'month' ? 'Month' : 'Column'} View`
-                    : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'week' ? 'Week' : viewMode === 'month' ? 'Month' : 'Column'} View`}
+                    ? `Untagged Posts - ${viewMode === 'month' ? 'Month' : 'Column'} View`
+                    : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'month' ? 'Month' : 'Column'} View`}
               </h2>
             </div>
             <div className="flex items-center gap-3 flex-1 justify-end">
               {/* View Toggle */}
               <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode('week')}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                    viewMode === 'week' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Grid3X3 className="w-4 h-4" />
-                  Week
-                </button>
                 <button
                   onClick={() => setViewMode('month')}
                   className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
@@ -1831,733 +1902,23 @@ export default function CalendarPage() {
 
 
             <div className="p-4 space-y-4">
-            {viewMode === 'week' ? (
-              <div className="relative">
-                {/* Up Navigation Button */}
-                <button
-                  onClick={() => setWeekOffset(weekOffset - 1)}
-                  className="absolute top-0 left-1/2 transform -translate-x-1/2 z-20 w-12 h-12 bg-white hover:bg-gray-50 text-gray-700 rounded-full shadow-lg border border-gray-200 flex items-center justify-center transition-all hover:scale-110"
-                  title="Previous Week"
-                >
-                  <ChevronUp className="w-6 h-6" />
-                </button>
-
-                {/* Scrollable Container with Partial Week Views - No manual scrolling */}
-                <div 
-                  ref={calendarScrollRef}
-                  className="relative overflow-hidden"
-                  style={{ 
-                    height: '600px'
-                  }}
-                >
-                  <div className="space-y-4" style={{ gap: '16px' }}>
-                    {getWeeksToDisplay().map((weekStart, weekIndex) => {
-                      // Compare the week start date with the actual current week start date
-                      const currentWeekStart = getStartOfWeek(0);
-                      const isCurrentWeek = weekStart.getTime() === currentWeekStart.getTime();
-                      const isPreviousWeek = weekStart.getTime() < currentWeekStart.getTime();
-                      const isNextWeek = weekStart.getTime() > currentWeekStart.getTime();
-                      
-                      // Show all days for all weeks
-                      const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                      const daysToShow = daysOfWeek;
-                      
-                      // Use week start date to determine consistent alternating color
-                      const weekStartTime = weekStart.getTime();
-                      const weekNumber = Math.floor(weekStartTime / (7 * 24 * 60 * 60 * 1000));
-                      const isAlternatingWeek = weekNumber % 2 === 1;
-                      
-                      return (
-                  <div key={weekIndex} data-current-week={isCurrentWeek} className={`border rounded-lg min-h-32 flex-1 bg-white transition-all duration-500 ease-in-out ${
-                    isCurrentWeek ? 'ring-4 ring-blue-400 border-blue-400' : 'ring-0 ring-transparent border-gray-200'
-                  } ${isPreviousWeek ? 'opacity-60' : 'opacity-100'}`}>
-                    {/* Week Header - Above the days */}
-                    <div className={`p-3 border-b transition-colors duration-500 ease-in-out ${
-                      isCurrentWeek ? 'bg-blue-100' : 
-                      isAlternatingWeek ? 'bg-gray-300' : 'bg-gray-50'
-                    }`}>
-                      <h3 className={`font-semibold text-sm transition-colors duration-500 ease-in-out ${
-                        isCurrentWeek ? 'text-blue-700' : 'text-gray-900'
-                      }`}>
-                        {formatWeekCommencing(weekStart)}
-                        {isCurrentWeek && ' (Current Week)'}
-                      </h3>
-                      <p className="text-xs text-gray-600">
-                        {weekStart.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} - 
-                        {new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
-                      </p>
-                    </div>
-                    
-                    {/* Scrollable container with arrows */}
-                    <div className="relative">
-                      <div 
-                        ref={(el) => {
-                          if (el) {
-                            weekScrollRefs.current.set(weekIndex, el);
-                          }
-                        }}
-                        className="p-2 flex-1 overflow-x-auto scrollbar-hide"
-                      >
-                        <div className="flex space-x-1 min-w-max">
-                          {daysToShow.map((day, displayIndex) => {
-                            const dayIndex = displayIndex;
-                        const dayDate = new Date(weekStart);
-                        dayDate.setDate(weekStart.getDate() + dayIndex);
-                        const isToday = dayDate.toDateString() === new Date().toDateString();
-                        
-                        const dateKey = dayDate.toLocaleDateString('en-CA');
-                        const isDragOver = dragOverDate === dateKey;
-                        
-                        return (
-                          <div
-                            key={day}
-                            className={`p-2 rounded border-2 border-transparent transition-all duration-200 min-w-[200px] min-h-[300px] flex-shrink-0 ${
-                              isDragOver 
-                                ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-300' 
-                                : isToday 
-                                  ? 'bg-blue-50 border-blue-300' 
-                                  : 'bg-gray-50 hover:bg-gray-100'
-                            }`}
-                            onDragOver={handleDragOver}
-                            onDragEnter={(e) => handleDragEnter(e, dateKey)}
-                            onDragLeave={(e) => handleDragLeave(e, dateKey)}
-                            onDrop={(e) => {
-                              setDragOverDate(null); // Clear drag over state
-                              if (e.dataTransfer.getData('scheduledPost')) {
-                                handleMovePost(e, weekIndex, dayIndex);
-                              } else {
-                                handleDrop(e, weekIndex, dayIndex);
-                              }
-                            }}
-                          >
-                            {/* Day Header */}
-                            <div className="mb-2 pb-2 border-b border-gray-200">
-                              <div className="flex justify-between text-xs">
-                                <span className="font-medium">{day}</span>
-                                <span className="text-gray-500">{dayDate.getDate()}</span>
-                              </div>
-                            </div>
-                            
-                            {/* Loading state for scheduled posts */}
-                            {isLoadingScheduledPosts && (
-                              <div className="flex items-center justify-center py-2">
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                                <span className="ml-2 text-xs text-gray-500">Loading...</span>
-                              </div>
-                            )}
-                            
-                            {/* Display scheduled posts */}
-                            {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')] && (
-                              <div className="flex gap-1">
-                                {scheduledPosts[dayDate.toLocaleDateString('en-CA')].map((post: Post, idx: number) => {
-                                  const isDeleting = deletingPostIds.has(post.id);
-                                  const isScheduling = schedulingPostIds.has(post.id);
-                                  const isEditingTime = editingTimePostIds.has(post.id);
-                                  const isMoving = movingPostId === post.id;
-                                  return (
-                                    <div key={idx} className="flex-1 w-[260px] min-h-[300px]">
-                                  {editingPostId === post.id ? (
-                                    <div className="relative">
-                                      {/* Time input overlay */}
-                                    <input
-                                      type="time"
-                                      defaultValue={post.scheduled_time?.slice(0, 5)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          handleEditScheduledPost(post, e.currentTarget.value);
-                                          setEditingPostId(null);
-                                        }
-                                        if (e.key === 'Escape') {
-                                          setEditingPostId(null);
-                                        }
-                                      }}
-                                      onBlur={(e) => {
-                                        handleEditScheduledPost(post, e.target.value);
-                                        setEditingPostId(null);
-                                      }}
-                                        className="absolute top-2 left-2 z-10 text-xs p-1 rounded border bg-white shadow-lg"
-                                        autoFocus
-                                      />
-                                      {/* Full card content below - same as normal card but with opacity */}
-                                      <div className="opacity-50">
-                                        <div 
-                                          draggable={!isDeleting && !isScheduling && !isEditingTime && !isMoving}
-                                          onDragStart={(e) => !isDeleting && !isScheduling && !isEditingTime && !isMoving && (() => {
-                                            e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
-                                            e.dataTransfer.setData('originalDate', dayDate.toLocaleDateString('en-CA')); // Keeps local timezone
-                                          })()}
-                                          className={`border rounded-lg p-2 hover:shadow-sm transition-shadow w-full flex flex-col ${
-                                            isDeleting 
-                                              ? 'cursor-not-allowed opacity-50 bg-red-50 border-red-300' 
-                                              : isScheduling
-                                                ? 'cursor-not-allowed opacity-50 bg-yellow-50 border-yellow-300'
-                                                : isEditingTime
-                                                  ? 'cursor-not-allowed opacity-50 bg-purple-50 border-purple-300'
-                                                  : isMoving
-                                                    ? 'cursor-not-allowed opacity-50 bg-orange-50 border-orange-300'
-                                                  : `cursor-move ${
-                                                      post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
-                                                      post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
-                                                      post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
-                                                      'border-gray-200 bg-white'
-                                                    }`
-                                          }`}
-                                        >
-                                          {isDeleting ? (
-                                            <div className="flex items-center gap-2">
-                                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                                              <span className="text-xs text-red-600">Deleting...</span>
-                                            </div>
-                                          ) : isScheduling ? (
-                                            <div className="flex items-center gap-2">
-                                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
-                                              <span className="text-xs text-yellow-600">Scheduling...</span>
-                                            </div>
-                                          ) : isEditingTime ? (
-                                            <div className="flex items-center gap-2">
-                                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
-                                              <span className="text-xs text-purple-600">Updating time...</span>
-                                            </div>
-                                          ) : isMoving ? (
-                                            <div className="flex items-center gap-2">
-                                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
-                                              <span className="text-xs text-orange-600">Moving...</span>
-                                            </div>
-                                          ) : (
-                                            <>
-                                              {/* Card Title - Day, Date, and Time */}
-                                              <div className="mb-2 pb-1 border-b border-gray-200">
-                                                <div className="flex items-center justify-between">
-                                                  <div className="flex items-center gap-2">
-                                                    <div className="flex gap-0.5">
-                                                      <div className="flex flex-col gap-0.5">
-                                                        <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-                                                        <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-                                                        <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-                                                      </div>
-                                                      <div className="flex flex-col gap-0.5">
-                                                        <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-                                                        <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-                                                        <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-                                                      </div>
-                                                    </div>
-                                                    <div>
-                                                      <select
-                                                        value={dayDate.toLocaleDateString('en-CA')}
-                                                        onChange={(e) => {
-                                                          e.stopPropagation();
-                                                          handleDateChange(post, e.target.value);
-                                                        }}
-                                                        className="font-semibold text-xs text-gray-700 bg-transparent border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
-                                                        title="Click to change date"
-                                                      >
-                                                        {getAvailableDates().map(date => {
-                                                          const dateObj = new Date(date);
-                                                          const dayName = dateObj.toLocaleDateString('en-NZ', { weekday: 'short' });
-                                                          const dayNum = dateObj.getDate();
-                                                          return (
-                                                            <option key={date} value={date}>
-                                                              {dayName} {dayNum}
-                                                            </option>
-                                                          );
-                                                        })}
-                                                      </select>
-                                                      {editingPostId !== post.id && (
-                                                        <input
-                                                          type="text"
-                                                          value={post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                                          readOnly
-                                                          className="text-xs text-gray-600 bg-transparent border border-gray-300 rounded px-1 py-0.5 w-16 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                                          onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setEditingPostId(post.id);
-                                                          }}
-                                                          onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') {
-                                                              handleEditScheduledPost(post, e.currentTarget.value);
-                                                              setEditingPostId(null);
-                                                            }
-                                                            if (e.key === 'Escape') {
-                                                              setEditingPostId(null);
-                                                            }
-                                                          }}
-                                                          onBlur={(e) => {
-                                                            handleEditScheduledPost(post, e.target.value);
-                                                            setEditingPostId(null);
-                                                          }}
-                                                          title="Click to edit time"
-                                                        />
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                  
-                                                  {/* Post Selection Checkbox */}
-                                                  <div className="flex items-center">
-                                                    <input
-                                                      type="checkbox"
-                                                      checked={selectedPosts.has(post.id)}
-                                                      onChange={(e) => {
-                                                        e.stopPropagation();
-                                                        handleTogglePostSelection(post.id);
-                                                      }}
-                                                      className="w-3 h-3 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                                                      title="Select post for sharing or deletion"
-                                                    />
-                                                  </div>
-                                                </div>
-                                                
-                                                {/* Project Badge - Full width below header */}
-                                                {post.project_id && projects.find(p => p.id === post.project_id) && (
-                                                  <div className="mt-1">
-                                                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
-                                                      {projects.find(p => p.id === post.project_id)?.name}
-                                                    </span>
-                                                  </div>
-                                                )}
-                                              </div>
-
-                                              {/* Edit Indicators, Approval Status, and Edit Button */}
-                                              <div className="flex items-center justify-between mb-1">
-                                                <div className="flex items-center gap-1">
-                                                  <EditIndicators 
-                                                    post={post} 
-                                                    clientId={clientId}
-                                                    showHistory={true}
-                                                  />
-                                                  
-                                                  {/* Client Feedback Indicator */}
-                                                  {post.client_feedback && (
-                                                    <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
-                                                  )}
-                                                </div>
-                                                
-                                                {/* Edit Button */}
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    // Navigate to content suite with editPostId parameter in same tab
-                                                    window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
-                                                  }}
-                                                  className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
-                                                  title="Edit content"
-                                                >
-                                                  Edit
-                                                </button>
-                                              </div>
-
-                                              {/* Post Image */}
-                                              {post.image_url && (
-                                                <div className="w-full mb-2 rounded overflow-hidden">
-                                                  <img 
-                                                    src={post.image_url || '/api/placeholder/100/100'} 
-                                                    alt="Post"
-                                                    className="w-full h-auto object-contain"
-                                                    onError={(e) => {
-                                                      console.log('Scheduled post image failed to load, using placeholder for post:', post.id);
-                                                      e.currentTarget.src = '/api/placeholder/100/100';
-                                                    }}
-                                                  />
-                                                </div>
-                                              )}
-                                              
-                                              {/* Caption */}
-                                              <div className="mb-2 flex-1 overflow-hidden">
-                                                <p className="text-xs text-gray-700 line-clamp-3">
-                                                  {post.caption}
-                                                </p>
-                                              </div>
-                                              
-                                              {/* Client Feedback */}
-                                              {post.client_feedback && (
-                                                <div className="mt-1 p-1 bg-gray-50 rounded text-xs flex-shrink-0">
-                                                  <span className="font-medium text-gray-700">Feedback:</span>
-                                                  <p className="mt-1 text-gray-600 line-clamp-2">{post.client_feedback}</p>
-                                                </div>
-                                              )}
-
-                                              {/* Platform Icons with PUBLISHED label */}
-                                              {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
-                                                <div className="flex items-center gap-2 mt-2 flex-shrink-0 bg-green-50 border border-green-200 rounded-md px-2 py-1">
-                                                  <div className="flex items-center gap-1">
-                                                    {post.platforms_scheduled.map((platform, platformIdx) => (
-                                                      <div key={platformIdx} className="w-5 h-5 flex items-center justify-center" title={`Published to ${platform}`}>
-                                                        {platform === 'facebook' && <FacebookIcon size={18} className="text-blue-600" />}
-                                                        {platform === 'instagram' && <InstagramIcon size={18} className="text-pink-600" />}
-                                                        {platform === 'twitter' && <TwitterIcon size={18} className="text-sky-500" />}
-                                                        {platform === 'linkedin' && <LinkedInIcon size={18} className="text-blue-700" />}
-                                                      </div>
-                                                    ))}
-                                                  </div>
-                                                  <span className="text-xs font-semibold text-green-700">PUBLISHED</span>
-                                                </div>
-                                              )}
-                                            </>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div 
-                                      draggable={!isDeleting && !isScheduling && !isEditingTime && !isMoving}
-                                      onDragStart={(e) => !isDeleting && !isScheduling && !isEditingTime && !isMoving && (() => {
-                                        e.dataTransfer.setData('scheduledPost', JSON.stringify(post));
-                                        e.dataTransfer.setData('originalDate', dayDate.toLocaleDateString('en-CA')); // Keeps local timezone
-                                      })()}
-                                      className={`border rounded-lg p-2 hover:shadow-sm transition-shadow w-full flex flex-col ${
-                                        isDeleting 
-                                          ? 'cursor-not-allowed opacity-50 bg-red-50 border-red-300' 
-                                          : isScheduling
-                                            ? 'cursor-not-allowed opacity-50 bg-yellow-50 border-yellow-300'
-                                            : isEditingTime
-                                              ? 'cursor-not-allowed opacity-50 bg-purple-50 border-purple-300'
-                                              : isMoving
-                                                ? 'cursor-not-allowed opacity-50 bg-orange-50 border-orange-300'
-                                              : `cursor-move ${
-                                                  post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
-                                                  post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
-                                                  post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
-                                                  'border-gray-200 bg-white'
-                                                }`
-                                      }`}
-                                    >
-                                    {isDeleting ? (
-                                      <div className="flex items-center gap-2">
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                                        <span className="text-xs text-red-600">Deleting...</span>
-                                      </div>
-                                    ) : isScheduling ? (
-                                      <div className="flex items-center gap-2">
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
-                                        <span className="text-xs text-yellow-600">Scheduling...</span>
-                                      </div>
-                                    ) : isEditingTime ? (
-                                      <div className="flex items-center gap-2">
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
-                                        <span className="text-xs text-purple-600">Updating time...</span>
-                                      </div>
-                                    ) : isMoving ? (
-                                      <div className="flex items-center gap-2">
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
-                                        <span className="text-xs text-orange-600">Moving...</span>
-                                      </div>
-                                    ) : (
-                                      <>
-                                        {/* Card Title - Day, Date, and Time */}
-                                        <div className="mb-2 pb-1 border-b border-gray-200">
-                                          <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                              <div className="flex gap-0.5">
-                                                <div className="flex flex-col gap-0.5">
-                                                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-                                                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-                                                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-                                                </div>
-                                                <div className="flex flex-col gap-0.5">
-                                                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-                                                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-                                                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-                                                </div>
-                                              </div>
-                                              <div>
-                                                <select
-                                                  value={post.scheduled_date || dayDate.toLocaleDateString('en-CA')}
-                                                  onChange={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDateChange(post, e.target.value);
-                                                  }}
-                                                  className="font-semibold text-xs text-gray-700 bg-transparent border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
-                                                  title="Click to change date"
-                                                >
-                                                  {getAvailableDates().map(date => {
-                                                    const dateObj = new Date(date);
-                                                    const dayName = dateObj.toLocaleDateString('en-NZ', { weekday: 'short' });
-                                                    const dayNum = dateObj.getDate();
-                                                    return (
-                                                      <option key={date} value={date}>
-                                                        {dayName} {dayNum}
-                                                      </option>
-                                                    );
-                                                  })}
-                                                </select>
-                                                {editingPostId !== post.id && (
-                                                  <input
-                                                    type="text"
-                                                    value={post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                                    readOnly
-                                                    className="text-xs text-gray-600 bg-transparent border border-gray-300 rounded px-1 py-0.5 w-16 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mt-1"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setEditingPostId(post.id);
-                                                    }}
-                                                    onKeyDown={(e) => {
-                                                      if (e.key === 'Enter') {
-                                                        handleEditScheduledPost(post, e.currentTarget.value);
-                                                        setEditingPostId(null);
-                                                      }
-                                                      if (e.key === 'Escape') {
-                                                        setEditingPostId(null);
-                                                      }
-                                                    }}
-                                                    onBlur={(e) => {
-                                                      handleEditScheduledPost(post, e.target.value);
-                                                      setEditingPostId(null);
-                                                    }}
-                                                    title="Click to edit time"
-                                                  />
-                                                )}
-                                              </div>
-                                            </div>
-                                            
-                                            {/* Post Selection Checkbox */}
-                                            <div className="flex items-center">
-                                              <input
-                                                type="checkbox"
-                                                checked={selectedPosts.has(post.id)}
-                                                onChange={(e) => {
-                                                  e.stopPropagation();
-                                                  handleTogglePostSelection(post.id);
-                                                }}
-                                                className="w-3 h-3 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                                                title="Select post for sharing or deletion"
-                                              />
-                                            </div>
-                                          </div>
-                                          
-                                          {/* Project Badge - Full width below header */}
-                                          {post.project_id && projects.find(p => p.id === post.project_id) && (
-                                            <div className="mt-1">
-                                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
-                                                {projects.find(p => p.id === post.project_id)?.name}
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-
-                                        {/* Edit Indicators, Approval Status, and Edit Button */}
-                                        <div className="flex items-center justify-between mb-1">
-                                          <div className="flex items-center gap-1">
-                                            <EditIndicators 
-                                              post={post} 
-                                              clientId={clientId}
-                                              showHistory={true}
-                                            />
-                                            
-                                            {/* Client Feedback Indicator */}
-                                            {post.client_feedback && (
-                                              <div className="w-2 h-2 bg-blue-500 rounded-full" title="Has client feedback" />
-                                            )}
-                                          </div>
-                                          
-                                          {/* Edit Button */}
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              // Navigate to content suite with editPostId parameter in same tab
-                                              window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
-                                            }}
-                                            className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
-                                            title="Edit content"
-                                          >
-                                            Edit
-                                          </button>
-                                        </div>
-
-                                        {/* Post Image */}
-                                        {post.image_url && (
-                                          <div className="w-full mb-2 rounded overflow-hidden">
-                                            <img 
-                                              src={post.image_url || '/api/placeholder/100/100'} 
-                                              alt="Post"
-                                              className="w-full h-auto object-contain"
-                                              onError={(e) => {
-                                                console.log('Scheduled post image failed to load, using placeholder for post:', post.id);
-                                                e.currentTarget.src = '/api/placeholder/100/100';
-                                              }}
-                                            />
-                                          </div>
-                                        )}
-                                        
-                                        {/* Caption */}
-                                        <div className="mb-2 flex-1 overflow-hidden">
-                                          <p className="text-xs text-gray-700 line-clamp-3">
-                                            {post.caption}
-                                          </p>
-                                        </div>
-                                        
-                                        {/* Client Feedback */}
-                                        {post.client_feedback && (
-                                          <div className="mt-1 p-1 bg-gray-50 rounded text-xs flex-shrink-0">
-                                            <span className="font-medium text-gray-700">Feedback:</span>
-                                            <p className="mt-1 text-gray-600 line-clamp-2">{post.client_feedback}</p>
-                                          </div>
-                                        )}
-
-                                        {/* Platform Icons with PUBLISHED label */}
-                                        {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
-                                          <div className="flex items-center gap-2 mt-2 flex-shrink-0 bg-green-50 border border-green-200 rounded-md px-2 py-1">
-                                            <div className="flex items-center gap-1">
-                                              {post.platforms_scheduled.map((platform, platformIdx) => (
-                                                <div key={platformIdx} className="w-5 h-5 flex items-center justify-center" title={`Published to ${platform}`}>
-                                                  {platform === 'facebook' && <FacebookIcon size={18} className="text-blue-600" />}
-                                                  {platform === 'instagram' && <InstagramIcon size={18} className="text-pink-600" />}
-                                                  {platform === 'twitter' && <TwitterIcon size={18} className="text-sky-500" />}
-                                                  {platform === 'linkedin' && <LinkedInIcon size={18} className="text-blue-700" />}
-                                                </div>
-                                              ))}
-                                            </div>
-                                            <span className="text-xs font-semibold text-green-700">PUBLISHED</span>
-                                          </div>
-                                        )}
-                                      </>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                              );
-                                })}
-                              </div>
-                            )}
-
-                            {/* Display client uploads */}
-                            {!isLoadingScheduledPosts && clientUploads[dayDate.toLocaleDateString('en-CA')]?.map((upload: ClientUpload, idx: number) => (
-                              <div key={`upload-${idx}`} className="mt-2">
-                                <div className="flex-shrink-0 w-64 border-2 border-blue-300 rounded-lg p-3 bg-blue-50 hover:shadow-md transition-shadow">
-                                  {/* Upload Header */}
-                                  <div className="mb-2 pb-2 border-b border-blue-200">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                                        </svg>
-                                        <span className="text-xs font-semibold text-blue-700">Client Upload</span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Upload Image */}
-                                  {upload.file_type?.startsWith('image/') ? (
-                                    <div className="w-full mb-2 rounded overflow-hidden border border-blue-200">
-                                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                                      <img 
-                                        src={upload.file_url || '/api/placeholder/100/100'} 
-                                        alt={upload.file_name}
-                                        className="w-full h-auto object-contain"
-                                        onError={(e) => {
-                                          console.log('Upload image failed to load, using placeholder for upload:', upload.id);
-                                          e.currentTarget.src = '/api/placeholder/100/100';
-                                        }}
-                                      />
-                                    </div>
-                                  ) : (
-                                    <div className="w-full h-32 bg-blue-100 rounded-lg border border-blue-200 flex items-center justify-center mb-2">
-                                      <div className="text-center">
-                                        <svg className="w-8 h-8 text-blue-600 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                        <p className="text-xs text-blue-600 mt-2">{upload.file_name}</p>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Notes */}
-                                  {upload.notes && (
-                                    <div className="mb-2 p-2 bg-white rounded border border-blue-200">
-                                      <span className="text-xs font-medium text-blue-700">Notes:</span>
-                                      <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">
-                                        {upload.notes}
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  {/* File info and Edit button */}
-                                  <div className="flex items-center justify-between text-xs text-blue-600 mb-2">
-                                    <span>{new Date(upload.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}</span>
-                                    <span className="bg-blue-200 px-2 py-0.5 rounded">{upload.status}</span>
-                                  </div>
-
-                                  {/* Edit Button */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      // Store upload data in sessionStorage to pre-fill content suite
-                                      const uploadData = {
-                                        image: upload.file_url,
-                                        notes: upload.notes || '',
-                                        fileName: upload.file_name,
-                                        uploadId: upload.id,
-                                        scheduledDate: dayDate.toLocaleDateString('en-CA'), // Store the date this upload was on
-                                        scheduledTime: '12:00:00' // Default time for the new post
-                                      };
-                                      sessionStorage.setItem('preloadedContent', JSON.stringify(uploadData));
-                                      
-                                      // Navigate to content suite with uploadId parameter
-                                      window.location.href = `/dashboard/client/${clientId}/content-suite?uploadId=${upload.id}`;
-                                    }}
-                                    className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors font-medium"
-                                    title="Edit in Content Suite"
-                                  >
-                                    Edit
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-
-                          </div>
-                        );
-                      })}
-                        </div>
-                      </div>
-                      
-                      {/* Left scroll arrow */}
-                      <button
-                        onClick={() => scrollWeekLeft(weekIndex)}
-                        className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10 w-10 h-10 bg-white hover:bg-gray-50 text-gray-700 rounded-full shadow-md border border-gray-200 flex items-center justify-center transition-all hover:scale-110 opacity-90 hover:opacity-100"
-                        title="Scroll left"
-                      >
-                        <ChevronLeft className="w-6 h-6" />
-                      </button>
-                      
-                      {/* Right scroll arrow */}
-                      <button
-                        onClick={() => scrollWeekRight(weekIndex)}
-                        className="absolute right-0 top-1/2 transform -translate-y-1/2 z-10 w-10 h-10 bg-white hover:bg-gray-50 text-gray-700 rounded-full shadow-md border border-gray-200 flex items-center justify-center transition-all hover:scale-110 opacity-90 hover:opacity-100"
-                        title="Scroll right"
-                      >
-                        <ChevronRight className="w-6 h-6" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-              </div>
-            </div>
-                
-            {/* Down Navigation Button */}
-            <button
-              onClick={() => setWeekOffset(weekOffset + 1)}
-              className="absolute bottom-0 left-1/2 transform -translate-x-1/2 z-20 w-12 h-12 bg-white hover:bg-gray-50 text-gray-700 rounded-full shadow-lg border border-gray-200 flex items-center justify-center transition-all hover:scale-110"
-              title="Next Week"
-            >
-              <ChevronDown className="w-6 h-6" />
-            </button>
-          </div>
-            ) : viewMode === 'month' ? (
-              <div className="bg-white rounded-lg shadow">
-                <MonthViewCalendar 
-                  posts={Object.values(scheduledPosts).flat()} 
-                  uploads={clientUploads}
-                  loading={isLoadingScheduledPosts}
-                  onDateClick={handleDateClick}
-                  onDragOver={handleDragOver}
-                  onDragEnter={handleDragEnter}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleMonthViewDrop}
-                  dragOverDate={dragOverDate}
-                />
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow p-4">
-                <ColumnViewCalendar
+              {viewMode === 'month' ? (
+                <div className="bg-white rounded-lg shadow">
+                  <MonthViewCalendar 
+                    posts={Object.values(scheduledPosts).flat()} 
+                    uploads={clientUploads}
+                    loading={isLoadingScheduledPosts}
+                    onDateClick={handleDateClick}
+                    onDragOver={handleDragOver}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleMonthViewDrop}
+                    dragOverDate={dragOverDate}
+                  />
+                </div>
+              ) : (
+                <div className="bg-white rounded-lg shadow p-4">
+                  <ColumnViewCalendar
                   weeks={getWeeksToDisplay()}
                   scheduledPosts={scheduledPosts as any}
                   clientUploads={clientUploads}
@@ -2570,6 +1931,12 @@ export default function CalendarPage() {
                   editingTimePostIds={editingTimePostIds}
                   formatTimeTo12Hour={formatTimeTo12Hour}
                   projects={projects}
+                  onDeletePost={handleDeleteScheduledPost}
+                  deletingPostIds={deletingPostIds}
+                  deletingUploadIds={deletingUploadIds}
+                  selectedPosts={selectedPosts}
+                  onTogglePostSelection={handleTogglePostSelection}
+                  onDeleteClientUpload={handleDeleteClientUpload}
                   onDrop={async (e: React.DragEvent, dateKey: string) => {
                     // Handle native HTML5 drag from unscheduled posts
                     const postData = e.dataTransfer.getData('post');
@@ -2655,7 +2022,7 @@ export default function CalendarPage() {
                       const newScheduledPost: Post = {
                         ...post,
                         id: responseData.post.id,
-                        post_type: post.post_type || 'post', // Default post_type if not set
+                        post_type: post.post_type || 'post',
                         scheduled_date: scheduledDate,
                         scheduled_time: scheduledTime
                       };
@@ -2781,22 +2148,24 @@ export default function CalendarPage() {
               {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
             </button>
             
-            {/* Right side - Schedule buttons */}
-            {connectedAccounts.length > 0 && (
-              <div className="flex gap-2">
-                <span className={`text-sm py-2 transition-colors ${
+            {/* Right side - Schedule buttons or guidance */}
+            <div className="flex items-center gap-2">
+              {(connectedAccounts.length > 0 || selectedPosts.size > 0) && (
+                <span
+                  className={`text-sm py-2 transition-colors ${
                   selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-400'
-                }`}>
+                  }`}
+                >
                   {selectedPosts.size || 0} selected:
                 </span>
-                {connectedAccounts.map((account) => {
+              )}
+              {connectedAccounts.length > 0 ? (
+                connectedAccounts.map((account) => {
                   const isScheduling = schedulingPlatform === account.platform;
                   
-                  // Check if any selected posts have empty captions
                   const allScheduledPosts = Object.values(scheduledPosts).flat();
                   const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
                   
-                  // Debug logging for button state
                   console.log('🔍 Button enable check for', account.platform, ':', {
                     selectedPostsSize: selectedPosts.size,
                     postsToScheduleLength: postsToSchedule.length,
@@ -2810,7 +2179,7 @@ export default function CalendarPage() {
                       trimmedCaption: p.caption?.trim(),
                       hasCaption: !!p.caption,
                       captionIsEmpty: !p.caption || p.caption.trim() === '',
-                      fullPost: p // Include full post object for debugging
+                      fullPost: p
                     })),
                     hasEmptyCaptions: postsToSchedule.some(p => !p.caption || p.caption.trim() === ''),
                     isScheduling,
@@ -2857,9 +2226,15 @@ export default function CalendarPage() {
                       )}
                     </button>
                   );
-                })}
-              </div>
-            )}
+                })
+              ) : (
+                selectedPosts.size > 0 && (
+                  <span className="text-sm text-blue-600">
+                    Connect Social Media to Publish
+                  </span>
+                )
+              )}
+            </div>
           </div>
 
           {/* Client Portal Section */}

@@ -640,6 +640,7 @@ ${getImageInstructions(imageFocus || 'supporting')}
 - Use natural, conversational tone aligned with brand guidelines
 - Include relevant hashtags when appropriate
 - Format as ready-to-post social media captions
+- Do not surround captions with quotation marks; output plain text only
 
 ## Quality Standards
 - Every caption must align with the selected copy tone

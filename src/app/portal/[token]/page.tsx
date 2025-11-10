@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, ChangeEvent, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Plus, Upload, Image, File, GripVertical, Trash2, Calendar, Grid3X3 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
+import { PortalColumnViewCalendar } from '@/components/PortalColumnViewCalendar';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -109,15 +110,23 @@ export default function PortalCalendarPage() {
   const [tempNotes, setTempNotes] = useState<string>('');
   const [isLoadingUploads, setIsLoadingUploads] = useState(false);
   const fileInputRefs = useRef<{[key: string]: HTMLInputElement | null}>({});
+  const columnUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const [pendingColumnUploadDate, setPendingColumnUploadDate] = useState<string | null>(null);
   
-  // Drag and drop states
-  const [draggedItem, setDraggedItem] = useState<{type: 'post' | 'upload', id: string, sourceDate: string} | null>(null);
-  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  // Drag and drop state for column view
   const [movingItems, setMovingItems] = useState<{[key: string]: boolean}>({});
   
   // Delete states
   const [deletingItems, setDeletingItems] = useState<{[key: string]: boolean}>({});
+  const deletingUploadIds = useMemo(() => {
+    const ids = new Set<string>();
+    Object.entries(deletingItems).forEach(([key, value]) => {
+      if (value && key.startsWith('upload-') && value) {
+        ids.add(key.slice('upload-'.length));
+      }
+    });
+    return ids;
+  }, [deletingItems]);
   
   // Approval states
   const [selectedPosts, setSelectedPosts] = useState<{[key: string]: 'approved' | 'rejected' | 'needs_attention'}>({});
@@ -127,7 +136,7 @@ export default function PortalCalendarPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
   // View mode state
-  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+  const [viewMode, setViewMode] = useState<'column' | 'month'>('column');
 
   // Get NZ timezone start of week (Monday)
   const getStartOfWeek = (offset: number = 0) => {
@@ -158,7 +167,7 @@ export default function PortalCalendarPage() {
   const handleDateClick = (date: Date) => {
     const weekOffset = getWeekOffsetForDate(date);
     setWeekOffset(weekOffset);
-    setViewMode('week');
+    setViewMode('column');
   };
 
   const fetchScheduledPosts = useCallback(async (retryCount = 0, forceRefresh = false) => {
@@ -181,10 +190,11 @@ export default function PortalCalendarPage() {
       }
       console.log(`🔍 FETCHING - Scheduled posts for portal (attempt ${retryCount + 1})`);
       
-      // Calculate date range for current 2-week view
+      // Calculate date range for calendar views (3 weeks to support column layout)
+      const weeksToFetch = 3;
       const startOfWeek = getStartOfWeek(weekOffset);
       const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + (2 * 7) - 1); // 2 weeks
+      endOfWeek.setDate(startOfWeek.getDate() + (weeksToFetch * 7) - 1);
 
       const startDate = startOfWeek.toISOString().split('T')[0];
       const endDate = endOfWeek.toISOString().split('T')[0];
@@ -331,6 +341,34 @@ export default function PortalCalendarPage() {
     }
   };
 
+  const handleColumnAddUpload = (dateKey: string) => {
+    setPendingColumnUploadDate(dateKey);
+    if (columnUploadInputRef.current) {
+      columnUploadInputRef.current.value = '';
+    }
+    requestAnimationFrame(() => {
+      columnUploadInputRef.current?.click();
+    });
+  };
+
+  const handleColumnUploadChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    const targetDate = pendingColumnUploadDate;
+
+    if (!files || files.length === 0 || !targetDate) {
+      setPendingColumnUploadDate(null);
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      await handleFileUpload(files, targetDate);
+    } finally {
+      setPendingColumnUploadDate(null);
+      event.target.value = '';
+    }
+  };
+
   // Handle notes editing
   const handleEditNotes = (uploadId: string, currentNotes: string) => {
     setEditingNotes(uploadId);
@@ -398,147 +436,7 @@ export default function PortalCalendarPage() {
     return <File className="h-8 w-8 text-gray-600" />;
   };
 
-  // Drag and drop handlers
-  const handleDragStart = (e: React.DragEvent, type: 'post' | 'upload', id: string, sourceDate: string) => {
-    setDraggedItem({ type, id, sourceDate });
-    setIsDragging(true);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', JSON.stringify({ type, id, sourceDate }));
-  };
-
-  const handleDragOver = (e: React.DragEvent, targetDate: string) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverDate(targetDate);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    // Only clear if we're actually leaving the drop zone
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      setDragOverDate(null);
-    }
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetDate: string) => {
-    e.preventDefault();
-    setDragOverDate(null);
-    setIsDragging(false);
-    
-    if (!draggedItem || draggedItem.sourceDate === targetDate) {
-      setDraggedItem(null);
-      return;
-    }
-
-    const itemKey = `${draggedItem.type}-${draggedItem.id}`;
-    setMovingItems(prev => ({ ...prev, [itemKey]: true }));
-
-    try {
-      if (draggedItem.type === 'upload') {
-        // Optimistic update for uploads
-        const sourceDate = draggedItem.sourceDate;
-        const targetDateTime = new Date(targetDate + 'T00:00:00.000Z');
-        
-        // Update local state immediately
-        setUploads(prev => {
-          const newUploads = { ...prev };
-          if (newUploads[sourceDate]) {
-            const uploadToMove = newUploads[sourceDate].find(upload => upload.id === draggedItem.id);
-            if (uploadToMove) {
-              // Remove from source date
-              newUploads[sourceDate] = newUploads[sourceDate].filter(upload => upload.id !== draggedItem.id);
-              // Add to target date
-              if (!newUploads[targetDate]) {
-                newUploads[targetDate] = [];
-              }
-              newUploads[targetDate] = [...newUploads[targetDate], {
-                ...uploadToMove,
-                created_at: targetDateTime.toISOString()
-              }];
-            }
-          }
-          return newUploads;
-        });
-
-        // API call
-        const response = await fetch('/api/portal/upload', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            token,
-            uploadId: draggedItem.id,
-            newDate: targetDate
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to move upload');
-        }
-      } else if (draggedItem.type === 'post') {
-        // Optimistic update for posts
-        const sourceDate = draggedItem.sourceDate;
-        
-        // Update local state immediately
-        setScheduledPosts(prev => {
-          const newPosts = { ...prev };
-          if (newPosts[sourceDate]) {
-            const postToMove = newPosts[sourceDate].find(post => post.id === draggedItem.id);
-            if (postToMove) {
-              // Remove from source date
-              newPosts[sourceDate] = newPosts[sourceDate].filter(post => post.id !== draggedItem.id);
-              // Add to target date
-              if (!newPosts[targetDate]) {
-                newPosts[targetDate] = [];
-              }
-              newPosts[targetDate] = [...newPosts[targetDate], {
-                ...postToMove,
-                scheduled_date: targetDate
-              }];
-            }
-          }
-          return newPosts;
-        });
-
-        // API call
-        const response = await fetch('/api/calendar/scheduled', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            postId: draggedItem.id,
-            updates: {
-              scheduled_date: targetDate
-            }
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to move post');
-        }
-      }
-    } catch (err) {
-      console.error('Error moving item:', err);
-      alert('Failed to move item. Please try again.');
-      
-      // Revert optimistic update on error
-      if (draggedItem.type === 'upload') {
-        await fetchUploads();
-      } else if (draggedItem.type === 'post') {
-        await fetchScheduledPosts(0, true);
-      }
-    } finally {
-      setMovingItems(prev => ({ ...prev, [itemKey]: false }));
-      setDraggedItem(null);
-    }
-  };
-
-  const handleDragEnd = () => {
-    setDraggedItem(null);
-    setDragOverDate(null);
-    setIsDragging(false);
-  };
+  // Drag and drop handlers removed with week view; column view handles its own interactions
 
   // Delete handlers
   const handleDeleteUpload = async (uploadId: string, uploadDate: string) => {
@@ -582,6 +480,22 @@ export default function PortalCalendarPage() {
     } finally {
       setDeletingItems(prev => ({ ...prev, [itemKey]: false }));
     }
+  };
+
+  const handleDeleteUploadFromCalendar = (upload: Upload) => {
+    const existingEntry = Object.entries(uploads).find(([, items]) =>
+      items.some(item => item.id === upload.id)
+    );
+    const uploadDateKey =
+      existingEntry?.[0] ||
+      (upload.created_at ? new Date(upload.created_at).toLocaleDateString('en-CA') : null);
+
+    if (!uploadDateKey) {
+      console.warn('Unable to determine upload date for deletion', upload);
+      return;
+    }
+
+    void handleDeleteUpload(upload.id, uploadDateKey);
   };
 
   const handleDeletePost = async (postId: string, postDate: string) => {
@@ -772,9 +686,9 @@ export default function PortalCalendarPage() {
     return () => clearTimeout(timeoutId);
   }, [token, weekOffset]); // Remove function dependencies to prevent infinite loops
 
-  const getWeeksToDisplay = () => {
+  const getWeeksToDisplay = (count: number = 2) => {
     const weeks = [];
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < count; i++) {
       weeks.push(getStartOfWeek(weekOffset + i));
     }
     return weeks;
@@ -808,6 +722,82 @@ export default function PortalCalendarPage() {
     const hour12 = hours % 12 || 12;
     
     return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  const handleColumnPostMove = async (postKey: string, newDate: string) => {
+    const firstHyphenIndex = postKey.indexOf('-');
+    const postId = firstHyphenIndex >= 0 ? postKey.substring(firstHyphenIndex + 1) : postKey;
+
+    let sourceDate: string | null = null;
+    let movingPost: Post | undefined;
+
+    for (const [dateKey, posts] of Object.entries(scheduledPosts)) {
+      const foundPost = posts.find((post) => post.id === postId);
+      if (foundPost) {
+        sourceDate = dateKey;
+        movingPost = foundPost;
+        break;
+      }
+    }
+
+    if (!movingPost || !sourceDate || sourceDate === newDate) {
+      return;
+    }
+
+    const itemKey = `post-${postId}`;
+    const previousState: {[key: string]: Post[]} = JSON.parse(JSON.stringify(scheduledPosts));
+
+    setMovingItems((prev) => ({ ...prev, [itemKey]: true }));
+
+    setScheduledPosts((prev) => {
+      const updated = { ...prev };
+
+      if (updated[sourceDate]) {
+        updated[sourceDate] = updated[sourceDate].filter((post) => post.id !== postId);
+        if (updated[sourceDate].length === 0) {
+          delete updated[sourceDate];
+        }
+      }
+
+      const updatedPost = { ...movingPost, scheduled_date: newDate };
+      const targetPosts = updated[newDate] ? [...updated[newDate], updatedPost] : [updatedPost];
+
+      targetPosts.sort((a, b) => (a.scheduled_time || '').localeCompare(b.scheduled_time || ''));
+
+      updated[newDate] = targetPosts;
+
+      return updated;
+    });
+
+    try {
+      const response = await fetch('/api/calendar/scheduled', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          postId: movingPost.id,
+          updates: {
+            scheduled_date: newDate,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to move post');
+      }
+    } catch (err) {
+      console.error('Error moving post in column view:', err);
+      setScheduledPosts(previousState);
+      await fetchScheduledPosts(0, true);
+      alert('Failed to move post. Please try again.');
+    } finally {
+      setMovingItems((prev) => {
+        const next = { ...prev };
+        delete next[itemKey];
+        return next;
+      });
+    }
   };
 
   // Helper function to get approval status badge
@@ -1036,34 +1026,24 @@ export default function PortalCalendarPage() {
       {/* Calendar */}
       <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
         <div className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            {viewMode === 'week' && (
-              <button
-                onClick={() => setWeekOffset(weekOffset - 2)}
-                className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Previous 2 Weeks
-              </button>
-            )}
-            <div className="flex items-center justify-center">
+          <div className="flex items-center justify-center mb-4 gap-4 flex-wrap">
+            <div>
               <h2 className="text-lg font-semibold">
-                Content Calendar - {viewMode === 'week' ? '2 Week' : 'Month'} View
+                Content Calendar - {viewMode === 'column' ? 'Column' : 'Month'} View
               </h2>
             </div>
-            <div className="flex items-center gap-3">
-              {/* View Toggle */}
+            <div className="flex items-center justify-center">
               <div className="flex items-center bg-gray-100 rounded-lg p-1">
                 <button
-                  onClick={() => setViewMode('week')}
+                  onClick={() => setViewMode('column')}
                   className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                    viewMode === 'week' 
+                    viewMode === 'column' 
                       ? 'bg-white text-gray-900 shadow-sm' 
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
-                  <Grid3X3 className="w-4 h-4" />
-                  Week
+                  <Columns className="w-4 h-4" />
+                  Column
                 </button>
                 <button
                   onClick={() => setViewMode('month')}
@@ -1077,495 +1057,36 @@ export default function PortalCalendarPage() {
                   Month
                 </button>
               </div>
-              
-              {viewMode === 'week' && (
-                <button
-                  onClick={() => setWeekOffset(weekOffset + 2)}
-                  className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors flex items-center gap-2"
-                >
-                  Next 2 Weeks
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              )}
             </div>
           </div>
         </div>
         
         <div className="p-4 space-y-4">
           <div className="">
-            {viewMode === 'week' ? (
-              <div className="space-y-4" style={{ gap: '16px' }}>
-                {getWeeksToDisplay().map((weekStart, weekIndex) => {
-                  const isCurrentWeek = weekOffset + weekIndex === 0;
-                  return (
-                <div key={weekIndex} className={`border rounded-lg min-h-32 flex-1 ${
-                  isCurrentWeek ? 'bg-blue-50/30 border-blue-300 border-2 shadow-lg' : 'bg-white'
-                }`}>
-                  {/* Week Header - Above the days */}
-                  <div className={`p-3 border-b ${
-                    isCurrentWeek ? 'bg-blue-100/50 border-blue-200' : 'bg-gray-50'
-                  }`}>
-                    <h3 className={`font-semibold text-sm ${
-                      isCurrentWeek ? 'text-blue-800' : ''
-                    }`}>
-                      {formatWeekCommencing(weekStart)}
-                      {isCurrentWeek && ' (Current Week)'}
-                    </h3>
-                    <p className={`text-xs ${
-                      isCurrentWeek ? 'text-blue-600' : 'text-gray-600'
-                    }`}>
-                      {weekStart.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} - 
-                      {new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
-                    </p>
-                  </div>
-                  
-                  <div className="p-2 flex-1 overflow-x-auto overflow-y-hidden">
-                    <div className="flex space-x-1 min-w-max">
-                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, dayIndex) => {
-                        const dayDate = new Date(weekStart);
-                        dayDate.setDate(weekStart.getDate() + dayIndex);
-                        const isToday = dayDate.toDateString() === new Date().toDateString();
-                        const dateKey = dayDate.toLocaleDateString('en-CA');
-                        
-                        return (
-                          <div
-                            key={day}
-                            className={`p-2 rounded border-2 border-transparent transition-all duration-200 min-w-[200px] min-h-[160px] flex-shrink-0 ${
-                              isToday 
-                                ? 'bg-blue-50 border-blue-300' 
-                                : 'bg-gray-50 hover:bg-gray-100'
-                            } ${
-                              dragOverDate === dateKey 
-                                ? 'border-blue-400 bg-blue-100 border-dashed' 
-                                : ''
-                            }`}
-                            onDragOver={(e) => handleDragOver(e, dateKey)}
-                            onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, dateKey)}
-                          >
-                            {/* Day Header */}
-                            <div className="mb-2 pb-2 border-b border-gray-200">
-                              <div className="flex justify-between text-xs">
-                                <span className="font-medium">{day}</span>
-                                <span className="text-gray-500">{dayDate.getDate()}</span>
-                              </div>
-                            </div>
-                            
-                            {/* Loading state for scheduled posts */}
-                            {isLoadingScheduledPosts && (
-                              <div className="flex items-center justify-center py-2">
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                                <span className="ml-2 text-xs text-gray-500">Loading...</span>
-                              </div>
-                            )}
-                            
-                            {/* Drop Zone Indicator */}
-                            {isDragging && dragOverDate === dateKey && (
-                              <div className="mb-3 p-4 border-2 border-dashed border-blue-400 bg-blue-50 rounded-lg text-center">
-                                <div className="text-blue-600 font-medium text-sm">
-                                  Drop here to move to {day} {dayDate.getDate()}
-                                </div>
+            {viewMode === 'column' && (
+              <div className="bg-white rounded-lg shadow p-4">
+                <PortalColumnViewCalendar
+                  weeks={getWeeksToDisplay(3)}
+                  scheduledPosts={scheduledPosts}
+                  clientUploads={uploads}
+                  loading={isLoadingScheduledPosts}
+                  onPostMove={handleColumnPostMove}
+                  formatWeekCommencing={formatWeekCommencing}
+                  formatTimeTo12Hour={formatTimeTo12Hour}
+                  onAddUploadClick={handleColumnAddUpload}
+                  selectedPosts={selectedPosts}
+                  onPostSelection={handlePostSelection}
+                  comments={comments}
+                  onCommentChange={handleCommentChange}
+                  editedCaptions={editedCaptions}
+                  onCaptionChange={handleCaptionChange}
+                  onDeleteClientUpload={handleDeleteUploadFromCalendar}
+                  deletingUploadIds={deletingUploadIds}
+                />
                               </div>
                             )}
 
-                            {/* Upload Button */}
-                            <div className="mb-3">
-                              <Button
-                                onClick={() => fileInputRefs.current[dateKey]?.click()}
-                                disabled={uploading}
-                                className="w-full h-12 bg-gray-800/20 backdrop-blur-md border border-gray-700/30 text-white hover:bg-gray-800/30 hover:border-gray-700/40 rounded-lg flex items-center justify-center gap-2 shadow-lg transition-all duration-200"
-                                size="lg"
-                              >
-                                {uploading ? (
-                                  <>
-                                    <Loader2 className="h-5 w-5 animate-spin" />
-                                    Uploading...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Plus className="h-5 w-5" />
-                                    Upload
-                                  </>
-                                )}
-                              </Button>
-                              <input
-                                ref={(el) => {
-                                  fileInputRefs.current[dateKey] = el;
-                                }}
-                                type="file"
-                                multiple
-                                accept="image/*,.pdf,.doc,.docx,.txt"
-                                onChange={(e) => e.target.files && handleFileUpload(e.target.files, dateKey)}
-                                className="hidden"
-                              />
-                            </div>
-
-                            {/* Display uploaded content */}
-                            {isLoadingUploads && (
-                              <div className="flex items-center justify-center py-2">
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                                <span className="ml-2 text-xs text-gray-500">Loading uploads...</span>
-                              </div>
-                            )}
-                            {!isLoadingUploads && uploads[dayDate.toLocaleDateString('en-CA')]?.map((upload: Upload, idx: number) => {
-                              const itemKey = `upload-${upload.id}`;
-                              const isMoving = movingItems[itemKey];
-                              
-                              return (
-                                <div key={`upload-${idx}`} className="mt-2">
-                                  <div 
-                                    className={`flex-shrink-0 w-64 border rounded-lg p-3 hover:shadow-sm transition-shadow border-blue-200 bg-blue-50 cursor-move ${
-                                      draggedItem?.type === 'upload' && draggedItem?.id === upload.id 
-                                        ? 'opacity-50 scale-95' 
-                                        : ''
-                                    } ${isMoving ? 'opacity-75' : ''}`}
-                                    draggable={!isMoving}
-                                    onDragStart={(e) => !isMoving && handleDragStart(e, 'upload', upload.id, dayDate.toLocaleDateString('en-CA'))}
-                                    onDragEnd={handleDragEnd}
-                                  >
-                                    {/* Loading indicator for moving items */}
-                                    {isMoving && (
-                                      <div className="absolute inset-0 bg-blue-100 bg-opacity-75 flex items-center justify-center rounded-lg">
-                                        <div className="flex items-center gap-2 text-blue-600">
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                          <span className="text-sm font-medium">Moving...</span>
-                                        </div>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Upload Header */}
-                                  <div className="mb-3 pb-2 border-b border-gray-200">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <GripVertical className="h-4 w-4 text-gray-400" />
-                                        {getFileIcon(upload.file_type)}
-                                        <div>
-                                          <p className="text-xs text-gray-600">
-                                            {formatFileSize(upload.file_size)}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleDeleteUpload(upload.id, dayDate.toLocaleDateString('en-CA'))}
-                                        disabled={deletingItems[`upload-${upload.id}`]}
-                                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-100"
-                                      >
-                                        {deletingItems[`upload-${upload.id}`] ? (
-                                          <Loader2 className="h-3 w-3 animate-spin" />
-                                        ) : (
-                                          <Trash2 className="h-3 w-3" />
-                                        )}
-                                      </Button>
-                                    </div>
-                                  </div>
-
-                                  {/* Upload Image/File Display */}
-                                  {upload.file_type.startsWith('image/') ? (
-                                    <div className="w-full mb-2 rounded overflow-hidden">
-                                      <img 
-                                        src={upload.file_url} 
-                                        alt={upload.file_name}
-                                        className="w-full h-auto object-contain"
-                                        onError={(e) => {
-                                          console.log('Upload image failed to load, using placeholder for upload:', upload.id);
-                                          e.currentTarget.src = '/api/placeholder/100/100';
-                                        }}
-                                      />
-                                    </div>
-                                  ) : (
-                                    <div className="w-full h-32 bg-gray-100 rounded-lg border flex items-center justify-center mb-2">
-                                      <div className="text-center">
-                                        {getFileIcon(upload.file_type)}
-                                        <p className="text-xs text-gray-400 mt-2">{formatFileSize(upload.file_size)}</p>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Notes Section */}
-                                  <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">
-                                      Post Notes
-                                    </label>
-                                    {editingNotes === upload.id ? (
-                                      <div className="space-y-2">
-                                        <Textarea
-                                          value={tempNotes}
-                                          onChange={(e) => setTempNotes(e.target.value)}
-                                          placeholder="Add notes about this content..."
-                                          className="min-h-[60px] text-xs"
-                                        />
-                                        <div className="flex space-x-2">
-                                          <Button
-                                            size="sm"
-                                            onClick={() => handleSaveNotes(upload.id)}
-                                            className="flex-1 text-xs"
-                                          >
-                                            Save
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={handleCancelEdit}
-                                            className="flex-1 text-xs"
-                                          >
-                                            Cancel
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="space-y-2">
-                                        <div 
-                                          className="min-h-[60px] p-2 border rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition-colors"
-                                          onClick={() => handleEditNotes(upload.id, upload.notes || '')}
-                                        >
-                                          {upload.notes ? (
-                                            <p className="text-xs text-gray-700 whitespace-pre-wrap">
-                                              {upload.notes}
-                                            </p>
-                                          ) : (
-                                            <p className="text-xs text-gray-400 italic">
-                                              Click to add notes about this content...
-                                            </p>
-                                          )}
-                                        </div>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => handleEditNotes(upload.id, upload.notes || '')}
-                                          className="w-full text-xs"
-                                        >
-                                          {upload.notes ? 'Edit Notes' : 'Add Notes'}
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                            })}
-                            
-                            {/* Display scheduled posts */}
-                            {!isLoadingScheduledPosts && scheduledPosts[dayDate.toLocaleDateString('en-CA')]?.map((post: Post, idx: number) => {
-                              const itemKey = `post-${post.id}`;
-                              const isMoving = movingItems[itemKey];
-                              const postKey = `post-${post.id}`;
-                              const selectedStatus = selectedPosts[postKey];
-                              
-                              return (
-                                <div key={idx} className="mt-1">
-                                  <div 
-                                    className={`w-64 border rounded-lg p-3 hover:shadow-sm transition-all duration-200 cursor-move relative flex flex-col ${
-                                      // Priority: selectedStatus > existing approval_status
-                                      selectedStatus === 'approved' ? 'border-green-400 bg-green-100 shadow-lg shadow-green-200/50' :
-                                      selectedStatus === 'rejected' ? 'border-red-400 bg-red-100 shadow-lg shadow-red-200/50' :
-                                      selectedStatus === 'needs_attention' ? 'border-orange-400 bg-orange-100 shadow-lg shadow-orange-200/50' :
-                                      post.approval_status === 'approved' ? 'border-green-200 bg-green-50' :
-                                      post.approval_status === 'rejected' ? 'border-red-200 bg-red-50' :
-                                      post.approval_status === 'needs_attention' ? 'border-orange-200 bg-orange-50' :
-                                      'border-gray-200 bg-white'
-                                    } ${
-                                      draggedItem?.type === 'post' && draggedItem?.id === post.id 
-                                        ? 'opacity-50 scale-95' 
-                                        : ''
-                                    } ${isMoving ? 'opacity-75' : ''}`}
-                                    draggable={!isMoving}
-                                    onDragStart={(e) => !isMoving && handleDragStart(e, 'post', post.id, dayDate.toLocaleDateString('en-CA'))}
-                                    onDragEnd={handleDragEnd}
-                                  >
-                                    {/* Loading indicator for moving items */}
-                                    {isMoving && (
-                                      <div className="absolute inset-0 bg-gray-100 bg-opacity-75 flex items-center justify-center rounded-lg z-10">
-                                        <div className="flex items-center gap-2 text-gray-600">
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                          <span className="text-sm font-medium">Moving...</span>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {/* Card Title - Day, Date, and Time */}
-                                    <div className="mb-3 pb-2 border-b border-gray-200">
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                          <GripVertical className="h-4 w-4 text-gray-400" />
-                                          <div>
-                                            <h4 className="font-semibold text-sm text-gray-700">
-                                              {day} {dayDate.getDate()}
-                                            </h4>
-                                            <p className="text-xs text-gray-600">
-                                              {post.scheduled_time ? formatTimeTo12Hour(post.scheduled_time) : '12:00 PM'}
-                                            </p>
-                                          </div>
-                                        </div>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => handleDeletePost(post.id, dayDate.toLocaleDateString('en-CA'))}
-                                          disabled={deletingItems[`post-${post.id}`]}
-                                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-100"
-                                        >
-                                          {deletingItems[`post-${post.id}`] ? (
-                                            <Loader2 className="h-3 w-3 animate-spin" />
-                                          ) : (
-                                            <Trash2 className="h-3 w-3" />
-                                          )}
-                                        </Button>
-                                      </div>
-                                    </div>
-
-                                    {/* Approval Action Buttons */}
-                                    <div className="mb-3">
-                                      <div className="space-y-2">
-                                        {/* Approval Buttons */}
-                                        <div className="flex gap-1">
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handlePostSelection(postKey, 'approved');
-                                            }}
-                                            className={`flex items-center justify-center gap-1 text-xs flex-1 px-2 py-1.5 rounded-md font-medium transition-all duration-200 ${
-                                              (selectedStatus || post.approval_status) === 'approved' 
-                                                ? 'bg-green-600 text-white shadow-sm ring-2 ring-green-300' 
-                                                : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
-                                            }`}
-                                          >
-                                            <CheckCircle className="w-3 h-3" />
-                                            Approve
-                                          </button>
-                                          
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handlePostSelection(postKey, 'needs_attention');
-                                            }}
-                                            className={`flex items-center justify-center gap-1 text-xs flex-1 px-2 py-1.5 rounded-md font-medium transition-all duration-200 ${
-                                              (selectedStatus || post.approval_status) === 'needs_attention' 
-                                                ? 'bg-orange-600 text-white shadow-sm ring-2 ring-orange-300' 
-                                                : 'bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200'
-                                            }`}
-                                          >
-                                            <AlertTriangle className="w-3 h-3" />
-                                            Improve
-                                          </button>
-                                          
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handlePostSelection(postKey, 'rejected');
-                                            }}
-                                            className={`flex items-center justify-center text-xs w-10 h-8 p-0 rounded-md font-medium transition-all duration-200 ${
-                                              (selectedStatus || post.approval_status) === 'rejected' 
-                                                ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-300' 
-                                                : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-                                            }`}
-                                          >
-                                            <XCircle className="w-4 h-4" />
-                                          </button>
-                                        </div>
-
-                                        {/* Comment Input */}
-                                        <div>
-                                          <textarea
-                                            placeholder="Add feedback..."
-                                            value={comments[postKey] || ''}
-                                            onChange={(e) => handleCommentChange(postKey, e.target.value)}
-                                            className="w-full p-2 text-xs border border-gray-300 rounded-md resize-none bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                                            rows={2}
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    {/* Approval Status Badge */}
-                                    <div className="mb-2">
-                                      {getApprovalStatusBadge(post)}
-                                    </div>
-
-                                    {/* Post Image */}
-                                    {post.image_url && (
-                                      <div className="w-full mb-2 rounded overflow-hidden">
-                                        <img 
-                                          src={post.image_url || '/api/placeholder/100/100'} 
-                                          alt="Post"
-                                          className="w-full h-auto object-contain"
-                                          onError={(e) => {
-                                            console.log('Scheduled post image failed to load, using placeholder for post:', post.id);
-                                            e.currentTarget.src = '/api/placeholder/100/100';
-                                          }}
-                                        />
-                                      </div>
-                                    )}
-                                    
-                                    {/* Editable Caption */}
-                                    <div className="mb-2 flex-1">
-                                      <textarea
-                                        value={editedCaptions[postKey] || post.caption}
-                                        onChange={(e) => {
-                                          handleCaptionChange(postKey, e.target.value);
-                                          // Auto-resize
-                                          const target = e.target as HTMLTextAreaElement;
-                                          target.style.height = 'auto';
-                                          target.style.height = target.scrollHeight + 'px';
-                                        }}
-                                        className="w-full p-2 text-xs border border-gray-300 rounded-md resize-none bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 overflow-hidden"
-                                        rows={1}
-                                        onClick={(e) => e.stopPropagation()}
-                                        placeholder="Edit caption..."
-                                        style={{ 
-                                          minHeight: '40px',
-                                          height: 'auto',
-                                          overflow: 'hidden'
-                                        }}
-                                        ref={(textarea) => {
-                                          if (textarea) {
-                                            // Set initial height based on content
-                                            textarea.style.height = 'auto';
-                                            textarea.style.height = Math.max(40, textarea.scrollHeight) + 'px';
-                                          }
-                                        }}
-                                      />
-                                      {editedCaptions[postKey] && 
-                                       editedCaptions[postKey] !== post.caption && (
-                                        <p className="text-xs text-blue-600 mt-1 font-medium">✏️ Caption edited</p>
-                                      )}
-                                    </div>
-                                    
-                                    {/* Client Feedback */}
-                                    {post.client_feedback && (
-                                      <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                                        <span className="font-medium text-gray-700">Client feedback:</span>
-                                        <p className="mt-1 text-gray-600">{post.client_feedback}</p>
-                                      </div>
-                                    )}
-
-                                    {/* Platform Icons */}
-                                    {post.platforms_scheduled && post.platforms_scheduled.length > 0 && (
-                                      <div className="flex items-center gap-1 mt-2">
-                                        {post.platforms_scheduled.map((platform, platformIdx) => (
-                                          <div key={platformIdx} className="w-4 h-4 flex items-center justify-center" title={`Scheduled to ${platform}`}>
-                                            {platform === 'facebook' && <div className="w-3 h-3 bg-blue-600 rounded-sm" />}
-                                            {platform === 'instagram' && <div className="w-3 h-3 bg-pink-600 rounded-sm" />}
-                                            {platform === 'twitter' && <div className="w-3 h-3 bg-sky-500 rounded-sm" />}
-                                            {platform === 'linkedin' && <div className="w-3 h-3 bg-blue-700 rounded-sm" />}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-                );
-                })}
-              </div>
-            ) : (
+            {viewMode === 'month' && (
               <div className="bg-white rounded-lg shadow">
                 <MonthViewCalendar 
                   posts={Object.values(scheduledPosts).flat()} 
@@ -1579,6 +1100,15 @@ export default function PortalCalendarPage() {
         </div>
 
       </div>
+
+      <input
+        ref={columnUploadInputRef}
+        type="file"
+        className="hidden"
+        multiple
+        accept="image/*,.pdf,.doc,.docx,.txt"
+        onChange={handleColumnUploadChange}
+      />
 
       {/* Success Message */}
       {successMessage && (

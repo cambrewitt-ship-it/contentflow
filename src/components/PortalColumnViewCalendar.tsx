@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo, ChangeEvent } from 'react';
+import { Calendar, Plus, ArrowLeft, ArrowRight, CheckCircle, AlertTriangle, XCircle, Minus, Download, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -58,7 +58,7 @@ interface Project {
   [key: string]: any;
 }
 
-interface ColumnViewCalendarProps {
+interface PortalColumnViewCalendarProps {
   weeks: Date[];
   scheduledPosts: {[key: string]: Post[]};
   clientUploads?: {[key: string]: ClientUpload[]};
@@ -75,50 +75,15 @@ interface ColumnViewCalendarProps {
   formatTimeTo12Hour?: (time24: string) => string;
   projects?: Project[];
   onAddUploadClick?: (dateKey: string) => void;
-  onDeletePost?: (post: Post) => void;
-  deletingPostIds?: Set<string>;
-  selectedPosts?: Set<string>;
-  onTogglePostSelection?: (postId: string) => void;
-  deletingUploadIds?: Set<string>;
+  selectedPosts: {[key: string]: 'approved' | 'rejected' | 'needs_attention'};
+  onPostSelection: (postKey: string, status: 'approved' | 'rejected' | 'needs_attention' | null) => void;
+  comments: {[key: string]: string};
+  onCommentChange: (postKey: string, comment: string) => void;
+  editedCaptions: {[key: string]: string};
+  onCaptionChange: (postKey: string, caption: string) => void;
   onDeleteClientUpload?: (upload: ClientUpload) => void;
+  deletingUploadIds?: Set<string>;
 }
-
-const normalizeToWeekStart = (input: Date) => {
-  const date = new Date(input);
-  const dayOfWeek = date.getDay();
-  const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-  date.setDate(diff);
-  date.setHours(0, 0, 0, 0);
-  return date;
-};
-
-const computeInitialStartWeek = (weekDates: Date[]) => {
-  const currentWeekStart = normalizeToWeekStart(new Date());
-
-  if (weekDates.length === 0) {
-    return currentWeekStart;
-  }
-
-  const normalizedWeekDates = weekDates.map((week) =>
-    normalizeToWeekStart(new Date(week))
-  );
-
-  const exactMatch = normalizedWeekDates.find(
-    (week) => week.getTime() === currentWeekStart.getTime()
-  );
-  if (exactMatch) {
-    return exactMatch;
-  }
-
-  const sortedWeeks = [...normalizedWeekDates].sort(
-    (a, b) => a.getTime() - b.getTime()
-  );
-  const closestPastWeek = sortedWeeks
-    .filter((week) => week.getTime() <= currentWeekStart.getTime())
-    .pop();
-
-  return closestPastWeek || sortedWeeks[0] || currentWeekStart;
-};
 
 // Lazy loading image component
 const LazyImage = ({ 
@@ -189,11 +154,14 @@ function SortablePostCard({
   editingTimePostIds,
   formatTimeTo12Hour,
   projects,
-  onDeletePost,
-  isDeleting,
   selectedPosts,
-  onTogglePostSelection,
+  onPostSelection,
+  comments,
+  onCommentChange,
+  editedCaptions,
+  onCaptionChange,
   onDeleteClientUpload,
+  deletingUploadIds,
 }: {
   post: Post;
   postKey: string;
@@ -203,11 +171,14 @@ function SortablePostCard({
   editingTimePostIds?: Set<string>;
   formatTimeTo12Hour?: (time24: string) => string;
   projects?: Project[];
-  onDeletePost?: (post: Post) => void;
-  isDeleting: boolean;
-  selectedPosts?: Set<string>;
-  onTogglePostSelection?: (postId: string) => void;
+  selectedPosts: {[key: string]: 'approved' | 'rejected' | 'needs_attention'};
+  onPostSelection: (postKey: string, status: 'approved' | 'rejected' | 'needs_attention' | null) => void;
+  comments: {[key: string]: string};
+  onCommentChange: (postKey: string, comment: string) => void;
+  editedCaptions: {[key: string]: string};
+  onCaptionChange: (postKey: string, caption: string) => void;
   onDeleteClientUpload?: (upload: ClientUpload) => void;
+  deletingUploadIds?: Set<string>;
 }) {
   const isClientUpload =
     post.post_type === 'client-upload' ||
@@ -228,7 +199,6 @@ function SortablePostCard({
     transition,
   };
 
-  // Use passed formatTimeTo12Hour or fallback to local function
   const formatTime = (time24?: string) => {
     if (formatTimeTo12Hour) {
       return formatTimeTo12Hour(time24 || '');
@@ -251,40 +221,97 @@ function SortablePostCard({
 
   const isEditingTime = editingTimePostIds?.has(post.id) || false;
   const isEditing = editingPostId === post.id;
-  const isSelected = selectedPosts?.has(post.id) ?? false;
-  const approvalComment =
-    post.client_feedback ||
-    post.client_comments ||
-    post.approval?.client_comments ||
-    post.approval_comment ||
-    null;
 
-  // Helper function to format date
+  const selectedStatus = selectedPosts[postKey];
+  const statusToUse = selectedStatus || post.approval_status;
+  const commentValue = comments[postKey] || '';
+  const captionValue = Object.prototype.hasOwnProperty.call(editedCaptions, postKey)
+    ? editedCaptions[postKey]
+    : post.caption || '';
+  const hasCaptionChanged = captionValue !== (post.caption || '');
+  const isDeletingUpload = isClientUpload ? deletingUploadIds?.has(post.id) ?? false : false;
+
+  const getCardStyling = () => {
+    if (selectedStatus === 'approved') {
+      return 'border-green-400 bg-green-100 shadow-lg shadow-green-200/50';
+    }
+    if (selectedStatus === 'rejected') {
+      return 'border-red-400 bg-red-100 shadow-lg shadow-red-200/50';
+    }
+    if (selectedStatus === 'needs_attention') {
+      return 'border-orange-400 bg-orange-100 shadow-lg shadow-orange-200/50';
+    }
+
+    switch (post.approval_status) {
+      case 'approved':
+        return 'border-green-200 bg-green-50';
+      case 'rejected':
+        return 'border-red-200 bg-red-50';
+      case 'needs_attention':
+        return 'border-orange-200 bg-orange-50';
+      default:
+        return 'border-gray-200 bg-white';
+    }
+  };
+
+  const handleStatusClick = (status: 'approved' | 'rejected' | 'needs_attention') => {
+    const nextStatus = selectedStatus === status ? null : status;
+    onPostSelection(postKey, nextStatus);
+  };
+
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' });
   };
 
-  // Get status tag styling
-  const getStatusTag = () => {
-    if (!post.approval_status) return null;
+  const renderApprovalStatusBadge = () => {
+    const status = post.approval_status || 'pending';
+    const baseClasses = "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium";
     
-    const statusConfig = {
-      'approved': { bg: 'bg-green-100', text: 'text-green-700', label: 'Approved' },
-      'rejected': { bg: 'bg-red-100', text: 'text-red-700', label: 'Rejected' },
-      'needs_attention': { bg: 'bg-orange-100', text: 'text-orange-700', label: 'Needs Attention' },
-      'pending': { bg: 'bg-gray-200', text: 'text-gray-700', label: 'Pending' },
-      'draft': { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Draft' },
-    };
-    
-    const config = statusConfig[post.approval_status as keyof typeof statusConfig] || statusConfig.pending;
-    
-    return (
-      <span className={`text-xs px-1.5 py-0.5 rounded ${config.bg} ${config.text}`}>
-        {config.label}
-      </span>
-    );
+    switch (status) {
+      case 'approved':
+        return (
+          <span className={`${baseClasses} bg-green-100 text-green-800`}>
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Approved
+          </span>
+        );
+      case 'rejected':
+        return (
+          <span className={`${baseClasses} bg-red-100 text-red-800`}>
+            <XCircle className="w-3 h-3 mr-1" />
+            Rejected
+          </span>
+        );
+      case 'needs_attention':
+        return (
+          <span className={`${baseClasses} bg-orange-100 text-orange-800`}>
+            <AlertTriangle className="w-3 h-3 mr-1" />
+            Needs Attention
+          </span>
+        );
+      case 'draft':
+        return (
+          <span className={`${baseClasses} bg-gray-100 text-gray-800`}>
+            Draft
+          </span>
+        );
+      default:
+        return (
+          <span className={`${baseClasses} bg-gray-100 text-gray-800`}>
+            <Minus className="w-3 h-3 mr-1" />
+            Pending
+          </span>
+        );
+    }
+  };
+
+  const handleCaptionTextareaChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    const { value } = event.target;
+    onCaptionChange(postKey, value);
+    event.target.style.height = 'auto';
+    event.target.style.height = Math.max(40, event.target.scrollHeight) + 'px';
   };
 
   if (isClientUpload) {
@@ -305,13 +332,13 @@ function SortablePostCard({
       <div
         ref={setNodeRef}
         style={style}
-        className={`rounded-lg border-2 border-blue-300 bg-blue-50 p-3 mb-2 shadow-sm ${
+        className={`rounded-lg border-2 border-blue-300 bg-blue-50 p-3 mb-2 transition-all duration-200 ${
           isDragging ? 'opacity-50' : ''
-        } ${isDeleting ? 'opacity-60 pointer-events-none' : ''}`}
+        } ${isDeletingUpload ? 'opacity-60 pointer-events-none' : ''}`}
       >
         <div className="flex items-center justify-between mb-2 pb-1 border-b border-blue-200">
           <div>
-            <div className="text-xs font-semibold text-blue-700 uppercase">Client Upload</div>
+            <span className="text-xs font-semibold uppercase text-blue-700">Client Upload</span>
             {(displayDate || displayTime) && (
               <div className="text-[11px] text-blue-600">
                 {displayDate}
@@ -323,11 +350,17 @@ function SortablePostCard({
         </div>
         {post.image_url && (
           <div className="w-full mb-2 rounded overflow-hidden border border-blue-200">
-            <LazyImage src={post.image_url} alt={fileName || 'Client upload'} className="w-full" />
+            <LazyImage
+              src={post.image_url}
+              alt={fileName || 'Client upload'}
+              className="w-full"
+            />
           </div>
         )}
         {fileName && (
-          <p className="text-xs text-blue-700 font-medium mb-1 break-all">File: {fileName}</p>
+          <p className="text-xs text-blue-700 font-semibold mb-1 break-all">
+            File: {fileName}
+          </p>
         )}
         {uploadNotes && (
           <p className="text-xs text-blue-700 whitespace-pre-wrap">{uploadNotes}</p>
@@ -349,7 +382,7 @@ function SortablePostCard({
             type="button"
             onClick={() => onDeleteClientUpload?.(uploadData)}
             className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-            disabled={!onDeleteClientUpload || isDeleting}
+            disabled={!onDeleteClientUpload || isDeletingUpload}
           >
             <Trash2 className="w-3 h-3" />
             Delete
@@ -365,53 +398,23 @@ function SortablePostCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`rounded-lg border-2 border-gray-200 bg-white p-2 mb-2 shadow-sm hover:shadow-md transition-all duration-200 ${
+      className={`rounded-lg border-2 p-3 mb-2 transition-all duration-200 cursor-grab active:cursor-grabbing hover:shadow-md ${getCardStyling()} ${
         isDragging ? 'opacity-50 scale-105' : ''
-      } ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''} ${
-        isDeleting ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-grab active:cursor-grabbing'
-      } ${isSelected ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200' : ''}`}
+      } ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''}`}
     >
       {/* Header with Date and Status */}
       <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
-        <div className="text-xs text-gray-600">
-          {post.scheduled_date ? formatDate(post.scheduled_date) : ''}
-        </div>
-        <div className="flex items-center gap-2">
-          {onTogglePostSelection && (
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={(e) => {
-                e.stopPropagation();
-                onTogglePostSelection(post.id);
-              }}
-              disabled={isDeleting}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
-              title="Select post for scheduling or deletion"
-            />
-          )}
-          {getStatusTag()}
-          {onDeletePost && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!isDeleting) {
-                  onDeletePost(post);
-                }
-              }}
-              className="text-red-500 hover:text-red-600 transition-colors"
-              title="Delete post"
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Trash2 className="w-4 h-4" />
-              )}
-            </button>
+        <div className="flex flex-col">
+          <span className="text-[11px] font-medium text-gray-700">
+            {post.scheduled_date ? formatDate(post.scheduled_date) : ''}
+          </span>
+          {post.scheduled_time && (
+            <span className="text-[11px] text-gray-500">
+              {formatTime(post.scheduled_time)}
+            </span>
           )}
         </div>
+        {renderApprovalStatusBadge()}
       </div>
 
       {/* Post Image */}
@@ -425,88 +428,105 @@ function SortablePostCard({
         </div>
       )}
 
-      {/* Caption Preview */}
-      <p className="text-xs text-gray-700 whitespace-pre-wrap mb-1">
-        {post.caption || 'No caption'}
-      </p>
-
-      {/* Time and Project - Editable */}
-      {post.scheduled_time && (
-        <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
-          <div className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {isEditing ? (
-              <input
-                type="time"
-                defaultValue={post.scheduled_time?.slice(0, 5) || '12:00'}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (handleEditScheduledPost && setEditingPostId) {
-                      handleEditScheduledPost(post, e.currentTarget.value);
-                      setEditingPostId(null);
-                    }
-                  }
-                  if (e.key === 'Escape') {
-                    if (setEditingPostId) {
-                      setEditingPostId(null);
-                    }
-                  }
-                }}
-                onBlur={(e) => {
-                  if (handleEditScheduledPost && setEditingPostId) {
-                    handleEditScheduledPost(post, e.target.value);
-                    setEditingPostId(null);
-                  }
-                }}
-                onClick={(e) => e.stopPropagation()}
-                className="text-xs p-1 rounded border bg-white shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                autoFocus
-              />
-            ) : isEditingTime ? (
-              <span className="text-purple-600">Updating time...</span>
-            ) : (
-              <span
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (setEditingPostId) {
-                    setEditingPostId(post.id);
-                  }
-                }}
-                className="cursor-pointer bg-white border border-gray-300 rounded px-2 py-1 hover:border-blue-500 hover:text-blue-600"
-                title="Click to edit time"
-              >
-                {formatTime(post.scheduled_time)}
-              </span>
-            )}
-          </div>
-          {post.project_id && projects && projects.find(p => p.id === post.project_id) && (
-            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
-              {projects.find(p => p.id === post.project_id)?.name}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Editable Caption */}
+      <div className="mb-3">
+        <textarea
+          value={captionValue}
+          onChange={handleCaptionTextareaChange}
+          className="w-full p-2 text-xs border border-gray-300 rounded-md resize-none bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 overflow-hidden"
+          rows={1}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="Edit caption..."
+          style={{ 
+            minHeight: '40px',
+            height: 'auto',
+            overflow: 'hidden'
+          }}
+          ref={(textarea) => {
+            if (textarea) {
+              textarea.style.height = 'auto';
+              textarea.style.height = Math.max(40, textarea.scrollHeight) + 'px';
+            }
+          }}
+        />
+        {hasCaptionChanged && (
+          <p className="text-xs text-blue-600 mt-1 font-medium">✏️ Caption edited</p>
+        )}
+      </div>
 
       {/* Platform */}
       {post.platform && (
-        <div className="mt-1">
+        <div className="mt-1 mb-2">
           <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
             {post.platform}
           </span>
         </div>
       )}
 
-      {/* Approval Comment */}
-      {approvalComment && (
-        <div className="mt-2 rounded-md border border-blue-100 bg-blue-50 p-2">
-          <div className="flex items-start gap-2">
-            <MessageCircle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
-            <div className="text-xs text-blue-700 whitespace-pre-wrap">
-              {approvalComment}
-            </div>
-          </div>
+      {/* Approval Actions */}
+      <div className="mt-2 space-y-3">
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStatusClick('approved');
+            }}
+            className={`flex items-center justify-center gap-1 text-xs flex-1 px-2 py-1.5 rounded-md font-medium transition-all duration-200 ${
+              statusToUse === 'approved'
+                ? 'bg-green-600 text-white shadow-sm ring-2 ring-green-300'
+                : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
+            }`}
+          >
+            <CheckCircle className="w-3 h-3" />
+            Approve
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStatusClick('needs_attention');
+            }}
+            className={`flex items-center justify-center gap-1 text-xs flex-1 px-2 py-1.5 rounded-md font-medium transition-all duration-200 ${
+              statusToUse === 'needs_attention'
+                ? 'bg-orange-600 text-white shadow-sm ring-2 ring-orange-300'
+                : 'bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200'
+            }`}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            Improve
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStatusClick('rejected');
+            }}
+            className={`flex items-center justify-center text-xs w-10 h-8 p-0 rounded-md font-medium transition-all duration-200 ${
+              statusToUse === 'rejected'
+                ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-300'
+                : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+            }`}
+            title="Reject"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
         </div>
-      )}
+
+        <div>
+          <textarea
+            value={commentValue}
+            onChange={(e) => onCommentChange(postKey, e.target.value)}
+            placeholder="Add feedback..."
+            className="w-full p-2 text-xs border border-gray-300 rounded-md resize-none bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            rows={2}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+
+      </div>
     </div>
   );
 }
@@ -529,12 +549,14 @@ function DroppableDayRow({
   formatTimeTo12Hour,
   projects,
   onAddUploadClick,
-  onDeletePost,
-  deletingPostIds,
-  deletingUploadIds,
   selectedPosts,
-  onTogglePostSelection,
+  onPostSelection,
+  comments,
+  onCommentChange,
+  editedCaptions,
+  onCaptionChange,
   onDeleteClientUpload,
+  deletingUploadIds,
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -552,12 +574,14 @@ function DroppableDayRow({
   formatTimeTo12Hour?: (time24: string) => string;
   projects?: Project[];
   onAddUploadClick?: (dateKey: string) => void;
-  onDeletePost?: (post: Post) => void;
-  deletingPostIds?: Set<string>;
-  deletingUploadIds?: Set<string>;
-  selectedPosts?: Set<string>;
-  onTogglePostSelection?: (postId: string) => void;
+  selectedPosts: {[key: string]: 'approved' | 'rejected' | 'needs_attention'};
+  onPostSelection: (postKey: string, status: 'approved' | 'rejected' | 'needs_attention' | null) => void;
+  comments: {[key: string]: string};
+  onCommentChange: (postKey: string, comment: string) => void;
+  editedCaptions: {[key: string]: string};
+  onCaptionChange: (postKey: string, caption: string) => void;
   onDeleteClientUpload?: (upload: ClientUpload) => void;
+  deletingUploadIds?: Set<string>;
 }) {
   const router = useRouter();
   const { setNodeRef } = useDroppable({
@@ -653,7 +677,7 @@ function DroppableDayRow({
         items={dayRow.posts.map((post) => `${post.post_type || 'post'}-${post.id}`)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="space-y-2 max-h-[400px] overflow-y-auto min-h-[60px]">
+        <div className="space-y-2 min-h-[60px]">
           {dayRow.posts.length === 0 ? (
             <button
               type="button"
@@ -671,13 +695,6 @@ function DroppableDayRow({
           ) : (
             dayRow.posts.map((post) => {
               const postKey = `${post.post_type || 'post'}-${post.id}`;
-              const isClientUpload =
-                post.post_type === 'client-upload' ||
-                post.post_type === 'client_upload' ||
-                (post as any).isClientUpload;
-              const isDeletingPost = deletingPostIds?.has(post.id) || false;
-              const isDeletingUpload = deletingUploadIds?.has(post.id) || false;
-              const isDeleting = isClientUpload ? isDeletingUpload : isDeletingPost;
               
               return (
                 <SortablePostCard
@@ -690,11 +707,14 @@ function DroppableDayRow({
                   editingTimePostIds={editingTimePostIds}
                   formatTimeTo12Hour={formatTimeTo12Hour}
                   projects={projects}
-                  onDeletePost={onDeletePost}
-                  isDeleting={isDeleting}
                   selectedPosts={selectedPosts}
-                  onTogglePostSelection={onTogglePostSelection}
+                  onPostSelection={onPostSelection}
+                  comments={comments}
+                  onCommentChange={onCommentChange}
+                  editedCaptions={editedCaptions}
+                  onCaptionChange={onCaptionChange}
                   onDeleteClientUpload={onDeleteClientUpload}
+                  deletingUploadIds={deletingUploadIds}
                 />
               );
             })
@@ -705,7 +725,7 @@ function DroppableDayRow({
   );
 }
 
-export function ColumnViewCalendar({
+export function PortalColumnViewCalendar({
   weeks,
   scheduledPosts,
   clientUploads,
@@ -721,19 +741,32 @@ export function ColumnViewCalendar({
   formatTimeTo12Hour,
   projects,
   onAddUploadClick,
-  onDeletePost,
-  deletingPostIds,
   selectedPosts,
-  onTogglePostSelection,
-  deletingUploadIds,
+  onPostSelection,
+  comments,
+  onCommentChange,
+  editedCaptions,
+  onCaptionChange,
   onDeleteClientUpload,
-}: ColumnViewCalendarProps) {
+  deletingUploadIds,
+}: PortalColumnViewCalendarProps) {
   const VISIBLE_WEEK_COUNT = 3;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
-  const [startWeek, setStartWeek] = useState<Date>(() =>
-    computeInitialStartWeek(weeks)
-  );
+  const [startWeek, setStartWeek] = useState<Date | null>(() => {
+    if (weeks.length > 0) {
+      const initialWeek = new Date(weeks[0]);
+      initialWeek.setHours(0, 0, 0, 0);
+      return initialWeek;
+    }
+    const today = new Date();
+    const currentWeekStart = new Date(today);
+    const dayOfWeek = currentWeekStart.getDay();
+    const diff = currentWeekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    currentWeekStart.setDate(diff);
+    currentWeekStart.setHours(0, 0, 0, 0);
+    return currentWeekStart;
+  });
   const hasInitializedStartWeek = useRef(false);
 
   const sensors = useSensors(
@@ -756,12 +789,18 @@ export function ColumnViewCalendar({
   // Initialize start week from provided weeks once
   useEffect(() => {
     if (!hasInitializedStartWeek.current && weeks.length > 0) {
-      setStartWeek(computeInitialStartWeek(weeks));
+      const firstWeek = new Date(weeks[0]);
+      firstWeek.setHours(0, 0, 0, 0);
+      setStartWeek(firstWeek);
       hasInitializedStartWeek.current = true;
     }
   }, [weeks]);
 
   const columns = useMemo(() => {
+    if (!startWeek) {
+      return [];
+    }
+
     const weekColumns: Array<{weekStart: Date; dayRows: DayRow[]}> = [];
 
     for (let weekIndex = 0; weekIndex < VISIBLE_WEEK_COUNT; weekIndex++) {
@@ -827,13 +866,7 @@ export function ColumnViewCalendar({
     setDragOverDay(null);
     
     console.log('🔵 ColumnView DragEnd:', { activeId: active.id, overId: over?.id });
-
-    const activeIdStr = String(active.id);
-    if (activeIdStr.startsWith('client-upload-')) {
-      setActiveId(null);
-      return;
-    }
-
+    
     if (!over || !onPostMove) {
       console.log('🔵 No over target or onPostMove handler');
       setActiveId(null);
@@ -844,6 +877,11 @@ export function ColumnViewCalendar({
     const overId = over.id as string;
 
     console.log('🔵 Looking for drop target:', { activeId, overId });
+
+    if (activeId.startsWith('client-upload-')) {
+      setActiveId(null);
+      return;
+    }
 
     // Find which day row the post is being dropped into
     // The overId could be either:
@@ -964,7 +1002,7 @@ export function ColumnViewCalendar({
 
   const handleNavigate = (direction: 'left' | 'right') => {
     setStartWeek((prev) => {
-      const base = new Date(prev);
+      const base = prev ? new Date(prev) : new Date();
       const deltaDays = direction === 'left' ? -7 : 7;
       base.setDate(base.getDate() + deltaDays);
       base.setHours(0, 0, 0, 0);
@@ -1046,14 +1084,16 @@ export function ColumnViewCalendar({
                         setEditingPostId={setEditingPostId}
                         editingTimePostIds={editingTimePostIds}
                         formatTimeTo12Hour={formatTimeTo12Hour}
-                        projects={projects}
-                        onAddUploadClick={onAddUploadClick}
-                        onDeletePost={onDeletePost}
-                        deletingPostIds={deletingPostIds}
-                        deletingUploadIds={deletingUploadIds}
-                        selectedPosts={selectedPosts}
-                        onTogglePostSelection={onTogglePostSelection}
+                      projects={projects}
+                      onAddUploadClick={onAddUploadClick}
+                      selectedPosts={selectedPosts}
+                      onPostSelection={onPostSelection}
+                      comments={comments}
+                      onCommentChange={onCommentChange}
+                      editedCaptions={editedCaptions}
+                      onCaptionChange={onCaptionChange}
                       onDeleteClientUpload={onDeleteClientUpload}
+                      deletingUploadIds={deletingUploadIds}
                       />
                     );
                   })}
