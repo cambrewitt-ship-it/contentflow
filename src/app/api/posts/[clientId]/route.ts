@@ -1,19 +1,70 @@
-import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import logger from '@/lib/logger';
+import { createSupabaseWithToken } from '@/lib/supabaseServer';
+import { validateApiRequest } from '@/lib/validationMiddleware';
+import { uuidSchema } from '@/lib/validators';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+const clientIdParamSchema = z.object({
+  clientId: uuidSchema,
+});
+
+const deletePostSchema = z.object({
+  postId: uuidSchema,
+});
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ clientId: string }> }
 ) {
   try {
-    const { clientId } = await params;
+    const validation = await validateApiRequest(request, {
+      params: clientIdParamSchema,
+      paramsObject: params,
+      checkAuth: true,
+    });
 
-    // Create Supabase client with service role for admin access
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    if (!validation.success) {
+      return validation.response;
+    }
+
+    const { params: validatedParams, token } = validation.data;
+
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const clientId = validatedParams!.clientId;
+    const supabase = createSupabaseWithToken(token);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) {
+      logger.error('❌ Failed to retrieve authenticated user:', userError);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('id, user_id')
+      .eq('id', clientId)
+      .single();
+
+    if (clientError) {
+      logger.error('❌ Client ownership check failed:', clientError);
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!client || client.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const { data, error } = await supabase
       .from('posts')
@@ -48,25 +99,61 @@ export async function GET(
 }
 
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ clientId: string }> }
 ) {
   try {
-    const { postId } = await request.json();
-    const { clientId } = await params;
+    const validation = await validateApiRequest(request, {
+      body: deletePostSchema,
+      params: clientIdParamSchema,
+      paramsObject: params,
+      checkAuth: true,
+    });
 
-    if (!postId) {
-      logger.error('❌ Missing postId in request body');
-      return NextResponse.json(
-        { error: 'Post ID is required' },
-        { status: 400 }
-      );
+    if (!validation.success) {
+      return validation.response;
     }
 
-    // Use the same Supabase client creation that works in other APIs
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const { body, params: validatedParams, token } = validation.data;
 
-    // Delete the post
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { postId } = body!;
+    const { clientId } = validatedParams!;
+
+    const supabase = createSupabaseWithToken(token);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) {
+      logger.error('❌ Failed to retrieve authenticated user:', userError);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('id, user_id')
+      .eq('id', clientId)
+      .single();
+
+    if (clientError) {
+      logger.error('❌ Client ownership check failed during delete:', clientError);
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!client || client.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { error } = await supabase
       .from('posts')
       .delete()

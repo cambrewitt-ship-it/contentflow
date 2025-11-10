@@ -1,38 +1,169 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { z } from 'zod';
 import logger from '@/lib/logger';
+import { createSupabaseWithToken } from '@/lib/supabaseServer';
+import { uuidSchema } from '@/lib/validators';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_SUPABASE_SERVICE_ROLE!
-);
+const booleanStringSchema = z
+  .union([z.literal('true'), z.literal('false')])
+  .optional();
+
+const getQuerySchema = z.object({
+  clientId: uuidSchema,
+  projectId: uuidSchema.nullish(),
+  filterUntagged: booleanStringSchema,
+  limit: z
+    .string()
+    .optional()
+    .transform((value) => {
+      if (value === undefined) return 50;
+      const parsed = Number.parseInt(value, 10);
+      if (Number.isNaN(parsed)) {
+        throw new Error('limit must be a number');
+      }
+      return parsed;
+    })
+    .refine((value) => value >= 1 && value <= 200, {
+      message: 'limit must be between 1 and 200',
+    }),
+  includeImageData: booleanStringSchema,
+});
+
+const scheduledPostSchema = z.object({
+  scheduledPost: z.object({
+    project_id: uuidSchema.nullish(),
+    client_id: uuidSchema,
+    caption: z.string().max(5000).optional(),
+    image_url: z.string().url().nullable().optional(),
+    post_notes: z.string().max(5000).nullable().optional(),
+    scheduled_date: z.string().min(1, 'scheduled_date is required'),
+    scheduled_time: z.string().min(1, 'scheduled_time is required'),
+  }),
+  unscheduledId: uuidSchema.optional(),
+});
+
+const patchSchema = z.object({
+  postId: uuidSchema,
+  updates: z.object({}).passthrough(),
+});
+
+const rescheduleSchema = z.object({
+  postId: uuidSchema,
+  scheduledDate: z.string().min(1, 'scheduledDate is required'),
+  clientId: uuidSchema,
+});
+
+const deleteSchema = z.object({
+  postId: uuidSchema,
+});
+
+function parseBooleanFlag(value: string | undefined | null): boolean {
+  return value === 'true';
+}
+
+async function getAuthorizedContext(request: Request) {
+  const authHeader = request.headers.get('authorization');
+
+  if (!authHeader?.startsWith('Bearer ')) {
+    return {
+      error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    };
+  }
+
+  const token = authHeader.substring(7);
+  const supabase = createSupabaseWithToken(token);
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    logger.warn('Unauthorized calendar access attempt', { reason: userError?.message });
+    return {
+      error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    };
+  }
+
+  return { supabase, user };
+}
+
+async function verifyClientOwnership(
+  supabase: ReturnType<typeof createSupabaseWithToken>,
+  clientId: string,
+  userId: string
+) {
+  const { data: client, error: clientError } = await supabase
+    .from('clients')
+    .select('id, user_id')
+    .eq('id', clientId)
+    .single();
+
+  if (clientError) {
+    logger.error('Client ownership verification failed', clientError);
+    return false;
+  }
+
+  if (!client || client.user_id !== userId) {
+    logger.warn('Forbidden calendar access attempt', { clientId, userId });
+    return false;
+  }
+
+  return true;
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const clientId = searchParams.get('clientId');
-  const projectId = searchParams.get('projectId');
-  const filterUntagged = searchParams.get('filterUntagged') === 'true';
-  const limit = parseInt(searchParams.get('limit') || '50');
-  const includeImageData = searchParams.get('includeImageData') === 'true';
-  
-  // Validate clientId
-  if (!clientId) {
-    return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
+
+  let parsedQuery;
+  try {
+    parsedQuery = getQuerySchema.parse({
+      clientId: searchParams.get('clientId'),
+      projectId: searchParams.get('projectId'),
+      filterUntagged: searchParams.get('filterUntagged') ?? undefined,
+      limit: searchParams.get('limit') ?? undefined,
+      includeImageData: searchParams.get('includeImageData') ?? undefined,
+    });
+  } catch (validationError) {
+    logger.warn('Invalid query parameters for scheduled calendar GET', validationError);
+    return NextResponse.json(
+      {
+        error: 'Invalid query parameters',
+        details:
+          validationError instanceof Error ? validationError.message : 'Bad request',
+      },
+      { status: 400 }
+    );
   }
-  
+
+  const { clientId, projectId, limit, filterUntagged, includeImageData } = parsedQuery;
+  const shouldFilterUntagged = parseBooleanFlag(filterUntagged ?? undefined);
+  const shouldIncludeImageData = parseBooleanFlag(includeImageData ?? undefined);
+
+  const authContext = await getAuthorizedContext(request);
+  if ('error' in authContext) {
+    return authContext.error;
+  }
+
+  const { supabase, user } = authContext;
+
+  const ownsClient = await verifyClientOwnership(supabase, clientId, user.id);
+  if (!ownsClient) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const startTime = Date.now();
     logger.debug('Fetching scheduled posts', { 
-      clientId: clientId?.substring(0, 8) + '...', 
+      clientId: clientId.substring(0, 8) + '...', 
       project: projectId || 'all', 
-      untagged: filterUntagged, 
+      untagged: shouldFilterUntagged, 
       limit, 
-      includeImages: includeImageData
+      includeImages: shouldIncludeImageData
     });
 
     // Optimized query - only select fields needed for approval board
     const baseFields = 'id, project_id, caption, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, late_status, late_post_id, platforms_scheduled, created_at, updated_at, last_edited_at, edit_count, needs_reapproval, original_caption';
-    const selectFields = includeImageData ? `${baseFields}, image_url` : baseFields;
+    const selectFields = shouldIncludeImageData ? `${baseFields}, image_url` : baseFields;
     
     // Build query based on filter type
     let query = supabase
@@ -41,7 +172,7 @@ export async function GET(request: Request) {
       .eq('client_id', clientId);
     
     // Apply project filter
-    if (filterUntagged) {
+    if (shouldFilterUntagged) {
       query = query.is('project_id', null);
     } else if (projectId) {
       query = query.eq('project_id', projectId);
@@ -108,40 +239,69 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const authContext = await getAuthorizedContext(request);
+    if ('error' in authContext) {
+      return authContext.error;
+    }
+
+    const { supabase, user } = authContext;
+    const rawBody = await request.json();
+    const parseResult = scheduledPostSchema.safeParse(rawBody);
+
+    if (!parseResult.success) {
+      logger.warn('Invalid scheduled post payload', parseResult.error);
+      return NextResponse.json(
+        { error: 'Invalid request body', details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const { scheduledPost, unscheduledId } = parseResult.data;
 
     logger.debug('Creating scheduled post', { 
       timestamp: new Date().toISOString(),
-      bodyKeys: Object.keys(body) 
+      clientId: scheduledPost.client_id.substring(0, 8) + '...',
+      projectId: scheduledPost.project_id ?? 'none',
+      hasUnscheduledId: Boolean(unscheduledId),
     });
 
+    const ownsClient = await verifyClientOwnership(
+      supabase,
+      scheduledPost.client_id,
+      user.id
+    );
+
+    if (!ownsClient) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     // Validate required fields
-    if (!body.scheduledPost) {
-      logger.error('❌ Missing scheduledPost in request body');
-      return NextResponse.json({ error: 'Missing scheduledPost data' }, { status: 400 });
+    if (!scheduledPost.scheduled_date || !scheduledPost.scheduled_time) {
+      logger.error('❌ Missing required scheduling fields');
+      return NextResponse.json(
+        { error: 'Missing required scheduled date or time' },
+        { status: 400 }
+      );
     }
     
     // unscheduledId is optional - only needed when moving from unscheduled to scheduled
-    const isMovingFromUnscheduled = !!body.unscheduledId;
+    const isMovingFromUnscheduled = !!unscheduledId;
 
     logger.debug('Moving from unscheduled', {
-      unscheduledId: body.unscheduledId
+      unscheduledId
     });
-
-    // Build the scheduled post data object from the request
-    const scheduledPostData = {
-      project_id: body.scheduledPost.project_id,
-      client_id: body.scheduledPost.client_id,
-      caption: body.scheduledPost.caption,
-      image_url: body.scheduledPost.image_url || null,
-      post_notes: body.scheduledPost.post_notes || null,
-      scheduled_date: body.scheduledPost.scheduled_date,
-      scheduled_time: body.scheduledPost.scheduled_time
-    };
 
     const { data: scheduled, error: scheduleError } = await supabase
       .from('calendar_scheduled_posts')
-      .insert(scheduledPostData)
+      .insert({
+        project_id: scheduledPost.project_id ?? null,
+        client_id: scheduledPost.client_id,
+        caption: scheduledPost.caption ?? null,
+        image_url: scheduledPost.image_url ?? null,
+        post_notes: scheduledPost.post_notes ?? null,
+        scheduled_date: scheduledPost.scheduled_date,
+        scheduled_time: scheduledPost.scheduled_time,
+      })
       .select()
       .single();
     
@@ -162,7 +322,7 @@ export async function POST(request: Request) {
       const { error: deleteError } = await supabase
           .from('calendar_unscheduled_posts')
           .delete()
-          .eq('id', body.unscheduledId);
+          .eq('id', unscheduledId);
         
         if (deleteError) {
           logger.error('❌ Delete error:', deleteError);
@@ -195,7 +355,49 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const { postId, updates } = await request.json();
+    const authContext = await getAuthorizedContext(request);
+    if ('error' in authContext) {
+      return authContext.error;
+    }
+
+    const { supabase, user } = authContext;
+    const body = await request.json();
+    const parsed = patchSchema.safeParse(body);
+
+    if (!parsed.success) {
+      logger.warn('Invalid PATCH payload for scheduled post', parsed.error);
+      return NextResponse.json(
+        { error: 'Invalid request body', details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const { postId, updates } = parsed.data;
+
+    const { data: existingPost, error: fetchError } = await supabase
+      .from('calendar_scheduled_posts')
+      .select('id, client_id')
+      .eq('id', postId)
+      .single();
+
+    if (fetchError) {
+      logger.error('Failed to fetch scheduled post for patch', fetchError);
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    if (!existingPost) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const ownsClient = await verifyClientOwnership(
+      supabase,
+      existingPost.client_id,
+      user.id
+    );
+
+    if (!ownsClient) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     
     // Ensure image_url is preserved if not being updated
     const updateData = {
@@ -220,14 +422,31 @@ export async function PATCH(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const { postId, scheduledDate, clientId } = await request.json();
-    
-    if (!postId || !scheduledDate || !clientId) {
-      return NextResponse.json({ 
-        error: 'Missing required fields: postId, scheduledDate, clientId' 
-      }, { status: 400 });
+    const authContext = await getAuthorizedContext(request);
+    if ('error' in authContext) {
+      return authContext.error;
     }
 
+    const { supabase, user } = authContext;
+    const body = await request.json();
+    const parsed = rescheduleSchema.safeParse(body);
+
+    if (!parsed.success) {
+      logger.warn('Invalid reschedule payload', parsed.error);
+      return NextResponse.json(
+        { error: 'Invalid request body', details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const { postId, scheduledDate, clientId } = parsed.data;
+
+    const ownsClient = await verifyClientOwnership(supabase, clientId, user.id);
+
+    if (!ownsClient) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    
     const { data, error } = await supabase
       .from('calendar_scheduled_posts')
       .update({ 
@@ -257,7 +476,44 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const { postId } = await request.json();
+    const authContext = await getAuthorizedContext(request);
+    if ('error' in authContext) {
+      return authContext.error;
+    }
+
+    const { supabase, user } = authContext;
+    const body = await request.json();
+    const parsed = deleteSchema.safeParse(body);
+
+    if (!parsed.success) {
+      logger.warn('Invalid delete payload for scheduled post', parsed.error);
+      return NextResponse.json(
+        { error: 'Invalid request body', details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const { postId } = parsed.data;
+
+    const { data: post, error: fetchError } = await supabase
+      .from('calendar_scheduled_posts')
+      .select('id, client_id')
+      .eq('id', postId)
+      .single();
+
+    if (fetchError) {
+      logger.error('Failed to fetch scheduled post before delete', fetchError);
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    if (!post) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const ownsClient = await verifyClientOwnership(supabase, post.client_id, user.id);
+    if (!ownsClient) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     
     const { error } = await supabase
       .from('calendar_scheduled_posts')

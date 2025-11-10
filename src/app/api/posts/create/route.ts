@@ -1,14 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { isValidMediaData } from '../../../../lib/blobUpload';
 import { withPostLimitCheck, trackPostCreation } from '../../../../lib/subscriptionMiddleware';
 import logger from '@/lib/logger';
+import { requireClientOwnership, requireProjectOwnership } from '@/lib/authHelpers';
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function POST(request: NextRequest) {
   try {
@@ -72,8 +69,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create Supabase client with service role for admin access
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    if (!clientId) {
+      return NextResponse.json(
+        { error: 'Client ID is required for post creation' },
+        { status: 400 }
+      );
+    }
+
+    const auth = await requireClientOwnership(request, clientId);
+    if (auth.error) return auth.error;
+
+    let supabase = auth.supabase;
+
+    if (projectId && projectId !== 'default') {
+      const projectAuth = await requireProjectOwnership(request, projectId);
+      if (projectAuth.error) return projectAuth.error;
+      supabase = projectAuth.supabase;
+    }
 
     // Create posts in the main posts table
     const postsToInsert = posts.map((post: {

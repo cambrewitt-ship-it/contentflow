@@ -1,22 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { isValidImageData } from '../../../../lib/blobUpload';
 import logger from '@/lib/logger';
+import { requireClientOwnership, requireProjectOwnership } from '@/lib/authHelpers';
 
 export async function POST(request: Request) {
   try {
 
-    // Initialize Supabase inside the function to ensure env vars are loaded
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_SUPABASE_SERVICE_ROLE || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseKey) {
-      logger.error('❌ Missing Supabase environment variables');
-      return NextResponse.json({ error: 'Server configuration error' });
-    }
-    
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    
     const body = await request.json();
     const { projectId, post } = body;
     
@@ -55,15 +44,18 @@ export async function POST(request: Request) {
       }
     }
     
-    // Insert into calendar_unscheduled_posts
+    const projectAuth = await requireProjectOwnership(request, projectId);
+    if (projectAuth.error) return projectAuth.error;
 
-    // Get the user ID from the request headers (passed from the frontend)
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace('Bearer ', '');
+    const clientId = post.clientId || post.client_id;
+    const clientAuth = await requireClientOwnership(request, clientId);
+    if (clientAuth.error) return clientAuth.error;
+
+    const supabase = clientAuth.supabase;
 
     const insertData = {
       project_id: projectId,
-      client_id: post.clientId || post.client_id,
+      client_id: clientId,
       caption: post.caption,
       image_url: post.generatedImage,
       post_notes: post.notes || '',

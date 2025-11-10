@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, X, Check } from "lucide-react";
+import { Menu, X, Check, Plug } from "lucide-react";
 import { 
   FacebookIcon, 
   InstagramIcon, 
@@ -276,7 +276,7 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-background py-20 sm:py-32">
+      <section className="relative overflow-hidden bg-background pt-20 sm:pt-32 pb-16 sm:pb-24">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-4xl text-center">
             <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-6xl">
@@ -318,8 +318,8 @@ export default function Home() {
           </div>
           
           {/* Hero Image/Illustration */}
-          <div className="mt-16 mx-auto max-w-4xl">
-            <div className="flex flex-col items-center mb-8">
+          <div className="mt-12 mx-auto max-w-5xl">
+            <div className="flex flex-col items-center mb-6">
               <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-2 whitespace-nowrap block">
                 Content Manager - Plan, Create, Schedule
               </h2>
@@ -327,145 +327,151 @@ export default function Home() {
                 Like ChatGPT + Trello + Social Scheduler
               </p>
             </div>
+            <div className="relative mt-6">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
+              <div className="relative bg-card border border-border rounded-3xl p-4 sm:p-6 shadow-2xl">
+                <div className="flex flex-col lg:flex-row items-center lg:items-center gap-6 sm:gap-10">
+                  <div className="w-full lg:max-w-md">
+                    <div className="flex items-center justify-center lg:justify-start gap-4">
+                      <div className="flex items-center justify-center h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-primary/10 text-primary">
+                        <Plug className="h-6 w-6 sm:h-7 sm:w-7" />
+                      </div>
+                      <h3 className="text-3xl sm:text-4xl font-semibold text-foreground leading-tight text-center lg:text-left">
+                        Plug in Your Brand
+                        <span className="block">Info and Voice</span>
+                      </h3>
+                    </div>
+                  </div>
+                  <img
+                    src="/brand-info.png"
+                    alt="Brand info configuration"
+                    className="w-full lg:w-1/2 max-w-xl rounded-2xl shadow-xl"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="mt-10 mb-8 text-center text-foreground">
+              <p className="text-3xl sm:text-5xl font-extrabold">
+                Generate content with our AI copy assistant
+              </p>
+              <p className="mt-2 text-2xl sm:text-3xl font-semibold">
+                Tailored to your brand.
+              </p>
+            </div>
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-3xl"></div>
-              <div className="relative bg-card border border-border rounded-2xl p-2 shadow-2xl">
+              <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-2 sm:py-3 shadow-2xl">
                 <img 
                   src="/content-suite-screenshot.png" 
                   alt="Content Suite Screenshot" 
-                  className="w-full h-auto rounded-lg"
+                  className="w-full h-auto rounded-lg max-w-5xl mx-auto"
                 />
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Social Media Platforms Section */}
-      <section className="py-20 sm:py-32 bg-background">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-4xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl mb-12">
-              Schedule to social media
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-8 items-center justify-items-center">
-              <div className="flex flex-col items-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center transition-transform hover:scale-110">
-                  <FacebookIcon size={32} className="text-white" />
-                </div>
-                <span className="text-sm font-medium text-foreground">Facebook</span>
-              </div>
-              <div className="flex flex-col items-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center transition-transform hover:scale-110">
-                  <InstagramIcon size={32} className="text-white" />
-                </div>
-                <span className="text-sm font-medium text-foreground">Instagram</span>
-              </div>
-              <div className="flex flex-col items-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
-                  <TwitterIcon size={32} className="text-white" />
-                </div>
-                <span className="text-sm font-medium text-foreground">Twitter</span>
-              </div>
-              <div className="flex flex-col items-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-blue-700 flex items-center justify-center transition-transform hover:scale-110">
-                  <LinkedInIcon size={32} className="text-white" />
-                </div>
-                <span className="text-sm font-medium text-foreground">LinkedIn</span>
-              </div>
-              <div className="flex flex-col items-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
-                  <TikTokIcon size={32} className="text-white" />
-                </div>
-                <span className="text-sm font-medium text-foreground">TikTok</span>
-              </div>
-              <div className="flex flex-col items-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center transition-transform hover:scale-110">
-                  <YouTubeIcon size={32} className="text-white" />
-                </div>
-                <span className="text-sm font-medium text-foreground">YouTube</span>
-              </div>
-              <div className="flex flex-col items-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
-                  <ThreadsIcon size={32} className="text-white" />
-                </div>
-                <span className="text-sm font-medium text-foreground">Threads</span>
+            <div className="mt-8 text-center text-foreground">
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                Get Content Ideas for your context
+              </h2>
+              <p className="mt-4 text-xl leading-8 text-muted-foreground">
+                Kill writers block
+              </p>
+            </div>
+            <div className="relative mt-6">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
+              <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
+                <img 
+                  src="/ideas-generator.png" 
+                  alt="Content Ideas Screenshot" 
+                  className="w-full h-auto rounded-lg max-w-4xl mx-auto"
+                />
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-20 sm:py-32 bg-muted/30">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              Everything you need to manage social media content
-            </h2>
-            <p className="mt-6 text-lg leading-8 text-muted-foreground">
-              Streamline your social media workflow with AI-powered tools designed for marketing agencies.
-            </p>
-          </div>
-          
-          <div className="mt-16 mx-auto max-w-4xl">
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-              <Card className="border-border/50 hover:border-border transition-colors">
-                <CardHeader>
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                    <div className="text-blue-600 text-2xl">🤖</div>
+            <div className="mt-12">
+              <div className="mx-auto max-w-4xl text-center">
+                <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl mb-12">
+                  Schedule to social media
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-8 items-center justify-items-center">
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center transition-transform hover:scale-110">
+                      <FacebookIcon size={32} className="text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-foreground">Facebook</span>
                   </div>
-                  <CardTitle>AI Caption Generation</CardTitle>
-                  <CardDescription>
-                    Automatically generate engaging captions for any image or video with our advanced AI technology.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li>• Context-aware caption suggestions</li>
-                    <li>• Brand voice customization</li>
-                    <li>• Multiple caption variations</li>
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/50 hover:border-border transition-colors">
-                <CardHeader>
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                    <div className="text-green-600 text-2xl">👥</div>
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center transition-transform hover:scale-110">
+                      <InstagramIcon size={32} className="text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-foreground">Instagram</span>
                   </div>
-                  <CardTitle>Client Management</CardTitle>
-                  <CardDescription>
-                    Organize content campaigns by client with brand-specific guidelines and approval workflows.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li>• Client-specific brand guidelines</li>
-                    <li>• Approval workflow management</li>
-                    <li>• Content organization by client</li>
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/50 hover:border-border transition-colors">
-                <CardHeader>
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                    <div className="text-purple-600 text-2xl">📅</div>
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
+                      <TwitterIcon size={32} className="text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-foreground">Twitter</span>
                   </div>
-                  <CardTitle>Smart Scheduling</CardTitle>
-                  <CardDescription>
-                    Drag-and-drop calendar scheduling across Instagram, Facebook, and LinkedIn with optimal timing.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li>• Visual calendar interface</li>
-                    <li>• Optimal posting times</li>
-                    <li>• Multi-platform scheduling</li>
-                  </ul>
-                </CardContent>
-              </Card>
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-blue-700 flex items-center justify-center transition-transform hover:scale-110">
+                      <LinkedInIcon size={32} className="text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-foreground">LinkedIn</span>
+                  </div>
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
+                      <TikTokIcon size={32} className="text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-foreground">TikTok</span>
+                  </div>
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center transition-transform hover:scale-110">
+                      <YouTubeIcon size={32} className="text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-foreground">YouTube</span>
+                  </div>
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
+                      <ThreadsIcon size={32} className="text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-foreground">Threads</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="mt-12 text-center text-foreground">
+              <h2 className="text-4xl sm:text-5xl font-bold">
+                Shared Client Workspace
+              </h2>
+              <p className="mt-4 text-xl text-muted-foreground">
+                Streamline content calendars and approvals with our client portal
+              </p>
+            </div>
+            <div className="relative mt-6">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-3xl"></div>
+              <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
+                <img
+                  src="/client-portal-screenshot.png"
+                  alt="Client Portal Screenshot"
+                  className="w-full h-auto rounded-lg max-w-5xl mx-auto"
+                />
+              </div>
+            </div>
+            <div className="mt-12 text-center text-foreground">
+              <h2 className="text-3xl sm:text-5xl font-bold">
+                5x Your Productivity - Reduce Labour Costs
+              </h2>
+              <p className="mt-4 text-xl text-muted-foreground">
+                Automated with AI.
+              </p>
+            </div>
+            <div className="relative mt-6">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
+              <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
+                <img
+                  src="/client-dashboard.png"
+                  alt="Client Dashboard Screenshot"
+                  className="w-full h-auto rounded-lg max-w-5xl mx-auto"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -476,7 +482,7 @@ export default function Home() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              Simple, transparent pricing
+              Start Free - Scale as you like
             </h2>
             <p className="mt-6 text-lg leading-8 text-muted-foreground">
               Start with a 14-day free trial. Cancel anytime.
@@ -562,16 +568,35 @@ export default function Home() {
             <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               Ready to transform your social media workflow?
             </h2>
-            <p className="mt-6 text-lg leading-8 text-muted-foreground">
-              Join thousands of marketing agencies using Content Manager to streamline their social media management.
-            </p>
-            <div className="mt-10 flex items-center justify-center gap-x-6">
-              <Button size="lg" className="px-8 py-3 text-base" asChild>
-                <a href="/dashboard">Start Free Trial</a>
-              </Button>
-              <Button variant="outline" size="lg" className="px-8 py-3 text-base">
-                Schedule Demo
-              </Button>
+            <div className="mt-10 max-w-2xl mx-auto px-4">
+              <div className="flex items-center justify-center gap-3">
+                <input
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="flex-1 px-4 py-3 text-base rounded-lg border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent shadow-sm"
+                />
+                <Button
+                  size="lg"
+                  className="px-8 py-3 text-base whitespace-nowrap"
+                  onClick={() => {
+                    if (user) {
+                      router.push('/dashboard');
+                    } else {
+                      const signupUrl = email
+                        ? `/auth/signup?email=${encodeURIComponent(email)}`
+                        : '/auth/signup';
+                      router.push(signupUrl);
+                    }
+                  }}
+                >
+                  Get Started FREE
+                </Button>
+              </div>
+              <p className="text-center text-sm text-muted-foreground mt-3">
+                Free forever. No credit card required.
+              </p>
             </div>
           </div>
         </div>

@@ -1,9 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import logger from '@/lib/logger';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+import { requirePostOwnership } from '@/lib/authHelpers';
 
 export async function GET(
   request: Request,
@@ -15,8 +12,9 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    // Create Supabase client with service role for admin access
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const auth = await requirePostOwnership(request, postId);
+    if (auth.error) return auth.error;
+    const supabase = auth.supabase;
 
     // First verify the post exists and get basic info
     const { data: post, error: postError } = await supabase
@@ -110,8 +108,9 @@ export async function POST(
       );
     }
 
-    // Create Supabase client with service role for admin access
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const auth = await requirePostOwnership(request, postId);
+    if (auth.error) return auth.error;
+    const supabase = auth.supabase;
 
     // Verify the post exists
     const { data: post, error: postError } = await supabase

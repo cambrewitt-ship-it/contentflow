@@ -1,9 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import logger from '@/lib/logger';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+import { requirePostOwnership } from '@/lib/authHelpers';
 
 // GET - Retrieve draft changes
 export async function GET(
@@ -22,7 +19,9 @@ export async function GET(
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const auth = await requirePostOwnership(request, postId);
+    if (auth.error) return auth.error;
+    const supabase = auth.supabase;
     
     const { data: post, error } = await supabase
       .from('posts')
@@ -84,7 +83,9 @@ export async function POST(
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const auth = await requirePostOwnership(request, postId);
+    if (auth.error) return auth.error;
+    const supabase = auth.supabase;
     
     const enhancedDraftData = {
       ...draftData,
@@ -143,7 +144,9 @@ export async function DELETE(
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const auth = await requirePostOwnership(request, postId);
+    if (auth.error) return auth.error;
+    const supabase = auth.supabase;
     
     const { error } = await supabase
       .from('posts')

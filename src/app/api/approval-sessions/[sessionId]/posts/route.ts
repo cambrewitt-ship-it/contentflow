@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
+import { requireAuth } from '@/lib/authHelpers';
 // Temporary inline types to resolve import issue
 interface ApprovalBoardPost {
   id: string;
@@ -51,23 +52,68 @@ export async function GET(
     });
 
     // Validate session (either by ID for internal or token for public)
-    let sessionQuery;
-    
+    let supabaseClient = supabase;
+    let session;
+    let sessionError;
+
     if (share_token) {
-      sessionQuery = supabase
+      const { data, error } = await supabase
         .from('client_approval_sessions')
-        .select('id, project_id, expires_at, created_at')
+        .select('id, project_id, client_id, expires_at, created_at')
         .eq('share_token', share_token)
         .single();
+
+      session = data;
+      sessionError = error;
     } else {
-      sessionQuery = supabase
+      const auth = await requireAuth(request);
+      if (auth.error) return auth.error;
+      const { supabase: authedSupabase, user } = auth;
+      supabaseClient = authedSupabase;
+
+      const { data, error } = await supabaseClient
         .from('client_approval_sessions')
-        .select('id, project_id, expires_at, created_at')
+        .select('id, project_id, client_id, expires_at, created_at')
         .eq('id', sessionId)
         .single();
-    }
 
-    const { data: session, error: sessionError } = await sessionQuery;
+      session = data;
+      sessionError = error;
+
+      if (session?.client_id) {
+        const { data: clientCheck, error: clientError } = await supabaseClient
+          .from('clients')
+          .select('id, user_id')
+          .eq('id', session.client_id)
+          .single();
+
+        if (clientError) {
+          logger.error('❌ Error verifying client ownership for approval posts:', clientError);
+          if (clientError.code === 'PGRST116') {
+            return NextResponse.json(
+              { error: 'Forbidden' },
+              { status: 403 }
+            );
+          }
+          return NextResponse.json(
+            { error: 'Failed to verify client ownership' },
+            { status: 500 }
+          );
+        }
+
+        if (!clientCheck || clientCheck.user_id !== user.id) {
+          logger.warn('Forbidden approval post fetch attempt due to client ownership mismatch', {
+            sessionId,
+            clientId: session.client_id,
+            userId: user.id
+          });
+          return NextResponse.json(
+            { error: 'Forbidden' },
+            { status: 403 }
+          );
+        }
+      }
+    }
 
     if (sessionError || !session) {
       return NextResponse.json(
@@ -85,7 +131,7 @@ export async function GET(
     }
 
     // First, get the selected post IDs for this session
-    const { data: postApprovals, error: approvalsError } = await supabase
+    const { data: postApprovals, error: approvalsError } = await supabaseClient
       .from('post_approvals')
       .select('post_id, post_type, approval_status, client_comments, created_at')
       .eq('session_id', session.id);
@@ -110,7 +156,7 @@ export async function GET(
     // OPTIMIZED: Use Promise.all for parallel queries (safe version)
     const [scheduledResult, otherScheduledResult] = await Promise.all([
       // Fetch only selected scheduled posts from calendar_scheduled_posts
-      selectedPlannerPostIds.length > 0 ? supabase
+      selectedPlannerPostIds.length > 0 ? supabaseClient
         .from('calendar_scheduled_posts')
         .select(`
           id,
@@ -126,7 +172,7 @@ export async function GET(
         .order('scheduled_date', { ascending: true }) : { data: [], error: null },
       
       // Fetch only selected posts from scheduled_posts table
-      selectedScheduledPostIds.length > 0 ? supabase
+      selectedScheduledPostIds.length > 0 ? supabaseClient
         .from('scheduled_posts')
         .select(`
           id,

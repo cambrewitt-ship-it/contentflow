@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+import { requireClientOwnership } from '@/lib/authHelpers';
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,8 +11,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing clientId parameter' }, { status: 400 });
     }
 
-    // Create Supabase client with service role for admin access
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const auth = await requireClientOwnership(req, clientId);
+    if (auth.error) return auth.error;
+    const { supabase } = auth;
 
     // Query the late_profiles table for this client
     const { data: profiles, error } = await supabase

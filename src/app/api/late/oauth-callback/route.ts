@@ -1,10 +1,7 @@
 // app/api/late/oauth-callback/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+import { requireClientOwnership } from '@/lib/authHelpers';
 // Get the correct app URL - prefer environment variable, but fallback to detecting from request
 function getAppUrl(req: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -118,8 +115,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(errorRedirectUrl);
     }
 
+    // Validate client ownership before performing database operations
+    if (!clientId) {
+      const errorRedirectUrl = `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=Missing client identifier`;
+      return NextResponse.redirect(errorRedirectUrl);
+    }
+
+    const auth = await requireClientOwnership(req, clientId);
+    if (auth.error) {
+      const unauthorizedRedirectUrl = `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=Unauthorized`;
+      return NextResponse.redirect(unauthorizedRedirectUrl);
+    }
+    const { supabase } = auth;
+
     // Check environment variables
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_SUPABASE_SERVICE_ROLE) {
 
       const errorRedirectUrl = clientId 
         ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Configuration error: Missing database credentials`
@@ -127,9 +137,6 @@ export async function GET(req: NextRequest) {
       
       return NextResponse.redirect(errorRedirectUrl);
     }
-
-    // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // Check if a connection already exists for this client and platform
     const { data: existingConnection, error: checkError } = await supabase
@@ -148,12 +155,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(errorRedirectUrl);
     }
 
-    let connectionResult;
-    
     if (existingConnection) {
       // Update existing connection
 
-      const { data: updatedConnection, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from('social_connections')
         .update({
           platform_user_id: profileId,
@@ -176,12 +181,10 @@ export async function GET(req: NextRequest) {
         return NextResponse.redirect(errorRedirectUrl);
       }
 
-      connectionResult = updatedConnection;
-
     } else {
       // Create new connection
 
-      const { data: newConnection, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('social_connections')
         .insert({
           client_id: clientId,
@@ -204,8 +207,6 @@ export async function GET(req: NextRequest) {
         
         return NextResponse.redirect(errorRedirectUrl);
       }
-
-      connectionResult = newConnection;
 
     }
 

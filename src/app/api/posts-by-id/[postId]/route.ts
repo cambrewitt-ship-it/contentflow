@@ -5,6 +5,8 @@ import { handleApiError, handleDatabaseError, ApiErrors } from '../../../../lib/
 import { validateApiRequest } from '../../../../lib/validationMiddleware';
 import { updatePostSchema, postIdParamSchema } from '../../../../lib/validators';
 import logger from '@/lib/logger';
+import { createSupabaseWithToken } from '@/lib/supabaseServer';
+import { requirePostOwnership } from '@/lib/authHelpers';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
@@ -22,6 +24,7 @@ export async function PUT(
       params: postIdParamSchema,
       paramsObject: params,
       maxBodySize: 10 * 1024 * 1024, // 10MB limit for posts (to accommodate images)
+      checkAuth: true,
     });
 
     if (!validation.success) {
@@ -36,6 +39,27 @@ export async function PUT(
       return NextResponse.json({ error: 'Request body is required' }, { status: 400 });
     }
 
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7);
+    const supabase = createSupabaseWithToken(token);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      logger.error('❌ Authentication failed for post update', {
+        operation: 'update_post',
+        error: userError?.message ?? 'User not found',
+      });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Extract editable fields from validated input
     const {
       caption,
@@ -43,7 +67,7 @@ export async function PUT(
       notes,
       edit_reason,
       edited_by_user_id,
-      client_id,
+      client_id: clientIdFromBody,
       platforms = ['instagram', 'facebook', 'twitter'], // Default platforms
       // AI generation settings
       ai_tone,
@@ -61,63 +85,124 @@ export async function PUT(
       save_as_draft = false,
     } = body as any;
 
-    // Create Supabase client with service role for admin access
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
     // First, get the current post with full details for validation
-    let { data: currentPost, error: fetchError } = await supabase
+    let tableName: 'posts' | 'calendar_scheduled_posts' | 'calendar_unscheduled_posts' = 'posts';
+    let currentPost: any = null;
+
+    const { data: postRecord, error: postError } = await supabase
       .from('posts')
-      .select('*')
+      .select('*, client:clients!inner(user_id)')
       .eq('id', postId)
       .single();
 
-    // If not found in posts table, check calendar tables
-    if (fetchError && fetchError.code === 'PGRST116') {
-      // Check calendar_scheduled_posts
+    if (postRecord) {
+      currentPost = postRecord;
+    } else if (postError && postError.code !== 'PGRST116') {
+      return handleDatabaseError(
+        postError,
+        {
+          route: '/api/posts-by-id/[postId]',
+          operation: 'fetch_post',
+          clientId: clientIdFromBody,
+          additionalData: { postId },
+        },
+        'Failed to fetch post'
+      );
+    }
+
+    if (!currentPost) {
       const { data: scheduledPost, error: scheduledError } = await supabase
         .from('calendar_scheduled_posts')
         .select('*')
         .eq('id', postId)
         .single();
 
-      if (scheduledPost && !scheduledError) {
+      if (scheduledPost) {
         currentPost = scheduledPost;
-        fetchError = null;
-      } else {
-        // Check calendar_unscheduled_posts
-        const { data: unscheduledPost, error: unscheduledError } = await supabase
-          .from('calendar_unscheduled_posts')
-          .select('*')
-          .eq('id', postId)
-          .single();
-
-        if (unscheduledPost && !unscheduledError) {
-          currentPost = unscheduledPost;
-          fetchError = null;
-        }
+        tableName = 'calendar_scheduled_posts';
+      } else if (scheduledError && scheduledError.code !== 'PGRST116') {
+        return handleDatabaseError(
+          scheduledError,
+          {
+            route: '/api/posts-by-id/[postId]',
+            operation: 'fetch_scheduled_post',
+            clientId: clientIdFromBody,
+            additionalData: { postId },
+          },
+          'Failed to fetch scheduled post'
+        );
       }
     }
 
-    if (fetchError) {
-      return handleDatabaseError(
-        fetchError,
-        {
-          route: '/api/posts-by-id/[postId]',
-          operation: 'fetch_post',
-          clientId: client_id,
-          additionalData: { postId },
-        },
-        'Post not found'
-      );
+    if (!currentPost) {
+      const { data: unscheduledPost, error: unscheduledError } = await supabase
+        .from('calendar_unscheduled_posts')
+        .select('*')
+        .eq('id', postId)
+        .single();
+
+      if (unscheduledPost) {
+        currentPost = unscheduledPost;
+        tableName = 'calendar_unscheduled_posts';
+      } else if (unscheduledError && unscheduledError.code !== 'PGRST116') {
+        return handleDatabaseError(
+          unscheduledError,
+          {
+            route: '/api/posts-by-id/[postId]',
+            operation: 'fetch_unscheduled_post',
+            clientId: clientIdFromBody,
+            additionalData: { postId },
+          },
+          'Failed to fetch unscheduled post'
+        );
+      }
     }
 
-    // Authorization: Verify post belongs to the requesting client
-    if (currentPost.client_id !== client_id) {
-      logger.error('❌ Unauthorized access attempt:', {
-        postClientId: currentPost.client_id,
-        requestedClientId: client_id,
+    if (!currentPost) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    let postOwnerId: string | undefined = currentPost.client?.user_id;
+
+    if (!postOwnerId && currentPost.client_id) {
+      const { data: clientRecord, error: clientError } = await supabase
+        .from('clients')
+        .select('user_id')
+        .eq('id', currentPost.client_id)
+        .single();
+
+      if (clientError) {
+        return handleDatabaseError(
+          clientError,
+          {
+            route: '/api/posts-by-id/[postId]',
+            operation: 'fetch_client_for_post',
+            clientId: currentPost.client_id,
+            additionalData: { postId, tableName },
+          },
+          'Failed to verify post ownership'
+        );
+      }
+
+      postOwnerId = clientRecord?.user_id;
+    }
+
+    if (!postOwnerId || postOwnerId !== user.id) {
+      logger.warn('❌ Forbidden post update attempt', {
+        postId,
+        requestingUserId: user.id,
+        postOwnerId,
       });
-      return ApiErrors.forbidden('Post does not belong to this client');
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (clientIdFromBody && clientIdFromBody !== currentPost.client_id) {
+      logger.warn('❌ Client mismatch in update request', {
+        postId,
+        postClientId: currentPost.client_id,
+        requestedClientId: clientIdFromBody,
+      });
+      return ApiErrors.forbidden('Client mismatch for post update');
     }
 
     // 1. POST STATUS VALIDATION
@@ -327,11 +412,12 @@ export async function PUT(
     );
 
     // Determine which table to update based on where the post was found
-    let tableName = 'posts';
-    if (currentPost.scheduled_date) {
-      tableName = 'calendar_scheduled_posts';
-    } else if (currentPost.project_id && !currentPost.scheduled_date) {
-      tableName = 'calendar_unscheduled_posts';
+    if (tableName === 'posts') {
+      if (currentPost.scheduled_date) {
+        tableName = 'calendar_scheduled_posts';
+      } else if (currentPost.project_id && !currentPost.scheduled_date) {
+        tableName = 'calendar_unscheduled_posts';
+      }
     }
 
     // Update the post in the appropriate table
@@ -339,7 +425,7 @@ export async function PUT(
       .from(tableName)
       .update(updateData)
       .eq('id', postId)
-      .eq('client_id', client_id) // Double-check authorization
+      .eq('client_id', currentPost.client_id) // Double-check authorization
       .select('*')
       .single();
 
@@ -349,7 +435,7 @@ export async function PUT(
         {
           route: '/api/posts-by-id/[postId]',
           operation: 'update_post',
-          clientId: client_id,
+          clientId: currentPost.client_id,
           additionalData: { postId, tableName },
         },
         'Failed to update post'
@@ -546,8 +632,9 @@ export async function DELETE(
     const { params: validatedParams } = validation.data;
     postId = validatedParams!.postId;
 
-    // Create Supabase client with service role for admin access
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const auth = await requirePostOwnership(request, postId);
+    if (auth.error) return auth.error;
+    const supabase = auth.supabase;
 
     // First check if post exists and is not published
     const { data: currentPost, error: fetchError } = await supabase

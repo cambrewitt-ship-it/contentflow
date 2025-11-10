@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { put } from '@vercel/blob';
 import logger from '@/lib/logger';
-
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+import { requireClientOwnership } from '@/lib/authHelpers';
 
 export async function POST(
   request: NextRequest,
@@ -13,6 +9,10 @@ export async function POST(
 ) {
   try {
     const { clientId } = params;
+    const auth = await requireClientOwnership(request, clientId);
+    if (auth.error) return auth.error;
+    const { supabase } = auth;
+
     const { imageData, filename } = await request.json();
 
     if (!imageData) {
@@ -34,48 +34,6 @@ export async function POST(
         { error: 'Client ID is required' },
         { status: 400 }
       );
-    }
-
-    // Check authentication
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({
-        error: 'Authentication required',
-        details: 'User must be logged in to upload client logos'
-      }, { status: 401 });
-    }
-
-    const token = authHeader.split(' ')[1];
-
-    // Create Supabase client with the user's token
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
-    // Get the authenticated user using the token
-    const { data, error: authError } = await supabase.auth.getUser(token);
-    const user = data?.user;
-
-    if (authError || !user) {
-      logger.error('❌ Authentication error:', authError);
-      return NextResponse.json({
-        error: 'Authentication failed',
-        details: 'Invalid or expired authentication token'
-      }, { status: 401 });
-    }
-
-    // Verify the client belongs to the authenticated user
-    const { data: existingClient, error: clientError } = await supabase
-      .from('clients')
-      .select('id, user_id')
-      .eq('id', clientId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (clientError || !existingClient) {
-      logger.error('❌ Client not found or access denied:', clientError);
-      return NextResponse.json({
-        error: 'Access denied',
-        details: 'Client not found or you do not have permission to upload logos for this client'
-      }, { status: 403 });
     }
 
     // Check if BLOB_READ_WRITE_TOKEN is available
@@ -141,54 +99,15 @@ export async function DELETE(
 ) {
   try {
     const { clientId } = params;
+    const auth = await requireClientOwnership(request, clientId);
+    if (auth.error) return auth.error;
+    const { supabase } = auth;
 
     if (!clientId) {
       return NextResponse.json(
         { error: 'Client ID is required' },
         { status: 400 }
       );
-    }
-
-    // Check authentication
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({
-        error: 'Authentication required',
-        details: 'User must be logged in to remove client logos'
-      }, { status: 401 });
-    }
-
-    const token = authHeader.split(' ')[1];
-
-    // Create Supabase client with the user's token
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
-    // Get the authenticated user using the token
-    const { data, error: authError } = await supabase.auth.getUser(token);
-    const user = data?.user;
-
-    if (authError || !user) {
-      logger.error('❌ Authentication error:', authError);
-      return NextResponse.json({
-        error: 'Authentication failed',
-        details: 'Invalid or expired authentication token'
-      }, { status: 401 });
-    }
-
-    // Verify the client belongs to the authenticated user
-    const { data: existingClient, error: clientError } = await supabase
-      .from('clients')
-      .select('id, user_id')
-      .eq('id', clientId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (clientError || !existingClient) {
-      logger.error('❌ Client not found or access denied:', clientError);
-      return NextResponse.json({
-        error: 'Access denied',
-        details: 'Client not found or you do not have permission to remove logos for this client'
-      }, { status: 403 });
     }
 
     // Update the client record to remove the logo URL

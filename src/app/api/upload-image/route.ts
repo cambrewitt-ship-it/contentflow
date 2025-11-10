@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { put } from '@vercel/blob';
 import { base64ToBlob } from '../../../lib/blobUpload';
 import logger from '@/lib/logger';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+import { createSupabaseWithToken } from '@/lib/supabaseServer';
 
 // Allowed image MIME types
 const ALLOWED_MIME_TYPES = [
@@ -34,13 +31,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const token = authHeader.split(' ')[1];
-
-    // Create Supabase client with the user's token
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
-    // Get the authenticated user using the token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const token = authHeader.substring(7);
+    const supabase = createSupabaseWithToken(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
       logger.warn('⚠️ Unauthorized upload attempt - invalid token', { authError });

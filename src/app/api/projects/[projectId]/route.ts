@@ -1,19 +1,45 @@
 import logger from '@/lib/logger';
+import { createSupabaseWithToken } from '@/lib/supabaseServer';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
     const { projectId } = await params;
 
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7);
+    const supabase = createSupabaseWithToken(token);
+
+    const {
+      data: { user },
+      error: userError
+    } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: projectOwnership, error: ownershipError } = await supabase
+      .from('projects')
+      .select('id, client:clients!inner(user_id)')
+      .eq('id', projectId)
+      .single();
+
+    if (ownershipError) {
+      logger.error('Project ownership check failed:', ownershipError);
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!projectOwnership || !projectOwnership.client || projectOwnership.client.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const { data, error } = await supabase
       .from('projects')
@@ -33,10 +59,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
   try {
     const { projectId } = await params;
     const body = await request.json();
@@ -49,20 +72,37 @@ export async function PATCH(
       );
     }
 
-    // Validate environment variables
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      logger.error('❌ Missing environment variables:', {
-        supabaseUrl: !!supabaseUrl,
-        supabaseServiceRoleKey: !!supabaseServiceRoleKey
-      });
-      return NextResponse.json(
-        { success: false, error: 'Database configuration error' },
-        { status: 500 }
-      );
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const token = authHeader.substring(7);
+    const supabase = createSupabaseWithToken(token);
+
+    const {
+      data: { user },
+      error: userError
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: projectOwnership, error: ownershipError } = await supabase
+      .from('projects')
+      .select('id, client:clients!inner(user_id)')
+      .eq('id', projectId)
+      .single();
+
+    if (ownershipError) {
+      logger.error('❌ Project ownership check failed:', ownershipError);
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!projectOwnership || !projectOwnership.client || projectOwnership.client.user_id !== user.id) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
 
     // First, get the current project to merge with existing posts
     const { data: currentProject, error: fetchError } = await supabase

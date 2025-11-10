@@ -2,13 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHmac, randomBytes } from 'crypto';
 import logger from '@/lib/logger';
 
+// Validate CSRF secret exists at startup
+if (!process.env.CSRF_SECRET_KEY) {
+  throw new Error(
+    'CRITICAL: CSRF_SECRET_KEY environment variable is not set. ' +
+    'Generate a random 256-bit secret and configure it in all environments.'
+  );
+}
+
 // CSRF configuration
 const CSRF_CONFIG = {
   TOKEN_LENGTH: 32,
   COOKIE_NAME: 'csrf-token',
   HEADER_NAME: 'x-csrf-token',
   MAX_AGE: 60 * 60 * 1000, // 1 hour
-  SECRET_KEY: process.env.CSRF_SECRET_KEY || 'default-csrf-secret-change-in-production',
+  SECRET_KEY: process.env.CSRF_SECRET_KEY,
 } as const;
 
 // CSRF token interface
@@ -76,35 +84,64 @@ export function verifyCSRFToken(token: string): boolean {
 }
 
 // Extract CSRF token from request
-export function extractCSRFToken(request: NextRequest): string | null {
-  // Try header first (preferred for AJAX requests)
+async function extractCSRFToken(request: Request): Promise<string | null> {
+  // Try header first
   const headerToken = request.headers.get(CSRF_CONFIG.HEADER_NAME);
-  if (headerToken) {
-    return headerToken;
-  }
-  
-  // Try form data
-  const formData = request.formData();
-  if (formData) {
-    const formToken = formData.get('_csrf') as string;
-    if (formToken) {
-      return formToken;
+  if (headerToken) return headerToken;
+
+  // Try body for POST/PUT/PATCH
+  const contentType = request.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    try {
+      const clone = request.clone();
+      const body = await clone.json();
+      return (
+        body?.csrfToken ||
+        body?.[CSRF_CONFIG.HEADER_NAME] ||
+        body?._csrf ||
+        null
+      );
+    } catch {
+      return null;
     }
   }
-  
-  // Try query parameter (less secure, but sometimes necessary)
-  const url = new URL(request.url);
-  const queryToken = url.searchParams.get('_csrf');
-  if (queryToken) {
-    return queryToken;
+
+  if (
+    contentType.includes('multipart/form-data') ||
+    contentType.includes('application/x-www-form-urlencoded')
+  ) {
+    try {
+      const clone = request.clone();
+      const formData = await clone.formData();
+      return (
+        (formData.get(CSRF_CONFIG.HEADER_NAME) as string | null) ||
+        (formData.get('_csrf') as string | null)
+      );
+    } catch {
+      return null;
+    }
   }
-  
+
+  // Try query parameter (fallback)
+  try {
+    const url = new URL(request.url);
+    return (
+      url.searchParams.get(CSRF_CONFIG.HEADER_NAME) ||
+      url.searchParams.get('csrfToken') ||
+      url.searchParams.get('_csrf')
+    );
+  } catch {
+    return null;
+  }
   return null;
 }
 
 // Validate CSRF token from request
-export function validateCSRFToken(request: NextRequest): { isValid: boolean; error?: string } {
-  const token = extractCSRFToken(request);
+export async function validateCSRFToken(
+  request: NextRequest | Request
+): Promise<{ isValid: boolean; error?: string }> {
+  const token = await extractCSRFToken(request);
   
   if (!token) {
     return {
@@ -145,7 +182,9 @@ export function createCSRFTokenResponse(): NextResponse {
 }
 
 // CSRF protection middleware
-export function csrfProtectionMiddleware(request: NextRequest): NextResponse | null {
+export async function csrfProtectionMiddleware(
+  request: NextRequest
+): Promise<NextResponse | null> {
   // Skip CSRF protection for safe methods
   if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
     return null;
@@ -167,7 +206,7 @@ export function csrfProtectionMiddleware(request: NextRequest): NextResponse | n
   }
   
   // Validate CSRF token
-  const validation = validateCSRFToken(request);
+  const validation = await validateCSRFToken(request);
   
   if (!validation.isValid) {
     logger.warn('CSRF protection blocked request:', {
@@ -191,6 +230,7 @@ export function csrfProtectionMiddleware(request: NextRequest): NextResponse | n
 
 // Helper function to add CSRF token to form data
 export function addCSRFTokenToFormData(formData: FormData, token: string): FormData {
+  formData.set(CSRF_CONFIG.HEADER_NAME, token);
   formData.set('_csrf', token);
   return formData;
 }
@@ -244,9 +284,11 @@ export function validateOriginAndReferer(request: NextRequest): boolean {
 }
 
 // Enhanced CSRF protection with Origin/Referer validation
-export function enhancedCSRFProtection(request: NextRequest): NextResponse | null {
+export async function enhancedCSRFProtection(
+  request: NextRequest
+): Promise<NextResponse | null> {
   // First check basic CSRF protection
-  const csrfResponse = csrfProtectionMiddleware(request);
+  const csrfResponse = await csrfProtectionMiddleware(request);
   if (csrfResponse) {
     return csrfResponse;
   }

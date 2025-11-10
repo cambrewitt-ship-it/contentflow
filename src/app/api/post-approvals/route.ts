@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_SUPABASE_SERVICE_ROLE!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+import { requireAuth } from '@/lib/authHelpers';
 
 // Create or update post approval
 export async function POST(request: NextRequest) {
@@ -53,10 +47,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { supabase, user } = auth;
+
     // Check if session exists and is not expired
     const { data: session, error: sessionError } = await supabase
       .from('client_approval_sessions')
-      .select('*')
+      .select('id, client_id, expires_at')
       .eq('id', session_id)
       .single();
 
@@ -64,6 +62,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Session not found' },
         { status: 404 }
+      );
+    }
+
+    const { data: clientCheck, error: clientError } = await supabase
+      .from('clients')
+      .select('id, user_id')
+      .eq('id', session.client_id)
+      .single();
+
+    if (clientError) {
+      logger.error('❌ Error verifying client ownership for post approvals:', clientError);
+      if (clientError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Forbidden' },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Failed to verify client ownership' },
+        { status: 500 }
+      );
+    }
+
+    if (!clientCheck || clientCheck.user_id !== user.id) {
+      logger.warn('Forbidden post approval update attempt', {
+        session_id,
+        post_id,
+        userId: user.id,
+        sessionClientId: session.client_id
+      });
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
       );
     }
 
@@ -75,10 +106,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
+    const { data: postRecord, error: postError } = await supabase
+      .from(tableName)
+      .select('id, client_id')
+      .eq('id', post_id)
+      .single();
+
+    if (postError && postError.code !== 'PGRST116') {
+      logger.error('❌ Error verifying post ownership:', postError);
+      return NextResponse.json(
+        { error: 'Failed to verify post ownership' },
+        { status: 500 }
+      );
+    }
+
+    if (!postRecord) {
+      return NextResponse.json(
+        { error: 'Post not found' },
+        { status: 404 }
+      );
+    }
+
+    if (postRecord.client_id !== session.client_id) {
+      logger.warn('Forbidden post approval modification due to client mismatch', {
+        session_id,
+        post_id,
+        sessionClientId: session.client_id,
+        postClientId: postRecord.client_id,
+        userId: user.id
+      });
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      );
+    }
+
     // Update post caption if client edited it
     if (edited_caption && edited_caption.trim() !== '') {
-      const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
-
       const { error: captionUpdateError } = await supabase
         .from(tableName)
         .update({ 
@@ -97,8 +162,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Also update the post status in the same table
-    const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
-
     const statusUpdate: any = {
       approval_status,
       updated_at: new Date().toISOString(),
@@ -112,7 +175,7 @@ export async function POST(request: NextRequest) {
       statusUpdate.client_feedback = client_comments || null; // Still save comments even for approved/rejected
     }
 
-    const { data: updateResult, error: statusUpdateError } = await supabase
+    const { error: statusUpdateError } = await supabase
       .from(tableName)
       .update(statusUpdate)
       .eq('id', post_id)
@@ -134,6 +197,14 @@ export async function POST(request: NextRequest) {
       .eq('post_id', post_id)
       .eq('post_type', post_type)
       .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      logger.error('❌ Error checking existing approval:', checkError);
+      return NextResponse.json(
+        { error: 'Failed to check existing approval' },
+        { status: 500 }
+      );
+    }
 
     let approval;
     if (existingApproval) {
@@ -209,6 +280,64 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'session_id is required' },
         { status: 400 }
+      );
+    }
+
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { supabase } = auth;
+
+    const { data: session, error: sessionError } = await supabase
+      .from('client_approval_sessions')
+      .select('id, client_id')
+      .eq('id', session_id)
+      .single();
+
+    if (sessionError) {
+      logger.error('❌ Error verifying approval session:', sessionError);
+      if (sessionError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Session not found' },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Failed to verify session' },
+        { status: 500 }
+      );
+    }
+
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Session not found' },
+        { status: 404 }
+      );
+    }
+
+    const { data: clientCheck, error: clientError } = await supabase
+      .from('clients')
+      .select('id, user_id')
+      .eq('id', session.client_id)
+      .single();
+
+    if (clientError) {
+      logger.error('❌ Error verifying client ownership for post approvals GET:', clientError);
+      if (clientError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Forbidden' },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Failed to verify client ownership' },
+        { status: 500 }
+      );
+    }
+
+    if (!clientCheck || clientCheck.user_id !== auth.user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
       );
     }
 

@@ -1,90 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
+import { requireClientOwnership } from '@/lib/authHelpers';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 const lateApiKey = process.env.LATE_API_KEY!;
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://contentflow-v2.vercel.app';
-
-// Function to fetch existing LATE profile by name
-async function fetchExistingLateProfile(profileName: string) {
-  try {
-    const response = await fetch('https://getlate.dev/api/v1/profiles', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${lateApiKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json();
-
-    // Look for a profile with matching name
-    const existingProfile = data.profiles?.find((profile: any) => 
-      profile.name === profileName || profile.name?.toLowerCase() === profileName.toLowerCase()
-    );
-
-    if (existingProfile) {
-      return existingProfile._id || existingProfile.id;
-    }
-
-    return null;
-  } catch (error) {
-    logger.error('❌ Error fetching existing LATE profile:', error);
-    return null;
-  }
-}
 
 // Function to create LATE profile for existing client
-async function createLateProfileForExistingClient(client: { id: string; name: string }) {
-  try {
-    // Fetch full client data to get brand information
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    const { data: fullClient, error: clientError } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('id', client.id)
-      .single();
-      
-    if (clientError || !fullClient) {
-      throw new Error(`Failed to fetch client data: ${clientError?.message || 'Client not found'}`);
-    }
+interface ClientBrandDetails {
+  id: string;
+  name: string;
+  late_profile_id?: string | null;
+  company_description?: string | null;
+  value_proposition?: string | null;
+  target_audience?: string | null;
+  brand_tone?: string | null;
+  website_url?: string | null;
+}
 
+async function createLateProfileForExistingClient(client: ClientBrandDetails) {
+  try {
     // Build a comprehensive description using brand information
-    let description = `Social media profile for ${fullClient.name}`;
+    let description = `Social media profile for ${client.name}`;
     
-    if (fullClient.company_description) {
-      description += `\n\nAbout: ${fullClient.company_description}`;
+    if (client.company_description) {
+      description += `\n\nAbout: ${client.company_description}`;
     }
     
-    if (fullClient.value_proposition) {
-      description += `\n\nValue Proposition: ${fullClient.value_proposition}`;
+    if (client.value_proposition) {
+      description += `\n\nValue Proposition: ${client.value_proposition}`;
     }
     
-    if (fullClient.target_audience) {
-      description += `\n\nTarget Audience: ${fullClient.target_audience}`;
+    if (client.target_audience) {
+      description += `\n\nTarget Audience: ${client.target_audience}`;
     }
     
-    if (fullClient.brand_tone) {
-      description += `\n\nBrand Tone: ${fullClient.brand_tone}`;
+    if (client.brand_tone) {
+      description += `\n\nBrand Tone: ${client.brand_tone}`;
     }
     
-    if (fullClient.website_url) {
-      description += `\n\nWebsite: ${fullClient.website_url}`;
+    if (client.website_url) {
+      description += `\n\nWebsite: ${client.website_url}`;
     }
 
     const requestBody = {
-      name: fullClient.name,
+      name: client.name,
       description: description,
       color: "#4ade80" // Default green color
     };
     
-    logger.debug('Creating LATE profile', { clientName: fullClient.name });
+    logger.debug('Creating LATE profile', { clientName: client.name });
 
     const response = await fetch('https://getlate.dev/api/v1/profiles', {
       method: 'POST',
@@ -144,6 +107,10 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
+    const auth = await requireClientOwnership(req, clientId);
+    if (auth.error) return auth.error;
+    const { supabase } = auth;
+
     // Check environment variables
     if (!lateApiKey) {
       return NextResponse.json({ 
@@ -152,13 +119,10 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
     // Fetch client data to get late_profile_id
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('id, name, late_profile_id')
+      .select('id, name, late_profile_id, company_description, value_proposition, target_audience, brand_tone, website_url')
       .eq('id', clientId)
       .single();
 
@@ -214,7 +178,10 @@ export async function POST(req: NextRequest) {
     const getAppUrl = (req: NextRequest): string => {
       const envUrl = process.env.NEXT_PUBLIC_APP_URL;
       const host = req.headers.get('host');
-      const protocol = req.headers.get('x-forwarded-proto') || 'https';
+      const protocol =
+        host && host.includes('localhost')
+          ? 'http'
+          : req.headers.get('x-forwarded-proto') || 'https';
       
       logger.debug('URL detection', {
         hasEnvUrl: !!envUrl,
@@ -226,14 +193,14 @@ export async function POST(req: NextRequest) {
       // PRIORITY 1: Check for localhost FIRST (before checking env URL)
       // This prevents production URL from overriding localhost development
       if (host && host.includes('localhost')) {
-        const localhostUrl = `http://${host}`;
+        const localhostUrl = `${protocol}://${host}`;
         logger.debug('Using localhost URL', { localhostUrl });
         return localhostUrl;
       }
       
       // PRIORITY 2: Check if host is vercel
       if (host && (host.includes('vercel.app') || host.includes('contentflow'))) {
-        const vercelUrl = `https://${host}`;
+        const vercelUrl = `${protocol}://${host}`;
         logger.debug('Using Vercel host URL', { vercelUrl });
         return vercelUrl;
       }

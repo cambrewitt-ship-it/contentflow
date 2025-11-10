@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
 import { checkSocialMediaPostingPermission } from '@/lib/subscriptionMiddleware';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_SUPABASE_SERVICE_ROLE!
-);
+import { requireClientOwnership } from '@/lib/authHelpers';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,36 +20,6 @@ export async function POST(request: NextRequest) {
       bodyKeys: Object.keys(body) 
     });
 
-    // Check for required fields
-    if (
-      !body.postId ||
-      body.caption === undefined ||
-      body.caption === null ||
-      !body.lateMediaUrl
-    ) {
-      logger.error('Missing required fields:', {
-        postId: body.postId,
-        caption: body.caption,
-        captionType: typeof body.caption,
-        lateMediaUrl: !!body.lateMediaUrl
-      });
-      logger.error('lateMediaUrl value:', body.lateMediaUrl);
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
-
-    // Validate caption content - reject empty captions
-    if (!body.caption || body.caption.trim() === '') {
-      logger.error('Empty caption rejected:', {
-        caption: body.caption,
-        captionType: typeof body.caption,
-        captionLength: body.caption?.length
-      });
-      return NextResponse.json(
-        { error: 'Caption/content is required for social media posts' },
-        { status: 400 }
-      );
-    }
-    
     const { 
       postId, 
       caption, 
@@ -64,9 +29,86 @@ export async function POST(request: NextRequest) {
       clientId 
     } = body;
 
+    // Check for required fields
+    if (
+      !postId ||
+      caption === undefined ||
+      caption === null ||
+      !lateMediaUrl
+    ) {
+      logger.error('Missing required fields:', {
+        postId,
+        caption,
+        captionType: typeof caption,
+        lateMediaUrl: !!lateMediaUrl
+      });
+      logger.error('lateMediaUrl value:', lateMediaUrl);
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    if (!clientId) {
+      return NextResponse.json(
+        { error: 'Missing required fields', details: 'clientId is required' },
+        { status: 400 }
+      );
+    }
+
+    const auth = await requireClientOwnership(request, clientId);
+    if (auth.error) return auth.error;
+    const { supabase } = auth;
+
+    // Validate caption content - reject empty captions
+    if (!caption || caption.trim() === '') {
+      logger.error('Empty caption rejected:', {
+        caption,
+        captionType: typeof caption,
+        captionLength: caption?.length
+      });
+      return NextResponse.json(
+        { error: 'Caption/content is required for social media posts' },
+        { status: 400 }
+      );
+    }
+    
     logger.debug('Selected accounts', {
       accountCount: Array.isArray(selectedAccounts) ? selectedAccounts.length : 0
     });
+
+    if (!Array.isArray(selectedAccounts) || selectedAccounts.length === 0) {
+      logger.error('No selected accounts provided');
+      return NextResponse.json(
+        { error: 'At least one social account must be selected' },
+        { status: 400 }
+      );
+    }
+
+    const { data: scheduledPost, error: scheduledPostError } = await supabase
+      .from('calendar_scheduled_posts')
+      .select('id, client_id')
+      .eq('id', postId)
+      .single();
+
+    if (scheduledPostError && scheduledPostError.code !== 'PGRST116') {
+      logger.error('Error verifying scheduled post ownership:', scheduledPostError);
+      return NextResponse.json(
+        { error: 'Failed to verify scheduled post ownership' },
+        { status: 500 }
+      );
+    }
+
+    if (!scheduledPost) {
+      return NextResponse.json(
+        { error: 'Scheduled post not found' },
+        { status: 404 }
+      );
+    }
+
+    if (scheduledPost.client_id !== clientId) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      );
+    }
 
     const platforms = selectedAccounts.map((account: { platform: string; _id: string }) => ({
       platform: account.platform,

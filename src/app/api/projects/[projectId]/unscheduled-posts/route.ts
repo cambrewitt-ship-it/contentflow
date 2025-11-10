@@ -1,9 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
+import { createSupabaseWithToken } from '@/lib/supabaseServer';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+async function getAuthorizedProjectContext(request: Request, projectId: string) {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+  }
+
+  const token = authHeader.substring(7);
+  const supabase = createSupabaseWithToken(token);
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+  }
+
+  const { data: project, error: projectError } = await supabase
+    .from('projects')
+    .select('id, client:clients!inner(user_id)')
+    .eq('id', projectId)
+    .single();
+
+  if (projectError) {
+    logger.error('Project ownership check failed:', projectError);
+    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
+  }
+
+  if (!project || !project.client || project.client.user_id !== user.id) {
+    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
+  }
+
+  return { supabase, user };
+}
 
 // GET - Fetch all unscheduled posts for a project
 export async function GET(
@@ -13,7 +46,12 @@ export async function GET(
   try {
     const { projectId } = await params;
 
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const authContext = await getAuthorizedProjectContext(request, projectId);
+    if ('error' in authContext) {
+      return authContext.error;
+    }
+
+    const { supabase } = authContext;
     
     const { data, error } = await supabase
       .from('calendar_unscheduled_posts')
@@ -42,7 +80,12 @@ export async function POST(
     const { projectId } = await params;
     const body = await request.json();
 
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const authContext = await getAuthorizedProjectContext(request, projectId);
+    if ('error' in authContext) {
+      return authContext.error;
+    }
+
+    const { supabase } = authContext;
     
     // Ensure image_url field is included in the post data
     const postData = {

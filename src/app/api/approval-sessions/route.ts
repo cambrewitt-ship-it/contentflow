@@ -1,35 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
-// Temporary inline types to resolve import issue
-interface ClientApprovalSession {
-  id: string;
-  project_id: string;
-  client_id: string;
-  share_token: string;
-  expires_at: string;
-  created_at: string;
-  updated_at: string;
-}
-
+import { requireAuth, requireClientOwnership } from '@/lib/authHelpers';
 interface CreateSessionRequest {
   project_id: string;
   client_id: string;
   expires_in_days?: number;
   selected_post_ids?: string[];
 }
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_SUPABASE_SERVICE_ROLE!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
-
 // Create new approval session
 export async function POST(request: NextRequest) {
   try {
     const body: CreateSessionRequest = await request.json();
     const { project_id, client_id, expires_in_days = 30, selected_post_ids = [] } = body;
+
+    if (!project_id || !client_id) {
+      return NextResponse.json(
+        { error: 'project_id and client_id are required' },
+        { status: 400 }
+      );
+    }
+
+    const clientAuth = await requireClientOwnership(request, client_id);
+    if (clientAuth.error) return clientAuth.error;
+    const { supabase, user } = clientAuth;
+
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id, client_id')
+      .eq('id', project_id)
+      .single();
+
+    if (projectError) {
+      logger.error('❌ Error verifying project ownership:', projectError);
+      if (projectError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Project not found' },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Failed to verify project ownership' },
+        { status: 500 }
+      );
+    }
+
+    if (!project || project.client_id !== client_id) {
+      logger.warn('Forbidden approval session creation attempt', {
+        project_id,
+        client_id,
+        userId: user.id
+      });
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      );
+    }
 
     // Generate unique share token
     const share_token = crypto.randomUUID();
@@ -148,6 +173,69 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'project_id is required' },
         { status: 400 }
+      );
+    }
+
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { supabase, user } = auth;
+
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id, client_id')
+      .eq('id', project_id)
+      .single();
+
+    if (projectError) {
+      logger.error('❌ Error verifying project access:', projectError);
+      if (projectError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Project not found' },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Failed to verify project access' },
+        { status: 500 }
+      );
+    }
+
+    if (!project) {
+      return NextResponse.json(
+        { error: 'Project not found' },
+        { status: 404 }
+      );
+    }
+
+    const { data: clientCheck, error: clientError } = await supabase
+      .from('clients')
+      .select('id, user_id')
+      .eq('id', project.client_id)
+      .single();
+
+    if (clientError) {
+      logger.error('❌ Error verifying client ownership for approval sessions:', clientError);
+      if (clientError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Forbidden' },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json(
+        { error: 'Failed to verify client ownership' },
+        { status: 500 }
+      );
+    }
+
+    if (!clientCheck || clientCheck.user_id !== user.id) {
+      logger.warn('Unauthorized approval session fetch attempt', {
+        project_id,
+        clientId: project.client_id,
+        userId: user.id
+      });
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
       );
     }
 

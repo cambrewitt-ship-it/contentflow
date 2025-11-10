@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+import { requireClientOwnership } from '@/lib/authHelpers';
 
 // Helper function to check if projects table exists
 async function checkProjectsTableExists(supabase: SupabaseClient) {
@@ -71,22 +69,9 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Check environment variables
-    logger.debug('Environment variables check', {
-      hasSupabaseUrl: !!supabaseUrl,
-      hasServiceRoleKey: !!supabaseServiceRoleKey
-    });
-
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      logger.error('=== ENVIRONMENT ERROR ===');
-      logger.error('Missing Supabase environment variables');
-      return NextResponse.json({
-        success: false,
-        error: 'Configuration error: Missing Supabase environment variables'
-      });
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const auth = await requireClientOwnership(req, client_id);
+    if (auth.error) return auth.error;
+    const supabase = auth.supabase;
 
     // Test table access first
 
@@ -203,22 +188,9 @@ export async function GET(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Check environment variables
-    logger.debug('Environment variables check', {
-      hasSupabaseUrl: !!supabaseUrl,
-      hasServiceRoleKey: !!supabaseServiceRoleKey
-    });
-
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      logger.error('=== ENVIRONMENT ERROR ===');
-      logger.error('Missing Supabase environment variables');
-      return NextResponse.json({
-        success: false,
-        error: 'Configuration error: Missing Supabase environment variables'
-      });
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const auth = await requireClientOwnership(req, clientId);
+    if (auth.error) return auth.error;
+    const supabase = auth.supabase;
 
     // Test table access first
 

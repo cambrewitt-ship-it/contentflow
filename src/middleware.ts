@@ -12,7 +12,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Apply CSRF protection to API routes
-  const csrfResponse = enhancedCSRFProtection(req);
+  const csrfResponse = await enhancedCSRFProtection(req);
   if (csrfResponse) {
     return csrfResponse;
   }

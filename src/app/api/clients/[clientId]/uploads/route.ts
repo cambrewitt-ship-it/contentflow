@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_SUPABASE_SERVICE_ROLE!
-);
+import { requireClientOwnership } from '@/lib/authHelpers';
 
 export async function GET(
   request: NextRequest,
@@ -13,6 +8,9 @@ export async function GET(
 ) {
   try {
     const { clientId } = await params;
+    const auth = await requireClientOwnership(request, clientId);
+    if (auth.error) return auth.error;
+    const { supabase } = auth;
 
     if (!clientId) {
       return NextResponse.json(

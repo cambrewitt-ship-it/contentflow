@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { isValidImageData, isValidMediaData } from '../../../lib/blobUpload';
 import { getUpcomingHolidays } from '../../../lib/data/holidays';
 import { handleApiError } from '../../../lib/apiErrorHandler';
@@ -8,15 +8,12 @@ import { validateApiRequest } from '../../../lib/validationMiddleware';
 import { aiRequestSchema } from '../../../lib/validators';
 import { withAICreditCheck, trackAICreditUsage } from '../../../lib/subscriptionMiddleware';
 import logger from '@/lib/logger';
+import { requireClientOwnership } from '@/lib/authHelpers';
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120; // 2 minutes max execution time (needed for AI processing)
 export const runtime = 'nodejs'; // Use Node.js runtime for better performance
-
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 function getCopyToneInstructions(copyTone: string) {
   const toneMap: Record<string, string> = {
@@ -211,10 +208,8 @@ function getContentHierarchy(aiContext: string | undefined, postNotesStyle: stri
 }
 
 // Fetch brand context for a client
-async function getBrandContext(clientId: string) {
+async function getBrandContext(supabase: SupabaseClient, clientId: string) {
   try {
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
     // Get client brand information
     const { data: client, error: clientError } = await supabase
       .from('clients')
@@ -276,6 +271,27 @@ async function getBrandContext(clientId: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    let clientId: string | undefined;
+    try {
+      const preliminaryBody = await request.clone().json();
+      clientId =
+        typeof preliminaryBody?.clientId === 'string'
+          ? preliminaryBody.clientId
+          : typeof preliminaryBody?.client_id === 'string'
+            ? preliminaryBody.client_id
+            : undefined;
+    } catch {
+      clientId = undefined;
+    }
+
+    if (!clientId) {
+      return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
+    }
+
+    const auth = await requireClientOwnership(request, clientId);
+    if (auth.error) return auth.error;
+    let supabase = auth.supabase;
+
     // Check content length before processing
     const contentLength = request.headers.get('content-length');
     if (contentLength) {
@@ -328,6 +344,24 @@ export async function POST(request: NextRequest) {
     }
 
     const body = validation.data.body!;
+    const validatedClientId =
+      typeof body.clientId === 'string'
+        ? body.clientId
+        : typeof body.client_id === 'string'
+          ? (body.client_id as string)
+          : clientId;
+
+    if (!validatedClientId) {
+      return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
+    }
+
+    clientId = validatedClientId;
+
+    if (validatedClientId !== auth.client.id) {
+      const ownership = await requireClientOwnership(request, validatedClientId);
+      if (ownership.error) return ownership.error;
+      supabase = ownership.supabase;
+    }
 
     try {
       const { imageData: _img, ...debugBody } = body as Record<string, unknown>;
@@ -357,10 +391,11 @@ export async function POST(request: NextRequest) {
       case 'generate_captions':
         result = await generateCaptions(
           openai,
+          supabase,
           body.imageData as string,
           body.existingCaptions as string[] | undefined,
           (body.aiContext ?? (body as Record<string, unknown>).postNotes) as string | undefined,
-          body.clientId as string | undefined,
+          (body.clientId as string | undefined) ?? clientId,
           body.copyType as 'social-media' | 'email-marketing' | undefined,
           body.copyTone as 'promotional' | 'educational' | 'personal' | 'testimonial' | 'engagement' | undefined,
           body.postNotesStyle as 'quote-directly' | 'paraphrase' | 'use-as-inspiration' | undefined,
@@ -371,16 +406,17 @@ export async function POST(request: NextRequest) {
       case 'remix_caption':
         result = await remixCaption(
           openai,
+          supabase,
           body.imageData as string,
           body.prompt as string,
           body.existingCaptions as string[] | undefined,
           body.aiContext as string | undefined,
-          body.clientId as string | undefined
+          (body.clientId as string | undefined) ?? clientId
         );
         break;
 
       case 'generate_content_ideas':
-        result = await generateContentIdeas(openai, body.clientId as string, userId);
+        result = await generateContentIdeas(openai, supabase, clientId, userId);
         break;
 
       default:
@@ -481,6 +517,7 @@ async function analyzeImage(openai: OpenAI, imageData: string, prompt?: string) 
 
 async function generateCaptions(
   openai: OpenAI,
+  supabase: SupabaseClient,
   imageData: string,
   existingCaptions: string[] = [],
   aiContext?: string,
@@ -510,7 +547,7 @@ async function generateCaptions(
 
     let brandContext: Awaited<ReturnType<typeof getBrandContext>> | null = null;
     if (clientId) {
-      brandContext = await getBrandContext(clientId);
+      brandContext = await getBrandContext(supabase, clientId);
     }
 
     let brandContextSection = '';
@@ -797,6 +834,7 @@ ${finalInstruction}`;
 
 async function remixCaption(
   openai: OpenAI,
+  supabase: SupabaseClient,
   imageData: string,
   prompt: string,
   existingCaptions: string[] = [],
@@ -811,7 +849,7 @@ async function remixCaption(
 
     let brandContext: Awaited<ReturnType<typeof getBrandContext>> | null = null;
     if (clientId) {
-      brandContext = await getBrandContext(clientId);
+      brandContext = await getBrandContext(supabase, clientId);
     }
 
     let systemPrompt = 'You are a creative social media copywriter specializing in brand-aware content creation. The user wants you to create a fresh variation of an existing caption.\n\n';
@@ -918,7 +956,7 @@ async function remixCaption(
 
 // ... [generateCaptions and remixCaption REMAIN THE SAME, omitted for brevity in this reply]
 
-async function generateContentIdeas(openai: OpenAI, clientId: string, userId: string) {
+async function generateContentIdeas(openai: OpenAI, supabase: SupabaseClient, clientId: string, userId: string) {
   try {
     if (!clientId) {
       return NextResponse.json(
@@ -927,7 +965,7 @@ async function generateContentIdeas(openai: OpenAI, clientId: string, userId: st
       );
     }
 
-    const brandContext = await getBrandContext(clientId);
+    const brandContext = await getBrandContext(supabase, clientId);
     if (!brandContext) {
       return NextResponse.json(
         { error: 'Could not fetch client brand context' },
