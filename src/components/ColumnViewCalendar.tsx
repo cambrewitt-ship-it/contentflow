@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Calendar, Clock, Plus } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Calendar, Clock, Plus, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -480,9 +480,24 @@ export function ColumnViewCalendar({
   formatTimeTo12Hour,
   projects
 }: ColumnViewCalendarProps) {
+  const VISIBLE_WEEK_COUNT = 3;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
-  const [columns, setColumns] = useState<Array<{weekStart: Date; dayRows: DayRow[]}>>([]);
+  const [startWeek, setStartWeek] = useState<Date | null>(() => {
+    if (weeks.length > 0) {
+      const initialWeek = new Date(weeks[0]);
+      initialWeek.setHours(0, 0, 0, 0);
+      return initialWeek;
+    }
+    const today = new Date();
+    const currentWeekStart = new Date(today);
+    const dayOfWeek = currentWeekStart.getDay();
+    const diff = currentWeekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    currentWeekStart.setDate(diff);
+    currentWeekStart.setHours(0, 0, 0, 0);
+    return currentWeekStart;
+  });
+  const hasInitializedStartWeek = useRef(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -501,39 +516,56 @@ export function ColumnViewCalendar({
     return date.getDate();
   };
 
-  // Initialize columns with day rows
+  // Initialize start week from provided weeks once
   useEffect(() => {
-    const weekColumns = weeks.map((weekStart) => {
+    if (!hasInitializedStartWeek.current && weeks.length > 0) {
+      const firstWeek = new Date(weeks[0]);
+      firstWeek.setHours(0, 0, 0, 0);
+      setStartWeek(firstWeek);
+      hasInitializedStartWeek.current = true;
+    }
+  }, [weeks]);
+
+  const columns = useMemo(() => {
+    if (!startWeek) {
+      return [];
+    }
+
+    const weekColumns: Array<{weekStart: Date; dayRows: DayRow[]}> = [];
+
+    for (let weekIndex = 0; weekIndex < VISIBLE_WEEK_COUNT; weekIndex++) {
+      const weekStartDate = new Date(startWeek);
+      weekStartDate.setDate(startWeek.getDate() + weekIndex * 7);
+
       const dayRows: DayRow[] = [];
-      
-      // Create 7 day rows (Mon-Sun)
-      for (let i = 0; i < 7; i++) {
-        const dayDate = new Date(weekStart);
-        dayDate.setDate(weekStart.getDate() + i);
-        
-        const dateKey = dayDate.toLocaleDateString('en-CA'); // YYYY-MM-DD format
+
+      for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+        const dayDate = new Date(weekStartDate);
+        dayDate.setDate(weekStartDate.getDate() + dayIndex);
+
+        const dateKey = dayDate.toLocaleDateString('en-CA');
         const postsForDay = (scheduledPosts[dateKey] || []).map(post => ({
           ...post,
           post_type: post.post_type || 'post',
-          scheduled_date: post.scheduled_date || dateKey
+          scheduled_date: post.scheduled_date || dateKey,
         }));
-        
+
         dayRows.push({
           dayName: getDayName(dayDate),
-          dayDate: dayDate,
-          dateKey: dateKey,
+          dayDate,
+          dateKey,
           posts: postsForDay,
         });
       }
-      
-      return {
-        weekStart: weekStart,
-        dayRows: dayRows,
-      };
-    });
-    
-    setColumns(weekColumns);
-  }, [weeks, scheduledPosts]);
+
+      weekColumns.push({
+        weekStart: weekStartDate,
+        dayRows,
+      });
+    }
+
+    return weekColumns;
+  }, [startWeek, scheduledPosts]);
 
   const handleDragStart = (event: DragStartEvent) => {
     console.log('🔵 ColumnView DragStart:', event.active.id);
@@ -675,6 +707,16 @@ export function ColumnViewCalendar({
     );
   }
 
+  const handleNavigate = (direction: 'left' | 'right') => {
+    setStartWeek((prev) => {
+      const base = prev ? new Date(prev) : new Date();
+      const deltaDays = direction === 'left' ? -7 : 7;
+      base.setDate(base.getDate() + deltaDays);
+      base.setHours(0, 0, 0, 0);
+      return base;
+    });
+  };
+
   return (
     <DndContext
       sensors={sensors}
@@ -683,56 +725,81 @@ export function ColumnViewCalendar({
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4 px-2 min-h-screen">
-        {columns.map((column, columnIndex) => {
-          const isCurrent = isCurrentWeek(column.weekStart);
-          
-          return (
-            <div
-              key={columnIndex}
-              className={`flex-shrink-0 w-80 rounded-lg border-2 border-transparent p-4 transition-all duration-200`}
-            >
-              {/* Column Header */}
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-300">
-                <div className="flex items-center gap-2">
-                  <Calendar className={`w-4 h-4 ${isCurrent ? 'text-blue-600' : 'text-gray-600'}`} />
-                  <h3 className={`font-semibold text-sm uppercase tracking-wide ${
-                    isCurrent ? 'text-blue-800' : 'text-gray-800'
-                  }`}>
-                    {formatWeekCommencing(column.weekStart)}
-                    {isCurrent && ' (Current)'}
-                  </h3>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => handleNavigate('left')}
+          className="absolute top-2 left-4 z-10 flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white text-gray-600 shadow-md transition hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          aria-label="Scroll to previous weeks"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => handleNavigate('right')}
+          className="absolute top-2 right-4 z-10 flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white text-gray-600 shadow-md transition hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          aria-label="Scroll to next weeks"
+        >
+          <ArrowRight className="h-5 w-5" />
+        </button>
+        <div
+          className="flex gap-4 overflow-x-hidden pb-4 px-2 pt-14 min-h-screen"
+        >
+          {columns.map((column) => {
+            const isCurrent = isCurrentWeek(column.weekStart);
+            
+            return (
+              <div
+                key={column.weekStart.toISOString()}
+                data-week-column
+                className={`flex-shrink-0 w-80 rounded-lg border-2 p-4 transition-all duration-200 ${
+                  isCurrent
+                    ? 'border-blue-400 bg-blue-50 shadow-md'
+                    : 'border-transparent'
+                }`}
+              >
+                {/* Column Header */}
+                <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-300">
+                  <div className="flex items-center gap-2">
+                    <Calendar className={`w-4 h-4 ${isCurrent ? 'text-blue-600' : 'text-gray-600'}`} />
+                    <h3 className={`font-semibold text-sm uppercase tracking-wide ${
+                      isCurrent ? 'text-blue-800' : 'text-gray-800'
+                    }`}>
+                      {formatWeekCommencing(column.weekStart)}
+                      {isCurrent && ' (CURRENT)'}
+                    </h3>
+                  </div>
+                </div>
+
+                {/* Day Rows */}
+                <div className="space-y-3">
+                  {column.dayRows.map((dayRow) => {
+                    const isTodayDay = isToday(dayRow.dayDate);
+                    const isDragOver = dragOverDay === dayRow.dateKey;
+                    
+                    return (
+                      <DroppableDayRow
+                        key={dayRow.dateKey}
+                        dayRow={dayRow}
+                        isTodayDay={isTodayDay}
+                        isDragOver={isDragOver}
+                        getDayNumber={getDayNumber}
+                        onNativeDrop={onDrop}
+                        clientId={clientId}
+                        handleEditScheduledPost={handleEditScheduledPost}
+                        editingPostId={editingPostId}
+                        setEditingPostId={setEditingPostId}
+                        editingTimePostIds={editingTimePostIds}
+                        formatTimeTo12Hour={formatTimeTo12Hour}
+                        projects={projects}
+                      />
+                    );
+                  })}
                 </div>
               </div>
-
-              {/* Day Rows */}
-              <div className="space-y-3">
-                {column.dayRows.map((dayRow) => {
-                  const isTodayDay = isToday(dayRow.dayDate);
-                  const isDragOver = dragOverDay === dayRow.dateKey;
-                  
-                  return (
-                    <DroppableDayRow
-                      key={dayRow.dateKey}
-                      dayRow={dayRow}
-                      isTodayDay={isTodayDay}
-                      isDragOver={isDragOver}
-                      getDayNumber={getDayNumber}
-                      onNativeDrop={onDrop}
-                      clientId={clientId}
-                      handleEditScheduledPost={handleEditScheduledPost}
-                      editingPostId={editingPostId}
-                      setEditingPostId={setEditingPostId}
-                      editingTimePostIds={editingTimePostIds}
-                      formatTimeTo12Hour={formatTimeTo12Hour}
-                      projects={projects}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       <DragOverlay>

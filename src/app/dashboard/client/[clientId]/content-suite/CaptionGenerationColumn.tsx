@@ -453,7 +453,7 @@ export function CaptionGenerationColumn() {
       </Card>
 
       <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl bg-white">
           <DialogHeader>
             <DialogTitle>AI Caption Rules</DialogTitle>
             <DialogDescription>
