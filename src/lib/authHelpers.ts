@@ -1,4 +1,4 @@
-import { createSupabaseWithToken } from './supabase-server';
+import { createSupabaseWithToken } from './supabaseServer';
 import { NextResponse } from 'next/server';
 
 export async function requireAuth(request: Request) {
@@ -29,7 +29,7 @@ export async function requireClientOwnership(request: Request, clientId: string)
     .from('clients')
     .select('id, user_id')
     .eq('id', clientId)
-    .single();
+    .maybeSingle();
 
   if (error || !client || client.user_id !== auth.user.id) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
@@ -44,11 +44,19 @@ export async function requireProjectOwnership(request: Request, projectId: strin
 
   const { data: project, error } = await auth.supabase
     .from('projects')
-    .select('id, client:clients!inner(user_id)')
+    // Ensure we get ONLY ONE project, and clients relationship returns a single object or an array (handle both cases)
+    .select('id, clients(id, user_id)')
     .eq('id', projectId)
-    .single();
+    .maybeSingle();
 
-  if (error || !project || project.client.user_id !== auth.user.id) {
+  // Defensive: clients may be an array or null or undefined
+  let clientUserId: string | undefined;
+  if (project && Array.isArray(project.clients) && project.clients.length > 0) {
+    // clients is an array of client objects
+    clientUserId = project.clients[0].user_id;
+  } 
+
+  if (error || !project || clientUserId !== auth.user.id) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
 
@@ -61,14 +69,18 @@ export async function requirePostOwnership(request: Request, postId: string) {
 
   const { data: post, error } = await auth.supabase
     .from('posts')
-    .select('id, client:clients!inner(user_id)')
+    .select('id, clients(id, user_id)')
     .eq('id', postId)
-    .single();
+    .maybeSingle();
 
-  if (error || !post || post.client.user_id !== auth.user.id) {
+  let clientUserId: string | undefined;
+  if (post && Array.isArray(post.clients) && post.clients.length > 0) {
+    clientUserId = post.clients[0].user_id;
+  } 
+
+  if (error || !post || clientUserId !== auth.user.id) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
 
   return { ...auth, post };
 }
-
