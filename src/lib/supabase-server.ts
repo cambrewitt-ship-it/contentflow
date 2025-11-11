@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { createServerClient } from '@supabase/auth-helpers-nextjs';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import logger from '@/lib/logger';
 
@@ -29,13 +29,7 @@ export function createSupabaseServer() {
     throw new Error('Missing Supabase configuration for server client');
   }
 
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      get(name: string) {
-        return cookies().get(name)?.value;
-      },
-    },
-  });
+  return createRouteHandlerClient({ cookies });
 }
 
 // Server-side Supabase client with user token (for API routes)
@@ -65,12 +59,12 @@ export async function getAuthenticatedUser(token: string) {
   try {
     const supabase = createSupabaseWithToken(token);
     const { data: { user }, error } = await supabase.auth.getUser();
-    
+
     if (error) {
       logger.error('Authentication error:', error);
       return null;
     }
-    
+
     return user;
   } catch (error) {
     logger.error('Failed to get authenticated user:', error);
@@ -80,8 +74,8 @@ export async function getAuthenticatedUser(token: string) {
 
 // Helper function to validate user access to resource
 export async function validateUserAccess(
-  token: string, 
-  resourceType: 'client' | 'project' | 'post', 
+  token: string,
+  resourceType: 'client' | 'project' | 'post',
   resourceId: string
 ): Promise<boolean> {
   try {
@@ -89,9 +83,9 @@ export async function validateUserAccess(
     if (!user) return false;
 
     const supabase = createSupabaseWithToken(token);
-    
+
     switch (resourceType) {
-      case 'client':
+      case 'client': {
         const { data: client } = await supabase
           .from('clients')
           .select('id')
@@ -99,8 +93,8 @@ export async function validateUserAccess(
           .eq('user_id', user.id)
           .single();
         return !!client;
-        
-      case 'project':
+      }
+      case 'project': {
         const { data: project } = await supabase
           .from('projects')
           .select('id, client_id, clients!inner(user_id)')
@@ -108,8 +102,8 @@ export async function validateUserAccess(
           .eq('clients.user_id', user.id)
           .single();
         return !!project;
-        
-      case 'post':
+      }
+      case 'post': {
         const { data: post } = await supabase
           .from('posts')
           .select('id, client_id, clients!inner(user_id)')
@@ -117,7 +111,7 @@ export async function validateUserAccess(
           .eq('clients.user_id', user.id)
           .single();
         return !!post;
-        
+      }
       default:
         return false;
     }
@@ -137,7 +131,7 @@ export function requiresAdminPrivileges(operation: string): boolean {
     'webhook_processing',
     'bulk_operations'
   ];
-  
+
   return adminOperations.includes(operation);
 }
 
