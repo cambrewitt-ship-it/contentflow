@@ -185,11 +185,11 @@ export const imageFocusSchema = z.enum(['main-focus', 'supporting', 'background'
 // Client schemas
 export const createClientSchema = z.object({
   name: sanitizedString(200, 1),
-  company_description: sanitizedString(5000).optional(),
+  company_description: optionalSanitizedString(5000),
   website_url: urlSchema.optional(),
-  brand_tone: sanitizedString(1000).optional(),
-  target_audience: sanitizedString(2000).optional(),
-  value_proposition: sanitizedString(2000).optional(),
+  brand_tone: optionalSanitizedString(1000),
+  target_audience: optionalSanitizedString(2000),
+  value_proposition: optionalSanitizedString(2000),
   caption_dos: optionalSanitizedString(2000),
   caption_donts: optionalSanitizedString(2000),
   brand_voice_examples: optionalSanitizedString(5000),

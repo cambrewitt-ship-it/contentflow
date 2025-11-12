@@ -84,6 +84,37 @@ export default function NewClientPageV2() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const buildClientPayload = () => {
+    const payload: Record<string, string> = {
+      name: formData.name.trim(),
+      brand_color: formData.brand_color,
+    };
+
+    const optionalTextFields = [
+      'company_description',
+      'brand_tone',
+      'target_audience',
+      'value_proposition',
+      'caption_dos',
+      'caption_donts',
+      'brand_voice_examples',
+    ] as const;
+
+    optionalTextFields.forEach((field) => {
+      const value = formData[field].trim();
+      if (value) {
+        payload[field] = value;
+      }
+    });
+
+    const websiteUrl = formData.website_url.trim();
+    if (websiteUrl) {
+      payload.website_url = websiteUrl;
+    }
+
+    return payload;
+  };
+
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     // Clear field-specific error when user starts typing
@@ -128,6 +159,9 @@ export default function NewClientPageV2() {
       // This ensures LATE profile creation happens even if there was a temporary client from scraping
       console.log('🆕 Creating new client with LATE profile integration');
       setLoadingStage('setting-up-social');
+
+      const payload = buildClientPayload();
+      console.log('📦 Client payload:', payload);
       
       const response = await fetch("/api/clients/create", {
         method: "POST",
@@ -135,7 +169,7 @@ export default function NewClientPageV2() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${getAccessToken() || ''}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
