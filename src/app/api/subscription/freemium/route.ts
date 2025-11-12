@@ -1,45 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Create Supabase client with service role for admin operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_SUPABASE_SERVICE_ROLE!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-);
+import { requireAuth } from '@/lib/authHelpers';
 
 export async function POST(request: NextRequest) {
   try {
-    // Get the authorization header
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    const token = authHeader.split(' ')[1];
-    
-    // Get the authenticated user using the token
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { supabase, user } = auth;
 
     const userId = user.id;
 
     // Check if user already has a subscription
-    const { data: existingSubscription, error: fetchError } = await supabaseAdmin
+    const { data: existingSubscription, error: fetchError } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
@@ -62,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create freemium subscription
-    const { data: subscription, error: createError } = await supabaseAdmin
+    const { data: subscription, error: createError } = await supabase
       .from('subscriptions')
       .insert({
         user_id: userId,

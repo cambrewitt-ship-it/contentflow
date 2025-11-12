@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
@@ -708,7 +708,7 @@ function DroppableDayRow({
 export function ColumnViewCalendar({
   weeks,
   scheduledPosts,
-  clientUploads,
+  clientUploads = {},
   loading = false,
   onPostMove,
   formatWeekCommencing,
@@ -728,6 +728,7 @@ export function ColumnViewCalendar({
   deletingUploadIds,
   onDeleteClientUpload,
 }: ColumnViewCalendarProps) {
+  const clientUploadsMap = clientUploads ?? {};
   const VISIBLE_WEEK_COUNT = 3;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
@@ -781,7 +782,7 @@ export function ColumnViewCalendar({
           scheduled_date: post.scheduled_date || dateKey,
         }));
 
-        const uploadsForDay = clientUploads?.[dateKey] ?? [];
+        const uploadsForDay = clientUploadsMap?.[dateKey] ?? [];
         const uploadEntries = uploadsForDay.map((upload: ClientUpload) => {
           const isImage =
             typeof upload.file_type === 'string'

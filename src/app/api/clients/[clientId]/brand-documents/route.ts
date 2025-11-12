@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+import { requireClientOwnership } from '@/lib/authHelpers';
 
 export async function POST(
   request: NextRequest,
@@ -36,8 +33,9 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const auth = await requireClientOwnership(request, clientId);
+    if (auth.error) return auth.error;
+    const { supabase } = auth;
 
     // Store file in Supabase Storage
     const fileExt = filename.split('.').pop();
@@ -126,7 +124,9 @@ export async function GET(
   try {
     const { clientId } = await params;
 
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const auth = await requireClientOwnership(request, clientId);
+    if (auth.error) return auth.error;
+    const { supabase } = auth;
 
     const { data: documents, error } = await supabase
       .from('brand_documents')

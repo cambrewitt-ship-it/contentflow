@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { validateApiRequest } from '../../../../lib/validationMiddleware';
 import { createClientSchema } from '../../../../lib/validators';
 import { withClientLimitCheck, trackClientCreation } from '../../../../lib/subscriptionMiddleware';
 import logger from '@/lib/logger';
+import { requireAuth } from '@/lib/authHelpers';
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 // Function to create LATE profile
 async function createLateProfile(clientName: string, brandInfo: {
@@ -90,6 +87,10 @@ const response = await fetch('https://getlate.dev/api/v1/profiles', {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+    const { supabase, user } = auth;
+
     // SUBSCRIPTION: Check client limits
     const subscriptionCheck = await withClientLimitCheck(req);
     
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
       return validation.response;
     }
 
-    const { body, token } = validation.data;
+    const { body } = validation.data;
     if (!body) {
       return NextResponse.json({ error: 'Request body is required' }, { status: 400 });
     }
@@ -159,20 +160,6 @@ export async function POST(req: NextRequest) {
       skipLateProfile?: boolean;
     }
     
-    // Create Supabase client with the user's token
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    
-    // Get the authenticated user using the token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token!);
-    
-    if (authError || !user) {
-      logger.error('Authentication error:', { error: authError?.message });
-      return NextResponse.json({ 
-        error: 'Authentication required', 
-        details: 'User must be logged in to create clients'
-      }, { status: 401 });
-    }
-
     // Try to create LATE profile first (unless skipped for temp clients)
     let lateProfileId = null;
     if (!skipLateProfile) {

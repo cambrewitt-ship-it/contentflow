@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
@@ -189,6 +189,7 @@ export default function CalendarPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
   const [viewMode, setViewMode] = useState<'month' | 'column'>('column');
+  const calendarScrollRef = useRef<HTMLDivElement>(null);
   
   // Client Portal states
   const [portalToken, setPortalToken] = useState<string | null>(null);
@@ -1857,68 +1858,71 @@ export default function CalendarPage() {
         
 
         {/* Calendar */}
-        <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
+        <div
+          key={refreshKey}
+          ref={calendarScrollRef}
+          className="bg-white rounded-lg shadow overflow-hidden"
+        >
           <div className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex-1"></div>
-            <div className="flex items-center justify-center">
-              <h2 className="text-lg font-semibold">
-                {selectedProjectFilter === 'all' 
-                  ? `All Projects - ${viewMode === 'month' ? 'Month' : 'Column'} View` 
-                  : selectedProjectFilter === 'untagged' 
-                    ? `Untagged Posts - ${viewMode === 'month' ? 'Month' : 'Column'} View`
-                    : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'month' ? 'Month' : 'Column'} View`}
-              </h2>
-            </div>
-            <div className="flex items-center gap-3 flex-1 justify-end">
-              {/* View Toggle */}
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode('month')}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                    viewMode === 'month' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Calendar className="w-4 h-4" />
-                  Month
-                </button>
-                <button
-                  onClick={() => setViewMode('column')}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                    viewMode === 'column' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Columns className="w-4 h-4" />
-                  Column
-                </button>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex-1" />
+              <div className="flex items-center justify-center">
+                <h2 className="text-lg font-semibold">
+                  {selectedProjectFilter === 'all'
+                    ? `All Projects - ${viewMode === 'month' ? 'Month' : 'Column'} View`
+                    : selectedProjectFilter === 'untagged'
+                      ? `Untagged Posts - ${viewMode === 'month' ? 'Month' : 'Column'} View`
+                      : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'month' ? 'Month' : 'Column'} View`}
+                </h2>
+              </div>
+              <div className="flex items-center gap-3 flex-1 justify-end">
+                {/* View Toggle */}
+                <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('month')}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                      viewMode === 'month'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Month
+                  </button>
+                  <button
+                    onClick={() => setViewMode('column')}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                      viewMode === 'column'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Columns className="w-4 h-4" />
+                    Column
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-
-            <div className="p-4 space-y-4">
-              {viewMode === 'month' ? (
-                <div className="bg-white rounded-lg shadow">
-                  <MonthViewCalendar 
-                    posts={Object.values(scheduledPosts).flat()} 
-                    uploads={clientUploads}
-                    loading={isLoadingScheduledPosts}
-                    onDateClick={handleDateClick}
-                    onDragOver={handleDragOver}
-                    onDragEnter={handleDragEnter}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleMonthViewDrop}
-                    dragOverDate={dragOverDate}
-                  />
-                </div>
-              ) : (
-                <div className="bg-white rounded-lg shadow p-4">
-                  <ColumnViewCalendar
+          <div className="p-4 space-y-4">
+            {viewMode === 'month' ? (
+              <div className="bg-white rounded-lg shadow">
+                <MonthViewCalendar
+                  posts={Object.values(scheduledPosts).flat()}
+                  uploads={clientUploads}
+                  loading={isLoadingScheduledPosts}
+                  onDateClick={handleDateClick}
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleMonthViewDrop}
+                  dragOverDate={dragOverDate}
+                />
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow p-4">
+                <ColumnViewCalendar
                   weeks={getWeeksToDisplay()}
                   scheduledPosts={scheduledPosts as any}
                   clientUploads={clientUploads}
@@ -1941,15 +1945,15 @@ export default function CalendarPage() {
                     // Handle native HTML5 drag from unscheduled posts
                     const postData = e.dataTransfer.getData('post');
                     if (!postData) return;
-                    
+
                     const post = JSON.parse(postData);
-                    const targetDate = new Date(dateKey + 'T00:00:00');
-                    
+                    const targetDate = new Date(`${dateKey}T00:00:00`);
+
                     // Find the week index and day index for the target date
                     const weeks = getWeeksToDisplay();
                     let weekIndex = -1;
                     let dayIndex = -1;
-                    
+
                     weeks.forEach((week, wIdx) => {
                       for (let d = 0; d < 7; d++) {
                         const dayDate = new Date(week);
@@ -1961,7 +1965,7 @@ export default function CalendarPage() {
                         }
                       }
                     });
-                    
+
                     if (weekIndex === -1 || dayIndex === -1) {
                       // Calculate week offset if not in current visible weeks
                       const targetWeekStart = new Date(targetDate);
@@ -1969,27 +1973,27 @@ export default function CalendarPage() {
                       const diff = targetWeekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
                       targetWeekStart.setDate(diff);
                       targetWeekStart.setHours(0, 0, 0, 0);
-                      
+
                       const currentWeekStart = getStartOfWeek(0);
                       const diffTime = targetWeekStart.getTime() - currentWeekStart.getTime();
                       const weekOffsetCalc = Math.floor(diffTime / (7 * 24 * 60 * 60 * 1000));
-                      
+
                       setWeekOffset(weekOffsetCalc);
                       dayIndex = targetDate.getDay() === 0 ? 6 : targetDate.getDay() - 1;
                       weekIndex = 1; // Middle week
                     }
-                    
+
                     // Use existing handleDrop logic
                     const targetWeekStart = weeks[weekIndex] || getWeeksToDisplay()[1];
                     const targetDateObj = new Date(targetWeekStart);
                     targetDateObj.setDate(targetWeekStart.getDate() + dayIndex);
-                    
+
                     const time = '12:00';
                     const scheduledDate = targetDateObj.toLocaleDateString('en-CA');
-                    const scheduledTime = time + ':00';
-                    
+                    const scheduledTime = `${time}:00`;
+
                     setMovingPostId(post.id);
-                    
+
                     try {
                       const requestBody = {
                         unscheduledId: post.id,
@@ -2003,22 +2007,22 @@ export default function CalendarPage() {
                           scheduled_time: scheduledTime
                         }
                       };
-                      
+
                       const response = await fetch('/api/calendar/scheduled', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(requestBody)
                       });
-                      
+
                       if (!response.ok) {
                         const errorText = await response.text();
                         throw new Error(`API Error: ${response.status} - ${errorText}`);
                       }
-                      
+
                       const responseData = await response.json();
-                      
+
                       setProjectPosts(prevPosts => prevPosts.filter(p => p.id !== post.id));
-                      
+
                       const newScheduledPost: Post = {
                         ...post,
                         id: responseData.post.id,
@@ -2026,7 +2030,7 @@ export default function CalendarPage() {
                         scheduled_date: scheduledDate,
                         scheduled_time: scheduledTime
                       };
-                      
+
                       setScheduledPosts(prevScheduled => ({
                         ...prevScheduled,
                         [scheduledDate]: [...(prevScheduled[scheduledDate] || []), newScheduledPost]
@@ -2047,16 +2051,16 @@ export default function CalendarPage() {
                       console.error('Invalid postKey format:', postKey);
                       return;
                     }
-                    
+
                     const postType = postKey.substring(0, firstHyphenIndex);
                     const postId = postKey.substring(firstHyphenIndex + 1);
-                    
+
                     console.log('🔵 onPostMove called:', { postKey, postType, postId, newDate });
-                    
+
                     // Find the post in scheduledPosts
                     let postToMove: Post | null = null;
                     let oldDateKey: string | null = null;
-                    
+
                     Object.entries(scheduledPosts).forEach(([dateKey, posts]) => {
                       const foundPost = posts.find(p => {
                         const pId = p.id;
@@ -2068,15 +2072,15 @@ export default function CalendarPage() {
                         oldDateKey = dateKey;
                       }
                     });
-                    
+
                     if (!postToMove || !oldDateKey) {
                       console.error('Post not found for move:', { postKey, postType, postId, scheduledPostsKeys: Object.keys(scheduledPosts) });
                       return;
                     }
-                    
+
                     // Set loading state
                     setMovingPostId((postToMove as Post).id);
-                    
+
                     try {
                       // Update the post's scheduled date
                       const response = await fetch('/api/calendar/scheduled', {
@@ -2089,15 +2093,15 @@ export default function CalendarPage() {
                           }
                         })
                       });
-                      
+
                       if (!response.ok) {
                         throw new Error(`Failed to move post: ${response.statusText}`);
                       }
-                      
+
                       // Update local state
                       setScheduledPosts(prev => {
                         const updated = { ...prev };
-                        
+
                         // Remove from old date
                         if (updated[oldDateKey!]) {
                           updated[oldDateKey!] = updated[oldDateKey!].filter(
@@ -2107,7 +2111,7 @@ export default function CalendarPage() {
                             delete updated[oldDateKey!];
                           }
                         }
-                        
+
                         // Add to new date
                         const updatedPost: Post = {
                           ...postToMove!,
@@ -2115,7 +2119,7 @@ export default function CalendarPage() {
                           scheduled_date: newDate
                         };
                         updated[newDate] = [...(updated[newDate] || []), updatedPost];
-                        
+
                         return updated;
                       });
                     } catch (error) {

@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { stripe } from '@/lib/stripe';
 import { getCreditPackageByPriceId } from '@/lib/creditPackages';
 import { getUserSubscription } from '@/lib/subscriptionHelpers';
 import logger from '@/lib/logger';
+import { requireAuth } from '@/lib/authHelpers';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,37 +28,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get the authorization header
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      logger.error('No authorization header found');
-      return NextResponse.json(
-        { 
-          error: 'Authentication required', 
-          details: 'User must be logged in to purchase credits'
-        }, 
-        { status: 401 }
-      );
-    }
-
-    const token = authHeader.split(' ')[1];
-    
-    // Create Supabase client with service role key
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    
-    // Get the authenticated user using the token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      logger.error('Authentication error:', { error: authError?.message });
-      return NextResponse.json(
-        { 
-          error: 'Authentication required', 
-          details: 'User must be logged in to purchase credits'
-        }, 
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+    const { user } = auth;
 
     // Get user's subscription to get their Stripe customer ID
     const subscription = await getUserSubscription(user.id);

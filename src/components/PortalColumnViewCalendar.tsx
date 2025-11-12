@@ -728,7 +728,7 @@ function DroppableDayRow({
 export function PortalColumnViewCalendar({
   weeks,
   scheduledPosts,
-  clientUploads,
+  clientUploads = {},
   loading = false,
   onPostMove,
   formatWeekCommencing,
@@ -750,6 +750,7 @@ export function PortalColumnViewCalendar({
   onDeleteClientUpload,
   deletingUploadIds,
 }: PortalColumnViewCalendarProps) {
+  const clientUploadsMap = clientUploads ?? {};
   const VISIBLE_WEEK_COUNT = 3;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
@@ -820,7 +821,7 @@ export function PortalColumnViewCalendar({
           scheduled_date: post.scheduled_date || dateKey,
         }));
 
-        const uploadsForDay = clientUploads?.[dateKey] ?? [];
+        const uploadsForDay = clientUploadsMap?.[dateKey] ?? [];
         const uploadEntries = uploadsForDay.map((upload: ClientUpload) => {
           const isImage =
             typeof upload.file_type === 'string'

@@ -1,39 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
 import { decrementUsage } from '@/lib/subscriptionHelpers';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+import { requireAuth, requireClientOwnership } from '@/lib/authHelpers';
 
 export async function GET(req: NextRequest) {
   try {
-
-    // Get the authorization header
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      logger.error('❌ No authorization header found');
-      return NextResponse.json({ 
-        error: 'Authentication required', 
-        details: 'User must be logged in to view clients'
-      }, { status: 401 });
-    }
-
-    const token = authHeader.split(' ')[1];
-    
-    // Create Supabase client with the user's token
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    
-    // Get the authenticated user using the token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      logger.error('❌ Authentication error:', authError);
-      return NextResponse.json({ 
-        error: 'Authentication required', 
-        details: 'User must be logged in to view clients'
-      }, { status: 401 });
-    }
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+    const { supabase, user } = auth;
 
     // Query clients for the authenticated user only
     const { data: clients, error } = await supabase
@@ -75,42 +49,12 @@ export async function DELETE(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Get the authorization header
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      logger.error('❌ No authorization header found');
-      return NextResponse.json({ 
-        error: 'Authentication required', 
-        details: 'User must be logged in to delete clients'
-      }, { status: 401 });
-    }
+    const auth = await requireClientOwnership(req, clientId);
+    if (auth.error) return auth.error;
+    const { supabase, user, client } = auth;
 
-    const token = authHeader.split(' ')[1];
-    
-    // Create Supabase client with the user's token
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    
-    // Get the authenticated user using the token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      logger.error('❌ Authentication error:', authError);
-      return NextResponse.json({ 
-        error: 'Authentication required', 
-        details: 'User must be logged in to delete clients'
-      }, { status: 401 });
-    }
-
-    // Verify the client belongs to the authenticated user
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .select('id, user_id')
-      .eq('id', clientId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (clientError || !client) {
-      logger.error('❌ Client not found or access denied:', clientError);
+    if (!client) {
+      logger.error('❌ Client not found or access denied');
       return NextResponse.json({ 
         error: 'Client not found or access denied', 
         details: 'You can only delete your own clients'

@@ -1,15 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { PostValidator, PostData } from '../../../../lib/postValidation';
 import { handleApiError, handleDatabaseError, ApiErrors } from '../../../../lib/apiErrorHandler';
 import { validateApiRequest } from '../../../../lib/validationMiddleware';
 import { updatePostSchema, postIdParamSchema } from '../../../../lib/validators';
 import logger from '@/lib/logger';
-import { createSupabaseWithToken } from '@/lib/supabaseServer';
-import { requirePostOwnership } from '@/lib/authHelpers';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE!;
+import { requireAuth, requirePostOwnership } from '@/lib/authHelpers';
 
 export async function PUT(
   request: NextRequest,
@@ -39,26 +34,9 @@ export async function PUT(
       return NextResponse.json({ error: 'Request body is required' }, { status: 400 });
     }
 
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.substring(7);
-    const supabase = createSupabaseWithToken(token);
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      logger.error('❌ Authentication failed for post update', {
-        operation: 'update_post',
-        error: userError?.message ?? 'User not found',
-      });
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { supabase, user } = auth;
 
     // Extract editable fields from validated input
     const {
@@ -477,32 +455,9 @@ export async function GET(
 
   try {
     // SECURITY: Authentication check
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      logger.warn('Unauthorized access attempt to posts-by-id', {
-        operation: 'get_post',
-        hasAuthHeader: !!authHeader
-      });
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    const token = authHeader.split(' ')[1];
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      logger.error('Authentication failed for posts-by-id', {
-        operation: 'get_post',
-        error: authError?.message || 'Invalid token'
-      });
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { supabase, user } = auth;
 
     // SECURITY: Validate URL parameters
     const validation = await validateApiRequest(request, {
