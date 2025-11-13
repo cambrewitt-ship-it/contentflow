@@ -18,7 +18,7 @@ This guide explains how to set up and use the Stripe subscription system in your
 ## Overview
 
 This integration provides:
-- **3 Subscription Tiers**: Starter ($35/mo), Professional ($79/mo), Agency ($199/mo)
+- **3 Subscription Tiers**: In-House ($35/mo), Freelancer ($79/mo), Agency ($199/mo)
 - **Usage Tracking**: Track clients, posts, and AI credits
 - **Subscription Management**: Users can upgrade, downgrade, and cancel
 - **Webhook Handling**: Automatic subscription updates via Stripe webhooks
@@ -86,15 +86,15 @@ The migration creates:
 2. Go to **Products** > **Add Product**
 3. Create three products:
 
-#### Starter Plan
-- **Name**: Starter
-- **Description**: Perfect for individuals getting started
+#### In-House Plan
+- **Name**: In-House
+- **Description**: Perfect for individuals managing a single brand internally
 - **Price**: $35/month recurring
 - **Copy the Price ID** and add to `.env.local` as `NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID`
 
-#### Professional Plan
-- **Name**: Professional
-- **Description**: For growing businesses and agencies
+#### Freelancer Plan
+- **Name**: Freelancer
+- **Description**: For growing freelancers and boutique agencies
 - **Price**: $79/month recurring
 - **Copy the Price ID** and add to `.env.local` as `NEXT_PUBLIC_STRIPE_PROFESSIONAL_PRICE_ID`
 
@@ -174,7 +174,7 @@ Visit `http://localhost:3000/pricing` to see the pricing tiers.
 
 Try these scenarios:
 
-**Test Client Limits (Starter Plan = 1 client)**
+**Test Client Limits (In-House Plan = 1 client)**
 ```bash
 # Create a client via API
 curl -X POST http://localhost:3000/api/clients/create \
@@ -201,14 +201,14 @@ curl -X POST http://localhost:3000/api/clients/create \
 
 ## Subscription Tiers
 
-### Starter - $35/month
+### In-House - $35/month
 - 1 Client Account
 - 30 Posts per month
 - 100 AI Credits per month
 - Basic Analytics
 - Email Support
 
-### Professional - $79/month
+### Freelancer - $79/month
 - 5 Client Accounts
 - 150 Posts per month
 - 500 AI Credits per month
@@ -395,8 +395,8 @@ export function SubscriptionWidget() {
 - Webhook hasn't processed yet (wait a few seconds)
 
 **"You have reached your client limit"**
-- User is on Starter plan and trying to add 2nd client
-- Upgrade to Professional or Agency plan
+- User is on In-House plan and trying to add 2nd client
+- Upgrade to Freelancer or Agency plan
 
 **"Insufficient AI credits"**
 - Monthly AI credit limit reached

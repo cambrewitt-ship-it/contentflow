@@ -3,7 +3,7 @@
 ## 🎯 What Was Implemented
 
 A complete Stripe subscription system with:
-- ✅ 3 pricing tiers (Starter, Professional, Agency)
+- ✅ 3 pricing tiers (In-House, Freelancer, Agency)
 - ✅ Checkout flow with Stripe Checkout
 - ✅ Subscription management via Customer Portal
 - ✅ Webhook handling for automatic updates
@@ -24,8 +24,8 @@ A complete Stripe subscription system with:
 
 1. Go to [Stripe Dashboard](https://dashboard.stripe.com/test/products)
 2. Create 3 products:
-   - **Starter**: $35/month
-   - **Professional**: $79/month  
+   - **In-House**: $35/month
+   - **Freelancer**: $79/month  
    - **Agency**: $199/month
 3. Copy each Price ID
 
@@ -97,7 +97,7 @@ open http://localhost:3000/pricing
 
 ## 🎨 Subscription Tiers
 
-| Feature | Starter | Professional | Agency |
+| Feature | In-House | Freelancer | Agency |
 |---------|---------|--------------|--------|
 | **Price** | $35/mo | $79/mo | $199/mo |
 | **Clients** | 1 | 5 | Unlimited |

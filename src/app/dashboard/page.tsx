@@ -32,6 +32,14 @@ interface UserProfile {
 
 type SubscriptionTier = 'freemium' | 'starter' | 'professional' | 'agency' | 'enterprise';
 
+const SUBSCRIPTION_TIER_DISPLAY: Record<SubscriptionTier, string> = {
+  freemium: 'Free',
+  starter: 'In-House',
+  professional: 'Freelancer',
+  agency: 'Agency',
+  enterprise: 'Enterprise',
+};
+
 interface Subscription {
   id: string;
   user_id: string;
@@ -240,9 +248,8 @@ export default function Dashboard() {
   const getPlanLabel = () => {
     if (!subscription) return 'FREE';
     const tier = subscription.subscription_tier || 'freemium';
-    // Show "FREE" instead of "FREEMIUM"
     if (tier === 'freemium') return 'FREE';
-    return tier.toUpperCase();
+    return SUBSCRIPTION_TIER_DISPLAY[tier] ?? tier.toUpperCase();
   };
 
   // Get plan badge color

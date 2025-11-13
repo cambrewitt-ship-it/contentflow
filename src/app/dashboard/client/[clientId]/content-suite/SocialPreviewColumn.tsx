@@ -3,7 +3,7 @@
 import { useContentStore } from '@/lib/contentStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, X, FolderOpen, Calendar, Clock, Check } from 'lucide-react'
+import { Loader2, X, FolderOpen, Calendar, Clock, Check, AlertCircle } from 'lucide-react'
 import { 
   FacebookIcon, 
   InstagramIcon, 
@@ -16,7 +16,7 @@ import {
 import React, { useState, useEffect, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface ConnectedAccount {
@@ -69,6 +69,10 @@ export function SocialPreviewColumn({
   const [scheduleTime, setScheduleTime] = useState('12:00 PM')
   const [isScheduling, setIsScheduling] = useState(false)
   const [scheduleError, setScheduleError] = useState<string | null>(null)
+  const [showPlanRestrictionDialog, setShowPlanRestrictionDialog] = useState(false)
+  const [planRestrictionMessage, setPlanRestrictionMessage] = useState(
+    'Social media posting is not available on the free plan. Please upgrade to post to social media.'
+  )
 
   // Custom caption state
   const [customCaption, setCustomCaption] = useState('')
@@ -369,6 +373,17 @@ export function SocialPreviewColumn({
       })
 
       if (!response.ok) {
+        if (response.status === 403) {
+          const errorBody = await response.json().catch(() => null)
+          const errorMessage =
+            errorBody?.error ||
+            'Social media posting is not available on the free plan. Please upgrade to post to social media.'
+          setPlanRestrictionMessage(errorMessage)
+          setShowPlanRestrictionDialog(true)
+          setShowScheduleModal(false)
+          return
+        }
+
         const errorText = await response.text()
         console.error('LATE scheduling error:', errorText)
         throw new Error('Failed to schedule post via LATE')
@@ -1231,6 +1246,36 @@ export function SocialPreviewColumn({
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPlanRestrictionDialog} onOpenChange={setShowPlanRestrictionDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-orange-500" />
+              Upgrade Required
+            </DialogTitle>
+            <DialogDescription>
+              {planRestrictionMessage}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowPlanRestrictionDialog(false)}
+            >
+              Close
+            </Button>
+            <Button
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => {
+                window.location.href = '/pricing'
+              }}
+            >
+              Upgrade Plan
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

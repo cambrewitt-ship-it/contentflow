@@ -13,9 +13,9 @@ Use this checklist to ensure your Stripe integration is properly configured.
 
 ### 2. Stripe Dashboard - Products
 
-- [ ] Create "Starter" product at $35/month
+- [ ] Create "In-House" product at $35/month
   - Copy Price ID → Add to `.env.local` as `NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID`
-- [ ] Create "Professional" product at $79/month
+- [ ] Create "Freelancer" product at $79/month
   - Copy Price ID → Add to `.env.local` as `NEXT_PUBLIC_STRIPE_PROFESSIONAL_PRICE_ID`
 - [ ] Create "Agency" product at $199/month
   - Copy Price ID → Add to `.env.local` as `NEXT_PUBLIC_STRIPE_AGENCY_PRICE_ID`
@@ -64,7 +64,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_key
 ### 6. Testing
 
 - [ ] Visit `/pricing` - should see 3 pricing tiers
-- [ ] Click "Subscribe" on Starter plan
+- [ ] Click "Subscribe" on In-House plan
 - [ ] Complete checkout with test card `4242 4242 4242 4242`
 - [ ] Verify redirect to `/dashboard/subscription?success=true`
 - [ ] Check Supabase `subscriptions` table - should have your record
@@ -76,13 +76,13 @@ SUPABASE_SERVICE_ROLE_KEY=your_key
 
 ### 7. Test Subscription Limits
 
-**Starter Plan Limits:**
+**In-House Plan Limits:**
 - [ ] Try adding 2 clients - 2nd should fail with 403 error
 - [ ] Create 30 posts - 31st should fail
 - [ ] Use 100 AI credits - 101st should fail
 
-**Professional Plan:**
-- [ ] Upgrade to Professional via Customer Portal
+**Freelancer Plan:**
+- [ ] Upgrade to Freelancer via Customer Portal
 - [ ] Verify limits increased (5 clients, 150 posts, 500 AI credits)
 - [ ] Test new limits work correctly
 

@@ -52,8 +52,8 @@ export default function TermsPage() {
               <p>The Service offers the following subscription plans:</p>
               <ul className="list-disc pl-6 space-y-2 my-4">
                 <li><strong>Free Tier:</strong> Limited features with usage restrictions or trial period</li>
-                <li><strong>Starter Plan:</strong> $35 NZD per month</li>
-                <li><strong>Professional Plan:</strong> $79 NZD per month</li>
+                <li><strong>In-House Plan:</strong> $35 NZD per month</li>
+                <li><strong>Freelancer Plan:</strong> $79 NZD per month</li>
                 <li><strong>Agency Plan:</strong> $199 NZD per month</li>
               </ul>
 

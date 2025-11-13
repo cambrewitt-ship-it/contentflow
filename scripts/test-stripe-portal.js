@@ -165,8 +165,8 @@ async function testPortalSessionCreation() {
 async function checkPrices() {
   console.log('\n💰 Checking Price IDs...');
   const priceIds = [
-    { name: 'Starter', id: process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID },
-    { name: 'Professional', id: process.env.NEXT_PUBLIC_STRIPE_PROFESSIONAL_PRICE_ID },
+    { name: 'In-House', id: process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID },
+    { name: 'Freelancer', id: process.env.NEXT_PUBLIC_STRIPE_PROFESSIONAL_PRICE_ID },
     { name: 'Agency', id: process.env.NEXT_PUBLIC_STRIPE_AGENCY_PRICE_ID },
   ];
 

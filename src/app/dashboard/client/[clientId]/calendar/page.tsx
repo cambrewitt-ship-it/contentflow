@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
@@ -10,6 +10,7 @@ import { ColumnViewCalendar } from '@/components/ColumnViewCalendar';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FacebookIcon, InstagramIcon, TwitterIcon, LinkedInIcon } from '@/components/social-icons';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -139,6 +140,13 @@ export default function CalendarPage() {
   const params = useParams();
   const clientId = params?.clientId as string;
   const { user, getAccessToken } = useAuth();
+  const requireAccessToken = useCallback(() => {
+    const token = getAccessToken();
+    if (!token) {
+      throw new Error('Authentication required. Please refresh and sign in again.');
+    }
+    return token;
+  }, [getAccessToken]);
   
   // Initialize Supabase client
   const supabase = createClient(
@@ -190,6 +198,10 @@ export default function CalendarPage() {
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
   const [viewMode, setViewMode] = useState<'month' | 'column'>('column');
   const calendarScrollRef = useRef<HTMLDivElement>(null);
+  const [showPlanRestrictionDialog, setShowPlanRestrictionDialog] = useState(false);
+  const [planRestrictionMessage, setPlanRestrictionMessage] = useState(
+    'Social media posting is not available on the free plan. Please upgrade to post to social media.'
+  );
   
   // Client Portal states
   const [portalToken, setPortalToken] = useState<string | null>(null);
@@ -206,7 +218,12 @@ export default function CalendarPage() {
 
   const fetchConnectedAccounts = useCallback(async () => {
     try {
-      const response = await fetch(`/api/late/get-accounts/${clientId}`);
+      const accessToken = requireAccessToken();
+      const response = await fetch(`/api/late/get-accounts/${clientId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
       if (!response.ok) {
         throw new Error(`Failed to fetch accounts: ${response.status}`);
       }
@@ -217,7 +234,7 @@ export default function CalendarPage() {
       console.error('Error fetching accounts:', error);
       setError(error instanceof Error ? error.message : 'Failed to load connected accounts');
     }
-  }, [clientId]); // Removed state dependencies to prevent recreation
+  }, [clientId, requireAccessToken]); // Removed state dependencies to prevent recreation
 
   // Generate portal link
   const handleGeneratePortalLink = async () => {
@@ -292,7 +309,14 @@ export default function CalendarPage() {
         }
         
         console.log('Fetching unscheduled posts with filter:', selectedProjectFilter);
-        const response = await fetch(`/api/calendar/unscheduled?${queryString}`);
+
+        const accessToken = requireAccessToken();
+
+        const response = await fetch(`/api/calendar/unscheduled?${queryString}`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
         
         if (!response.ok) {
           throw new Error(`Failed to fetch unscheduled posts: ${response.status}`);
@@ -320,7 +344,7 @@ export default function CalendarPage() {
       } finally {
         setIsLoadingPosts(false);
       }
-    }, [clientId, selectedProjectFilter]); // Removed state dependencies to prevent recreation
+    }, [clientId, selectedProjectFilter, requireAccessToken]); // Removed state dependencies to prevent recreation
 
   const fetchScheduledPosts = useCallback(async (retryCount = 0, forceRefresh = false) => {
     const maxRetries = 1; // Reduced retries to prevent loops
@@ -343,7 +367,12 @@ export default function CalendarPage() {
       console.log(`🔍 FETCHING - Scheduled posts with filter: ${selectedProjectFilter} (attempt ${retryCount + 1})`);
       
       // Simplified query - always include image data for better UX
-      const response = await fetch(`/api/calendar/scheduled?${queryString}`);
+      const accessToken = requireAccessToken();
+      const response = await fetch(`/api/calendar/scheduled?${queryString}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -418,7 +447,7 @@ export default function CalendarPage() {
       setError(`Failed to load scheduled posts: ${errorMessage}`);
       setIsLoadingScheduledPosts(false);
     }
-  }, [clientId, selectedProjectFilter]); // Removed state dependencies to prevent recreation
+  }, [clientId, selectedProjectFilter, requireAccessToken]); // Removed state dependencies to prevent recreation
 
   // Get NZ timezone start of week (Monday)
   const getStartOfWeek = (offset: number = 0) => {
@@ -456,7 +485,12 @@ export default function CalendarPage() {
   const fetchProjects = useCallback(async () => {
     try {
       console.log('Fetching projects for client:', clientId);
-      const response = await fetch(`/api/projects?clientId=${clientId}`);
+      const accessToken = requireAccessToken();
+      const response = await fetch(`/api/projects?clientId=${clientId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch projects: ${response.status}`);
@@ -471,7 +505,7 @@ export default function CalendarPage() {
     } catch (error) {
       console.error('Error fetching projects:', error);
     }
-  }, [clientId]);
+  }, [clientId, requireAccessToken]);
 
   useEffect(() => {
     if (clientId) {
@@ -698,9 +732,11 @@ export default function CalendarPage() {
       }
       
       // Update in database
+      const accessToken = requireAccessToken();
       const response = await fetch('/api/calendar/scheduled', {
         method: 'PUT',
         headers: {
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -773,9 +809,13 @@ export default function CalendarPage() {
         timeToSave = newTime + ':00';
       }
       
+      const accessToken = requireAccessToken();
       const response = await fetch('/api/calendar/scheduled', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json' 
+        },
         body: JSON.stringify({
           postId: post.id,
           updates: {
@@ -869,9 +909,13 @@ export default function CalendarPage() {
       console.log('  - Request body keys:', Object.keys(requestBody));
       
       console.log('📅 STEP 4 - SENDING REQUEST TO /api/calendar/scheduled:');
+      const accessToken = requireAccessToken();
       const response = await fetch('/api/calendar/scheduled', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json' 
+        },
         body: JSON.stringify(requestBody)
       });
       
@@ -940,9 +984,13 @@ export default function CalendarPage() {
     setMovingPostId(post.id);
     
     try {
+      const accessToken = requireAccessToken();
       await fetch('/api/calendar/scheduled', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json' 
+        },
         body: JSON.stringify({
           postId: post.id,
           updates: {
@@ -1005,9 +1053,13 @@ export default function CalendarPage() {
       setMovingPostId(post.id);
       
       try {
+        const accessToken = requireAccessToken();
         await fetch('/api/calendar/scheduled', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json' 
+          },
           body: JSON.stringify({
             postId: post.id,
             updates: {
@@ -1074,9 +1126,13 @@ export default function CalendarPage() {
           }
         };
         
+        const accessToken = requireAccessToken();
         const response = await fetch('/api/calendar/scheduled', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json' 
+          },
           body: JSON.stringify(requestBody)
         });
         
@@ -1126,6 +1182,17 @@ export default function CalendarPage() {
     setDeletingPostIds(new Set(toDelete));
     
     // Process all deletions with Promise.all for better handling
+    let accessToken: string;
+    try {
+      accessToken = requireAccessToken();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Authentication required. Please refresh the page and sign in again.';
+      alert(message);
+      setIsDeleting(false);
+      setDeletingPostIds(new Set());
+      return;
+    }
+
     const deletePromises = toDelete.map(async (postId) => {
       try {
         const post = allPosts.find(p => p.id === postId);
@@ -1133,14 +1200,20 @@ export default function CalendarPage() {
         // Delete from LATE if applicable
         if (post?.late_post_id) {
           await fetch(`/api/late/delete-post?latePostId=${post.late_post_id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+            },
           });
         }
         
         // Delete from database
         const dbResponse = await fetch('/api/calendar/scheduled', {
           method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json' 
+          },
           body: JSON.stringify({ postId: postId })
         });
         
@@ -1194,15 +1267,21 @@ export default function CalendarPage() {
     });
 
     try {
+      const accessToken = requireAccessToken();
+
       if (post.late_post_id) {
         await fetch(`/api/late/delete-post?latePostId=${post.late_post_id}`, {
           method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
         });
       }
 
       const response = await fetch('/api/calendar/scheduled', {
         method: 'DELETE',
         headers: {
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ postId: post.id }),
@@ -1252,9 +1331,12 @@ export default function CalendarPage() {
     });
 
     try {
+      const accessToken = requireAccessToken();
+
       const response = await fetch(`/api/clients/${clientId}/uploads/${upload.id}`, {
         method: 'DELETE',
         headers: {
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       });
@@ -1299,8 +1381,13 @@ export default function CalendarPage() {
       
       console.log(`🗑️ Deleting unscheduled post: ${postId}`);
       
+        const accessToken = requireAccessToken();
+
         const response = await fetch(`/api/calendar/unscheduled?postId=${postId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
       });
       
       if (!response.ok) {
@@ -1362,10 +1449,12 @@ export default function CalendarPage() {
     setDeletingPostIds(new Set(selectedPosts));
     
     try {
+      const accessToken = requireAccessToken();
       const deletePromises = Array.from(selectedPosts).map(async (postId) => {
         const response = await fetch(`/api/calendar/scheduled/${postId}`, {
           method: 'DELETE',
           headers: {
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
         });
@@ -1441,6 +1530,19 @@ export default function CalendarPage() {
     
     const confirmed = confirm(`Schedule ${selectedPosts.size} posts to ${account.platform}?`);
     if (!confirmed) return;
+
+    let accessToken: string;
+    try {
+      accessToken = requireAccessToken();
+    } catch (error) {
+      console.error('Failed to retrieve access token before scheduling:', error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Authentication required. Please refresh the page and sign in again.';
+      alert(message);
+      return;
+    }
     
     // Set loading state for this specific platform
     setSchedulingPlatform(account.platform);
@@ -1497,7 +1599,10 @@ export default function CalendarPage() {
 
         const mediaResponse = await fetch('/api/late/upload-media', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
           body: JSON.stringify({ imageBlob: base64Image })
         });
 
@@ -1553,11 +1658,27 @@ export default function CalendarPage() {
         
         const response = await fetch('/api/late/schedule-post', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
           body: JSON.stringify(lateRequestBody)
         });
         
         if (!response.ok) {
+          if (response.status === 403) {
+            const errorBody = await response.json().catch(() => null);
+            const errorMessage =
+              errorBody?.error ||
+              'Social media posting is not available on the free plan. Please upgrade to post to social media.';
+            setPlanRestrictionMessage(errorMessage);
+            setShowPlanRestrictionDialog(true);
+            setSchedulingPlatform(null);
+            setSchedulingPostIds(new Set());
+            setSelectedPosts(new Set());
+            return;
+          }
+
           const errorText = await response.text();
           console.error('Schedule API error:', errorText);
           console.error('Schedule API status:', response.status);
@@ -2008,9 +2129,13 @@ export default function CalendarPage() {
                         }
                       };
 
+                      const accessToken = requireAccessToken();
                       const response = await fetch('/api/calendar/scheduled', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                          'Authorization': `Bearer ${accessToken}`,
+                          'Content-Type': 'application/json' 
+                        },
                         body: JSON.stringify(requestBody)
                       });
 
@@ -2083,9 +2208,13 @@ export default function CalendarPage() {
 
                     try {
                       // Update the post's scheduled date
+                      const accessToken = requireAccessToken();
                       const response = await fetch('/api/calendar/scheduled', {
                         method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                          'Authorization': `Bearer ${accessToken}`,
+                          'Content-Type': 'application/json' 
+                        },
                         body: JSON.stringify({
                           postId: (postToMove as Post).id,
                           updates: {
@@ -2312,10 +2441,40 @@ export default function CalendarPage() {
               )}
             </div>
           </div>
-          
-          
+        
+        
         </div>
       </div>
+
+      <Dialog open={showPlanRestrictionDialog} onOpenChange={setShowPlanRestrictionDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-orange-500" />
+              Upgrade Required
+            </DialogTitle>
+            <DialogDescription>
+              {planRestrictionMessage}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowPlanRestrictionDialog(false)}
+            >
+              Close
+            </Button>
+            <Button
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => {
+                window.location.href = '/pricing';
+              }}
+            >
+              Upgrade Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

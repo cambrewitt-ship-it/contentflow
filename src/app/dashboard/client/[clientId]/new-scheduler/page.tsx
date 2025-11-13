@@ -4,8 +4,9 @@ import { use, useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Calendar, Clock, Check, Send, Trash2 } from 'lucide-react'
+import { Calendar, Clock, Check, Send, Trash2, AlertCircle } from 'lucide-react'
 import { Post, LateAccount } from '@/types/api'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface Account {
   _id: string;
@@ -29,6 +30,10 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
   const [scheduledPosts, setScheduledPosts] = useState<Map<string, LocalScheduledPost>>(new Map());
   const [loadingPostId, setLoadingPostId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPlanRestrictionDialog, setShowPlanRestrictionDialog] = useState(false);
+  const [planRestrictionMessage, setPlanRestrictionMessage] = useState(
+    'Social media posting is not available on the free plan. Please upgrade to post to social media.'
+  );
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -190,8 +195,19 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
       });
       
       if (!scheduleResponse.ok) {
-        const error = await mediaResponse.text();
-        console.error('Schedule failed:', error);
+        if (scheduleResponse.status === 403) {
+          const errorBody = await scheduleResponse.json().catch(() => null);
+          const errorMessage =
+            errorBody?.error ||
+            'Social media posting is not available on the free plan. Please upgrade to post to social media.';
+          setPlanRestrictionMessage(errorMessage);
+          setShowPlanRestrictionDialog(true);
+          setLoadingPostId(null);
+          return;
+        }
+
+        const errorText = await scheduleResponse.text();
+        console.error('Schedule failed:', errorText);
         throw new Error('Failed to schedule post');
       }
       
@@ -401,6 +417,35 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
           </div>
         )}
       </div>
+      <Dialog open={showPlanRestrictionDialog} onOpenChange={setShowPlanRestrictionDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-orange-500" />
+              Upgrade Required
+            </DialogTitle>
+            <DialogDescription>
+              {planRestrictionMessage}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowPlanRestrictionDialog(false)}
+            >
+              Close
+            </Button>
+            <Button
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => {
+                window.location.href = '/pricing';
+              }}
+            >
+              Upgrade Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

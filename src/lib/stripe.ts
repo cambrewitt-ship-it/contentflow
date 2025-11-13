@@ -57,7 +57,7 @@ export const SUBSCRIPTION_TIERS = {
     ],
   },
   starter: {
-    name: 'Starter',
+    name: 'In-House',
     priceId: process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID!,
     price: 35,
     maxClients: 1,
@@ -72,7 +72,7 @@ export const SUBSCRIPTION_TIERS = {
     ],
   },
   professional: {
-    name: 'Professional',
+    name: 'Freelancer',
     priceId: process.env.NEXT_PUBLIC_STRIPE_PROFESSIONAL_PRICE_ID!,
     price: 79,
     maxClients: 5,

@@ -44,8 +44,8 @@ interface BillingRecord {
 
 const tierNames: Record<string, string> = {
   freemium: 'Free',
-  starter: 'Starter',
-  professional: 'Professional',
+  starter: 'In-House',
+  professional: 'Freelancer',
   agency: 'Agency',
 };
 
@@ -189,6 +189,13 @@ export default function BillingSettingsPage() {
     return (used / max) * 100;
   };
 
+  const getPlanLabel = () => {
+    if (!subscription) return 'FREE';
+    const tier = subscription.subscription_tier || 'freemium';
+    if (tier === 'freemium') return 'FREE';
+    return tierNames[tier] ?? tier.toUpperCase();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -235,7 +242,7 @@ export default function BillingSettingsPage() {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <h2 className="text-2xl font-bold">
-                {tierNames[subscription.subscription_tier]} Plan
+                {getPlanLabel()} Plan
               </h2>
               {getStatusBadge(subscription.subscription_status)}
             </div>

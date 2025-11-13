@@ -19,13 +19,13 @@
 1. Go to [Stripe Dashboard - Products](https://dashboard.stripe.com/test/products)
 2. Create 3 products with recurring prices:
 
-   **Product 1: Starter**
-   - Name: Starter
+   **Product 1: In-House**
+   - Name: In-House
    - Price: $35/month
    - Copy the Price ID (starts with `price_`)
 
-   **Product 2: Professional**
-   - Name: Professional
+   **Product 2: Freelancer**
+   - Name: Freelancer
    - Price: $79/month
    - Copy the Price ID (starts with `price_`)
 

@@ -325,12 +325,30 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   const fetchConnectedAccounts = useCallback(async () => {
     if (!clientId || fetchAccountsRef.current) return
-    
+
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      console.log('⚠️ No access token available for connected accounts fetch - retrying...');
+      setTimeout(() => {
+        fetchConnectedAccounts();
+      }, 500);
+      return;
+    }
+
     try {
       fetchAccountsRef.current = true
       setFetchingAccounts(true)
-      const response = await fetch(`/api/late/get-accounts/${clientId}`);
+      const response = await fetch(`/api/late/get-accounts/${clientId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          console.warn('⚠️ Unauthorized when fetching connected accounts - keeping existing state');
+          return;
+        }
         if (response.status === 404) {
           console.log('Client not found or no LATE profile setup - skipping connected accounts');
           setConnectedAccounts([]);
@@ -346,8 +364,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       console.log('Connected accounts count:', data.accounts?.length || 0);
     } catch (error) {
       console.error('Error fetching accounts:', error);
-      // Don't crash the dashboard if accounts can't be fetched
-      setConnectedAccounts([]);
+      // Keep existing connected accounts state on error
     } finally {
       setFetchingAccounts(false)
       fetchAccountsRef.current = false
@@ -364,11 +381,26 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   // Function to refresh accounts after OAuth success
   const refreshAccountsAfterOAuth = useCallback(async () => {
     if (!clientId || fetchAccountsRef.current) return
-    
+
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      console.log('⚠️ No access token available for account refresh - skipping');
+      return;
+    }
+
     try {
       fetchAccountsRef.current = true
-      const response = await fetch(`/api/late/get-accounts/${clientId}`);
+      const response = await fetch(`/api/late/get-accounts/${clientId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          console.warn('⚠️ Unauthorized when refreshing accounts - keeping existing state');
+          return;
+        }
         if (response.status === 404) {
           console.log('Client not found or no LATE profile setup - skipping account refresh');
           setConnectedAccounts([]);
@@ -383,8 +415,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       console.log('✅ Accounts refreshed after OAuth - count:', data.accounts?.length || 0);
     } catch (error) {
       console.error('Error refreshing accounts after OAuth:', error);
-      // Don't crash the dashboard if accounts can't be fetched
-      setConnectedAccounts([]);
+      // Keep existing connected accounts state on error
     } finally {
       fetchAccountsRef.current = false
     }
@@ -433,7 +464,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       console.log('✅ Facebook OAuth success detected')
       setOauthMessage({
         type: 'success',
-        message: 'Facebook account connected successfully!'
+        message: 'Connection Successful'
       })
       
       // Clear message after delay
@@ -491,7 +522,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       console.log(`✅ ${connected} OAuth success detected`)
       setOauthMessage({
         type: 'success',
-        message: `${connected.charAt(0).toUpperCase() + connected.slice(1)} account connected successfully!`
+        message: 'Connection Successful'
       })
       
       // Clear message after delay
@@ -519,6 +550,26 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     return connectedAccounts.some(account => account.platform === platform);
   };
 
+  const getPlatformButtonStyles = (platform: string) => {
+    const connected = isPlatformConnected(platform);
+    return {
+      connected,
+      buttonClasses: connected
+        ? 'border-2 border-emerald-500 bg-emerald-50 shadow-sm hover:bg-emerald-100'
+        : 'border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50',
+      iconWrapperClasses: connected
+        ? 'ring-2 ring-offset-2 ring-emerald-400 scale-105'
+        : '',
+      labelClasses: connected ? 'text-emerald-700' : 'text-gray-700'
+    };
+  };
+
+  const getPlatformLabel = (platform: string, defaultLabel: string) => {
+    if (connectingPlatform === platform) return 'Connecting...';
+    if (isPlatformConnected(platform)) return 'CONNECTED';
+    return defaultLabel;
+  };
+
   // Handle platform connection
   const handlePlatformConnect = async (platform: string) => {
     try {
@@ -527,6 +578,12 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       setOauthMessage(null) // Clear any previous OAuth messages
       
       console.log(`🔗 Connecting to ${platform} for client:`, clientId)
+
+      const accessToken = getAccessToken()
+      if (!accessToken) {
+        console.error(`❌ No access token available for ${platform} connection`)
+        return
+      }
       
       // Use Facebook-specific route for Facebook, general route for others
       const apiRoute = platform === 'facebook' 
@@ -541,6 +598,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify(requestBody)
       })
@@ -1236,21 +1294,28 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('facebook')}
                     disabled={connectingPlatform === 'facebook'}
-                    className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isPlatformConnected('facebook')
-                        ? 'border-2 border-gray-700'
-                        : 'border-2 border-gray-200'
+                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      getPlatformButtonStyles('facebook').buttonClasses
                     }`}
                   >
-                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                    {getPlatformButtonStyles('facebook').connected && (
+                      <span className="absolute top-1 right-1 bg-emerald-500 text-white rounded-full p-0.5 shadow-sm">
+                        <Check className="w-3 h-3" />
+                      </span>
+                    )}
+                    <div className={`w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center transition-all ${
+                      getPlatformButtonStyles('facebook').iconWrapperClasses
+                    }`}>
                       {connectingPlatform === 'facebook' ? (
                         <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <FacebookIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className="text-xs font-medium text-gray-700">
-                      {connectingPlatform === 'facebook' ? 'Connecting...' : 'Facebook'}
+                    <span className={`text-xs font-medium ${
+                      getPlatformButtonStyles('facebook').labelClasses
+                    }`}>
+                      {getPlatformLabel('facebook', 'Facebook')}
                     </span>
                   </button>
 
@@ -1258,21 +1323,28 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('instagram')}
                     disabled={connectingPlatform === 'instagram'}
-                    className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isPlatformConnected('instagram')
-                        ? 'border-2 border-gray-700'
-                        : 'border-2 border-gray-200'
+                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      getPlatformButtonStyles('instagram').buttonClasses
                     }`}
                   >
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                    {getPlatformButtonStyles('instagram').connected && (
+                      <span className="absolute top-1 right-1 bg-emerald-500 text-white rounded-full p-0.5 shadow-sm">
+                        <Check className="w-3 h-3" />
+                      </span>
+                    )}
+                    <div className={`w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center transition-all ${
+                      getPlatformButtonStyles('instagram').iconWrapperClasses
+                    }`}>
                       {connectingPlatform === 'instagram' ? (
                         <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <InstagramIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className="text-xs font-medium text-gray-700">
-                      {connectingPlatform === 'instagram' ? 'Connecting...' : 'Instagram'}
+                    <span className={`text-xs font-medium ${
+                      getPlatformButtonStyles('instagram').labelClasses
+                    }`}>
+                      {getPlatformLabel('instagram', 'Instagram')}
                     </span>
                   </button>
 
@@ -1280,21 +1352,28 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('twitter')}
                     disabled={connectingPlatform === 'twitter'}
-                    className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isPlatformConnected('twitter')
-                        ? 'border-2 border-gray-700'
-                        : 'border-2 border-gray-200'
+                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      getPlatformButtonStyles('twitter').buttonClasses
                     }`}
                   >
-                    <div className="w-10 h-10 bg-blue-400 rounded-full flex items-center justify-center">
+                    {getPlatformButtonStyles('twitter').connected && (
+                      <span className="absolute top-1 right-1 bg-emerald-500 text-white rounded-full p-0.5 shadow-sm">
+                        <Check className="w-3 h-3" />
+                      </span>
+                    )}
+                    <div className={`w-10 h-10 bg-blue-400 rounded-full flex items-center justify-center transition-all ${
+                      getPlatformButtonStyles('twitter').iconWrapperClasses
+                    }`}>
                       {connectingPlatform === 'twitter' ? (
                         <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <TwitterIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className="text-xs font-medium text-gray-700">
-                      {connectingPlatform === 'twitter' ? 'Connecting...' : 'Twitter'}
+                    <span className={`text-xs font-medium ${
+                      getPlatformButtonStyles('twitter').labelClasses
+                    }`}>
+                      {getPlatformLabel('twitter', 'Twitter')}
                     </span>
                   </button>
 
@@ -1302,21 +1381,28 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('linkedin')}
                     disabled={connectingPlatform === 'linkedin'}
-                    className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isPlatformConnected('linkedin')
-                        ? 'border-2 border-gray-700'
-                        : 'border-2 border-gray-200'
+                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      getPlatformButtonStyles('linkedin').buttonClasses
                     }`}
                   >
-                    <div className="w-10 h-10 bg-blue-700 rounded-full flex items-center justify-center">
+                    {getPlatformButtonStyles('linkedin').connected && (
+                      <span className="absolute top-1 right-1 bg-emerald-500 text-white rounded-full p-0.5 shadow-sm">
+                        <Check className="w-3 h-3" />
+                      </span>
+                    )}
+                    <div className={`w-10 h-10 bg-blue-700 rounded-full flex items-center justify-center transition-all ${
+                      getPlatformButtonStyles('linkedin').iconWrapperClasses
+                    }`}>
                       {connectingPlatform === 'linkedin' ? (
                         <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <LinkedInIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className="text-xs font-medium text-gray-700">
-                      {connectingPlatform === 'linkedin' ? 'Connecting...' : 'LinkedIn'}
+                    <span className={`text-xs font-medium ${
+                      getPlatformButtonStyles('linkedin').labelClasses
+                    }`}>
+                      {getPlatformLabel('linkedin', 'LinkedIn')}
                     </span>
                   </button>
 
@@ -1324,21 +1410,28 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('tiktok')}
                     disabled={connectingPlatform === 'tiktok'}
-                    className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isPlatformConnected('tiktok')
-                        ? 'border-2 border-gray-700'
-                        : 'border-2 border-gray-200'
+                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      getPlatformButtonStyles('tiktok').buttonClasses
                     }`}
                   >
-                    <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center">
+                    {getPlatformButtonStyles('tiktok').connected && (
+                      <span className="absolute top-1 right-1 bg-emerald-500 text-white rounded-full p-0.5 shadow-sm">
+                        <Check className="w-3 h-3" />
+                      </span>
+                    )}
+                    <div className={`w-10 h-10 bg-black rounded-full flex items-center justify-center transition-all ${
+                      getPlatformButtonStyles('tiktok').iconWrapperClasses
+                    }`}>
                       {connectingPlatform === 'tiktok' ? (
                         <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <TikTokIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className="text-xs font-medium text-gray-700">
-                      {connectingPlatform === 'tiktok' ? 'Connecting...' : 'TikTok'}
+                    <span className={`text-xs font-medium ${
+                      getPlatformButtonStyles('tiktok').labelClasses
+                    }`}>
+                      {getPlatformLabel('tiktok', 'TikTok')}
                     </span>
                   </button>
 
@@ -1346,21 +1439,28 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('youtube')}
                     disabled={connectingPlatform === 'youtube'}
-                    className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isPlatformConnected('youtube')
-                        ? 'border-2 border-gray-700'
-                        : 'border-2 border-gray-200'
+                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      getPlatformButtonStyles('youtube').buttonClasses
                     }`}
                   >
-                    <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center">
+                    {getPlatformButtonStyles('youtube').connected && (
+                      <span className="absolute top-1 right-1 bg-emerald-500 text-white rounded-full p-0.5 shadow-sm">
+                        <Check className="w-3 h-3" />
+                      </span>
+                    )}
+                    <div className={`w-10 h-10 bg-red-600 rounded-full flex items-center justify-center transition-all ${
+                      getPlatformButtonStyles('youtube').iconWrapperClasses
+                    }`}>
                       {connectingPlatform === 'youtube' ? (
                         <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <YouTubeIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className="text-xs font-medium text-gray-700">
-                      {connectingPlatform === 'youtube' ? 'Connecting...' : 'YouTube'}
+                    <span className={`text-xs font-medium ${
+                      getPlatformButtonStyles('youtube').labelClasses
+                    }`}>
+                      {getPlatformLabel('youtube', 'YouTube')}
                     </span>
                   </button>
 
@@ -1368,21 +1468,28 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('threads')}
                     disabled={connectingPlatform === 'threads'}
-                    className={`flex flex-col items-center space-y-2 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isPlatformConnected('threads')
-                        ? 'border-2 border-gray-700'
-                        : 'border-2 border-gray-200'
+                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      getPlatformButtonStyles('threads').buttonClasses
                     }`}
                   >
-                    <div className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center">
+                    {getPlatformButtonStyles('threads').connected && (
+                      <span className="absolute top-1 right-1 bg-emerald-500 text-white rounded-full p-0.5 shadow-sm">
+                        <Check className="w-3 h-3" />
+                      </span>
+                    )}
+                    <div className={`w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center transition-all ${
+                      getPlatformButtonStyles('threads').iconWrapperClasses
+                    }`}>
                       {connectingPlatform === 'threads' ? (
                         <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       ) : (
                         <ThreadsIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className="text-xs font-medium text-gray-700">
-                      {connectingPlatform === 'threads' ? 'Connecting...' : 'Threads'}
+                    <span className={`text-xs font-medium ${
+                      getPlatformButtonStyles('threads').labelClasses
+                    }`}>
+                      {getPlatformLabel('threads', 'Threads')}
                     </span>
                   </button>
                 </div>

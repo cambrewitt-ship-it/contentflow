@@ -72,7 +72,7 @@ export async function checkSocialMediaPostingPermission(
         // No subscription found - user is on freemium by default
         return {
           allowed: false,
-          error: 'Social media posting is not available on the freemium plan. Please upgrade to post to social media.'
+          error: 'Social media posting is not available on the free plan. Please upgrade to post to social media.'
         };
       }
       console.error('Error fetching subscription:', error);
@@ -87,7 +87,7 @@ export async function checkSocialMediaPostingPermission(
       return {
         allowed: false,
         subscription,
-        error: 'Social media posting is not available on the freemium plan. Please upgrade to post to social media.'
+        error: 'Social media posting is not available on the free plan. Please upgrade to post to social media.'
       };
     }
 

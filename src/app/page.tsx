@@ -50,7 +50,7 @@ const pricingTiers = [
     highlighted: false,
   },
   {
-    name: 'Starter',
+    name: 'In-House',
     id: 'starter',
     price: 35,
     description: 'For marketing managers',
@@ -64,13 +64,13 @@ const pricingTiers = [
     highlighted: false,
   },
   {
-    name: 'Professional',
+    name: 'Freelancer',
     id: 'professional',
     price: 79,
     description: 'For freelancers and agencies',
     trialText: '14-day free trial',
     features: [
-      'Everything in Starter',
+      'Everything in In-House',
       '5 Client profiles',
       '150 Scheduled posts per month',
       '500 AI Credits per month',
@@ -84,7 +84,7 @@ const pricingTiers = [
     description: 'For larger marketing agencies',
     trialText: '14-day free trial',
     features: [
-      'Everything in Professional',
+      'Everything in Freelancer',
       'Unlimited Client profiles',
       'Unlimited Scheduled posts',
       'White-Label Branding',

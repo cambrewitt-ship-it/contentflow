@@ -13,7 +13,7 @@ Also, you're using **live keys** which is fine, but make sure you're testing wit
 ### Option 1: Using Stripe Dashboard (Easiest)
 
 1. Go to your [Stripe Products page](https://dashboard.stripe.com/products)
-2. Click on each product (Starter, Professional, Agency)
+2. Click on each product (In-House, Freelancer, Agency)
 3. In the product details page, look for the **"Pricing"** section
 4. Copy the **Price ID** (starts with `price_`)
 5. It will look like: `price_1234567890abcdefghij`
