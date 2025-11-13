@@ -17,6 +17,7 @@ import {
   YouTubeIcon, 
   ThreadsIcon 
 } from "@/components/social-icons";
+import { Oswald } from "next/font/google";
 
 interface UserProfile {
   id: string;
@@ -27,6 +28,11 @@ interface UserProfile {
   company_name: string;
   role: string;
 }
+
+const oswald = Oswald({
+  subsets: ["latin"],
+  weight: ["700"],
+});
 
 const pricingTiers = [
   {
@@ -145,6 +151,11 @@ export default function Home() {
                 alt="CM Logo" 
                 className="h-16 w-auto object-contain"
               />
+              <img
+                src="/oot-product-silver-1.png"
+                alt="OOT Digital Product"
+                className="hidden md:block h-8 w-auto ml-4 object-contain rounded-[4px]"
+              />
             </div>
             
             {/* Desktop Navigation */}
@@ -163,10 +174,15 @@ export default function Home() {
                   <Link href="/dashboard">
                     <Button size="sm">Dashboard</Button>
                   </Link>
-                  <Button variant="outline" size="sm" onClick={async () => {
-                    await signOut();
-                    router.push('/');
-                  }}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-white text-gray-900 hover:bg-gray-50 border-gray-300"
+                    onClick={async () => {
+                      await signOut();
+                      router.push('/');
+                    }}
+                  >
                     Sign Out
                   </Button>
                 </div>
@@ -283,7 +299,7 @@ export default function Home() {
               AI-Powered Social Media Management
             </h1>
             <p className="mt-6 text-lg leading-8 text-muted-foreground max-w-3xl mx-auto">
-              Upload content, generate captions with AI, and schedule posts across all platforms.
+              Reduce time spent managing social media by 5x
             </p>
             <div className="mt-10 max-w-2xl mx-auto px-4">
               <div className="flex items-center justify-center gap-3">
@@ -320,9 +336,16 @@ export default function Home() {
           {/* Hero Image/Illustration */}
           <div className="mt-12 mx-auto max-w-5xl">
             <div className="flex flex-col items-center mb-6">
-              <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-2 whitespace-nowrap block">
-                Content Manager - Plan, Create, Schedule
-              </h2>
+              <div className="flex flex-col items-center">
+                <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-2 text-center">
+                  <span className={`${oswald.className} bg-gradient-to-r from-blue-500 via-blue-400 to-blue-600 bg-clip-text text-transparent tracking-tight`}>
+                    Content Manager
+                  </span>
+                  <span className="font-['Poppins'] font-medium text-foreground">
+                    {" "} - Plan, Create, Schedule
+                  </span>
+                </h2>
+              </div>
               <p className="text-xl sm:text-2xl font-bold text-muted-foreground block text-center">
                 Like ChatGPT + Trello + Social Scheduler
               </p>
@@ -622,9 +645,16 @@ export default function Home() {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-border/40">
-            <p className="text-sm text-muted-foreground text-center">
+            <div className="flex flex-col md:flex-row items-center md:justify-between gap-4">
+              <p className="text-sm text-muted-foreground text-center md:text-left">
               © 2024 Content Manager. All rights reserved.
             </p>
+              <img
+                src="/oot-product-silver-1.png"
+                alt="OOT Digital Product"
+                className="h-16 w-auto object-contain rounded-[4px]"
+              />
+            </div>
           </div>
         </div>
       </footer>
