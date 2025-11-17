@@ -24,14 +24,15 @@ function buildCSP(): string {
     // Default: Only allow resources from same origin
     "default-src 'self'",
     
-    // Scripts: Allow same origin + inline scripts + eval + blob
+    // Scripts: Allow same origin + inline scripts + eval + blob + GTM
     // - 'unsafe-inline': Required for Next.js and some React hydration
     // - 'unsafe-eval': Required for Next.js development (hot reload) and some build optimizations
     // - blob:: Required for worker scripts and dynamic imports
+    // - GTM domains: Required for Google Tag Manager and Google Analytics
     // TODO: In production, consider using nonces or hashes instead of 'unsafe-inline'
     isDevelopment
-      ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:"
-      : "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:",
+      ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://www.googletagmanager.com https://www.google-analytics.com"
+      : "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://www.googletagmanager.com https://www.google-analytics.com",
     
     // Workers: Allow same origin + blob URLs for web workers
     // - blob:: Required for worker scripts created from blob URLs
@@ -48,20 +49,22 @@ function buildCSP(): string {
     // - data:: Base64 encoded images and SVGs
     // - blob:: Next.js Image Optimization creates blob URLs
     // - https:: Allow HTTPS images (specifically needed for Supabase storage)
+    // - GTM: Required for Google Analytics tracking pixels
     // Consider restricting https: to specific domains in production for tighter security
-    "img-src 'self' data: blob: https:",
+    "img-src 'self' data: blob: https: https://www.google-analytics.com https://www.googletagmanager.com",
     
     // Fonts: Allow same origin + data URIs
     // - data:: For embedded font files
     "font-src 'self' data:",
     
-    // API Connections: Allow same origin + Supabase backend
+    // API Connections: Allow same origin + Supabase backend + GTM/GA4
     // - Supabase URL is dynamically included from environment variable
     // - blob:: Required for fetching blob URLs (e.g., image caption generation)
+    // - GTM/GA4: Required for analytics and tag management
     // - In development, also allow localhost variants
     isDevelopment
-      ? `connect-src 'self' blob: ${supabaseUrl} http://localhost:* ws://localhost:* wss://localhost:*`
-      : `connect-src 'self' blob: ${supabaseUrl}`,
+      ? `connect-src 'self' blob: ${supabaseUrl} https://www.google-analytics.com https://www.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
+      : `connect-src 'self' blob: ${supabaseUrl} https://www.google-analytics.com https://www.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net`,
     
     // Media: Allow same origin + blob (for video/audio if needed)
     "media-src 'self' blob:",

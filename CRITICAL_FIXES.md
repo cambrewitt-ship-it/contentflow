@@ -84,3 +84,4 @@ Resolve these items **before allowing external users**. Each issue maps to the f
 - **Fix:** Audit every service-role usage after completing fixes above; refactor to user-scoped clients except where absolutely necessary (e.g., webhooks, admin automation).
 - **Acceptance test:** Grep for `supabaseServiceRoleKey` in `/src/app/api` should show only admin-only endpoints when done.
 
+

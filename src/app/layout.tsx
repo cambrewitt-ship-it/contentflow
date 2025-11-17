@@ -5,6 +5,7 @@ import "../styles/glassmorphism.css";
 import { UIThemeProvider } from "../contexts/UIThemeContext";
 import { AuthProvider } from "../contexts/AuthContext";
 import ConditionalCreditsProvider from "./ConditionalCreditsProvider";
+import { GoogleTagManager, GoogleTagManagerNoScript } from "../components/GoogleTagManager";
 
 const poppins = Poppins({ 
   subsets: ["latin"],
@@ -23,9 +24,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Get GTM ID from environment variable
+  const gtmId = process.env.NEXT_PUBLIC_GTM_ID || '';
+  
   return (
     <html lang="en">
+      <head>
+        <GoogleTagManager gtmId={gtmId} />
+      </head>
       <body className={`${poppins.className} antialiased`}>
+        <GoogleTagManagerNoScript gtmId={gtmId} />
         <AuthProvider>
           <ConditionalCreditsProvider>
             <UIThemeProvider>

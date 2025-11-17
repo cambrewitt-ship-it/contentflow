@@ -10,3 +10,4 @@
 - Multiple customer-facing API routes still construct Supabase clients with `NEXT_SUPABASE_SERVICE_ROLE` and do not authenticate or verify ownership, e.g. `src/app/api/projects/[projectId]/scheduled-posts/route.ts`, `src/app/api/projects/[projectId]/unscheduled-posts/route.ts`, `src/app/api/schedulePost/route.ts`, and `src/app/api/upload-image/route.ts`. These endpoints remain vulnerable to cross-tenant data exposure or modification.
 - Several API modules surfaced by linting continue to ship with unused variables and loose `any` types; while not directly exploitable, they increase the chance that authorization gaps slip through reviews.
 
+
