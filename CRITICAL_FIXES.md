@@ -85,3 +85,4 @@ Resolve these items **before allowing external users**. Each issue maps to the f
 - **Acceptance test:** Grep for `supabaseServiceRoleKey` in `/src/app/api` should show only admin-only endpoints when done.
 
 
+

@@ -24,15 +24,13 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Get GTM ID from environment variable
-  const gtmId = process.env.NEXT_PUBLIC_GTM_ID || '';
+  // GTM ID - using the actual ID from Google
+  const gtmId = process.env.NEXT_PUBLIC_GTM_ID || 'GTM-KL3PR53B';
   
   return (
     <html lang="en">
-      <head>
-        <GoogleTagManager gtmId={gtmId} />
-      </head>
       <body className={`${poppins.className} antialiased`}>
+        <GoogleTagManager gtmId={gtmId} />
         <GoogleTagManagerNoScript gtmId={gtmId} />
         <AuthProvider>
           <ConditionalCreditsProvider>
