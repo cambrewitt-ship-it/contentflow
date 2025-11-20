@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle, FileDown } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
@@ -208,6 +208,7 @@ export default function CalendarPage() {
   const [portalUrl, setPortalUrl] = useState<string | null>(null);
   const [generatingPortalLink, setGeneratingPortalLink] = useState(false);
   const [portalLinkCopied, setPortalLinkCopied] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
 
   const updatePostCaption = (postId: string, newCaption: string) => {
     setEditingCaptions(prev => ({
@@ -1756,7 +1757,54 @@ export default function CalendarPage() {
     }
   };
 
+  const handleExportToPDF = async () => {
+    if (selectedPosts.size === 0) {
+      alert('Please select posts to export');
+      return;
+    }
 
+    setExportingPDF(true);
+
+    try {
+      const accessToken = requireAccessToken();
+      const postIds = Array.from(selectedPosts);
+
+      const response = await fetch('/api/calendar/export-pdf', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          postIds,
+          clientId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to export PDF' }));
+        throw new Error(errorData.error || 'Failed to export PDF');
+      }
+
+      // Download the PDF
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `content-calendar-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      console.log('✅ PDF exported successfully');
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert(`Failed to export PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setExportingPDF(false);
+    }
+  };
 
 
   return (
@@ -2265,21 +2313,46 @@ export default function CalendarPage() {
 
           {/* Action Buttons - Below Calendar */}
           <div className="flex justify-between items-center mt-6 mb-4 mx-8">
-            {/* Left side - Delete button */}
-            <button
-              onClick={handleBulkDelete}
-              disabled={isDeleting || selectedPosts.size === 0}
-              className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-                isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' : 
-                selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
-                'bg-red-600 hover:bg-red-700'
-              }`}
-            >
-              {isDeleting && (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              )}
-              {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
-            </button>
+            {/* Left side - Delete and Export buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleBulkDelete}
+                disabled={isDeleting || selectedPosts.size === 0}
+                className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+                  isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' : 
+                  selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+                  'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {isDeleting && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                )}
+                {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
+              </button>
+
+              <button
+                onClick={handleExportToPDF}
+                disabled={exportingPDF || selectedPosts.size === 0}
+                className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+                  exportingPDF ? 'opacity-50 cursor-not-allowed bg-blue-500' : 
+                  selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+                  'bg-blue-600 hover:bg-blue-700'
+                }`}
+                title={selectedPosts.size === 0 ? 'Select posts to export' : 'Export selected posts to PDF'}
+              >
+                {exportingPDF ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="w-4 h-4" />
+                    Export to PDF ({selectedPosts.size || 0})
+                  </>
+                )}
+              </button>
+            </div>
             
             {/* Right side - Schedule buttons or guidance */}
             <div className="flex items-center gap-2">
