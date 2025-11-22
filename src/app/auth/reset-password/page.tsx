@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '../../../components/ui/button';
@@ -18,13 +18,28 @@ function ResetPasswordForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [sessionEstablished, setSessionEstablished] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
+  const hasAttemptedSession = useRef(false); // Prevent duplicate session attempts
   const router = useRouter();
   const searchParams = useSearchParams();
 
   useEffect(() => {
+    // Prevent running this effect multiple times
+    if (hasAttemptedSession.current) {
+      console.log('⏭️ Session establishment already attempted, skipping');
+      return;
+    }
+    
+    hasAttemptedSession.current = true;
+    
     // Check if we have the reset token in the hash fragment
     // Supabase sends password reset tokens in the URL hash (e.g., #type=recovery&access_token=...)
     const hash = window.location.hash;
+    
+    // Debug logging
+    console.log('🔍 Password Reset Debug:');
+    console.log('- Full URL:', window.location.href);
+    console.log('- Hash:', hash || '(no hash found)');
     
     if (hash) {
       const hashParams = new URLSearchParams(hash.substring(1));
@@ -32,43 +47,63 @@ function ResetPasswordForm() {
       const refreshToken = hashParams.get('refresh_token');
       const type = hashParams.get('type');
 
+      console.log('- Type:', type || '(missing)');
+      console.log('- Has Access Token:', !!accessToken);
+      console.log('- Has Refresh Token:', !!refreshToken);
+      
+      // Store debug info for display
+      setDebugInfo(`Hash found: ${!!hash}, Type: ${type || 'missing'}, Tokens: ${!!accessToken && !!refreshToken ? 'present' : 'missing'}`);
+
       if (type === 'recovery' && accessToken && refreshToken) {
         // We have valid recovery tokens - set the session
         const establishSession = async () => {
           try {
+            console.log('🔐 Attempting to establish session...');
+            
+            // Clear the hash from URL BEFORE establishing session to prevent re-triggers
+            window.history.replaceState(null, '', window.location.pathname);
+            
             const { data, error: sessionError } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             });
 
             if (sessionError) {
-              setError('Failed to verify reset link. Please request a new one.');
-              console.error('Session establishment error:', sessionError);
+              console.error('❌ Session establishment error:', sessionError);
+              setError(`Failed to verify reset link: ${sessionError.message}`);
+              setDebugInfo(`Error: ${sessionError.message}`);
               return;
             }
 
             if (data.session) {
+              console.log('✅ Session established successfully');
               setSessionEstablished(true);
               setError('');
-              // Clear the hash from URL for security
-              window.history.replaceState(null, '', window.location.pathname);
+              setDebugInfo('Session established successfully');
             } else {
+              console.error('❌ No session returned');
               setError('Invalid or expired reset link. Please request a new one.');
+              setDebugInfo('No session returned from setSession');
             }
           } catch (err) {
+            console.error('💥 Error establishing session:', err);
             setError('Failed to verify reset link. Please request a new one.');
-            console.error('Error establishing session:', err);
+            setDebugInfo(`Exception: ${err instanceof Error ? err.message : String(err)}`);
           }
         };
 
         establishSession();
       } else {
         // Invalid token format
+        console.error('❌ Invalid token format');
         setError('Invalid or expired reset link. Please request a new one.');
+        setDebugInfo(`Invalid format - Type: ${type}, Has tokens: ${!!accessToken && !!refreshToken}`);
       }
     } else {
       // No hash found - invalid or expired link
+      console.error('❌ No hash fragment found in URL');
       setError('Invalid or expired reset link. Please request a new one.');
+      setDebugInfo('No hash fragment in URL - did you click the link from the email?');
     }
   }, []);
 
@@ -216,8 +251,28 @@ function ResetPasswordForm() {
                 )}
               </div>
               {error && (
-                <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
-                  {error}
+                <div className="space-y-2">
+                  <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                    {error}
+                  </div>
+                  {process.env.NODE_ENV === 'development' && debugInfo && (
+                    <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded-md font-mono">
+                      <strong>Debug:</strong> {debugInfo}
+                    </div>
+                  )}
+                  {!sessionEstablished && (
+                    <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-md">
+                      <p className="font-semibold mb-2">How to test password reset:</p>
+                      <ol className="list-decimal list-inside space-y-1 text-xs">
+                        <li>Go to the login page</li>
+                        <li>Click "Forgot your password?"</li>
+                        <li>Enter your email and submit</li>
+                        <li>Check your email inbox</li>
+                        <li>Click the reset link in the email</li>
+                      </ol>
+                      <p className="mt-2 text-xs">Note: You cannot access this page directly without clicking the email link.</p>
+                    </div>
+                  )}
                 </div>
               )}
               <Button 

@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
-import { AlertTriangle, Trash2 } from 'lucide-react';
+import { AlertTriangle, Trash2, Upload, X, Loader2, Crown } from 'lucide-react';
 
 interface UserProfile {
   id: string;
@@ -16,6 +17,7 @@ interface UserProfile {
   username: string;
   avatar_url: string;
   company_name: string;
+  company_logo_url: string | null;
   role: string;
 }
 
@@ -30,6 +32,10 @@ export default function ProfileSettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [removingLogo, setRemovingLogo] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user) {
@@ -52,6 +58,15 @@ export default function ProfileSettingsPage() {
       }
       // Set profile to null if not found (instead of throwing error)
       setProfile(data || null);
+
+      // Fetch subscription tier
+      const { data: subscription } = await supabase
+        .from('subscriptions')
+        .select('subscription_tier')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
+      setSubscriptionTier(subscription?.subscription_tier || null);
     } catch (err) {
       console.error('Error fetching profile:', err);
       setError('Failed to load profile');
@@ -88,6 +103,115 @@ export default function ProfileSettingsPage() {
       setError('Failed to update profile');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image size must be less than 5MB');
+      return;
+    }
+
+    setUploadingLogo(true);
+    setError('');
+    setMessage('');
+
+    try {
+      // Convert file to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      
+      reader.onload = async () => {
+        const base64Data = reader.result as string;
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          throw new Error('No valid session found');
+        }
+
+        const response = await fetch('/api/user/logo', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            imageData: base64Data,
+            filename: file.name,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to upload logo');
+        }
+
+        // Update local state
+        if (profile) {
+          setProfile({ ...profile, company_logo_url: result.logoUrl });
+        }
+        setMessage('Logo uploaded successfully!');
+        setTimeout(() => setMessage(''), 3000);
+      };
+
+      reader.onerror = () => {
+        throw new Error('Failed to read file');
+      };
+    } catch (err) {
+      console.error('Error uploading logo:', err);
+      setError(err instanceof Error ? err.message : 'Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    setRemovingLogo(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session found');
+      }
+
+      const response = await fetch('/api/user/logo', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to remove logo');
+      }
+
+      // Update local state
+      if (profile) {
+        setProfile({ ...profile, company_logo_url: null });
+      }
+      setMessage('Logo removed successfully!');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      console.error('Error removing logo:', err);
+      setError(err instanceof Error ? err.message : 'Failed to remove logo');
+    } finally {
+      setRemovingLogo(false);
     }
   };
 
@@ -220,6 +344,108 @@ export default function ProfileSettingsPage() {
                 placeholder="Enter your company name"
               />
             </div>
+
+            {/* Company Logo - Only for Freelancer and Agency plans */}
+            {subscriptionTier && ['professional', 'agency'].includes(subscriptionTier) ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Company Logo
+                </label>
+                <div className="flex items-center gap-4">
+                  {/* Logo Display */}
+                  <div className="relative">
+                    <div className="w-20 h-20 rounded-lg border-2 border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50">
+                      {profile.company_logo_url ? (
+                        <img
+                          src={profile.company_logo_url}
+                          alt="Company logo"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="text-gray-400 text-xs text-center px-2">
+                          No logo
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Remove button - shows when logo exists */}
+                    {profile.company_logo_url && !uploadingLogo && (
+                      <button
+                        onClick={handleLogoRemove}
+                        disabled={removingLogo}
+                        className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-lg transition-colors disabled:opacity-50"
+                        title="Remove logo"
+                      >
+                        {removingLogo ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <X className="w-3 h-3" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Upload button */}
+                  <div className="flex-1">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingLogo || removingLogo}
+                      className="w-full sm:w-auto"
+                    >
+                      {uploadingLogo ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload Logo
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Recommended: Square image, max 5MB (JPG, PNG, GIF)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : subscriptionTier ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Company Logo
+                </label>
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-blue-600 rounded-full p-2 mt-0.5">
+                      <Crown className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 mb-1">
+                        Unlock Company Logo
+                      </h4>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Upload your company logo and use it across your content. Available with Freelancer and Agency plans.
+                      </p>
+                      <Link href="/pricing">
+                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                          Upgrade Plan
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {error && (
               <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">

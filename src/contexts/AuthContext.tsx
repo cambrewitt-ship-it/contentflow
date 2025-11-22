@@ -62,22 +62,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      logger.debug('🔄 Auth state change:', { event, hasSession: !!session });
-      
-      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
-        if (!session) {
-          logger.info('🚪 User signed out or token refresh failed, clearing auth');
-          setUser(null);
-          setSession(null);
-          setLoading(false);
-        }
+      // Reduced logging to prevent console spam
+      if (event !== 'TOKEN_REFRESHED') {
+        logger.debug('🔄 Auth state change:', { event, hasSession: !!session });
       }
       
-      if (event === 'SIGNED_IN') {
-        logger.info('✅ User signed in successfully');
-        setUser(session?.user ?? null);
-        setSession(session);
-        setLoading(false);
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session) {
+          // Only log full sign-in, not token refresh
+          if (event === 'SIGNED_IN') {
+            logger.info('✅ User signed in successfully');
+          }
+          setUser(session?.user ?? null);
+          setSession(session);
+          setLoading(false);
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Token refresh failed
+          logger.warn('⚠️ Token refresh failed, clearing auth and redirecting');
+          clearAuthAndRedirect();
+        }
       }
       
       if (event === 'SIGNED_OUT') {
@@ -85,12 +88,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setSession(null);
         setLoading(false);
-      }
-      
-      // Handle token refresh errors
-      if (event === 'TOKEN_REFRESHED' && !session) {
-        logger.warn('⚠️ Token refresh failed, clearing auth and redirecting');
-        clearAuthAndRedirect();
       }
     });
 
@@ -180,14 +177,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
-    const resetPassword = async (email: string) => {
-    // Encode the current pathname in state to redirect back after OAuth
-    const currentPathname = window.location.pathname;
-    const stateData = { returnUrl: currentPathname };
-    const encodedState = btoa(JSON.stringify(stateData));
-    
+  const resetPassword = async (email: string) => {
+    // Password reset tokens are sent in the URL hash fragment by Supabase
+    // We should redirect directly to the reset-password page without query params
+    // The hash fragment will be automatically preserved by the browser
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password?state=${encodedState}`,
+      redirectTo: `${window.location.origin}/auth/reset-password`,
     });
     return { error };
   };

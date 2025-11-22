@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import sizeOf from 'image-size';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -47,15 +48,45 @@ async function fetchImageAsBase64(imageUrl: string): Promise<string | null> {
   }
 }
 
+// Helper function to get image dimensions from base64
+async function getImageDimensions(base64: string): Promise<{ width: number; height: number }> {
+  try {
+    // Extract base64 data
+    const base64Data = base64.split(',')[1] || base64;
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    // Use image-size library for reliable dimension detection
+    const dimensions = sizeOf(buffer);
+    
+    if (dimensions.width && dimensions.height) {
+      console.log('Detected image dimensions:', dimensions.width, 'x', dimensions.height);
+      return { width: dimensions.width, height: dimensions.height };
+    }
+    
+    // Fallback to default if detection fails
+    console.warn('Could not detect image dimensions, using default square');
+    return { width: 1080, height: 1080 };
+  } catch (error) {
+    console.error('Error getting image dimensions:', error);
+    return { width: 1080, height: 1080 };
+  }
+}
+
 // Helper function to format date
 function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    weekday: 'short',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  if (!dateString || dateString === 'No Date') return 'No Date';
+  
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long',
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  } catch {
+    return dateString;
+  }
 }
 
 // Helper function to format time
@@ -204,7 +235,7 @@ export async function POST(request: NextRequest) {
       // Render each post
       for (const post of datePosts) {
         // Check if we need a new page for this post
-        const estimatedPostHeight = 40; // Minimum height needed for a post
+        const estimatedPostHeight = 120; // Minimum height needed for a post (increased for larger image)
         if (yPosition > pageHeight - estimatedPostHeight) {
           doc.addPage();
           yPosition = 20;
@@ -213,16 +244,43 @@ export async function POST(request: NextRequest) {
         const startY = yPosition;
         const boxX = 15;
         const boxWidth = pageWidth - 30;
-        const imageSize = 25; // 25mm square
+        const maxImageWidth = 80; // Maximum width in mm
+        const maxImageHeight = 100; // Maximum height in mm
         const imageX = boxX + 5;
         const imageY = yPosition + 5;
 
         // Try to add image
         let imageAdded = false;
+        let actualImageWidth = maxImageWidth;
+        let actualImageHeight = maxImageWidth; // Default to square
+        
         if (post.image_url) {
           try {
             const imageBase64 = await fetchImageAsBase64(post.image_url);
             if (imageBase64) {
+              // Get actual image dimensions
+              const imageDimensions = await getImageDimensions(imageBase64);
+              console.log('Image dimensions for', post.image_url, ':', imageDimensions);
+              const aspectRatio = imageDimensions.width / imageDimensions.height;
+              console.log('Aspect ratio:', aspectRatio);
+              
+              // Calculate scaled dimensions while preserving aspect ratio
+              if (aspectRatio > 1) {
+                // Landscape orientation
+                actualImageWidth = maxImageWidth;
+                actualImageHeight = maxImageWidth / aspectRatio;
+              } else if (aspectRatio < 1) {
+                // Portrait orientation
+                actualImageHeight = Math.min(maxImageHeight, maxImageWidth / aspectRatio);
+                actualImageWidth = actualImageHeight * aspectRatio;
+              } else {
+                // Square (aspect ratio = 1)
+                actualImageWidth = maxImageWidth;
+                actualImageHeight = maxImageWidth;
+              }
+              
+              console.log('Calculated PDF dimensions (mm):', actualImageWidth, 'x', actualImageHeight);
+              
               // Determine image format
               let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
               if (imageBase64.includes('image/png')) {
@@ -231,33 +289,33 @@ export async function POST(request: NextRequest) {
                 format = 'WEBP';
               }
               
-              doc.addImage(imageBase64, format, imageX, imageY, imageSize, imageSize);
+              doc.addImage(imageBase64, format, imageX, imageY, actualImageWidth, actualImageHeight);
               imageAdded = true;
             }
           } catch (error) {
             console.error('Error adding image to PDF:', error);
             // Draw placeholder rectangle
             doc.setFillColor(240, 240, 240);
-            doc.rect(imageX, imageY, imageSize, imageSize, 'F');
+            doc.rect(imageX, imageY, actualImageWidth, actualImageHeight, 'F');
             doc.setFontSize(8);
             doc.setTextColor(150, 150, 150);
-            doc.text('Image', imageX + imageSize / 2, imageY + imageSize / 2, { align: 'center' });
+            doc.text('Image', imageX + actualImageWidth / 2, imageY + actualImageHeight / 2, { align: 'center' });
           }
         }
 
         if (!imageAdded) {
           // Draw placeholder if no image
           doc.setFillColor(240, 240, 240);
-          doc.rect(imageX, imageY, imageSize, imageSize, 'F');
+          doc.rect(imageX, imageY, actualImageWidth, actualImageHeight, 'F');
           doc.setFontSize(8);
           doc.setTextColor(150, 150, 150);
-          doc.text('No Image', imageX + imageSize / 2, imageY + imageSize / 2, { align: 'center' });
+          doc.text('No Image', imageX + actualImageWidth / 2, imageY + actualImageHeight / 2, { align: 'center' });
         }
 
-        // Post details (right side of image)
-        const textX = imageX + imageSize + 5;
-        const textWidth = boxWidth - imageSize - 15;
-        let textY = imageY;
+        // Post details (below image)
+        const textX = imageX;
+        const textWidth = actualImageWidth; // Text width matches image width
+        let textY = imageY + actualImageHeight + 5; // Position text below image
 
         // Time and Platform
         doc.setFontSize(10);
@@ -308,8 +366,8 @@ export async function POST(request: NextRequest) {
           textY += 5;
         }
 
-        // Calculate box height
-        const boxHeight = Math.max(imageSize + 10, textY - startY + 5);
+        // Calculate box height based on actual image height
+        const boxHeight = Math.max(actualImageHeight + 10, textY - startY + 5);
 
         // Draw post border
         doc.setDrawColor(220, 220, 220);
