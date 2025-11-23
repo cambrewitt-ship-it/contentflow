@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
-import { requireAuth } from '@/lib/authHelpers';
-// Temporary inline types to resolve import issue
+
 interface ApprovalBoardPost {
   id: string;
   caption: string;
@@ -33,91 +32,35 @@ const supabase = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ sessionId: string }> }
-) {
+// Public route - get posts by share token (no auth required)
+export async function GET(request: NextRequest) {
   try {
     const startTime = Date.now();
-    const { sessionId } = await params;
     const { searchParams } = new URL(request.url);
-    const share_token = searchParams.get('token'); // For public access
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const includeImages = searchParams.get('includeImages') !== 'false';
+    const share_token = searchParams.get('token');
 
-    logger.debug('Optimized approval fetch', { 
-      sessionIdPreview: sessionId?.substring(0, 8) + '...', 
-      limit, 
-      includeImages 
-    });
-
-    // Validate session (either by ID for internal or token for public)
-    let supabaseClient = supabase;
-    let session;
-    let sessionError;
-
-    if (share_token) {
-      const { data, error } = await supabase
-        .from('client_approval_sessions')
-        .select('id, project_id, client_id, expires_at, created_at')
-        .eq('share_token', share_token)
-        .single();
-
-      session = data;
-      sessionError = error;
-    } else {
-      const auth = await requireAuth(request);
-      if (auth.error) return auth.error;
-      const { supabase: authedSupabase, user } = auth;
-      supabaseClient = authedSupabase;
-
-      const { data, error } = await supabaseClient
-        .from('client_approval_sessions')
-        .select('id, project_id, client_id, expires_at, created_at')
-        .eq('id', sessionId)
-        .single();
-
-      session = data;
-      sessionError = error;
-
-      if (session?.client_id) {
-        const { data: clientCheck, error: clientError } = await supabaseClient
-          .from('clients')
-          .select('id, user_id')
-          .eq('id', session.client_id)
-          .single();
-
-        if (clientError) {
-          logger.error('❌ Error verifying client ownership for approval posts:', clientError);
-          if (clientError.code === 'PGRST116') {
-            return NextResponse.json(
-              { error: 'Forbidden' },
-              { status: 403 }
-            );
-          }
-          return NextResponse.json(
-            { error: 'Failed to verify client ownership' },
-            { status: 500 }
-          );
-        }
-
-        if (!clientCheck || clientCheck.user_id !== user.id) {
-          logger.warn('Forbidden approval post fetch attempt due to client ownership mismatch', {
-            sessionId,
-            clientId: session.client_id,
-            userId: user.id
-          });
-          return NextResponse.json(
-            { error: 'Forbidden' },
-            { status: 403 }
-          );
-        }
-      }
+    if (!share_token) {
+      return NextResponse.json(
+        { error: 'Token is required' },
+        { status: 400 }
+      );
     }
 
+    logger.debug('Fetching approval posts by token', { 
+      tokenPreview: share_token.substring(0, 8) + '...'
+    });
+
+    // Get session by token
+    const { data: session, error: sessionError } = await supabase
+      .from('client_approval_sessions')
+      .select('id, project_id, client_id, expires_at, created_at')
+      .eq('share_token', share_token)
+      .single();
+
     if (sessionError || !session) {
+      logger.error('❌ Session not found:', sessionError);
       return NextResponse.json(
-        { error: 'Session not found or expired' },
+        { error: 'Session not found or invalid token' },
         { status: 404 }
       );
     }
@@ -130,8 +73,8 @@ export async function GET(
       );
     }
 
-    // First, get the selected post IDs for this session
-    const { data: postApprovals, error: approvalsError } = await supabaseClient
+    // Get post approvals for this session
+    const { data: postApprovals, error: approvalsError } = await supabase
       .from('post_approvals')
       .select('post_id, post_type, approval_status, client_comments, created_at')
       .eq('session_id', session.id);
@@ -153,10 +96,10 @@ export async function GET(
       ?.filter(approval => approval.post_type === 'scheduled')
       ?.map(approval => approval.post_id) || [];
 
-    // OPTIMIZED: Fetch posts by their IDs (already validated in post_approvals table)
+    // Fetch posts by their IDs (already validated in post_approvals table)
     // No need to filter by project_id - we trust the post_approvals table links
     const [scheduledResult, otherScheduledResult] = await Promise.all([
-      selectedPlannerPostIds.length > 0 ? supabaseClient
+      selectedPlannerPostIds.length > 0 ? supabase
         .from('calendar_scheduled_posts')
         .select(`
           id,
@@ -171,7 +114,7 @@ export async function GET(
         .in('id', selectedPlannerPostIds)
         .order('scheduled_date', { ascending: true }) : { data: [], error: null },
       
-      selectedScheduledPostIds.length > 0 ? supabaseClient
+      selectedScheduledPostIds.length > 0 ? supabase
         .from('scheduled_posts')
         .select(`
           id,
@@ -213,7 +156,7 @@ export async function GET(
       }))
     ];
 
-    // Group posts by week following your date patterns
+    // Group posts by week
     const getStartOfWeek = (date: Date) => {
       const d = new Date(date);
       const day = d.getDay();
@@ -232,7 +175,6 @@ export async function GET(
       return `W/C ${date.toLocaleDateString('en-GB', options)}`;
     };
     
-    // Group posts by week
     const weekMap = new Map<string, ApprovalBoardPost[]>();
     
     allPosts.forEach(post => {
@@ -248,7 +190,6 @@ export async function GET(
       }
     });
 
-    // Convert to week data array and sort
     const weeks: WeekData[] = Array.from(weekMap.entries())
       .map(([weekKey, posts]) => {
         const weekStart = new Date(weekKey);
@@ -271,17 +212,15 @@ export async function GET(
       total_posts: allPosts.length,
       performance: {
         queryDuration,
-        optimized: queryDuration < 2000, // Consider optimized if under 2 seconds
-        limit,
-        includeImages,
-        parallelQueries: true
+        optimized: queryDuration < 2000
       }
     });
   } catch (error) {
-    logger.error('❌ Error in approval posts API:', error);
+    logger.error('❌ Error in approval posts by token API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
+

@@ -1082,12 +1082,10 @@ export function PortalColumnViewCalendar({
                 }`}
               >
                 {/* Column Header */}
-                <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-300">
+                <div className="flex items-center justify-between mb-4 pb-2 px-3 py-2 rounded bg-gray-700">
                   <div className="flex items-center gap-2">
-                    <Calendar className={`w-4 h-4 ${isCurrent ? 'text-blue-600' : 'text-gray-600'}`} />
-                    <h3 className={`font-semibold text-sm uppercase tracking-wide ${
-                      isCurrent ? 'text-blue-800' : 'text-gray-800'
-                    }`}>
+                    <Calendar className="w-4 h-4 text-white" />
+                    <h3 className="font-semibold text-sm uppercase tracking-wide text-white">
                       {formatWeekCommencing(column.weekStart)}
                       {isCurrent && ' (CURRENT)'}
                     </h3>

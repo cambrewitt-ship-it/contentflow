@@ -212,6 +212,12 @@ export default function CalendarPage() {
   const [exportingPDF, setExportingPDF] = useState(false);
   const [showPDFExportModal, setShowPDFExportModal] = useState(false);
   const [clientName, setClientName] = useState<string>('');
+  
+  // Approval Link states
+  const [showApprovalLinkDialog, setShowApprovalLinkDialog] = useState(false);
+  const [approvalLinkUrl, setApprovalLinkUrl] = useState<string | null>(null);
+  const [generatingApprovalLink, setGeneratingApprovalLink] = useState(false);
+  const [approvalLinkCopied, setApprovalLinkCopied] = useState(false);
 
   const updatePostCaption = (postId: string, newCaption: string) => {
     setEditingCaptions(prev => ({
@@ -293,6 +299,92 @@ export default function CalendarPage() {
       setPortalLinkCopied(true);
       setTimeout(() => setPortalLinkCopied(false), 2000);
       console.log('✅ Portal link copied to clipboard');
+    } catch (err) {
+      console.error('❌ Error copying to clipboard:', err);
+      alert('Failed to copy link to clipboard');
+    }
+  };
+
+  // Generate approval link for selected posts
+  const handleGenerateApprovalLink = async () => {
+    if (selectedPosts.size === 0) {
+      alert('Please select posts to create an approval link');
+      return;
+    }
+
+    try {
+      setGeneratingApprovalLink(true);
+      setError(null);
+
+      // Get all selected posts from scheduled posts
+      const allScheduledPosts = Object.values(scheduledPosts).flat();
+      const selectedPostsArray = allScheduledPosts.filter(p => selectedPosts.has(p.id));
+
+      if (selectedPostsArray.length === 0) {
+        alert('Selected posts not found. Please refresh and try again.');
+        return;
+      }
+
+      // Get project_id if all posts belong to the same project, otherwise use null
+      const projectIds = new Set(selectedPostsArray.map(p => p.project_id).filter(Boolean));
+      const projectId = projectIds.size === 1 ? Array.from(projectIds)[0] : null;
+      const postIds = selectedPostsArray.map(p => p.id);
+
+      const accessToken = requireAccessToken();
+      
+      const response = await fetch('/api/approval-sessions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          project_id: projectId,
+          client_id: clientId,
+          expires_in_days: 30,
+          selected_post_ids: postIds
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to create approval link');
+      }
+
+      const data = await response.json();
+      
+      // Construct URL - prefer share_url from API, otherwise construct from session token
+      let shareUrl = data.share_url;
+      if (!shareUrl && data.session?.share_token) {
+        shareUrl = `${window.location.origin}/approval/${data.session.share_token}`;
+      }
+      
+      if (!shareUrl) {
+        throw new Error('Failed to get approval link from server');
+      }
+      
+      setApprovalLinkUrl(shareUrl);
+      setShowApprovalLinkDialog(true);
+      console.log('✅ Approval link generated:', shareUrl);
+
+    } catch (err) {
+      console.error('❌ Error generating approval link:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate approval link');
+      alert(`Failed to generate approval link: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setGeneratingApprovalLink(false);
+    }
+  };
+
+  // Copy approval link to clipboard
+  const handleCopyApprovalLink = async () => {
+    if (!approvalLinkUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(approvalLinkUrl);
+      setApprovalLinkCopied(true);
+      setTimeout(() => setApprovalLinkCopied(false), 2000);
+      console.log('✅ Approval link copied to clipboard');
     } catch (err) {
       console.error('❌ Error copying to clipboard:', err);
       alert('Failed to copy link to clipboard');
@@ -2352,7 +2444,7 @@ export default function CalendarPage() {
 
           {/* Action Buttons - Below Calendar */}
           <div className="flex justify-between items-center mt-6 mb-4 mx-8">
-            {/* Left side - Delete and Export buttons */}
+            {/* Left side - Delete, Export, and Approval Link buttons */}
             <div className="flex items-center gap-3">
               <button
                 onClick={handleBulkDelete}
@@ -2388,6 +2480,29 @@ export default function CalendarPage() {
                   <>
                     <FileDown className="w-4 h-4" />
                     Export to PDF ({selectedPosts.size || 0})
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={handleGenerateApprovalLink}
+                disabled={generatingApprovalLink || selectedPosts.size === 0}
+                className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+                  generatingApprovalLink ? 'opacity-50 cursor-not-allowed bg-purple-500' : 
+                  selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+                  'bg-purple-600 hover:bg-purple-700'
+                }`}
+                title={selectedPosts.size === 0 ? 'Select posts to create approval link' : 'Create approval link for client'}
+              >
+                {generatingApprovalLink ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <LinkIcon className="w-4 h-4" />
+                    Share Approval Link ({selectedPosts.size || 0})
                   </>
                 )}
               </button>
@@ -2474,9 +2589,11 @@ export default function CalendarPage() {
                 })
               ) : (
                 selectedPosts.size > 0 && (
-                  <span className="text-sm text-blue-600">
-                    Connect Social Media to Publish
-                  </span>
+                  <Link href={`/dashboard/client/${clientId}`}>
+                    <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm flex items-center gap-2 transition-all">
+                      Connect Social Media to Publish
+                    </button>
+                  </Link>
                 )
               )}
             </div>
@@ -2599,6 +2716,71 @@ export default function CalendarPage() {
           : `content-calendar-${new Date().toISOString().split('T')[0]}`
         }
       />
+
+      {/* Approval Link Dialog */}
+      <Dialog open={showApprovalLinkDialog} onOpenChange={setShowApprovalLinkDialog}>
+        <DialogContent className="sm:max-w-md bg-white opacity-100">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LinkIcon className="w-5 h-5 text-purple-600" />
+              Approval Link Generated
+            </DialogTitle>
+            <DialogDescription>
+              Share this link with your client to get approval for the selected posts.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <p className="text-sm font-medium text-gray-700 mb-2">Approval Link:</p>
+              <p className="text-sm text-gray-600 break-all">{approvalLinkUrl}</p>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">
+                This link will expire in 30 days
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowApprovalLinkDialog(false);
+                setApprovalLinkUrl(null);
+              }}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={handleCopyApprovalLink}
+              className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2"
+            >
+              {approvalLinkCopied ? (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Copy Link
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={() => {
+                if (approvalLinkUrl) {
+                  window.open(approvalLinkUrl, '_blank');
+                }
+              }}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Open Link
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

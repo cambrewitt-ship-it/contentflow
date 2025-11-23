@@ -87,10 +87,16 @@ export default function PublicApprovalPage() {
 
     try {
       console.log('🔍 Fetching approval data...');
-      const response = await fetch(`/api/approval-sessions/temp-session-id/posts?token=${token}`);
+      const response = await fetch(`/api/approval-sessions/posts-by-token?token=${token}`);
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch approval data: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 410) {
+          setError('This approval link has expired. Please contact your content manager for a new link.');
+        } else {
+          throw new Error(errorData.error || `Failed to fetch approval data: ${response.statusText}`);
+        }
+        return;
       }
 
       const { session: sessionData, weeks: weeksData } = await response.json();
@@ -178,11 +184,11 @@ export default function PublicApprovalPage() {
           has_edited_caption: hasEditedCaption,
         });
 
-        const response = await fetch('/api/post-approvals', {
+        const response = await fetch('/api/approval-sessions/submit-approval', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            session_id: session.id,
+            share_token: token,
             post_id: post.id,
             post_type: post.post_type,
             approval_status: approvalStatus,
