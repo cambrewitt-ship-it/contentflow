@@ -48,7 +48,6 @@ export function CaptionGenerationColumn() {
     brandVoiceExamples: '',
   })
   const [initialRules, setInitialRules] = useState<CaptionRulesForm | null>(null)
-  const [customCaption, setCustomCaption] = useState('')
 
   const loadCaptionRules = useCallback(async () => {
     setRulesError(null)
@@ -171,20 +170,6 @@ export function CaptionGenerationColumn() {
   const activeImage = uploadedImages.find((img) => img.id === activeImageId)
   const isVideoSelected = activeImage?.mediaType === 'video'
 
-  // Sync custom caption with selected AI caption when it changes
-  useEffect(() => {
-    if (selectedCaptions.length > 0) {
-      const selectedCaption = captions.find(cap => cap.id === selectedCaptions[0])
-      if (selectedCaption && selectedCaption.text !== customCaption) {
-        setCustomCaption(selectedCaption.text)
-      }
-    }
-  }, [selectedCaptions, captions]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Clear custom caption when active image changes
-  useEffect(() => {
-    setCustomCaption('')
-  }, [activeImageId])
 
   useEffect(() => {
     if (showSettingsModal) {
@@ -374,45 +359,6 @@ export function CaptionGenerationColumn() {
                   )}
                 </Button>
                 
-                {/* Custom Caption Text Box */}
-                <div className="mt-4">
-                  <Textarea
-                    value={customCaption}
-                    onChange={(e) => {
-                      const newCaption = e.target.value
-                      setCustomCaption(newCaption)
-                      
-                      // Update content store immediately so it appears in social preview
-                      if (newCaption.trim()) {
-                        const captionId = selectedCaptions[0] || 'custom-caption-1'
-                        let updatedCaptions = captions.map(cap => 
-                          cap.id === captionId ? { ...cap, text: newCaption } : cap
-                        )
-                        
-                        // If no caption exists, create a new one
-                        if (updatedCaptions.length === 0 || !captions.find(cap => cap.id === captionId)) {
-                          updatedCaptions = [...updatedCaptions, {
-                            id: captionId,
-                            text: newCaption
-                          }]
-                        }
-                        
-                        // Update the content store
-                        setCaptions(updatedCaptions)
-                        if (!selectedCaptions.includes(captionId)) {
-                          setSelectedCaptions([captionId])
-                        }
-                      } else if (newCaption === '') {
-                        // Clear selection if caption is empty
-                        setSelectedCaptions([])
-                      }
-                    }}
-                    placeholder={`Type your custom ${copyType === 'social-media' ? 'caption' : 'email copy'} here...`}
-                    className="w-full min-h-[80px] resize-none"
-                    rows={3}
-                  />
-                </div>
-                
                 {!activeImage && (
                   <p className="text-xs text-gray-500 mt-2 text-center">
                     Upload media to enable caption generation
@@ -429,79 +375,109 @@ export function CaptionGenerationColumn() {
                   </p>
                 )}
                 
-                {/* Light grey brain icon - always positioned at 105px */}
-                <div className="flex justify-center" style={{ marginTop: '105px' }}>
-                  {captions.length === 0 && (
-                    <Brain className="text-gray-300" style={{ width: '230px', height: '230px' }} />
-                  )}
-                </div>
-
-                {/* Generated captions - moved up 100px from brain icon position */}
-                {captions.length > 0 && (
-                  <div className="flex justify-center" style={{ marginTop: '-75px' }}>
-                    <div className="w-full max-w-md">
-                      <div className="space-y-3">
-                        {captions.slice(0, 3).map((caption) => (
-                          <div
-                            key={caption.id}
-                            className={`border rounded-lg p-3 transition-all ${
-                              selectedCaptions.includes(caption.id)
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200'
-                            }`}
-                          >
-                            <div className="space-y-2">
-                              <Textarea
-                                value={caption.text}
-                                onChange={(e) => updateCaption(caption.id, e.target.value)}
-                                placeholder="Edit your caption..."
-                                className="min-h-[60px] resize-none border-0 bg-transparent focus:ring-0 focus:border-0 p-0 text-sm text-gray-700"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <div className="flex items-center justify-between">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleRemixCaption(caption.id)
+                {/* Caption boxes - always show at least one editable box */}
+                <div className="flex justify-center mt-6">
+                  <div className="w-full max-w-md">
+                    <div className="space-y-3">
+                      {/* Always show at least one caption box - use first caption or create empty one */}
+                      {(() => {
+                        // Get the first caption or create an empty placeholder
+                        const firstCaption = captions.length > 0 ? captions[0] : { id: 'custom-caption-1', text: '' }
+                        const displayCaptions = captions.length > 0 ? captions.slice(0, 3) : [firstCaption]
+                        const isEmptyBox = captions.length === 0
+                        
+                        return displayCaptions.map((caption, index) => {
+                          const isFirstEmpty = isEmptyBox && index === 0
+                          
+                          return (
+                            <div
+                              key={caption.id}
+                              className={`border rounded-lg p-3 transition-all ${
+                                selectedCaptions.includes(caption.id)
+                                  ? 'border-blue-500 bg-blue-50'
+                                  : 'border-gray-200'
+                              }`}
+                            >
+                              <div className="space-y-2">
+                                <Textarea
+                                  value={caption.text}
+                                  onChange={(e) => {
+                                    const newText = e.target.value
+                                    
+                                    if (isFirstEmpty) {
+                                      // Create new caption when typing in empty box
+                                      const newCaption = {
+                                        id: 'custom-caption-1',
+                                        text: newText
+                                      }
+                                      setCaptions([newCaption])
+                                      if (newText.trim()) {
+                                        selectCaption('custom-caption-1')
+                                      }
+                                    } else {
+                                      // Update existing caption
+                                      updateCaption(caption.id, newText)
+                                      // Auto-select when user types if not already selected
+                                      if (newText.trim() && !selectedCaptions.includes(caption.id)) {
+                                        selectCaption(caption.id)
+                                      }
+                                    }
                                   }}
-                                  disabled={remixingCaption === caption.id}
-                                  className="text-xs"
-                                >
-                                  <RefreshCw className={`w-3 h-3 mr-1 ${remixingCaption === caption.id ? 'animate-spin' : ''}`} />
-                                  {remixingCaption === caption.id ? 'Remixing...' : 'Remix'}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant={selectedCaptions.includes(caption.id) ? "default" : "outline"}
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    selectCaption(caption.id)
-                                  }}
-                                  className={`text-xs ${
-                                    selectedCaptions.includes(caption.id)
-                                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                      : 'border-blue-300 text-blue-700 hover:bg-blue-50'
-                                  }`}
-                                >
-                                  {selectedCaptions.includes(caption.id) ? (
-                                    <>
-                                      <Check className="w-3 h-3 mr-1" />
-                                      Selected
-                                    </>
-                                  ) : (
-                                    'Select'
+                                  placeholder={`Type your ${copyType === 'social-media' ? 'caption' : 'email copy'} here...`}
+                                  className="min-h-[60px] resize-none border-0 bg-transparent focus:ring-0 focus:border-0 p-0 text-sm text-gray-700"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                <div className="flex items-center justify-between">
+                                  {/* Only show Remix button for AI-generated captions, not the custom caption box */}
+                                  {!isFirstEmpty && caption.id !== 'custom-caption-1' && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleRemixCaption(caption.id)
+                                      }}
+                                      disabled={remixingCaption === caption.id || !caption.text.trim()}
+                                      className="text-xs"
+                                    >
+                                      <RefreshCw className={`w-3 h-3 mr-1 ${remixingCaption === caption.id ? 'animate-spin' : ''}`} />
+                                      {remixingCaption === caption.id ? 'Remixing...' : 'Remix'}
+                                    </Button>
                                   )}
-                                </Button>
+                                  {/* If no Remix button, add a spacer to keep Select button on the right */}
+                                  {(isFirstEmpty || caption.id === 'custom-caption-1') && <div />}
+                                  <Button
+                                    size="sm"
+                                    variant={selectedCaptions.includes(caption.id) ? "default" : "outline"}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      selectCaption(caption.id)
+                                    }}
+                                    disabled={!caption.text.trim() || isFirstEmpty}
+                                    className={`text-xs ${
+                                      selectedCaptions.includes(caption.id)
+                                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                        : 'border-blue-300 text-blue-700 hover:bg-blue-50'
+                                    }`}
+                                  >
+                                    {selectedCaptions.includes(caption.id) ? (
+                                      <>
+                                        <Check className="w-3 h-3 mr-1" />
+                                        Selected
+                                      </>
+                                    ) : (
+                                      'Select'
+                                    )}
+                                  </Button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          )
+                        })
+                      })()}
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </div>

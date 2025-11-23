@@ -4,6 +4,9 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import sizeOf from 'image-size';
 import { NotoSansRegular } from '../fonts/NotoSans-Regular.js';
+import { PoppinsBold } from '../fonts/Poppins-Bold.js';
+import { PoppinsLight } from '../fonts/Poppins-Light.js';
+import { createSupabaseWithToken } from '@/lib/supabaseServer';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -120,6 +123,149 @@ function formatTime(timeString: string): string {
   return `${hour12}:${minutes} ${ampm}`;
 }
 
+// Helper function to format post date as "Sun 16th Nov"
+function formatPostDate(dateString: string): string {
+  if (!dateString || dateString === 'No Date') return 'No Date';
+  
+  try {
+    const date = new Date(dateString);
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const dayName = dayNames[date.getDay()];
+    const day = date.getDate();
+    const month = monthNames[date.getMonth()];
+    
+    // Add ordinal suffix (st, nd, rd, th)
+    let suffix = 'th';
+    if (day === 1 || day === 21 || day === 31) {
+      suffix = 'st';
+    } else if (day === 2 || day === 22) {
+      suffix = 'nd';
+    } else if (day === 3 || day === 23) {
+      suffix = 'rd';
+    }
+    
+    return `${dayName} ${day}${suffix} ${month}`;
+  } catch {
+    return dateString;
+  }
+}
+
+// Helper function to add header with logos to a page
+async function addHeaderWithLogos(
+  doc: jsPDF,
+  pageWidth: number,
+  clientLogoUrl: string | null,
+  companyLogoUrl: string | null,
+  pdfTitle: string,
+  clientName: string
+): Promise<number> {
+  const logoMaxHeight = 20; // 20mm max height (slightly bigger)
+  const logoTopMargin = 5; // 5mm from top
+  const logoSideMargin = 15; // 15mm from sides
+  
+  // Add client logo (top left)
+  if (clientLogoUrl) {
+    try {
+      const clientLogoBase64 = await fetchImageAsBase64(clientLogoUrl);
+      if (clientLogoBase64) {
+        const clientLogoDims = await getImageDimensions(clientLogoBase64);
+        const clientAspectRatio = clientLogoDims.width / clientLogoDims.height;
+        
+        let clientLogoWidth = logoMaxHeight * clientAspectRatio;
+        let clientLogoHeight = logoMaxHeight;
+        
+        // If logo is wider than available space, scale down
+        if (clientLogoWidth > (pageWidth / 2) - logoSideMargin) {
+          clientLogoWidth = (pageWidth / 2) - logoSideMargin;
+          clientLogoHeight = clientLogoWidth / clientAspectRatio;
+        }
+        
+        // Determine image format
+        let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
+        if (clientLogoBase64.includes('image/png')) {
+          format = 'PNG';
+        } else if (clientLogoBase64.includes('image/webp')) {
+          format = 'WEBP';
+        }
+        
+        doc.addImage(
+          clientLogoBase64,
+          format,
+          logoSideMargin,
+          logoTopMargin,
+          clientLogoWidth,
+          clientLogoHeight
+        );
+      }
+    } catch (error) {
+      console.error('Error adding client logo to PDF:', error);
+    }
+  }
+  
+  // Add company logo (top right)
+  if (companyLogoUrl) {
+    try {
+      const companyLogoBase64 = await fetchImageAsBase64(companyLogoUrl);
+      if (companyLogoBase64) {
+        const companyLogoDims = await getImageDimensions(companyLogoBase64);
+        const companyAspectRatio = companyLogoDims.width / companyLogoDims.height;
+        
+        let companyLogoWidth = logoMaxHeight * companyAspectRatio;
+        let companyLogoHeight = logoMaxHeight;
+        
+        // If logo is wider than available space, scale down
+        if (companyLogoWidth > (pageWidth / 2) - logoSideMargin) {
+          companyLogoWidth = (pageWidth / 2) - logoSideMargin;
+          companyLogoHeight = companyLogoWidth / companyAspectRatio;
+        }
+        
+        // Determine image format
+        let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
+        if (companyLogoBase64.includes('image/png')) {
+          format = 'PNG';
+        } else if (companyLogoBase64.includes('image/webp')) {
+          format = 'WEBP';
+        }
+        
+        doc.addImage(
+          companyLogoBase64,
+          format,
+          pageWidth - logoSideMargin - companyLogoWidth,
+          logoTopMargin,
+          companyLogoWidth,
+          companyLogoHeight
+        );
+      }
+    } catch (error) {
+      console.error('Error adding company logo to PDF:', error);
+    }
+  }
+  
+  // Add title and client name centered below logos
+  const titleY = logoTopMargin + logoMaxHeight + 4; // Reduced spacing from 8 to 4
+  
+  doc.setFontSize(24);
+  doc.setFont('Poppins', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text(pdfTitle, pageWidth / 2, titleY, { align: 'center' });
+  
+  const clientNameY = titleY + 8;
+  doc.setFontSize(16);
+  doc.setFont('PoppinsLight', 'normal');
+  doc.text(clientName, pageWidth / 2, clientNameY, { align: 'center' });
+  
+  // Add line separator (removed "Generated on" text)
+  const separatorY = clientNameY + 6;
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.5);
+  doc.line(logoSideMargin, separatorY, pageWidth - logoSideMargin, separatorY);
+  
+  // Return the Y position after the header (separator + spacing)
+  return separatorY + 2;
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Check authorization
@@ -127,6 +273,18 @@ export async function POST(request: NextRequest) {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'Unauthorized - Missing token' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.substring(7);
+    const userSupabase = createSupabaseWithToken(token);
+    
+    // Get authenticated user
+    const { data: { user }, error: userError } = await userSupabase.auth.getUser();
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Invalid token' },
         { status: 401 }
       );
     }
@@ -148,10 +306,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch client data
+    // Fetch client data with logo
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('name')
+      .select('name, logo_url')
       .eq('id', clientId)
       .single();
 
@@ -162,6 +320,16 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    // Fetch user profile for company logo
+    const { data: userProfile, error: profileError } = await userSupabase
+      .from('user_profiles')
+      .select('company_logo_url')
+      .eq('id', user.id)
+      .single();
+
+    const companyLogoUrl = userProfile?.company_logo_url || null;
+    const clientLogoUrl = client.logo_url || null;
 
     // Fetch posts data
     const { data: posts, error: postsError } = await supabase
@@ -191,45 +359,22 @@ export async function POST(request: NextRequest) {
     doc.addFileToVFS('NotoSans-Regular.ttf', NotoSansRegular);
     doc.addFont('NotoSans-Regular.ttf', 'NotoSans', 'normal');
     
+    // Add Poppins fonts
+    doc.addFileToVFS('Poppins-Bold.ttf', PoppinsBold);
+    doc.addFont('Poppins-Bold.ttf', 'Poppins', 'bold');
+    
+    doc.addFileToVFS('Poppins-Light.ttf', PoppinsLight);
+    doc.addFont('Poppins-Light.ttf', 'PoppinsLight', 'normal');
+    
     // Use Helvetica by default for proper spacing (switch to NotoSans when emojis detected)
     doc.setFont('helvetica', 'normal');
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    let yPosition = 20;
-
-    // Add header
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text(pdfTitle, pageWidth / 2, yPosition, { align: 'center' });
     
-    yPosition += 10;
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'normal');
-    doc.text(client.name, pageWidth / 2, yPosition, { align: 'center' });
-    
-    yPosition += 8;
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text(
-      `Generated on ${new Date().toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      })}`,
-      pageWidth / 2,
-      yPosition,
-      { align: 'center' }
-    );
-    
-    yPosition += 8;
-    
-    // Add line separator
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.5);
-    doc.line(15, yPosition, pageWidth - 15, yPosition);
-    
-    yPosition += 10;
+    // Add header with logos on first page and get the Y position after header
+    const headerHeight = await addHeaderWithLogos(doc, pageWidth, clientLogoUrl, companyLogoUrl, pdfTitle, client.name);
+    let yPosition = headerHeight;
 
     // Group posts by date
     const postsByDate: { [key: string]: typeof posts } = {};
@@ -241,15 +386,19 @@ export async function POST(request: NextRequest) {
       postsByDate[dateKey].push(post);
     });
 
-    // Layout constants for 3-column layout
-    const marginLeft = 15;
-    const marginRight = 15;
-    const columnGap = 5; // Gap between columns
-    const availableWidth = pageWidth - marginLeft - marginRight;
-    // For 3 columns: total width = 3 * columnWidth + 2 * columnGap
-    const columnWidth = (availableWidth - (columnGap * 2)) / 3; // Width for each of 3 columns
+    // Layout constants for 3-column layout (centered)
+    const columnGap = 10; // Gap between columns (increased from 5)
+    const columnWidth = 75; // Fixed column width in mm (increased from 60)
+    const totalColumnsWidth = (3 * columnWidth) + (2 * columnGap); // Total width of all 3 columns + gaps
+    
+    // Calculate start position so middle column is centered on page
+    // Middle column center = startX + columnWidth + columnGap + columnWidth/2
+    // We want this to equal pageWidth / 2
+    // So: startX = pageWidth / 2 - 1.5 * columnWidth - columnGap
+    const startX = (pageWidth / 2) - (1.5 * columnWidth) - columnGap;
+    
     const maxImageWidth = columnWidth - 4; // Image width fits within column with small padding (2mm on each side)
-    const maxImageHeight = 90; // Maximum height in mm (reduced to fit 3 columns)
+    const maxImageHeight = 110; // Maximum height in mm (increased from 90 to accommodate larger images)
 
     // Flatten all posts to track total count and check if we have more posts
     const allPosts: Array<{ post: typeof posts[0]; date: string }> = [];
@@ -266,47 +415,95 @@ export async function POST(request: NextRequest) {
     let rowMaxHeight = 0; // Track the maximum height in the current row
     let currentPostIndex = 0;
     let currentDate = '';
+    let pageStartHeaderY = headerHeight; // Track header Y for current page
+    let estimatedPostHeight = 100; // Dynamic estimate that improves as we render posts
+    
+    // Helper function to calculate centered Y position for posts on a page
+    const calculateCenteredY = (headerY: number, contentHeight: number): number => {
+      const bottomMargin = 15; // Space for page numbers at bottom
+      const availableHeight = pageHeight - headerY - bottomMargin;
+      // Center the content vertically
+      return headerY + (availableHeight - contentHeight) / 2;
+    };
 
     // Render all posts
     for (const { post, date } of allPosts) {
       currentPostIndex++;
       const isLastPost = currentPostIndex === totalPosts;
       
-      // Check if we need a new page (only at start of new row)
+      // If we've filled 3 columns (3 posts), always start a new page
+      if (currentColumn >= 3) {
+        doc.addPage();
+        // Add header with logos on new page and get the Y position after header
+        const newHeaderHeight = await addHeaderWithLogos(doc, pageWidth, clientLogoUrl, companyLogoUrl, pdfTitle, client.name);
+        pageStartHeaderY = newHeaderHeight;
+        // Start with header position, will center after we know actual content height
+        rowStartY = newHeaderHeight;
+        yPosition = rowStartY;
+        rowMaxHeight = 0;
+        currentColumn = 0;
+      }
+      
+      // Check if we need a new page (only at start of new row/page)
       if (currentColumn === 0 && yPosition > pageHeight - 40) {
         doc.addPage();
-        yPosition = 20;
-        rowStartY = 20;
+        // Add header with logos on new page and get the Y position after header
+        const newHeaderHeight = await addHeaderWithLogos(doc, pageWidth, clientLogoUrl, companyLogoUrl, pdfTitle, client.name);
+        pageStartHeaderY = newHeaderHeight;
+        // Start with header position, will center after we know actual content height
+        rowStartY = newHeaderHeight;
+        yPosition = rowStartY;
         currentColumn = 0;
         rowMaxHeight = 0;
       }
-
-      // Date header - only show if we're starting a new row (column 0) and date changed
-      if (currentColumn === 0 && date !== currentDate) {
-        currentDate = date;
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 0, 0);
-        doc.text(formatDate(date), marginLeft, rowStartY);
-        rowStartY += 6;
-        yPosition = rowStartY;
+      
+      // On first post of a page, adjust vertical centering based on estimated height
+      if (currentColumn === 0) {
+        const centeredY = calculateCenteredY(pageStartHeaderY, estimatedPostHeight);
+        // Adjust rowStartY to center the content
+        rowStartY = centeredY;
+        yPosition = centeredY;
       }
-        // Calculate column X position explicitly for each column
-        // Column 0: marginLeft
-        // Column 1: marginLeft + columnWidth + columnGap  
-        // Column 2: marginLeft + 2*columnWidth + 2*columnGap
-        let columnX: number;
-        if (currentColumn === 0) {
-          columnX = marginLeft;
-        } else if (currentColumn === 1) {
-          columnX = marginLeft + columnWidth + columnGap;
-        } else {
-          columnX = marginLeft + (2 * columnWidth) + (2 * columnGap);
-        }
+
+      // Track current date (no longer displaying date header on left)
+      if (date !== currentDate) {
+        currentDate = date;
+      }
+      
+      // Calculate column X position explicitly for each column (centered layout)
+      // Column 0: startX
+      // Column 1: startX + columnWidth + columnGap (this should be centered)
+      // Column 2: startX + 2*columnWidth + 2*columnGap
+      let columnX: number;
+      if (currentColumn === 0) {
+        columnX = startX;
+      } else if (currentColumn === 1) {
+        columnX = startX + columnWidth + columnGap;
+      } else if (currentColumn === 2) {
+        columnX = startX + (2 * columnWidth) + (2 * columnGap);
+      } else {
+        // Fallback - should not reach here
+        columnX = startX;
+        currentColumn = 0;
+      }
         
         const startY = rowStartY;
+        
+        // Add post date and time at the top of each post
+        const postDateY = startY;
+        doc.setFontSize(12); // Increased from 9
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        
+        const postDateText = formatPostDate(post.scheduled_date || 'No Date');
+        const postTimeText = post.scheduled_time ? formatTime(post.scheduled_time) : '';
+        const dateTimeText = postTimeText ? `${postDateText} ${postTimeText}` : postDateText;
+        
+        const postDateX = columnX + 2; // Same padding as image
+        doc.text(dateTimeText, postDateX, postDateY);
+        
         const imageX = columnX + 2; // Small padding from column edge (2mm)
-        const imageY = startY + 2;
+        const imageY = postDateY + 5; // Position image below date/time
         
         // Ensure image doesn't exceed column width
         const effectiveMaxImageWidth = Math.min(maxImageWidth, columnWidth - 4);
@@ -376,17 +573,14 @@ export async function POST(request: NextRequest) {
         const textWidth = actualImageWidth; // Text width matches image width exactly
         let textY = imageY + actualImageHeight + 4; // Position text below image
 
-        // Time and Platform
+        // Platform only (time removed)
         doc.setFontSize(10); // Slightly smaller font for 3-column layout
         doc.setTextColor(0, 0, 0);
         
         let detailsText = '';
-        if (post.scheduled_time) {
-          detailsText += formatTime(post.scheduled_time);
-        }
         if (post.platform) {
           const cleanPlatform = cleanTextForPDF(post.platform);
-          detailsText += detailsText ? ` - ${cleanPlatform}` : cleanPlatform;
+          detailsText = cleanPlatform;
         }
         
         // Use NotoSans if text contains emojis/Unicode, otherwise use Helvetica for better spacing
@@ -402,7 +596,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Caption
-        doc.setFontSize(10); // Slightly smaller font for 3-column layout
+        doc.setFontSize(12); // Increased from 10
         doc.setTextColor(60, 60, 60);
         
         const rawCaption = post.caption || 'No caption';
@@ -432,37 +626,21 @@ export async function POST(request: NextRequest) {
         
         // Track the maximum height in this row
         rowMaxHeight = Math.max(rowMaxHeight, boxHeight);
+        
+        // After first post is rendered, update estimate for better centering on future pages
+        if (currentColumn === 0) {
+          // Use actual height of first post as better estimate for future pages
+          estimatedPostHeight = boxHeight;
+        }
 
         // Post border removed - no outline around posts
 
         // Move to next column
         currentColumn++;
         
-        // If we've filled 3 columns, move to next row
-        if (currentColumn >= 3) {
-          // Only create a new page if we have more posts to render
-          if (!isLastPost) {
-            // Calculate where the next row would start
-            const nextRowY = rowStartY + rowMaxHeight + 8;
-            
-            // Only check for new page AFTER we've placed all 3 posts in the current row
-            // Check if the next row would fit on the current page
-            if (nextRowY > pageHeight - 50) {
-              // Next row won't fit, start a new page
-              doc.addPage();
-              yPosition = 20;
-              rowStartY = 20;
-            } else {
-              // Next row fits, move Y position down
-              yPosition = nextRowY;
-              rowStartY = nextRowY;
-            }
-          }
-          
-          // Reset for new row
-          rowMaxHeight = 0;
-          currentColumn = 0;
-        }
+        // If we've filled 3 columns (3 posts), prepare for new page on next iteration
+        // The new page will be created at the start of the next loop iteration
+        // This ensures exactly 3 posts per page maximum
     }
 
     // Add page numbers to all pages

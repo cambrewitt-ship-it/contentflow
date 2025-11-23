@@ -586,6 +586,10 @@ function DroppableDayRow({
   const router = useRouter();
   const { setNodeRef } = useDroppable({
     id: dayRow.dateKey,
+    data: {
+      dateKey: dayRow.dateKey,
+      dayDate: dayRow.dayDate,
+    },
   });
 
   const [isNativeDragOver, setIsNativeDragOver] = useState(false);
@@ -892,26 +896,47 @@ export function PortalColumnViewCalendar({
     let targetDateKey: string | null = null;
     
     // First, check if overId is directly a day row dateKey (handles both droppable and SortableContext)
-    columns.forEach((column) => {
-      column.dayRows.forEach((dayRow) => {
+    // Break early when found to avoid overwriting with wrong matches
+    outerLoop: for (const column of columns) {
+      for (const dayRow of column.dayRows) {
         if (dayRow.dateKey === overId) {
           targetDateKey = dayRow.dateKey;
           console.log('🔵 Found target date (direct match):', targetDateKey);
+          break outerLoop;
         }
-      });
-    });
+      }
+    }
 
     // If not found, check if overId is a post ID and find which day row it belongs to
+    // Break early when found to avoid overwriting with wrong matches
     if (!targetDateKey) {
-      columns.forEach((column) => {
-        column.dayRows.forEach((dayRow) => {
+      outerLoop2: for (const column of columns) {
+        for (const dayRow of column.dayRows) {
           const postInDay = dayRow.posts.find(post => `${post.post_type || 'post'}-${post.id}` === overId);
           if (postInDay) {
             targetDateKey = dayRow.dateKey;
             console.log('🔵 Found target date (via post):', targetDateKey);
+            break outerLoop2;
           }
-        });
-      });
+        }
+      }
+    }
+    
+    // Additional validation: if we still don't have a target, check if over.data contains dateKey
+    if (!targetDateKey && over.data.current) {
+      const data = over.data.current as any;
+      if (data.dateKey && typeof data.dateKey === 'string') {
+        // Validate that this dateKey actually exists in our columns
+        for (const column of columns) {
+          for (const dayRow of column.dayRows) {
+            if (dayRow.dateKey === data.dateKey) {
+              targetDateKey = data.dateKey;
+              console.log('🔵 Found target date (via data):', targetDateKey);
+              break;
+            }
+          }
+        }
+      }
     }
 
     // Get the current post's date to avoid moving to the same location
@@ -949,24 +974,28 @@ export function PortalColumnViewCalendar({
     let targetDateKey: string | null = null;
     
     // Check if overId is directly a day row dateKey
-    columns.forEach((column) => {
-      column.dayRows.forEach((dayRow) => {
+    // Break early when found to avoid overwriting with wrong matches
+    outerLoop: for (const column of columns) {
+      for (const dayRow of column.dayRows) {
         if (dayRow.dateKey === overId) {
           targetDateKey = dayRow.dateKey;
+          break outerLoop;
         }
-      });
-    });
+      }
+    }
 
     // If not found, check if overId is a post ID and find which day row it belongs to
+    // Break early when found to avoid overwriting with wrong matches
     if (!targetDateKey) {
-      columns.forEach((column) => {
-        column.dayRows.forEach((dayRow) => {
+      outerLoop2: for (const column of columns) {
+        for (const dayRow of column.dayRows) {
           const postInDay = dayRow.posts.find(post => `${post.post_type || 'post'}-${post.id}` === overId);
           if (postInDay) {
             targetDateKey = dayRow.dateKey;
+            break outerLoop2;
           }
-        });
-      });
+        }
+      }
     }
     
     setDragOverDay(targetDateKey);
