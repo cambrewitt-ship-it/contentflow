@@ -243,21 +243,27 @@ async function addHeaderWithLogos(
     }
   }
   
-  // Add title and client name centered below logos
-  const titleY = logoTopMargin + logoMaxHeight + 4; // Reduced spacing from 8 to 4
+  // Add title and client name centered on same level as logos
+  // Calculate vertical center of logo area for alignment
+  const logoCenterY = logoTopMargin + (logoMaxHeight / 2);
   
+  // Position title and client name to align with logo vertical center
+  // Text Y position in jsPDF is the baseline, so we adjust to center the text block
   doc.setFontSize(24);
   doc.setFont('Poppins', 'bold');
   doc.setTextColor(0, 0, 0);
+  // Center the title text block with the logo center
+  const titleY = logoCenterY - 2; // Position title slightly above center
   doc.text(pdfTitle, pageWidth / 2, titleY, { align: 'center' });
   
-  const clientNameY = titleY + 8;
+  // Position client name just below title, still aligned with logo area
   doc.setFontSize(16);
   doc.setFont('PoppinsLight', 'normal');
+  const clientNameY = logoCenterY + 6; // Position client name below title
   doc.text(clientName, pageWidth / 2, clientNameY, { align: 'center' });
   
-  // Add line separator (removed "Generated on" text)
-  const separatorY = clientNameY + 6;
+  // Add line separator below logos and text with spacing above
+  const separatorY = Math.max(logoTopMargin + logoMaxHeight, clientNameY) + 10;
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.5);
   doc.line(logoSideMargin, separatorY, pageWidth - logoSideMargin, separatorY);
@@ -460,9 +466,9 @@ export async function POST(request: NextRequest) {
       // On first post of a page, adjust vertical centering based on estimated height
       if (currentColumn === 0) {
         const centeredY = calculateCenteredY(pageStartHeaderY, estimatedPostHeight);
-        // Adjust rowStartY to center the content
-        rowStartY = centeredY;
-        yPosition = centeredY;
+        // Adjust rowStartY to center the content, but move up slightly (reduce by 15mm)
+        rowStartY = centeredY - 15;
+        yPosition = centeredY - 15;
       }
 
       // Track current date (no longer displaying date header on left)
@@ -489,21 +495,8 @@ export async function POST(request: NextRequest) {
         
         const startY = rowStartY;
         
-        // Add post date and time at the top of each post
-        const postDateY = startY;
-        doc.setFontSize(12); // Increased from 9
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 0, 0);
-        
-        const postDateText = formatPostDate(post.scheduled_date || 'No Date');
-        const postTimeText = post.scheduled_time ? formatTime(post.scheduled_time) : '';
-        const dateTimeText = postTimeText ? `${postDateText} ${postTimeText}` : postDateText;
-        
-        const postDateX = columnX + 2; // Same padding as image
-        doc.text(dateTimeText, postDateX, postDateY);
-        
         const imageX = columnX + 2; // Small padding from column edge (2mm)
-        const imageY = postDateY + 5; // Position image below date/time
+        const imageY = startY + 5; // Position image below date/time
         
         // Ensure image doesn't exceed column width
         const effectiveMaxImageWidth = Math.min(maxImageWidth, columnWidth - 4);
@@ -544,11 +537,43 @@ export async function POST(request: NextRequest) {
                 format = 'WEBP';
               }
               
+              // Calculate image center for centering date/time text
+              const imageCenterX = imageX + (actualImageWidth / 2);
+              
+              // Add post date and time at the top of each post, centered with the image
+              const postDateY = startY;
+              doc.setFontSize(12);
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(0, 0, 0);
+              
+              const postDateText = formatPostDate(post.scheduled_date || 'No Date');
+              const postTimeText = post.scheduled_time ? formatTime(post.scheduled_time) : '';
+              const dateTimeText = postTimeText ? `${postDateText} ${postTimeText}` : postDateText;
+              
+              // Center the date/time text with the image
+              doc.text(dateTimeText, imageCenterX, postDateY, { align: 'center' });
+              
               doc.addImage(imageBase64, format, imageX, imageY, actualImageWidth, actualImageHeight);
               imageAdded = true;
             }
           } catch (error) {
             console.error('Error adding image to PDF:', error);
+            // Calculate image center for centering date/time text
+            const imageCenterX = imageX + (actualImageWidth / 2);
+            
+            // Add post date and time at the top of each post, centered with the image
+            const postDateY = startY;
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0, 0, 0);
+            
+            const postDateText = formatPostDate(post.scheduled_date || 'No Date');
+            const postTimeText = post.scheduled_time ? formatTime(post.scheduled_time) : '';
+            const dateTimeText = postTimeText ? `${postDateText} ${postTimeText}` : postDateText;
+            
+            // Center the date/time text with the image
+            doc.text(dateTimeText, imageCenterX, postDateY, { align: 'center' });
+            
             // Draw placeholder rectangle
             doc.setFillColor(240, 240, 240);
             doc.rect(imageX, imageY, actualImageWidth, actualImageHeight, 'F');
@@ -559,6 +584,22 @@ export async function POST(request: NextRequest) {
         }
 
         if (!imageAdded) {
+          // Calculate image center for centering date/time text
+          const imageCenterX = imageX + (actualImageWidth / 2);
+          
+          // Add post date and time at the top of each post, centered with the image
+          const postDateY = startY;
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(0, 0, 0);
+          
+          const postDateText = formatPostDate(post.scheduled_date || 'No Date');
+          const postTimeText = post.scheduled_time ? formatTime(post.scheduled_time) : '';
+          const dateTimeText = postTimeText ? `${postDateText} ${postTimeText}` : postDateText;
+          
+          // Center the date/time text with the image
+          doc.text(dateTimeText, imageCenterX, postDateY, { align: 'center' });
+          
           // Draw placeholder if no image
           doc.setFillColor(240, 240, 240);
           doc.rect(imageX, imageY, actualImageWidth, actualImageHeight, 'F');
