@@ -272,13 +272,15 @@ export default function PricingPage() {
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-gray-50 to-gray-100">
       <nav className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
+          <div className="flex h-20 items-center justify-between">
             <div className="flex items-center">
-              <img src="/cm-logo.png" alt="CM Logo" className="h-16 w-auto object-contain" />
+              <Link href="/">
+                <img src="/cm-logo.png" alt="CM Logo" className="h-20 w-auto object-contain cursor-pointer hover:opacity-80 transition-opacity" />
+              </Link>
               <img
                 src="/oot-product-silver-1.png"
                 alt="OOT Digital Product"
-                className="hidden h-8 w-auto rounded-[4px] object-contain md:ml-4 md:block"
+                className="hidden h-6 w-auto rounded-[4px] object-contain md:ml-4 md:block"
               />
             </div>
 
@@ -291,6 +293,9 @@ export default function PricingPage() {
                 className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
                 Pricing
+              </Link>
+              <Link href="/contact" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+                Contact
               </Link>
               {user ? (
                 <div className="flex items-center space-x-4">
@@ -358,6 +363,13 @@ export default function PricingPage() {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Pricing
+                </Link>
+                <Link
+                  href="/contact"
+                  className="block rounded-md px-3 py-2 text-base font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Contact
                 </Link>
 
                 <div className="border-t border-border/40 pb-3 pt-4">
@@ -723,9 +735,9 @@ export default function PricingPage() {
               <a href="/terms" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
                 Terms
               </a>
-              <a href="#" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+              <Link href="/contact" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
                 Support
-              </a>
+              </Link>
             </div>
           </div>
           <div className="mt-8 border-t border-border/40 pt-8">

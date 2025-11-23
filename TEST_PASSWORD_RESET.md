@@ -234,3 +234,4 @@ Need more help? Check:
 - `PASSWORD_RESET_QUICK_FIX.md` - Quick reference
 - Supabase Dashboard → Logs → Auth Logs
 
+

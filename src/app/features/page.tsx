@@ -61,17 +61,19 @@ export default function FeaturesPage() {
     <div className="min-h-screen bg-background">
       <nav className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
+          <div className="flex h-20 items-center justify-between">
             <div className="flex items-center">
-              <img
-                src="/cm-logo.png"
-                alt="CM Logo"
-                className="h-16 w-auto object-contain"
-              />
+              <Link href="/">
+                <img
+                  src="/cm-logo.png"
+                  alt="CM Logo"
+                  className="h-20 w-auto object-contain cursor-pointer hover:opacity-80 transition-opacity"
+                />
+              </Link>
               <img
                 src="/oot-product-silver-1.png"
                 alt="OOT Digital Product"
-                className="hidden md:block h-8 w-auto ml-4 object-contain rounded-[4px]"
+                className="hidden md:block h-6 w-auto ml-4 object-contain rounded-[4px]"
               />
             </div>
 
@@ -88,6 +90,12 @@ export default function FeaturesPage() {
               >
                 Pricing
               </a>
+              <Link
+                href="/contact"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Contact
+              </Link>
               {user ? (
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-muted-foreground">
@@ -155,6 +163,13 @@ export default function FeaturesPage() {
                 >
                   Pricing
                 </a>
+                <Link
+                  href="/contact"
+                  className="block px-3 py-2 text-base font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Contact
+                </Link>
 
                 <div className="pt-4 pb-3 border-t border-border/40">
                   {user ? (
@@ -456,9 +471,9 @@ export default function FeaturesPage() {
               <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Terms
               </a>
-              <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Support
-              </a>
+              </Link>
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-border/40">
