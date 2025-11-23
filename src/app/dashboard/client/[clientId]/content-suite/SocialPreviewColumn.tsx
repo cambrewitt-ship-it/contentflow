@@ -1035,54 +1035,6 @@ export function SocialPreviewColumn({
                 </div>
               </>
             )}
-
-            {/* Caption Editor */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <label htmlFor="customCaption" className="block text-sm font-medium text-gray-700 mb-2">
-                Edit {copyType === 'email-marketing' ? 'Email Copy' : 'Caption'}
-              </label>
-              <Textarea
-                id="customCaption"
-                value={customCaption}
-                onChange={(e) => {
-                  setCustomCaption(e.target.value)
-                  setCaptionConfirmed(false) // Reset confirmation when user types
-                }}
-                onBlur={handleCaptionConfirm}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    handleCaptionConfirm()
-                  }
-                }}
-                placeholder={selectedCaption ? `Edit the AI-generated ${copyType === 'email-marketing' ? 'email copy' : 'caption'} or type your own...` : `Type your ${copyType === 'email-marketing' ? 'email copy' : 'caption'} here...`}
-                className="w-full min-h-[80px] resize-none"
-                rows={3}
-              />
-              {selectedCaption && !customCaption && (
-                <p className="text-xs text-gray-500 mt-1">
-                  AI {copyType === 'email-marketing' ? 'Email Copy' : 'Caption'}: {selectedCaption}
-                </p>
-              )}
-
-              {customCaption.trim() && (
-                <div className="mt-2 flex items-center justify-between">
-                  <p className="text-xs text-gray-500">
-                    {captionConfirmed ? (
-                      <span className="text-green-600 flex items-center">
-                        <Check className="w-3 h-3 mr-1" />
-                        Caption confirmed - ready to add to calendar
-                      </span>
-                    ) : (
-                      <span className="text-amber-600">
-                        Click outside the box or press Enter to confirm your caption
-                      </span>
-                    )}
-                  </p>
-                </div>
-              )}
-
-            </div>
           </div>
         </CardContent>
       </Card>

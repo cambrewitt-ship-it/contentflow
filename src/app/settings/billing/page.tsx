@@ -350,7 +350,7 @@ export default function BillingSettingsPage() {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <h2 className="text-2xl font-bold">
-                {getPlanLabel()} Plan
+                {getPlanLabel()}
               </h2>
               {getStatusBadge(subscription.subscription_status)}
             </div>

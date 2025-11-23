@@ -48,6 +48,7 @@ export function CaptionGenerationColumn() {
     brandVoiceExamples: '',
   })
   const [initialRules, setInitialRules] = useState<CaptionRulesForm | null>(null)
+  const [customCaption, setCustomCaption] = useState('')
 
   const loadCaptionRules = useCallback(async () => {
     setRulesError(null)
@@ -169,6 +170,21 @@ export function CaptionGenerationColumn() {
 
   const activeImage = uploadedImages.find((img) => img.id === activeImageId)
   const isVideoSelected = activeImage?.mediaType === 'video'
+
+  // Sync custom caption with selected AI caption when it changes
+  useEffect(() => {
+    if (selectedCaptions.length > 0) {
+      const selectedCaption = captions.find(cap => cap.id === selectedCaptions[0])
+      if (selectedCaption && selectedCaption.text !== customCaption) {
+        setCustomCaption(selectedCaption.text)
+      }
+    }
+  }, [selectedCaptions, captions]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear custom caption when active image changes
+  useEffect(() => {
+    setCustomCaption('')
+  }, [activeImageId])
 
   useEffect(() => {
     if (showSettingsModal) {
@@ -357,6 +373,46 @@ export function CaptionGenerationColumn() {
                     </>
                   )}
                 </Button>
+                
+                {/* Custom Caption Text Box */}
+                <div className="mt-4">
+                  <Textarea
+                    value={customCaption}
+                    onChange={(e) => {
+                      const newCaption = e.target.value
+                      setCustomCaption(newCaption)
+                      
+                      // Update content store immediately so it appears in social preview
+                      if (newCaption.trim()) {
+                        const captionId = selectedCaptions[0] || 'custom-caption-1'
+                        let updatedCaptions = captions.map(cap => 
+                          cap.id === captionId ? { ...cap, text: newCaption } : cap
+                        )
+                        
+                        // If no caption exists, create a new one
+                        if (updatedCaptions.length === 0 || !captions.find(cap => cap.id === captionId)) {
+                          updatedCaptions = [...updatedCaptions, {
+                            id: captionId,
+                            text: newCaption
+                          }]
+                        }
+                        
+                        // Update the content store
+                        setCaptions(updatedCaptions)
+                        if (!selectedCaptions.includes(captionId)) {
+                          setSelectedCaptions([captionId])
+                        }
+                      } else if (newCaption === '') {
+                        // Clear selection if caption is empty
+                        setSelectedCaptions([])
+                      }
+                    }}
+                    placeholder={`Type your custom ${copyType === 'social-media' ? 'caption' : 'email copy'} here...`}
+                    className="w-full min-h-[80px] resize-none"
+                    rows={3}
+                  />
+                </div>
+                
                 {!activeImage && (
                   <p className="text-xs text-gray-500 mt-2 text-center">
                     Upload media to enable caption generation

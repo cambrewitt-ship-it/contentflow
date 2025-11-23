@@ -279,7 +279,7 @@ export default function Dashboard() {
           {/* Current Plan Badge */}
           <div className="mb-4">
             <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold border-2 ${getPlanBadgeColor()}`}>
-              {getPlanLabel()}{subscription?.subscription_tier !== 'freemium' ? ' PLAN' : ''}
+              {getPlanLabel()}
             </span>
           </div>
 
