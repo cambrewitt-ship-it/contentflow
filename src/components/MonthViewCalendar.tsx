@@ -453,64 +453,57 @@ export function MonthViewCalendar({
                     })()}
                   </div>
                   
-                  {/* Event Indicators - Photo Thumbnails */}
+                  {/* Event Indicators - Full Spec Photos */}
                   {(dayPosts.length > 0 || dayUploads.length > 0) && (
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap gap-1">
-                        {/* Display posts */}
-                        {dayPosts.slice(0, 4).map((post, idx) => (
+                    <div className="space-y-2">
+                      {/* Display posts */}
+                      {dayPosts.map((post) => (
+                        post.image_url && (
                           <div
                             key={post.id}
-                            className="relative w-8 h-8 rounded border border-gray-200 overflow-hidden"
+                            className="relative w-full rounded border border-gray-200 overflow-hidden"
                           >
                             <SafeImage
                               src={post.image_url}
                               alt={post.caption ? post.caption.substring(0, 20) : 'Post'}
-                              className="w-full h-full object-cover"
+                              className="w-full h-auto object-contain"
                               placeholderBgColor="bg-gray-200"
                               placeholderIconColor="text-gray-400"
                             />
                           </div>
-                        ))}
-                        
-                        {/* Display uploads with blue upload icon */}
-                        {dayUploads.slice(0, 4 - dayPosts.length).map((upload, idx) => (
-                          <div
-                            key={upload.id}
-                            className="relative w-8 h-8 rounded border border-blue-300 overflow-hidden bg-blue-50"
-                          >
-                            {upload.file_type.startsWith('image/') ? (
-                              <div className="relative w-full h-full">
-                                <SafeImage
-                                  src={upload.file_url}
-                                  alt={upload.file_name}
-                                  className="w-full h-full object-cover"
-                                  placeholderBgColor="bg-blue-100"
-                                  placeholderIconColor="text-blue-500"
-                                />
-                                {/* Blue upload icon overlay */}
-                                <div className="absolute top-0 right-0 w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
-                                  <Upload className="w-2 h-2 text-white" />
-                                </div>
+                        )
+                      ))}
+                      
+                      {/* Display uploads with blue upload icon */}
+                      {dayUploads.map((upload) => (
+                        <div
+                          key={upload.id}
+                          className="relative w-full rounded border border-blue-300 overflow-hidden bg-blue-50"
+                        >
+                          {upload.file_type.startsWith('image/') ? (
+                            <div className="relative w-full">
+                              <SafeImage
+                                src={upload.file_url}
+                                alt={upload.file_name}
+                                className="w-full h-auto object-contain"
+                                placeholderBgColor="bg-blue-100"
+                                placeholderIconColor="text-blue-500"
+                              />
+                              {/* Blue upload icon overlay */}
+                              <div className="absolute top-1 right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                <Upload className="w-2.5 h-2.5 text-white" />
                               </div>
-                            ) : (
-                              <div className="w-full h-full bg-blue-100 flex items-center justify-center">
-                                <div className="text-center">
-                                  <Upload className="w-3 h-3 text-blue-500 mx-auto mb-0.5" />
-                                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mx-auto"></div>
-                                </div>
+                            </div>
+                          ) : (
+                            <div className="w-full p-2 bg-blue-100 flex items-center justify-center">
+                              <div className="text-center">
+                                <Upload className="w-4 h-4 text-blue-500 mx-auto mb-1" />
+                                <div className="w-2 h-2 bg-blue-500 rounded-full mx-auto"></div>
                               </div>
-                            )}
-                          </div>
-                        ))}
-                        
-                        {/* Show count for remaining items */}
-                        {(dayPosts.length + dayUploads.length) > 4 && (
-                          <div className="w-8 h-8 bg-gray-100 border border-gray-200 rounded flex items-center justify-center text-xs text-gray-500 font-medium">
-                            +{(dayPosts.length + dayUploads.length) - 4}
-                          </div>
-                        )}
-                      </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </>

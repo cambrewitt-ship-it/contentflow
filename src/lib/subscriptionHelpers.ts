@@ -59,16 +59,97 @@ export async function getUserSubscription(
 
 // Create or update subscription
 export async function upsertSubscription(subscription: Partial<Subscription>) {
-  const { data, error } = await supabaseAdmin
-    .from('subscriptions')
-    .upsert(subscription, {
-      onConflict: 'stripe_customer_id',
-    })
-    .select()
-    .single();
+  if (!subscription.user_id) {
+    throw new Error('user_id is required for upsertSubscription');
+  }
 
-  if (error) throw error;
-  return data;
+  // Check if subscription exists for this user
+  const existingSubscription = await getUserSubscription(subscription.user_id);
+
+  if (existingSubscription) {
+    // Update existing subscription - use user_id to find the record
+    // This ensures we update the correct subscription even if stripe_customer_id changed
+    
+    // Merge update data with existing subscription to preserve fields not being updated
+    // Only update fields that are explicitly provided in subscription
+    const updateData: Partial<Subscription> = {
+      ...subscription,
+      // Explicitly preserve usage tracking fields if not provided
+      clients_used: subscription.clients_used !== undefined ? subscription.clients_used : existingSubscription.clients_used,
+      posts_used_this_month: subscription.posts_used_this_month !== undefined ? subscription.posts_used_this_month : existingSubscription.posts_used_this_month,
+      ai_credits_used_this_month: subscription.ai_credits_used_this_month !== undefined ? subscription.ai_credits_used_this_month : existingSubscription.ai_credits_used_this_month,
+      usage_reset_date: subscription.usage_reset_date || existingSubscription.usage_reset_date,
+      metadata: subscription.metadata || existingSubscription.metadata,
+    };
+
+    // If stripe_customer_id is changing, we need to handle the UNIQUE constraint
+    // First check if the new customer ID already exists for a different user
+    if (subscription.stripe_customer_id && subscription.stripe_customer_id !== existingSubscription.stripe_customer_id) {
+      const { data: conflictCheck, error: conflictError } = await supabaseAdmin
+        .from('subscriptions')
+        .select('user_id')
+        .eq('stripe_customer_id', subscription.stripe_customer_id)
+        .neq('user_id', subscription.user_id)
+        .maybeSingle();
+
+      // Only throw error if conflict actually exists (not if it's just "not found")
+      if (conflictCheck) {
+        throw new Error(`Stripe customer ID ${subscription.stripe_customer_id} is already associated with another user`);
+      }
+      
+      // If there's an error other than "not found", log it but don't fail
+      if (conflictError && conflictError.code !== 'PGRST116') {
+        console.error('Error checking for customer ID conflict:', conflictError);
+        // Continue with update anyway - database constraint will catch it if there's a real conflict
+      }
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('subscriptions')
+      .update(updateData)
+      .eq('user_id', subscription.user_id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating subscription:', error);
+      throw error;
+    }
+    return data;
+  } else {
+    // Insert new subscription
+    // Ensure required fields are set
+    if (!subscription.stripe_customer_id) {
+      throw new Error('stripe_customer_id is required when creating a new subscription');
+    }
+
+    const insertData: Partial<Subscription> = {
+      ...subscription,
+      // Set defaults if not provided
+      subscription_tier: subscription.subscription_tier ?? 'freemium',
+      subscription_status: subscription.subscription_status ?? 'active',
+      max_clients: subscription.max_clients ?? 1,
+      max_posts_per_month: subscription.max_posts_per_month ?? 0,
+      max_ai_credits_per_month: subscription.max_ai_credits_per_month ?? 10,
+      clients_used: subscription.clients_used ?? 0,
+      posts_used_this_month: subscription.posts_used_this_month ?? 0,
+      ai_credits_used_this_month: subscription.ai_credits_used_this_month ?? 0,
+      cancel_at_period_end: subscription.cancel_at_period_end ?? false,
+      metadata: subscription.metadata ?? {},
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from('subscriptions')
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error inserting subscription:', error);
+      throw error;
+    }
+    return data;
+  }
 }
 
 // Update subscription status

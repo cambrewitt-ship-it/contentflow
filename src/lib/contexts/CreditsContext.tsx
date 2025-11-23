@@ -49,9 +49,10 @@ export function CreditsProvider({ children }: { children: React.ReactNode }) {
         .from('subscriptions')
         .select('ai_credits_used_this_month')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (subError) {
+      // Only log errors that are not "no rows found" (PGRST116)
+      if (subError && subError.code !== 'PGRST116') {
         console.error('❌ Subscription error:', subError);
       }
 

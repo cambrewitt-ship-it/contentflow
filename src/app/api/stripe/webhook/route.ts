@@ -119,21 +119,69 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   // Handle subscription checkouts
-  // We'll get the full subscription details from the subscription.created event
-  // For now, just create a basic record
-  const tier = 'starter'; // Default tier, will be updated by subscription.created event
-  const limits = getTierLimits(tier);
+  // Try to get the subscription details immediately to determine the correct tier
+  let tier: string = 'starter'; // Default fallback
+  let subscriptionStatus: string = 'active';
+  let priceId: string | undefined;
+  let currentPeriodStart: Date | undefined;
+  let currentPeriodEnd: Date | undefined;
+  let cancelAtPeriodEnd: boolean = false;
 
-  await upsertSubscription({
-    user_id: userId,
-    stripe_customer_id: customerId,
-    stripe_subscription_id: subscriptionId || null,
-    subscription_tier: tier,
-    subscription_status: 'active',
-    max_clients: limits.maxClients,
-    max_posts_per_month: limits.maxPostsPerMonth,
-    max_ai_credits_per_month: limits.maxAICreditsPerMonth,
-  });
+  if (subscriptionId) {
+    try {
+      // Retrieve the subscription from Stripe to get the correct tier
+      const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId);
+      priceId = stripeSubscription.items.data[0]?.price.id;
+      subscriptionStatus = stripeSubscription.status;
+      cancelAtPeriodEnd = stripeSubscription.cancel_at_period_end;
+      
+      if (priceId) {
+        const determinedTier = getTierByPriceId(priceId);
+        if (determinedTier) {
+          tier = determinedTier;
+        }
+      }
+
+      // Get period dates
+      const periodStart = (stripeSubscription as any).current_period_start as number;
+      const periodEnd = (stripeSubscription as any).current_period_end as number;
+      if (periodStart) {
+        currentPeriodStart = new Date(periodStart * 1000);
+      }
+      if (periodEnd) {
+        currentPeriodEnd = new Date(periodEnd * 1000);
+      }
+
+      logger.info(`✅ Retrieved subscription ${subscriptionId} for user ${userId}, tier: ${tier}`);
+    } catch (error) {
+      logger.error(`Failed to retrieve subscription ${subscriptionId} from Stripe:`, error);
+      // Fall back to default tier if retrieval fails
+    }
+  }
+
+  const limits = getTierLimits(tier as any);
+
+  try {
+    await upsertSubscription({
+      user_id: userId,
+      stripe_customer_id: customerId,
+      stripe_subscription_id: subscriptionId || null,
+      stripe_price_id: priceId,
+      subscription_tier: tier as any,
+      subscription_status: subscriptionStatus,
+      current_period_start: currentPeriodStart?.toISOString(),
+      current_period_end: currentPeriodEnd?.toISOString(),
+      cancel_at_period_end: cancelAtPeriodEnd,
+      max_clients: limits.maxClients,
+      max_posts_per_month: limits.maxPostsPerMonth,
+      max_ai_credits_per_month: limits.maxAICreditsPerMonth,
+    });
+
+    logger.info(`✅ Subscription created/updated for user ${userId}, tier: ${tier}, status: ${subscriptionStatus}`);
+  } catch (error) {
+    logger.error(`Failed to upsert subscription for user ${userId}:`, error);
+    throw error; // Re-throw to be caught by outer try-catch
+  }
 }
 
 async function handleSubscriptionChange(subscription: Stripe.Subscription) {

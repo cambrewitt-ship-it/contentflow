@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PDFExportModal } from '@/components/PDFExportModal';
 import { FacebookIcon, InstagramIcon, TwitterIcon, LinkedInIcon } from '@/components/social-icons';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -209,6 +210,8 @@ export default function CalendarPage() {
   const [generatingPortalLink, setGeneratingPortalLink] = useState(false);
   const [portalLinkCopied, setPortalLinkCopied] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [showPDFExportModal, setShowPDFExportModal] = useState(false);
+  const [clientName, setClientName] = useState<string>('');
 
   const updatePostCaption = (postId: string, newCaption: string) => {
     setEditingCaptions(prev => ({
@@ -529,6 +532,34 @@ export default function CalendarPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectFilter, clientId]); // Only filter and clientId, not the fetch functions
+
+  // Fetch client name for PDF export defaults
+  useEffect(() => {
+    const fetchClientName = async () => {
+      if (!clientId) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('name')
+          .eq('id', clientId)
+          .single();
+        
+        if (error) {
+          console.error('Error fetching client name:', error);
+          return;
+        }
+        
+        if (data?.name) {
+          setClientName(data.name);
+        }
+      } catch (error) {
+        console.error('Error fetching client name:', error);
+      }
+    };
+
+    fetchClientName();
+  }, [clientId, supabase]);
 
   // Check for refresh flag from content suite
   useEffect(() => {
@@ -1757,12 +1788,16 @@ export default function CalendarPage() {
     }
   };
 
-  const handleExportToPDF = async () => {
+  const handleExportToPDF = () => {
     if (selectedPosts.size === 0) {
       alert('Please select posts to export');
       return;
     }
+    setShowPDFExportModal(true);
+  };
 
+  const performPDFExport = async (pdfTitle: string, pdfFileName: string) => {
+    setShowPDFExportModal(false);
     setExportingPDF(true);
 
     try {
@@ -1778,6 +1813,8 @@ export default function CalendarPage() {
         body: JSON.stringify({
           postIds,
           clientId,
+          pdfTitle,
+          pdfFileName,
         }),
       });
 
@@ -1791,7 +1828,9 @@ export default function CalendarPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `content-calendar-${new Date().toISOString().split('T')[0]}.pdf`;
+      // Ensure filename has .pdf extension
+      const fileName = pdfFileName.endsWith('.pdf') ? pdfFileName : `${pdfFileName}.pdf`;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -2548,6 +2587,18 @@ export default function CalendarPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* PDF Export Modal */}
+      <PDFExportModal
+        open={showPDFExportModal}
+        onClose={() => setShowPDFExportModal(false)}
+        onExport={performPDFExport}
+        defaultTitle={clientName ? `${clientName} Content Calendar` : 'Content Calendar'}
+        defaultFileName={clientName 
+          ? `${clientName.toLowerCase().replace(/\s+/g, '-')}-content-${new Date().toISOString().split('T')[0]}`
+          : `content-calendar-${new Date().toISOString().split('T')[0]}`
+        }
+      />
     </div>
   );
 }

@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 
 const LATE_API_KEY = process.env.LATE_API_KEY!;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!; // set in .env.local
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     // 2. Validate required environment variables
     if (!process.env.LATE_API_KEY) {
@@ -37,8 +37,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing profileId' }, { status: 400 });
     }
 
-    // 7. Build connect URL
-    const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://contentflow-v2.vercel.app'}/api/late/oauth-callback`;
+    // 7. Build connect URL - use dynamic detection from request
+    const origin = req.headers.get('origin');
+    const host = req.headers.get('host') || 'localhost:3000';
+    const protocol = host.includes('localhost') ? 'http' : (req.headers.get('x-forwarded-proto') || 'https');
+    const baseUrl = origin || `${protocol}://${host}`;
+    const redirectUrl = `${baseUrl}/api/late/oauth-callback`;
     const connectUrl = `https://getlate.dev/api/v1/connect/${platform}?profileId=${profileId}&redirect_url=${encodeURIComponent(redirectUrl)}`;
 
     return NextResponse.json({ connectUrl });

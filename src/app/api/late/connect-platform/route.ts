@@ -223,7 +223,7 @@ export async function POST(req: NextRequest) {
       // Fallback based on environment
       const fallbackUrl = process.env.NODE_ENV === 'development' 
         ? 'http://localhost:3000' 
-        : 'https://contentflow-v2.vercel.app';
+        : 'https://content-manager.io';
       logger.debug('Using fallback URL', { fallbackUrl });
       return fallbackUrl;
     };

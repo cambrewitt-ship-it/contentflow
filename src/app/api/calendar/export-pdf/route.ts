@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { postIds, clientId } = body;
+    const { postIds, clientId, pdfTitle = 'Content Calendar', pdfFileName } = body;
 
     if (!postIds || !Array.isArray(postIds) || postIds.length === 0) {
       return NextResponse.json(
@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
     // Add header
     doc.setFontSize(24);
     doc.setFont('helvetica', 'bold');
-    doc.text('Content Calendar', pageWidth / 2, yPosition, { align: 'center' });
+    doc.text(pdfTitle, pageWidth / 2, yPosition, { align: 'center' });
     
     yPosition += 10;
     doc.setFontSize(16);
@@ -251,15 +251,29 @@ export async function POST(request: NextRequest) {
     const maxImageWidth = columnWidth - 4; // Image width fits within column with small padding (2mm on each side)
     const maxImageHeight = 90; // Maximum height in mm (reduced to fit 3 columns)
 
+    // Flatten all posts to track total count and check if we have more posts
+    const allPosts: Array<{ post: typeof posts[0]; date: string }> = [];
+    for (const [date, datePosts] of Object.entries(postsByDate)) {
+      for (const post of datePosts) {
+        allPosts.push({ post, date });
+      }
+    }
+    const totalPosts = allPosts.length;
+
     // Track column position across all dates (0, 1, or 2)
     let currentColumn = 0;
     let rowStartY = yPosition; // Track the Y position where the current row started
     let rowMaxHeight = 0; // Track the maximum height in the current row
+    let currentPostIndex = 0;
+    let currentDate = '';
 
-    // Render posts grouped by date
-    for (const [date, datePosts] of Object.entries(postsByDate)) {
-      // Check if we need a new page
-      if (yPosition > pageHeight - 40) {
+    // Render all posts
+    for (const { post, date } of allPosts) {
+      currentPostIndex++;
+      const isLastPost = currentPostIndex === totalPosts;
+      
+      // Check if we need a new page (only at start of new row)
+      if (currentColumn === 0 && yPosition > pageHeight - 40) {
         doc.addPage();
         yPosition = 20;
         rowStartY = 20;
@@ -267,8 +281,9 @@ export async function POST(request: NextRequest) {
         rowMaxHeight = 0;
       }
 
-      // Date header - only show if we're starting a new row (column 0)
-      if (currentColumn === 0) {
+      // Date header - only show if we're starting a new row (column 0) and date changed
+      if (currentColumn === 0 && date !== currentDate) {
+        currentDate = date;
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(0, 0, 0);
@@ -276,9 +291,6 @@ export async function POST(request: NextRequest) {
         rowStartY += 6;
         yPosition = rowStartY;
       }
-
-      // Render each post
-      for (const post of datePosts) {
         // Calculate column X position explicitly for each column
         // Column 0: marginLeft
         // Column 1: marginLeft + columnWidth + columnGap  
@@ -428,27 +440,29 @@ export async function POST(request: NextRequest) {
         
         // If we've filled 3 columns, move to next row
         if (currentColumn >= 3) {
-          // Calculate where the next row would start
-          const nextRowY = rowStartY + rowMaxHeight + 8;
-          
-          // Only check for new page AFTER we've placed all 3 posts in the current row
-          // Check if the next row would fit on the current page
-          if (nextRowY > pageHeight - 50) {
-            // Next row won't fit, start a new page
-            doc.addPage();
-            yPosition = 20;
-            rowStartY = 20;
-          } else {
-            // Next row fits, move Y position down
-            yPosition = nextRowY;
-            rowStartY = nextRowY;
+          // Only create a new page if we have more posts to render
+          if (!isLastPost) {
+            // Calculate where the next row would start
+            const nextRowY = rowStartY + rowMaxHeight + 8;
+            
+            // Only check for new page AFTER we've placed all 3 posts in the current row
+            // Check if the next row would fit on the current page
+            if (nextRowY > pageHeight - 50) {
+              // Next row won't fit, start a new page
+              doc.addPage();
+              yPosition = 20;
+              rowStartY = 20;
+            } else {
+              // Next row fits, move Y position down
+              yPosition = nextRowY;
+              rowStartY = nextRowY;
+            }
           }
           
           // Reset for new row
           rowMaxHeight = 0;
           currentColumn = 0;
         }
-      }
     }
 
     // Add page numbers to all pages
@@ -468,12 +482,17 @@ export async function POST(request: NextRequest) {
     // Generate PDF as buffer
     const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
 
+    // Generate filename - use provided filename or default
+    const fileName = pdfFileName 
+      ? (pdfFileName.endsWith('.pdf') ? pdfFileName : `${pdfFileName}.pdf`)
+      : `content-calendar-${new Date().toISOString().split('T')[0]}.pdf`;
+
     // Return PDF as response
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="content-calendar-${new Date().toISOString().split('T')[0]}.pdf"`,
+        'Content-Disposition': `attachment; filename="${fileName}"`,
       },
     });
   } catch (error) {

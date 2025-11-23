@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -66,17 +66,7 @@ export default function BillingSettingsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  useEffect(() => {
-    // Check if redirected from successful checkout
-    if (searchParams?.get('success') === 'true') {
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 5000);
-    }
-
-    fetchSubscription();
-  }, [searchParams]);
-
-  const fetchSubscription = async () => {
+  const fetchSubscription = useCallback(async () => {
     try {
       const accessToken = getAccessToken();
       if (!accessToken) {
@@ -101,7 +91,125 @@ export default function BillingSettingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAccessToken]);
+
+  const pollForSubscriptionUpdate = useCallback((sessionId?: string): (() => void) => {
+    let pollInterval: NodeJS.Timeout | null = null;
+    let isCleanedUp = false;
+
+    const startPolling = async () => {
+      // If we have a session_id, try to verify/refresh from Stripe first
+      if (sessionId) {
+        try {
+          const accessToken = getAccessToken();
+          if (accessToken && !isCleanedUp) {
+            const response = await fetch(`/api/stripe/verify-checkout?session_id=${sessionId}`, {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+              },
+            });
+
+            if (response.ok && !isCleanedUp) {
+              // Subscription was synced, fetch updated data
+              await fetchSubscription();
+              return;
+            }
+          }
+        } catch (error) {
+          console.error('Failed to verify checkout session:', error);
+        }
+      }
+
+      if (isCleanedUp) return;
+
+      // Initial fetch
+      await fetchSubscription();
+
+      if (isCleanedUp) return;
+
+      // Poll up to 5 times with delays (webhook might be processing)
+      let attempts = 0;
+      const maxAttempts = 5;
+      pollInterval = setInterval(async () => {
+        if (isCleanedUp) {
+          if (pollInterval) clearInterval(pollInterval);
+          return;
+        }
+
+        attempts++;
+        
+        const accessToken = getAccessToken();
+        if (!accessToken) {
+          if (pollInterval) clearInterval(pollInterval);
+          return;
+        }
+
+        try {
+          const response = await fetch('/api/stripe/subscription', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          });
+          const data = await response.json();
+
+          if (response.ok && data.subscription && !isCleanedUp) {
+            // Check if subscription is now active (not freemium)
+            if (data.subscription.subscription_tier !== 'freemium' && 
+                (data.subscription.subscription_status === 'active' || 
+                 data.subscription.subscription_status === 'trialing')) {
+              setSubscription(data.subscription);
+              setBillingHistory(data.billingHistory || []);
+              if (pollInterval) clearInterval(pollInterval);
+              return;
+            }
+            
+            // Update state even if still freemium (to show latest data)
+            setSubscription(data.subscription);
+            setBillingHistory(data.billingHistory || []);
+          }
+        } catch (error) {
+          console.error('Failed to poll subscription:', error);
+        }
+        
+        if (attempts >= maxAttempts) {
+          if (pollInterval) clearInterval(pollInterval);
+          console.log('Finished polling for subscription update');
+        }
+      }, 2000); // Poll every 2 seconds
+    };
+
+    startPolling();
+
+    // Return cleanup function
+    return () => {
+      isCleanedUp = true;
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [fetchSubscription, getAccessToken]);
+
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    let successTimeout: NodeJS.Timeout;
+
+    // Check if redirected from successful checkout
+    if (searchParams?.get('success') === 'true') {
+      setShowSuccess(true);
+      successTimeout = setTimeout(() => setShowSuccess(false), 5000);
+      
+      // Poll for subscription updates (webhook might not have processed yet)
+      const sessionId = searchParams?.get('session_id');
+      cleanup = pollForSubscriptionUpdate(sessionId || undefined);
+    } else {
+      fetchSubscription();
+    }
+
+    return () => {
+      if (cleanup) cleanup();
+      if (successTimeout) clearTimeout(successTimeout);
+    };
+  }, [searchParams, fetchSubscription, pollForSubscriptionUpdate]);
 
   const handleManageBilling = async () => {
     try {

@@ -46,7 +46,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Create Stripe checkout session for one-time payment
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    // Get base URL from request headers to support multiple domains
+    const origin = req.headers.get('origin');
+    const host = req.headers.get('host') || 'localhost:3000';
+    
+    let baseUrl: string;
+    if (origin) {
+      // Use origin header if available (includes protocol)
+      baseUrl = origin;
+    } else {
+      // Fallback: construct from host and protocol
+      const protocol = req.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+      baseUrl = `${protocol}://${host}`;
+    }
+    
     const session = await stripe.checkout.sessions.create({
       customer: subscription.stripe_customer_id,
       payment_method_types: ['card'],

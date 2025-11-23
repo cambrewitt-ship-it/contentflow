@@ -40,6 +40,7 @@ export async function middleware(req: NextRequest) {
     '/api/portal/', // Client portal (uses token auth)
     '/api/auth/',   // Auth endpoints
     '/api/stripe/webhook', // Stripe webhooks
+    '/api/stripe/callback', // Stripe checkout callback (handles auth internally)
   ];
 
   // Define public dynamic routes

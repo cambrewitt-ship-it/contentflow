@@ -159,19 +159,19 @@ const LazyImage = ({
           src={src}
           alt={alt}
           onLoad={() => setIsLoaded(true)}
-          className={`w-full h-auto max-h-32 object-cover rounded-lg transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className={`w-full h-auto object-contain rounded-lg transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
           onError={(e) => {
             e.currentTarget.src = '/api/placeholder/100/100';
           }}
         />
       )}
       {!isLoaded && isInView && (
-        <div className="w-full h-32 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
+        <div className="w-full min-h-32 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
           <div className="w-4 h-4 animate-spin text-gray-400" />
         </div>
       )}
       {!isInView && (
-        <div className="w-full h-32 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
+        <div className="w-full min-h-32 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
           <div className="w-4 h-4 animate-spin text-gray-400" />
         </div>
       )}
