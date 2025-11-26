@@ -23,6 +23,7 @@ export function CaptionGenerationColumn() {
     selectedCaptions,
     activeImageId,
     setCaptions,
+    setSelectedCaptions,
     selectCaption,
     updateCaption,
     generateAICaptions,

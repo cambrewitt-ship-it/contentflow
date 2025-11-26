@@ -9,7 +9,8 @@ import {
   YouTubeIcon,
   ThreadsIcon,
 } from "@/components/social-icons";
-import { Plug, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { PlugIcon } from "@/components/PlugIcon";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -252,7 +253,7 @@ export default function FeaturesPage() {
                   <div className="w-full lg:max-w-md">
                     <div className="flex items-center justify-center lg:justify-start gap-4">
                       <div className="flex items-center justify-center h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-primary/10 text-primary">
-                        <Plug className="h-6 w-6 sm:h-7 sm:w-7" />
+                        <PlugIcon className="h-6 w-6 sm:h-7 sm:w-7" />
                       </div>
                       <h3 className="text-3xl sm:text-4xl font-semibold text-foreground leading-tight text-center lg:text-left">
                         Plug in Your Brand

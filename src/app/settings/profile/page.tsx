@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -37,19 +37,17 @@ export default function ProfileSettingsPage() {
   const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!user) {
+  const fetchProfile = useCallback(async () => {
+    if (!user?.id) {
+      setLoading(false);
       return;
     }
-    fetchProfile();
-  }, [user]);
 
-  const fetchProfile = async () => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
-        .eq('id', user?.id)
+        .eq('id', user.id)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
@@ -63,7 +61,7 @@ export default function ProfileSettingsPage() {
       const { data: subscription } = await supabase
         .from('subscriptions')
         .select('subscription_tier')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .maybeSingle();
 
       setSubscriptionTier(subscription?.subscription_tier || null);
@@ -73,7 +71,15 @@ export default function ProfileSettingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    fetchProfile();
+  }, [user, fetchProfile]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

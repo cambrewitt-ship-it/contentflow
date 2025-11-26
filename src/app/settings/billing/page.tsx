@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -65,6 +65,9 @@ export default function BillingSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  
+  // Use ref to store latest fetchSubscription to avoid initialization issues
+  const fetchSubscriptionRef = useRef<(() => Promise<void>) | null>(null);
 
   const fetchSubscription = useCallback(async () => {
     try {
@@ -92,6 +95,11 @@ export default function BillingSettingsPage() {
       setLoading(false);
     }
   }, [getAccessToken]);
+  
+  // Update ref whenever fetchSubscription changes
+  useEffect(() => {
+    fetchSubscriptionRef.current = fetchSubscription;
+  }, [fetchSubscription]);
 
   const pollForSubscriptionUpdate = useCallback((sessionId?: string): (() => void) => {
     let pollInterval: NodeJS.Timeout | null = null;
@@ -111,7 +119,9 @@ export default function BillingSettingsPage() {
 
             if (response.ok && !isCleanedUp) {
               // Subscription was synced, fetch updated data
-              await fetchSubscription();
+              if (fetchSubscriptionRef.current) {
+                await fetchSubscriptionRef.current();
+              }
               return;
             }
           }
@@ -123,7 +133,9 @@ export default function BillingSettingsPage() {
       if (isCleanedUp) return;
 
       // Initial fetch
-      await fetchSubscription();
+      if (fetchSubscriptionRef.current) {
+        await fetchSubscriptionRef.current();
+      }
 
       if (isCleanedUp) return;
 
@@ -187,7 +199,7 @@ export default function BillingSettingsPage() {
         clearInterval(pollInterval);
       }
     };
-  }, [fetchSubscription, getAccessToken]);
+  }, [getAccessToken]);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;

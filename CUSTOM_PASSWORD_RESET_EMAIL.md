@@ -268,3 +268,4 @@ To track email opens and clicks, you can:
 Need help? Check the troubleshooting section or review the Supabase documentation.
 
 
+

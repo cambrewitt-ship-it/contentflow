@@ -3,10 +3,31 @@ import { createClient } from '@supabase/supabase-js';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import sizeOf from 'image-size';
-import { NotoSansRegular } from '../fonts/NotoSans-Regular.js';
-import { PoppinsBold } from '../fonts/Poppins-Bold.js';
-import { PoppinsLight } from '../fonts/Poppins-Light.js';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { createSupabaseWithToken } from '@/lib/supabaseServer';
+
+// Helper function to load font files from filesystem
+function loadFont(fontFileName: string): string {
+  try {
+    const fontPath = join(process.cwd(), 'src', 'app', 'api', 'calendar', 'fonts', fontFileName);
+    const fontContent = readFileSync(fontPath, 'utf-8');
+    // Extract the base64 string from the export statement
+    // Handles: export const FontName = 'base64string';
+    const match = fontContent.match(/export const \w+\s*=\s*'([^']+)';/s);
+    if (match && match[1]) {
+      return match[1];
+    }
+    throw new Error(`Could not extract font data from ${fontFileName}. File may be corrupted or in wrong format.`);
+  } catch (error) {
+    console.error(`Error loading font ${fontFileName}:`, error);
+    // Re-throw with more context
+    if (error instanceof Error) {
+      throw new Error(`Failed to load font ${fontFileName}: ${error.message}`);
+    }
+    throw error;
+  }
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -362,13 +383,16 @@ export async function POST(request: NextRequest) {
     });
 
     // Add Unicode font support for emojis
+    const NotoSansRegular = loadFont('NotoSans-Regular.js');
     doc.addFileToVFS('NotoSans-Regular.ttf', NotoSansRegular);
     doc.addFont('NotoSans-Regular.ttf', 'NotoSans', 'normal');
     
     // Add Poppins fonts
+    const PoppinsBold = loadFont('Poppins-Bold.js');
     doc.addFileToVFS('Poppins-Bold.ttf', PoppinsBold);
     doc.addFont('Poppins-Bold.ttf', 'Poppins', 'bold');
     
+    const PoppinsLight = loadFont('Poppins-Light.js');
     doc.addFileToVFS('Poppins-Light.ttf', PoppinsLight);
     doc.addFont('Poppins-Light.ttf', 'PoppinsLight', 'normal');
     

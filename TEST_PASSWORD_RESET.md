@@ -235,3 +235,4 @@ Need more help? Check:
 - Supabase Dashboard → Logs → Auth Logs
 
 
+
