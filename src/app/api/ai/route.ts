@@ -10,9 +10,9 @@ import { withAICreditCheck, trackAICreditUsage } from '../../../lib/subscription
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 
+export const maxDuration = 60;
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120; // 2 minutes max execution time (needed for AI processing)
 export const runtime = 'nodejs'; // Use Node.js runtime for better performance
 
 function getCopyToneInstructions(copyTone: string) {
@@ -515,6 +515,31 @@ async function analyzeImage(openai: OpenAI, imageData: string, prompt?: string) 
   }
 }
 
+async function callOpenAIWithRetry(openai: OpenAI, params: any, maxRetries = 3) {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await openai.chat.completions.create(params);
+      return response;
+    } catch (error: any) {
+      lastError = error;
+
+      if (error?.status === 400 || error?.status === 401) {
+        throw error;
+      }
+
+      if (attempt < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        console.log(`OpenAI attempt ${attempt} failed, retrying in ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 async function generateCaptions(
   openai: OpenAI,
   supabase: SupabaseClient,
@@ -622,45 +647,54 @@ Write exactly ONE email paragraph structured as:
 ✗ No casual social media language ("DM", "link in bio", emojis)
 
 Generate the email copy now.`
-      : `# Social Media Content Creation System
+      : `You are a social media copywriter. Your task is to write 3 unique, engaging captions based on the provided image and context.
 
-## Content Strategy
-**Copy Tone:** ${copyTone || 'General'}
-**Post Notes Style:** ${postNotesStyle || 'Paraphrase'}
-**Image Focus:** ${imageFocus || 'Supporting'}
+## Role
+- Apply strategic, brand-aware thinking to every caption
+- Use the specified post notes, brand context, and image cues with precision
 
-## Copy Tone Instructions
+## Task
+- Deliver captions that reflect the provided copy tone, post notes approach, and image focus
+- Ensure each caption highlights a different angle while staying on brief
+
+## Format Requirements
+- ${finalInstruction}
+- Keep caption 1 short (1-2 lines), caption 2 medium (3-4 lines), caption 3 longer (5-6 lines)
+- Provide only caption text with any hashtags integrated naturally
+- Avoid introductions, summaries, or numbering
+
+## Style Guidelines
+- Match the brand voice and tone guidelines at all times
+- Follow the post notes handling instructions with full fidelity
+- Integrate image elements according to the specified focus level
+- Maintain a platform-ready, conversational tone that drives engagement
+
+## Strategy Inputs
+Copy Tone: ${copyTone || 'General'}
+Post Notes Style: ${postNotesStyle || 'Paraphrase'}
+Image Focus: ${imageFocus || 'Supporting'}
+
+### Copy Tone Guidance
 ${getCopyToneInstructions(copyTone || 'promotional')}
 
-## Content Hierarchy & Approach
+### Content Hierarchy
 ${getContentHierarchy(aiContext, postNotesStyle || 'paraphrase', imageFocus || 'supporting')}
 
-${aiContext ? `## Post Notes Content
+${aiContext ? `### Post Notes
 ${aiContext}
 
-**Processing Instructions:** ${getPostNotesInstructions(postNotesStyle || 'paraphrase')}` : ''}
+Processing Instructions: ${getPostNotesInstructions(postNotesStyle || 'paraphrase')}` : ''}
 
 ${brandContextSection}
 
-## Image Analysis Guidelines
+### Image Direction
 ${getImageInstructions(imageFocus || 'supporting')}
 
-## Output Requirements
-- Generate exactly 3 distinct captions
-- Vary approaches: one short (1-2 lines), one medium (3-4 lines), one longer (5-6 lines)
-- Each caption should offer a different angle while maintaining content consistency
-- Use natural, conversational tone aligned with brand guidelines
-- Include relevant hashtags when appropriate
-- Format as ready-to-post social media captions
-
-## Quality Standards
-- Every caption must align with the selected copy tone
-- Content must reflect the specified post notes handling approach
-- Image elements should be integrated according to focus level
-- Brand voice and rules must be consistently applied
-- Captions should be platform-appropriate and engaging
-
-${finalInstruction}`;
+## Quality Checklist
+- Captions align with tone, hierarchy, and post notes rules
+- Image references match the declared focus
+- Brand context rules, dos, and don'ts are respected
+- No placeholder language, apologies, or meta commentary`;
 
     const userContent: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string; detail: 'high' } }> = [
       {
@@ -686,7 +720,12 @@ ${finalInstruction}`;
       });
     }
 
-    const response = await openai.chat.completions.create({
+    // Warn if promotional captions lack supporting context
+    if (copyTone === 'promotional' && !aiContext?.trim()) {
+      console.warn('Generating promotional content without Post Notes - results may be generic');
+    }
+
+    const response = await callOpenAIWithRetry(openai, {
       model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [
         {
@@ -730,7 +769,7 @@ ${finalInstruction}`;
             ? `Create three short, brand-safe social media captions. Use this context where it is safe to do so, but remove or neutralize any sensitive details: "${sanitizedContext}".`
             : 'Create three short, brand-safe social media captions suitable for a generic promotional post. Keep them positive and compliant.';
 
-      const fallbackResponse = await openai.chat.completions.create({
+      const fallbackResponse = await callOpenAIWithRetry(openai, {
         model: process.env.OPENAI_FALLBACK_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini',
         messages: [
           {
@@ -817,18 +856,18 @@ ${finalInstruction}`;
       success: true,
       captions
     });
-  } catch (error) {
-    return handleApiError(error, {
-      route: '/api/ai',
-      operation: 'generate_captions',
-      clientId,
-      additionalData: {
-        copyType,
-        hasImageData: !!imageData,
-        hasContext: !!aiContext,
-        existingCaptionCount: existingCaptions.length
-      }
+  } catch (error: any) {
+    console.error('Caption generation error:', {
+      message: error?.message,
+      status: error?.status,
+      type: error?.type,
+      clientId
     });
+
+    return {
+      success: false,
+      error: error?.message || 'Failed to generate captions'
+    };
   }
 }
 
