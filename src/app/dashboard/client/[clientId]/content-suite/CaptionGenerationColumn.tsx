@@ -284,12 +284,12 @@ export function CaptionGenerationColumn() {
           <CardTitle className="card-title-26">Copy Type</CardTitle>
           <Button
             variant="ghost"
-            size="icon"
             onClick={() => setShowSettingsModal(true)}
             aria-label="Edit AI caption rules"
             className="text-gray-500 hover:text-gray-800"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-4 h-4 mr-2" />
+            Settings
           </Button>
         </CardHeader>
         <CardContent className="flex-1 flex flex-col">
