@@ -253,13 +253,8 @@ export function CaptionGenerationColumn() {
       return
     }
 
-    if (!postNotes.trim()) {
-      alert('Please add some Post Notes to guide the caption remix')
-      return
-    }
-
     console.log('🔄 Starting remix for caption:', captionId)
-    console.log('📝 Post notes being used:', postNotes)
+    console.log('📝 Post notes being used:', postNotes || '(none)')
     console.log('🖼️ Active image:', activeImage.id)
 
     setRemixingCaption(captionId)

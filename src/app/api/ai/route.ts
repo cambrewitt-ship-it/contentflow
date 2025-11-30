@@ -607,94 +607,48 @@ ${brandContext.website ? `🌐 WEBSITE CONTEXT: Available for reference` : ''}`;
     const finalInstruction = copyType === 'email-marketing' ? '' : 'Provide only 3 captions, separated by blank lines. No introduction or explanation.';
 
     const systemPrompt = copyType === 'email-marketing'
-      ? `# Professional Email Copy Generator
+      ? `You are a professional email copywriter. Write exactly ONE email paragraph (2-3 sentences + CTA) based on the provided context.
 
-## Your Role
-You are a professional email copywriter creating promotional email content.
+CRITICAL OUTPUT RULES:
+- Output ONLY the email text - no instructions, no explanations, no meta-commentary
+- Do NOT include phrases like "Here's the email:" or "Email copy:"
+- Do NOT repeat any instructions or guidelines in your output
+- Start directly with the email content
 
-## Brand Context
-- **Company:** ${brandContext?.company || 'Not specified'} - ${brandContext?.value_proposition || 'Not specified'}
-- **Tone:** ${brandContext?.tone || 'Professional'}
-- **Audience:** ${brandContext?.audience || 'Not specified'}
-- **Value Proposition:** ${brandContext?.value_proposition || 'Not specified'}
+Brand Context: ${brandContext?.company || 'Not specified'} | Tone: ${brandContext?.tone || 'Professional'} | Audience: ${brandContext?.audience || 'Not specified'}
 
-## Content Inputs
-**User's Message Intent:** ${aiContext || 'Not provided'}
-**Visual Content:** ${imageData ? 'Image provided for analysis' : 'No image provided'}
+Write professional email copy now.`
+      : `You are a social media copywriter. Write 3 unique captions based on the image and context provided.
 
-## Task
-Transform the user's message intent into professional email copy that:
-1. Communicates the core message in refined, professional language
-2. References relevant visual elements from the image naturally
-3. Creates value and urgency appropriate for the business
-4. Maintains the brand's voice and tone
+CRITICAL OUTPUT RULES:
+- Output ONLY the 3 captions separated by blank lines
+- Do NOT include any instructions, guidelines, or meta-commentary
+- Do NOT include phrases like "Here are 3 captions:" or "Caption 1:", "Caption 2:", etc.
+- Do NOT repeat any of these instructions in your output
+- Start directly with the first caption text
+- No introductions, summaries, numbering, or explanations
 
-## Output Format
-Write exactly ONE email paragraph structured as:
+Caption Guidelines:
+- Caption 1: Short (1-2 lines)
+- Caption 2: Medium (3-4 lines)  
+- Caption 3: Longer (5-6 lines)
+- Match brand voice and tone
+- Integrate hashtags naturally
+- Use post notes as specified
 
-[2-3 professional sentences conveying the message and value]
+Copy Tone: ${copyTone || 'General'} | Post Notes Style: ${postNotesStyle || 'Paraphrase'} | Image Focus: ${imageFocus || 'Supporting'}
 
-[Clear call-to-action]
-
-## Requirements
-✓ Professional business language (translate casual language to professional tone)
-✓ Email-appropriate formatting (no hashtags, no social media slang)
-✓ Specific details when provided (prices, dates, features)
-✓ Action-oriented CTA appropriate to the business type
-✓ Concise - maximum 4 sentences total
-✗ No multiple options or variations
-✗ No "\n" literal text - use actual line breaks
-✗ No casual social media language ("DM", "link in bio", emojis)
-
-Generate the email copy now.`
-      : `You are a social media copywriter. Your task is to write 3 unique, engaging captions based on the provided image and context.
-
-## Role
-- Apply strategic, brand-aware thinking to every caption
-- Use the specified post notes, brand context, and image cues with precision
-
-## Task
-- Deliver captions that reflect the provided copy tone, post notes approach, and image focus
-- Ensure each caption highlights a different angle while staying on brief
-
-## Format Requirements
-- ${finalInstruction}
-- Keep caption 1 short (1-2 lines), caption 2 medium (3-4 lines), caption 3 longer (5-6 lines)
-- Provide only caption text with any hashtags integrated naturally
-- Avoid introductions, summaries, or numbering
-
-## Style Guidelines
-- Match the brand voice and tone guidelines at all times
-- Follow the post notes handling instructions with full fidelity
-- Integrate image elements according to the specified focus level
-- Maintain a platform-ready, conversational tone that drives engagement
-
-## Strategy Inputs
-Copy Tone: ${copyTone || 'General'}
-Post Notes Style: ${postNotesStyle || 'Paraphrase'}
-Image Focus: ${imageFocus || 'Supporting'}
-
-### Copy Tone Guidance
 ${getCopyToneInstructions(copyTone || 'promotional')}
 
-### Content Hierarchy
 ${getContentHierarchy(aiContext, postNotesStyle || 'paraphrase', imageFocus || 'supporting')}
 
-${aiContext ? `### Post Notes
-${aiContext}
-
-Processing Instructions: ${getPostNotesInstructions(postNotesStyle || 'paraphrase')}` : ''}
+${aiContext ? `Post Notes: ${aiContext}\n\nProcessing: ${getPostNotesInstructions(postNotesStyle || 'paraphrase')}` : ''}
 
 ${brandContextSection}
 
-### Image Direction
 ${getImageInstructions(imageFocus || 'supporting')}
 
-## Quality Checklist
-- Captions align with tone, hierarchy, and post notes rules
-- Image references match the declared focus
-- Brand context rules, dos, and don'ts are respected
-- No placeholder language, apologies, or meta commentary`;
+Write the 3 captions now. Output only the caption text, nothing else.`;
 
     const userContent: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string; detail: 'high' } }> = [
       {
@@ -702,11 +656,11 @@ ${getImageInstructions(imageFocus || 'supporting')}
         text:
           copyType === 'email-marketing'
             ? aiContext
-              ? `Generate ONE single email paragraph (2-3 concise sentences + CTA) based on your Post Notes: "${aiContext}". Write as a professional email with actual line breaks between the main text and CTA. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. NO hashtags or social media formatting.`
-              : 'Generate ONE single email paragraph (2-3 concise sentences + CTA) for this image. Write as a professional email with actual line breaks between the main text and CTA. CRITICAL: Match the brand voice examples exactly - use the same tone, style, and personality. NO hashtags or social media formatting.'
+              ? `Write ONE professional email paragraph (2-3 sentences + CTA) based on: "${aiContext}". Output ONLY the email text - no instructions, no explanations. Start directly with the email content.`
+              : 'Write ONE professional email paragraph (2-3 sentences + CTA) for this image. Output ONLY the email text - no instructions, no explanations. Start directly with the email content.'
             : aiContext
-              ? `CRITICAL: Your Post Notes are "${aiContext}". Generate exactly 3 social media captions that DIRECTLY mention and use these Post Notes. Every caption must include the actual content from your notes. Do not create generic captions - make the Post Notes the main focus of each caption. Start with the first caption immediately, no introduction needed.`
-              : 'Generate exactly 3 social media captions for this image based on what you see. Start with the first caption immediately, no introduction needed.'
+              ? `Write 3 social media captions based on Post Notes: "${aiContext}". Output ONLY the 3 captions separated by blank lines. No introductions, no explanations, no numbering. Start directly with the first caption text.`
+              : 'Write 3 social media captions for this image. Output ONLY the 3 captions separated by blank lines. No introductions, no explanations, no numbering. Start directly with the first caption text.'
       }
     ];
 
@@ -819,32 +773,81 @@ ${getImageInstructions(imageFocus || 'supporting')}
         captions = [processedContent];
       }
     } else {
-      let potentialCaptions = content.split(/\n\n+/);
+      // Remove common prompt leakage patterns
+      let cleanedContent = content.trim();
+      
+      // Remove instruction-like headers and sections
+      cleanedContent = cleanedContent.replace(/^##?\s*(Role|Task|Format Requirements?|Style Guidelines?|Strategy Inputs?|Copy Tone|Content Hierarchy|Post Notes|Image Direction|Quality Checklist|Output Format|Requirements?|Your Role|Brand Context|Content Inputs?|Critical Output Rules?|Caption Guidelines?)[:\s]*\n?/gmi, '');
+      cleanedContent = cleanedContent.replace(/^###\s*(Copy Tone|Content Hierarchy|Post Notes|Image Direction|Processing Instructions?)[:\s]*\n?/gmi, '');
+      cleanedContent = cleanedContent.replace(/^[🎯🚨📋🎨🎭👥💼🎤📝🌐📄✅❌]\s*[:\s]*\n?/gm, '');
+      
+      // Remove common introductory phrases
+      cleanedContent = cleanedContent.replace(/^(here are|here's|here is|below are|below is|following are|following is|i've created|i've generated|i've written|i'll provide|i'll create|i'll generate|captions for|engaging captions|three captions|3 captions|caption \d+:|caption option \d+:|option \d+:|variation \d+:)\s*/gi, '');
+      
+      // Remove instruction text patterns
+      cleanedContent = cleanedContent.replace(/^(provide|output|write|generate|create|deliver|ensure|match|follow|integrate|maintain|avoid|do not|don't|no|start|begin|end|critical|important|note|remember|guideline|requirement|rule|instruction)[:\s]*\n?/gmi, '');
+      cleanedContent = cleanedContent.replace(/^(✓|✗|[-*•])\s*(professional|email|caption|hashtag|introduction|explanation|numbering|placeholder|apology|meta)[:\s]*\n?/gmi, '');
+      
+      // Remove markdown formatting that might be from instructions
+      cleanedContent = cleanedContent.replace(/^#{1,6}\s+.*$/gm, '');
+      cleanedContent = cleanedContent.replace(/^\*\*.*?\*\*[:\s]*$/gm, '');
+      
+      // Remove lines that are clearly instructions (containing words like "must", "should", "need to", etc.)
+      const instructionPattern = /\b(must|should|need to|required to|expected to|instructed to|guideline|requirement|rule|instruction|format|output|provide|generate|create|write|deliver|ensure|match|follow|avoid|do not|don't|critical|important)\b/gi;
+      cleanedContent = cleanedContent.split('\n')
+        .filter(line => {
+          const trimmed = line.trim();
+          // Keep lines that are actual content (have quotes, hashtags, or are substantial)
+          if (trimmed.length < 10) return false;
+          if (trimmed.match(/^["'`]/) || trimmed.includes('#') || trimmed.length > 50) return true;
+          // Remove lines that look like instructions
+          return !instructionPattern.test(trimmed);
+        })
+        .join('\n');
+
+      let potentialCaptions = cleanedContent.split(/\n\n+/);
 
       if (potentialCaptions.length < 3) {
-        potentialCaptions = content.split(/\n/);
+        potentialCaptions = cleanedContent.split(/\n/);
       }
 
       if (potentialCaptions.length < 3) {
-        potentialCaptions = content.split(/\n-|\n\d+\./);
+        potentialCaptions = cleanedContent.split(/\n-|\n\d+\./);
       }
 
       captions = potentialCaptions
         .map(caption => caption.trim())
-        .filter(caption =>
-          caption.length > 15 &&
-          !caption.toLowerCase().startsWith('here are') &&
-          !caption.toLowerCase().startsWith('captions for') &&
-          !caption.toLowerCase().startsWith('engaging captions') &&
-          !caption.toLowerCase().startsWith('three captions')
-        )
+        .filter(caption => {
+          const lower = caption.toLowerCase();
+          return caption.length > 15 &&
+            !lower.startsWith('here are') &&
+            !lower.startsWith('here\'s') &&
+            !lower.startsWith('here is') &&
+            !lower.startsWith('captions for') &&
+            !lower.startsWith('engaging captions') &&
+            !lower.startsWith('three captions') &&
+            !lower.startsWith('3 captions') &&
+            !lower.startsWith('caption ') &&
+            !lower.startsWith('caption option') &&
+            !lower.startsWith('option ') &&
+            !lower.match(/^(role|task|format|style|strategy|guideline|requirement|rule|instruction|output|provide|generate|create|write|deliver|ensure|match|follow|avoid|critical|important)[:\s]/) &&
+            !lower.match(/^(##?|###)\s/) &&
+            !lower.match(/^[🎯🚨📋🎨🎭👥💼🎤📝🌐📄✅❌]/) &&
+            !lower.match(/^(✓|✗|[-*•])\s*(professional|email|caption|hashtag|introduction|explanation|numbering)/);
+        })
         .slice(0, 3);
 
       if (captions.length < 3) {
-        const allLines = content
+        const allLines = cleanedContent
           .split(/\n/)
           .map(line => line.trim())
-          .filter(line => line.length > 10);
+          .filter(line => {
+            const lower = line.toLowerCase();
+            return line.length > 10 &&
+              !lower.match(/^(role|task|format|style|strategy|guideline|requirement|rule|instruction|output|provide|generate|create|write|deliver|ensure|match|follow|avoid|critical|important)[:\s]/) &&
+              !lower.match(/^(##?|###)\s/) &&
+              !lower.match(/^[🎯🚨📋🎨🎭👥💼🎤📝🌐📄✅❌]/);
+          });
 
         if (allLines.length >= 3) {
           captions = allLines.slice(0, 3);
@@ -881,9 +884,12 @@ async function remixCaption(
   clientId?: string
 ) {
   try {
-    const validation = isValidImageData(imageData);
-    if (!validation.isValid) {
-      throw new Error('Invalid image data - must be blob URL or base64');
+    // Only validate imageData if it's provided - remix can work without image
+    if (imageData && imageData.trim()) {
+      const validation = isValidImageData(imageData);
+      if (!validation.isValid) {
+        throw new Error('Invalid image data - must be blob URL or base64');
+      }
     }
 
     let brandContext: Awaited<ReturnType<typeof getBrandContext>> | null = null;
@@ -891,73 +897,36 @@ async function remixCaption(
       brandContext = await getBrandContext(supabase, clientId);
     }
 
-    let systemPrompt = 'You are a creative social media copywriter specializing in brand-aware content creation. The user wants you to create a fresh variation of an existing caption.\n\n';
-    systemPrompt += '🎯 YOUR TASK:\n';
-    systemPrompt += 'Create a NEW version of the original caption that:\n';
-    systemPrompt += '- Maintains the EXACT same meaning and message\n';
-    systemPrompt += '- Uses DIFFERENT words and phrasing\n';
-    systemPrompt += '- Keeps the SAME style, tone, and structure\n';
-    systemPrompt += "- Incorporates the user's post notes naturally\n\n";
-    systemPrompt += '🚨 CRITICAL REQUIREMENTS:\n';
-    systemPrompt += '- DO NOT change the core message or meaning\n';
-    systemPrompt += '- DO create a fresh variation with different wording\n';
-    systemPrompt += '- DO maintain the same emotional tone and style\n';
-    systemPrompt += "- DO include the post notes content naturally\n";
-    systemPrompt += '- DO NOT add any explanations, introductions, or commentary\n';
-    systemPrompt += '- DO NOT mention the image or try to analyze it\n\n';
-    systemPrompt += '🎭 TONE MATCHING (HIGHEST PRIORITY):\n';
-    systemPrompt += "- Study the original caption's tone, style, and personality\n";
-    systemPrompt += '- Match the exact emotional feel and writing style\n';
-    systemPrompt += '- If the original is casual and friendly, keep it casual and friendly\n';
-    systemPrompt += '- If the original is professional and formal, keep it professional and formal\n';
-    systemPrompt += '- Copy the same level of enthusiasm, humor, or seriousness\n\n';
+    let systemPrompt = 'You are a creative social media copywriter. Create a fresh variation of the provided caption.\n\n';
+    systemPrompt += 'CRITICAL OUTPUT RULES:\n';
+    systemPrompt += '- Output ONLY the new caption text - no instructions, no explanations, no meta-commentary\n';
+    systemPrompt += '- Do NOT include phrases like "Here\'s a remix:" or "Caption variation:"\n';
+    systemPrompt += '- Do NOT repeat any instructions or guidelines in your output\n';
+    systemPrompt += '- Start directly with the caption text\n\n';
+    systemPrompt += 'Requirements:\n';
+    systemPrompt += '- Maintain the EXACT same meaning and message\n';
+    systemPrompt += '- Use DIFFERENT words and phrasing\n';
+    systemPrompt += '- Keep the SAME style, tone, and structure\n';
+    systemPrompt += '- Match the original\'s emotional feel and writing style\n';
 
     if (aiContext) {
-      systemPrompt += '📝 POST NOTES (MANDATORY - include this content):\n';
-      systemPrompt += `${aiContext}\n\n`;
-      systemPrompt += 'IMPORTANT: Weave the post notes content naturally into your variation. If the notes mention specific details (like "$50", "available online"), these must appear in your caption.\n\n';
+      systemPrompt += `\nPost Notes to include: ${aiContext}\n`;
     }
 
     if (brandContext) {
-      systemPrompt += '🎨 BRAND CONTEXT (use for tone and style):\n';
-      systemPrompt += `- Company: ${brandContext.company || 'Not specified'}\n`;
-      systemPrompt += `- Brand Tone: ${brandContext.tone || 'Not specified'}\n`;
-      systemPrompt += `- Target Audience: ${brandContext.audience || 'Not specified'}\n`;
-      systemPrompt += `- Value Proposition: ${brandContext.value_proposition || 'Not specified'}\n\n`;
-
+      systemPrompt += `\nBrand Context: ${brandContext.company || 'Not specified'} | Tone: ${brandContext.tone || 'Not specified'} | Audience: ${brandContext.audience || 'Not specified'}\n`;
       if (brandContext.voice_examples) {
-        systemPrompt += '🎤 BRAND VOICE EXAMPLES (MATCH THIS STYLE):\n';
-        systemPrompt += `${brandContext.voice_examples}\n\n`;
-        systemPrompt += '🚨 CRITICAL: Study these examples and ensure your variation matches this exact style and voice.\n\n';
+        systemPrompt += `Brand Voice Examples: ${brandContext.voice_examples}\n`;
       }
-
-      systemPrompt += "Use this brand context to ensure your variation matches the company's voice and style.\n\n";
-    }
-
-    if (brandContext?.dos || brandContext?.donts) {
-      systemPrompt += '📋 STYLE RULES:\n';
       if (brandContext.dos) {
-        systemPrompt += `✅ DO: ${brandContext.dos}\n`;
+        systemPrompt += `Do: ${brandContext.dos}\n`;
       }
       if (brandContext.donts) {
-        systemPrompt += `❌ DON'T: ${brandContext.donts}\n`;
+        systemPrompt += `Don't: ${brandContext.donts}\n`;
       }
-      systemPrompt += '\n';
     }
 
-    if (existingCaptions.length > 0) {
-      systemPrompt += `📚 EXISTING CAPTIONS FOR REFERENCE: ${existingCaptions.join(', ')}\n\n`;
-    }
-
-    systemPrompt += '🎯 FINAL INSTRUCTION:\n';
-    systemPrompt += 'Generate exactly 1 caption variation that rephrases the original while keeping the same meaning, style, and tone.\n';
-    systemPrompt += 'Make it fresh and different, but maintain the core message completely.\n\n';
-    systemPrompt += '🚨 OUTPUT FORMAT:\n';
-    systemPrompt += '- Provide ONLY the new caption text\n';
-    systemPrompt += '- NO explanations, introductions, or commentary\n';
-    systemPrompt += '- NO "I\'m unable to comment on the image" or similar text\n';
-    systemPrompt += '- NO "here\'s a caption remix:" or similar phrases\n';
-    systemPrompt += '- Just the pure caption text, nothing else';
+    systemPrompt += '\nWrite the caption variation now. Output only the caption text, nothing else.';
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
@@ -975,9 +944,39 @@ async function remixCaption(
       temperature: 0.7
     });
 
+    let caption = response.choices[0]?.message?.content || 'No caption generated';
+    
+    // Clean up any prompt leakage from remix response
+    caption = caption.trim();
+    
+    // Remove common introductory phrases
+    caption = caption.replace(/^(here's|here is|here are|below is|below are|following is|following are|i've created|i've generated|i've written|i'll provide|i'll create|i'll generate|remix|caption remix|caption variation|variation|new caption|fresh variation|here's a remix|here's a variation|caption:)\s*/gi, '');
+    
+    // Remove instruction-like text
+    caption = caption.replace(/^(provide|output|write|generate|create|deliver|ensure|match|follow|integrate|maintain|avoid|do not|don't|no|start|begin|end|critical|important|note|remember|guideline|requirement|rule|instruction)[:\s]*\n?/gmi, '');
+    
+    // Remove markdown formatting
+    caption = caption.replace(/^#{1,6}\s+.*$/gm, '');
+    caption = caption.replace(/^\*\*.*?\*\*[:\s]*$/gm, '');
+    
+    // Remove emoji prefixes
+    caption = caption.replace(/^[🎯🚨📋🎨🎭👥💼🎤📝🌐📄✅❌]\s*[:\s]*/gm, '');
+    
+    // Remove lines that are clearly instructions
+    const instructionPattern = /\b(must|should|need to|required to|expected to|instructed to|guideline|requirement|rule|instruction|format|output|provide|generate|create|write|deliver|ensure|match|follow|avoid|do not|don't|critical|important)\b/gi;
+    caption = caption.split('\n')
+      .filter(line => {
+        const trimmed = line.trim();
+        if (trimmed.length < 5) return false;
+        if (trimmed.match(/^["'`]/) || trimmed.includes('#') || trimmed.length > 30) return true;
+        return !instructionPattern.test(trimmed);
+      })
+      .join('\n')
+      .trim();
+
     return NextResponse.json({
       success: true,
-      caption: response.choices[0]?.message?.content || 'No caption generated'
+      caption: caption || 'No caption generated'
     });
   } catch (error) {
     return handleApiError(error, {

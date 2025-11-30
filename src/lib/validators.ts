@@ -253,7 +253,7 @@ export const aiRequestSchema = z.discriminatedUnion('action', [
   // Caption remixing
   z.object({
     action: z.literal('remix_caption'),
-    imageData: z.string().min(1, 'Image data is required'),
+    imageData: z.string().optional(), // Optional - remix can work without image
     prompt: sanitizedString(2000),
     existingCaptions: z.array(sanitizedString(5000)).max(10).optional(),
     aiContext: sanitizedString(2000).optional(),

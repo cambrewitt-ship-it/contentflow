@@ -678,14 +678,24 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       const activeImage = activeImageId ? uploadedImages.find(img => img.id === activeImageId) : null
 
       // Use blob URL directly (no need to convert to base64)
-      let imageData = ''
-      if (activeImage?.blobUrl || activeImage?.preview) {
-        imageData = activeImage.blobUrl || activeImage.preview
-
-      }
+      // Image is optional for remix - we can remix based on caption text alone
+      const imageData = activeImage?.blobUrl || activeImage?.preview || ''
 
       if (!accessToken) {
         throw new Error('Access token is required for AI remix')
+      }
+
+      const requestBody: Record<string, unknown> = {
+        action: 'remix_caption',
+        prompt: `Create a fresh variation of this caption while maintaining the same style, tone, and message. Keep the core meaning but rephrase it differently. Original caption: "${caption.text}"`,
+        existingCaptions: captions.map(cap => cap.text),
+        aiContext: postNotes || undefined,
+        clientId: clientId,
+      }
+
+      // Only include imageData if we have it
+      if (imageData) {
+        requestBody.imageData = imageData
       }
 
       const response = await fetch('/api/ai', {
@@ -694,14 +704,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
-          action: 'remix_caption',
-          imageData: imageData,
-          prompt: `Create a fresh variation of this caption while maintaining the same style, tone, and message. Keep the core meaning but rephrase it differently. Original caption: "${caption.text}"`,
-          existingCaptions: captions.map(cap => cap.text),
-          aiContext: postNotes,
-          clientId: clientId,
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       if (!response.ok) {
