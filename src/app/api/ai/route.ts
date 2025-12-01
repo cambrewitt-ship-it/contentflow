@@ -9,11 +9,12 @@ import { aiRequestSchema } from '../../../lib/validators';
 import { withAICreditCheck, trackAICreditUsage } from '../../../lib/subscriptionMiddleware';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
+import { sanitizeAndValidateContentIdeas } from '@/lib/ai-utils';
+import { detectPromptLeakage, logLeakageIncident } from '@/lib/ai-monitoring';
 
 export const maxDuration = 60;
-// Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs'; // Use Node.js runtime for better performance
+export const runtime = 'nodejs';
 
 function getCopyToneInstructions(copyTone: string) {
   const toneMap: Record<string, string> = {
@@ -24,7 +25,6 @@ function getCopyToneInstructions(copyTone: string) {
 - Create urgency where appropriate ("limited time", "don't miss out")
 - Highlight specific deals, prices, or exclusive opportunities
 - Use persuasive language that drives immediate action`,
-
     educational: `
 **Educational Focus:**
 - Share valuable insights, tips, or industry knowledge
@@ -32,7 +32,6 @@ function getCopyToneInstructions(copyTone: string) {
 - Use informative, helpful language that teaches or guides
 - Include practical advice or actionable takeaways
 - Build authority through expertise demonstration`,
-
     personal: `
 **Personal Focus:**
 - Use authentic, behind-the-scenes storytelling
@@ -40,7 +39,6 @@ function getCopyToneInstructions(copyTone: string) {
 - Create genuine connections with a conversational tone
 - Include personal anecdotes or authentic moments
 - Build trust through transparency and relatability`,
-
     testimonial: `
 **Testimonial Focus:**
 - Highlight client success stories and positive outcomes
@@ -48,16 +46,14 @@ function getCopyToneInstructions(copyTone: string) {
 - Include specific results, achievements, or transformations
 - Feature client quotes, reviews, or feedback when available
 - Demonstrate value through real-world examples`,
-
     engagement: `
 **Engagement Focus:**
 - Ask questions to encourage audience interaction
 - Create conversation starters and community discussion
 - Use interactive elements like polls, opinions, or experiences
 - Invite audience to share their thoughts or stories
-- Build community through two-way communication`
+- Build community through two-way communication`,
   };
-
   return toneMap[copyTone] || '**General Social Media Copy:** Create engaging, brand-appropriate content that drives social interaction.';
 }
 
@@ -65,7 +61,7 @@ function getPostNotesApproach(style: string) {
   const approaches: Record<string, string> = {
     'quote-directly': 'Use exact wording and specific details from notes',
     paraphrase: "Rewrite notes content in brand voice while keeping all key information",
-    'use-as-inspiration': 'Capture the essence and intent of notes with creative interpretation'
+    'use-as-inspiration': 'Capture the essence and intent of notes with creative interpretation',
   };
   return approaches[style] || 'Incorporate notes content appropriately';
 }
@@ -75,7 +71,7 @@ function getImageRole(focus: string) {
     'main-focus': 'Primary Content Driver',
     supporting: 'Content Enhancer',
     background: 'Context Provider',
-    none: 'Not Used'
+    none: 'Not Used',
   };
   return roles[focus] || 'Supporting';
 }
@@ -85,16 +81,17 @@ function getImageDescription(focus: string) {
     'main-focus': "Build captions around what's shown in the image",
     supporting: 'Use image details to enhance and support the main message',
     background: 'Reference image elements briefly for context',
-    none: 'Focus entirely on text content, ignore image'
+    none: 'Focus entirely on text content, ignore image',
   };
   return descriptions[focus] || 'Use image details to support content';
 }
 
 function getPostNotesInstructions(style: string) {
   const instructions: Record<string, string> = {
-    'quote-directly': 'Include specific phrases, numbers, and details exactly as written. If notes mention "$50 special offer", your caption must include "$50 special offer".',
+    'quote-directly':
+      'Include specific phrases, numbers, and details exactly as written. If notes mention "$50 special offer", your caption must include "$50 special offer".',
     paraphrase: "Rewrite the notes content in the brand's voice while preserving all key information, prices, dates, and important details.",
-    'use-as-inspiration': 'Capture the core message and intent from the notes, using them as a foundation for brand-appropriate content.'
+    'use-as-inspiration': 'Capture the core message and intent from the notes, using them as a foundation for brand-appropriate content.',
   };
   return instructions[style] || 'Incorporate the notes content appropriately based on context.';
 }
@@ -107,27 +104,24 @@ function getImageInstructions(focus: string) {
 - Build captions around what's prominently featured
 - Connect all content back to the main visual elements
 - Use the image as the central narrative foundation`,
-
     supporting: `
 **Supporting Image Role:**
 - Identify relevant visual elements that enhance the message
 - Connect image details to the main content theme
 - Use visuals to add credibility and context
 - Balance image references with primary content focus`,
-
     background: `
 **Background Image Context:**
 - Briefly acknowledge the setting or context shown
 - Use minimal image references to support the message
 - Focus primarily on text content with light visual mentions
 - Keep image descriptions concise and contextual`,
-
     none: `
 **Text-Only Focus:**
 - Do not reference or describe image elements
 - Focus entirely on post notes and brand messaging
 - Create content independent of visual elements
-- Treat this as text-based content creation`
+- Treat this as text-based content creation`,
   };
 
   return instructions[focus] || instructions.supporting;
@@ -151,15 +145,14 @@ function isRefusalResponse(content?: string | null): boolean {
     'i cannot provide that',
     'i cannot provide',
     'i do not have the ability to',
-    'refuse to'
+    'refuse to',
   ];
 
-  return refusalPhrases.some(phrase => normalized.includes(phrase));
+  return refusalPhrases.some((phrase) => normalized.includes(phrase));
 }
 
 function sanitizeFallbackText(text?: string | null): string | undefined {
   if (!text) return text ?? undefined;
-
   const sensitiveTerms = [
     'suicide',
     'kill',
@@ -179,19 +172,21 @@ function sanitizeFallbackText(text?: string | null): string | undefined {
     'terror',
     'bomb',
     'weaponry',
-    'shoot'
+    'shoot',
   ];
-
   let sanitized = text;
   for (const term of sensitiveTerms) {
     const regex = new RegExp(term, 'gi');
     sanitized = sanitized.replace(regex, '[redacted]');
   }
-
   return sanitized;
 }
 
-function getContentHierarchy(aiContext: string | undefined, postNotesStyle: string, imageFocus: string) {
+function getContentHierarchy(
+  aiContext: string | undefined,
+  postNotesStyle: string,
+  imageFocus: string
+) {
   if (aiContext) {
     return `
 **Content Priority Order:**
@@ -210,10 +205,11 @@ function getContentHierarchy(aiContext: string | undefined, postNotesStyle: stri
 // Fetch brand context for a client
 async function getBrandContext(supabase: SupabaseClient, clientId: string) {
   try {
-    // Get client brand information
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('company_description, website_url, brand_tone, target_audience, value_proposition, caption_dos, caption_donts, brand_voice_examples, region')
+      .select(
+        'company_description, website_url, brand_tone, target_audience, value_proposition, caption_dos, caption_donts, brand_voice_examples, region'
+      )
       .eq('id', clientId)
       .single();
 
@@ -222,7 +218,6 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
       return null;
     }
 
-    // Get brand documents
     const { data: documents, error: docsError } = await supabase
       .from('brand_documents')
       .select('extracted_text, original_filename')
@@ -234,7 +229,6 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
       logger.error('Could not fetch brand documents:', { error: docsError.message });
     }
 
-    // Get website scrapes
     const { data: scrapes, error: scrapeError } = await supabase
       .from('website_scrapes')
       .select('scraped_content, page_title, meta_description')
@@ -248,7 +242,6 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
       logger.error('Could not fetch website scrapes:', { error: scrapeError.message });
     }
 
-    // Build comprehensive brand context
     const brandContext = {
       company: client.company_description,
       tone: client.brand_tone,
@@ -259,7 +252,8 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
       voice_examples: client.brand_voice_examples,
       region: client.region,
       documents: documents || [],
-      website: scrapes && Array.isArray(scrapes) && scrapes.length > 0 ? scrapes[0] : null,
+      website:
+        scrapes && Array.isArray(scrapes) && scrapes.length > 0 ? scrapes[0] : null,
     };
 
     return brandContext;
@@ -271,32 +265,10 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    let clientId: string | undefined;
-    try {
-      const preliminaryBody = await request.clone().json();
-      clientId =
-        typeof preliminaryBody?.clientId === 'string'
-          ? preliminaryBody.clientId
-          : typeof preliminaryBody?.client_id === 'string'
-            ? preliminaryBody.client_id
-            : undefined;
-    } catch {
-      clientId = undefined;
-    }
-
-    if (!clientId) {
-      return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
-    }
-
-    const auth = await requireClientOwnership(request, clientId);
-    if (auth.error) return auth.error;
-    let supabase = auth.supabase;
-
-    // Check content length before processing
+    // Check content length first (before reading body)
     const contentLength = request.headers.get('content-length');
     if (contentLength) {
       const sizeMB = (parseInt(contentLength) / (1024 * 1024)).toFixed(2);
-
       if (parseInt(contentLength) > 10 * 1024 * 1024) {
         logger.error(`Request too large: ${sizeMB}MB (max 10MB)`);
         return NextResponse.json(
@@ -309,30 +281,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // SUBSCRIPTION: Check AI credit limits
-    const subscriptionCheck = await withAICreditCheck(request, 1);
-    
-    // Check if subscription check failed
-    if (!subscriptionCheck.allowed) {
-      logger.error('Subscription check failed:', subscriptionCheck.error);
-      return NextResponse.json({ 
-        error: subscriptionCheck.error || 'AI credit limit reached',
-        details: subscriptionCheck.error
-      }, { status: 403 });
-    }
-    
-    // Validate that userId exists
-    if (!subscriptionCheck.userId) {
-      logger.error('User ID not found in subscription check');
-      return NextResponse.json({ 
-        error: 'User identification failed',
-        details: 'Could not identify user for AI request'
-      }, { status: 401 });
-    }
-    
-    const userId = subscriptionCheck.userId;
-
-    // SECURITY: Comprehensive input validation with Zod
+    // Validate request body first (this reads the body once)
     const validation = await validateApiRequest(request, {
       body: aiRequestSchema,
       maxBodySize: 10 * 1024 * 1024,
@@ -344,18 +293,49 @@ export async function POST(request: NextRequest) {
     }
 
     const body = validation.data.body!;
+    
+    // Extract clientId from validated body (handle discriminated union type)
+    const bodyRecord = body as Record<string, unknown>;
     const validatedClientId =
-      typeof body.clientId === 'string'
-        ? body.clientId
-        : typeof body.client_id === 'string'
-          ? (body.client_id as string)
-          : clientId;
+      typeof bodyRecord.clientId === 'string'
+        ? bodyRecord.clientId
+        : typeof bodyRecord.client_id === 'string'
+        ? (bodyRecord.client_id as string)
+        : undefined;
 
     if (!validatedClientId) {
       return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
     }
 
-    clientId = validatedClientId;
+    const clientId = validatedClientId;
+
+    // Now perform auth check with the validated clientId
+    const auth = await requireClientOwnership(request, clientId);
+    if (auth.error) return auth.error;
+    let supabase = auth.supabase;
+
+    const subscriptionCheck = await withAICreditCheck(request, 1);
+    if (!subscriptionCheck.allowed) {
+      logger.error('Subscription check failed:', subscriptionCheck.error);
+      return NextResponse.json(
+        {
+          error: subscriptionCheck.error || 'AI credit limit reached',
+          details: subscriptionCheck.error,
+        },
+        { status: 403 }
+      );
+    }
+    if (!subscriptionCheck.userId) {
+      logger.error('User ID not found in subscription check');
+      return NextResponse.json(
+        {
+          error: 'User identification failed',
+          details: 'Could not identify user for AI request',
+        },
+        { status: 401 }
+      );
+    }
+    const userId = subscriptionCheck.userId;
 
     if (validatedClientId !== auth.client.id) {
       const ownership = await requireClientOwnership(request, validatedClientId);
@@ -369,40 +349,54 @@ export async function POST(request: NextRequest) {
         ...debugBody,
         hasImageData: !!(body as Record<string, unknown>).imageData,
       });
-    } catch (_) {}
+    } catch {}
 
     if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
-        { error: 'OpenAI API key not configured' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    let result: NextResponse;
+    let result: NextResponse | any;
     switch (body.action) {
       case 'analyze_image':
-        result = await analyzeImage(openai, body.imageData as string, body.prompt as string | undefined);
+        result = await analyzeImage(
+          openai,
+          body.imageData as string,
+          body.prompt as string | undefined
+        );
         break;
-
       case 'generate_captions':
         result = await generateCaptions(
           openai,
           supabase,
           body.imageData as string,
           body.existingCaptions as string[] | undefined,
-          (body.aiContext ?? (body as Record<string, unknown>).postNotes) as string | undefined,
+          (body.aiContext ?? (body as Record<string, unknown>).postNotes) as
+            | string
+            | undefined,
           (body.clientId as string | undefined) ?? clientId,
           body.copyType as 'social-media' | 'email-marketing' | undefined,
-          body.copyTone as 'promotional' | 'educational' | 'personal' | 'testimonial' | 'engagement' | undefined,
-          body.postNotesStyle as 'quote-directly' | 'paraphrase' | 'use-as-inspiration' | undefined,
-          body.imageFocus as 'main-focus' | 'supporting' | 'background' | 'none' | undefined
+          body.copyTone as
+            | 'promotional'
+            | 'educational'
+            | 'personal'
+            | 'testimonial'
+            | 'engagement'
+            | undefined,
+          body.postNotesStyle as
+            | 'quote-directly'
+            | 'paraphrase'
+            | 'use-as-inspiration'
+            | undefined,
+          body.imageFocus as
+            | 'main-focus'
+            | 'supporting'
+            | 'background'
+            | 'none'
+            | undefined
         );
         break;
-
       case 'remix_caption':
         result = await remixCaption(
           openai,
@@ -414,11 +408,9 @@ export async function POST(request: NextRequest) {
           (body.clientId as string | undefined) ?? clientId
         );
         break;
-
       case 'generate_content_ideas':
         result = await generateContentIdeas(openai, supabase, clientId, userId);
         break;
-
       default:
         return NextResponse.json(
           { error: 'Invalid action specified' },
@@ -426,29 +418,22 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    // Track AI credit usage if request was successful
-    if (result?.status === 200) {
+    if ((result && result.status === 200) || (result && result.success)) {
       const bodyData = body as Record<string, unknown>;
-      await trackAICreditUsage(
-        userId,
-        1,
-        body.action as string,
-        bodyData.clientId as string | undefined,
-        {
-          copyType: bodyData.copyType as string | undefined,
-          copyTone: bodyData.copyTone as string | undefined,
-          postNotesStyle: bodyData.postNotesStyle as string | undefined,
-          imageFocus: bodyData.imageFocus as string | undefined,
-        }
-      );
+      await trackAICreditUsage(userId, 1, body.action as string, bodyData.clientId as string | undefined, {
+        copyType: bodyData.copyType as string | undefined,
+        copyTone: bodyData.copyTone as string | undefined,
+        postNotesStyle: bodyData.postNotesStyle as string | undefined,
+        imageFocus: bodyData.imageFocus as string | undefined,
+      });
     }
 
     return result;
-  } catch (error) {
+  } catch (error: any) {
     return handleApiError(error, {
       route: '/api/ai',
       operation: 'ai_request',
-      additionalData: { error: error instanceof Error ? error.message : 'Unknown error' }
+      additionalData: { error: error instanceof Error ? error.message : 'Unknown error' },
     });
   }
 }
@@ -459,44 +444,43 @@ async function analyzeImage(openai: OpenAI, imageData: string, prompt?: string) 
     if (!validation.isValid) {
       throw new Error('Invalid image data - must be blob URL or base64');
     }
-
     const systemPrompt = `You are an expert content creator and social media strategist. 
-    Analyze the provided image and provide insights that would be valuable for creating engaging social media content.
+Analyze the provided image and provide insights that would be valuable for creating engaging social media content.
 
-    Focus on:
-    - Visual elements and composition
-    - Mood and atmosphere
-    - Potential messaging angles
-    - Target audience appeal
-    - Content opportunities
+Focus on:
+- Visual elements and composition
+- Mood and atmosphere
+- Potential messaging angles
+- Target audience appeal
+- Content opportunities
 
-    ${prompt ? `Additional context: ${prompt}` : ""}
+${prompt ? `Additional context: ${prompt}` : ""}
 
-    Provide your analysis in a clear, structured format.`;
+Provide your analysis in a clear, structured format.`;
 
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: systemPrompt
+          content: systemPrompt,
         },
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: 'Please analyze this image for social media content creation:'
+              text: 'Please analyze this image for social media content creation:',
             },
             {
               type: 'image_url',
               image_url: {
                 url: imageData,
-                detail: 'high'
-              }
-            }
-          ]
-        }
+                detail: 'high',
+              },
+            },
+          ],
+        },
       ],
       max_tokens: 500,
       temperature: 0.7,
@@ -504,39 +488,36 @@ async function analyzeImage(openai: OpenAI, imageData: string, prompt?: string) 
 
     return NextResponse.json({
       success: true,
-      analysis: response.choices[0]?.message?.content || 'No analysis generated'
+      analysis: response.choices[0]?.message?.content || 'No analysis generated',
     });
-  } catch (error) {
+  } catch (error: any) {
     return handleApiError(error, {
       route: '/api/ai',
       operation: 'analyze_image',
-      additionalData: { hasPrompt: !!prompt }
+      additionalData: { hasPrompt: !!prompt },
     });
   }
 }
 
 async function callOpenAIWithRetry(openai: OpenAI, params: any, maxRetries = 3) {
   let lastError: unknown;
-
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await openai.chat.completions.create(params);
       return response;
     } catch (error: any) {
       lastError = error;
-
       if (error?.status === 400 || error?.status === 401) {
         throw error;
       }
-
       if (attempt < maxRetries) {
         const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        // eslint-disable-next-line no-console
         console.log(`OpenAI attempt ${attempt} failed, retrying in ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
-
   throw lastError;
 }
 
@@ -562,7 +543,6 @@ async function generateCaptions(
       if (!mediaValidation.isValid) {
         throw new Error('Invalid media data - must be blob URL or base64');
       }
-
       validation = isValidImageData(imageData);
     }
 
@@ -604,10 +584,9 @@ ${brandContext.documents && brandContext.documents.length > 0 ? `📄 BRAND DOCU
 ${brandContext.website ? `🌐 WEBSITE CONTEXT: Available for reference` : ''}`;
     }
 
-    const finalInstruction = copyType === 'email-marketing' ? '' : 'Provide only 3 captions, separated by blank lines. No introduction or explanation.';
-
-    const systemPrompt = copyType === 'email-marketing'
-      ? `You are a professional email copywriter. Write exactly ONE email paragraph (2-3 sentences + CTA) based on the provided context.
+    const systemPrompt =
+      copyType === 'email-marketing'
+        ? `You are a professional email copywriter. Write exactly ONE email paragraph (2-3 sentences + CTA) based on the provided context.
 
 CRITICAL OUTPUT RULES:
 - Output ONLY the email text - no instructions, no explanations, no meta-commentary
@@ -618,7 +597,7 @@ CRITICAL OUTPUT RULES:
 Brand Context: ${brandContext?.company || 'Not specified'} | Tone: ${brandContext?.tone || 'Professional'} | Audience: ${brandContext?.audience || 'Not specified'}
 
 Write professional email copy now.`
-      : `You are a social media copywriter. Write 3 unique captions based on the image and context provided.
+        : `You are a social media copywriter. Write 3 unique captions based on the image and context provided.
 
 CRITICAL OUTPUT RULES:
 - Output ONLY the 3 captions separated by blank lines
@@ -650,7 +629,11 @@ ${getImageInstructions(imageFocus || 'supporting')}
 
 Write the 3 captions now. Output only the caption text, nothing else.`;
 
-    const userContent: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string; detail: 'high' } }> = [
+    const userContent: Array<{
+      type: 'text' | 'image_url';
+      text?: string;
+      image_url?: { url: string; detail: 'high' };
+    }> = [
       {
         type: 'text',
         text:
@@ -659,9 +642,9 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
               ? `Write ONE professional email paragraph (2-3 sentences + CTA) based on: "${aiContext}". Output ONLY the email text - no instructions, no explanations. Start directly with the email content.`
               : 'Write ONE professional email paragraph (2-3 sentences + CTA) for this image. Output ONLY the email text - no instructions, no explanations. Start directly with the email content.'
             : aiContext
-              ? `Write 3 social media captions based on Post Notes: "${aiContext}". Output ONLY the 3 captions separated by blank lines. No introductions, no explanations, no numbering. Start directly with the first caption text.`
-              : 'Write 3 social media captions for this image. Output ONLY the 3 captions separated by blank lines. No introductions, no explanations, no numbering. Start directly with the first caption text.'
-      }
+            ? `Write 3 social media captions based on Post Notes: "${aiContext}". Output ONLY the 3 captions separated by blank lines. No introductions, no explanations, no numbering. Start directly with the first caption text.`
+            : 'Write 3 social media captions for this image. Output ONLY the 3 captions separated by blank lines. No introductions, no explanations, no numbering. Start directly with the first caption text.',
+      },
     ];
 
     if (validation.isValid && imageData && !isVideo && !isVideoPlaceholder) {
@@ -669,13 +652,13 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
         type: 'image_url',
         image_url: {
           url: imageData,
-          detail: 'high'
-        }
+          detail: 'high',
+        },
       });
     }
 
-    // Warn if promotional captions lack supporting context
     if (copyTone === 'promotional' && !aiContext?.trim()) {
+      // eslint-disable-next-line no-console
       console.warn('Generating promotional content without Post Notes - results may be generic');
     }
 
@@ -684,15 +667,15 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
       messages: [
         {
           role: 'system',
-          content: systemPrompt
+          content: systemPrompt,
         },
         {
           role: 'user',
-          content: userContent
-        }
+          content: userContent,
+        },
       ],
       max_tokens: 800,
-      temperature: 0.8
+      temperature: 0.8,
     });
 
     let content = response.choices[0]?.message?.content || '';
@@ -708,7 +691,7 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
         clientId,
         hasContext: !!aiContext,
         isVideo,
-        contentLength: content.length
+        contentLength: content.length,
       });
 
       const sanitizedContext = sanitizeFallbackText(aiContext);
@@ -720,40 +703,42 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
             ? `Write one compliant, brand-safe promotional email paragraph plus a call-to-action based on this context. Remove or neutralize any sensitive details: "${sanitizedContext}".`
             : 'Write one compliant, brand-safe promotional email paragraph with a call-to-action. Keep the tone professional and positive.'
           : sanitizedContext
-            ? `Create three short, brand-safe social media captions. Use this context where it is safe to do so, but remove or neutralize any sensitive details: "${sanitizedContext}".`
-            : 'Create three short, brand-safe social media captions suitable for a generic promotional post. Keep them positive and compliant.';
+          ? `Create three short, brand-safe social media captions. Use this context where it is safe to do so, but remove or neutralize any sensitive details: "${sanitizedContext}".`
+          : 'Create three short, brand-safe social media captions suitable for a generic promotional post. Keep them positive and compliant.';
 
       const fallbackResponse = await callOpenAIWithRetry(openai, {
-        model: process.env.OPENAI_FALLBACK_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        model:
+          process.env.OPENAI_FALLBACK_MODEL ||
+          process.env.OPENAI_MODEL ||
+          'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: fallbackSystemPrompt
+            content: fallbackSystemPrompt,
           },
           {
             role: 'user',
-            content: fallbackUserMessage
-          }
+            content: fallbackUserMessage,
+          },
         ],
         max_tokens: copyType === 'email-marketing' ? 500 : 600,
-        temperature: 0.7
+        temperature: 0.7,
       });
 
       const fallbackContent = fallbackResponse.choices[0]?.message?.content || '';
-
       if (fallbackContent.trim().length > 0 && !isRefusalResponse(fallbackContent)) {
         content = fallbackContent;
       } else {
         logger.error('Caption generation failed after fallback attempt.', {
           clientId,
           hasContext: !!aiContext,
-          fallbackContentLength: fallbackContent.length
+          fallbackContentLength: fallbackContent.length,
         });
 
         return NextResponse.json(
           {
             success: false,
-            error: 'AI safety filters prevented caption generation. Please adjust your media or notes and try again.'
+            error: 'AI safety filters prevented caption generation. Please adjust your media or notes and try again.',
           },
           { status: 400 }
         );
@@ -761,7 +746,6 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
     }
 
     let captions: string[] = [];
-
     if (copyType === 'email-marketing') {
       let processedContent = content.trim();
       processedContent = processedContent.replace(/\\n\\n/g, '\n\n');
@@ -775,53 +759,47 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
     } else {
       // Remove common prompt leakage patterns
       let cleanedContent = content.trim();
-      
+
       // Remove instruction-like headers and sections
       cleanedContent = cleanedContent.replace(/^##?\s*(Role|Task|Format Requirements?|Style Guidelines?|Strategy Inputs?|Copy Tone|Content Hierarchy|Post Notes|Image Direction|Quality Checklist|Output Format|Requirements?|Your Role|Brand Context|Content Inputs?|Critical Output Rules?|Caption Guidelines?)[:\s]*\n?/gmi, '');
       cleanedContent = cleanedContent.replace(/^###\s*(Copy Tone|Content Hierarchy|Post Notes|Image Direction|Processing Instructions?)[:\s]*\n?/gmi, '');
       cleanedContent = cleanedContent.replace(/^[🎯🚨📋🎨🎭👥💼🎤📝🌐📄✅❌]\s*[:\s]*\n?/gm, '');
-      
-      // Remove common introductory phrases
+
       cleanedContent = cleanedContent.replace(/^(here are|here's|here is|below are|below is|following are|following is|i've created|i've generated|i've written|i'll provide|i'll create|i'll generate|captions for|engaging captions|three captions|3 captions|caption \d+:|caption option \d+:|option \d+:|variation \d+:)\s*/gi, '');
-      
-      // Remove instruction text patterns
+
       cleanedContent = cleanedContent.replace(/^(provide|output|write|generate|create|deliver|ensure|match|follow|integrate|maintain|avoid|do not|don't|no|start|begin|end|critical|important|note|remember|guideline|requirement|rule|instruction)[:\s]*\n?/gmi, '');
       cleanedContent = cleanedContent.replace(/^(✓|✗|[-*•])\s*(professional|email|caption|hashtag|introduction|explanation|numbering|placeholder|apology|meta)[:\s]*\n?/gmi, '');
-      
-      // Remove markdown formatting that might be from instructions
+
       cleanedContent = cleanedContent.replace(/^#{1,6}\s+.*$/gm, '');
       cleanedContent = cleanedContent.replace(/^\*\*.*?\*\*[:\s]*$/gm, '');
-      
-      // Remove lines that are clearly instructions (containing words like "must", "should", "need to", etc.)
+
       const instructionPattern = /\b(must|should|need to|required to|expected to|instructed to|guideline|requirement|rule|instruction|format|output|provide|generate|create|write|deliver|ensure|match|follow|avoid|do not|don't|critical|important)\b/gi;
-      cleanedContent = cleanedContent.split('\n')
-        .filter(line => {
+      cleanedContent = cleanedContent
+        .split('\n')
+        .filter((line) => {
           const trimmed = line.trim();
-          // Keep lines that are actual content (have quotes, hashtags, or are substantial)
           if (trimmed.length < 10) return false;
           if (trimmed.match(/^["'`]/) || trimmed.includes('#') || trimmed.length > 50) return true;
-          // Remove lines that look like instructions
           return !instructionPattern.test(trimmed);
         })
         .join('\n');
 
       let potentialCaptions = cleanedContent.split(/\n\n+/);
-
       if (potentialCaptions.length < 3) {
         potentialCaptions = cleanedContent.split(/\n/);
       }
-
       if (potentialCaptions.length < 3) {
         potentialCaptions = cleanedContent.split(/\n-|\n\d+\./);
       }
 
       captions = potentialCaptions
-        .map(caption => caption.trim())
-        .filter(caption => {
+        .map((caption) => caption.trim())
+        .filter((caption) => {
           const lower = caption.toLowerCase();
-          return caption.length > 15 &&
+          return (
+            caption.length > 15 &&
             !lower.startsWith('here are') &&
-            !lower.startsWith('here\'s') &&
+            !lower.startsWith("here's") &&
             !lower.startsWith('here is') &&
             !lower.startsWith('captions for') &&
             !lower.startsWith('engaging captions') &&
@@ -833,22 +811,24 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
             !lower.match(/^(role|task|format|style|strategy|guideline|requirement|rule|instruction|output|provide|generate|create|write|deliver|ensure|match|follow|avoid|critical|important)[:\s]/) &&
             !lower.match(/^(##?|###)\s/) &&
             !lower.match(/^[🎯🚨📋🎨🎭👥💼🎤📝🌐📄✅❌]/) &&
-            !lower.match(/^(✓|✗|[-*•])\s*(professional|email|caption|hashtag|introduction|explanation|numbering)/);
+            !lower.match(/^(✓|✗|[-*•])\s*(professional|email|caption|hashtag|introduction|explanation|numbering)/)
+          );
         })
         .slice(0, 3);
 
       if (captions.length < 3) {
         const allLines = cleanedContent
           .split(/\n/)
-          .map(line => line.trim())
-          .filter(line => {
+          .map((line) => line.trim())
+          .filter((line) => {
             const lower = line.toLowerCase();
-            return line.length > 10 &&
+            return (
+              line.length > 10 &&
               !lower.match(/^(role|task|format|style|strategy|guideline|requirement|rule|instruction|output|provide|generate|create|write|deliver|ensure|match|follow|avoid|critical|important)[:\s]/) &&
               !lower.match(/^(##?|###)\s/) &&
-              !lower.match(/^[🎯🚨📋🎨🎭👥💼🎤📝🌐📄✅❌]/);
+              !lower.match(/^[🎯🚨📋🎨🎭👥💼🎤📝🌐📄✅❌]/)
+            );
           });
-
         if (allLines.length >= 3) {
           captions = allLines.slice(0, 3);
         }
@@ -857,20 +837,20 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
 
     return NextResponse.json({
       success: true,
-      captions
+      captions,
     });
   } catch (error: any) {
+    // eslint-disable-next-line no-console
     console.error('Caption generation error:', {
       message: error?.message,
       status: error?.status,
       type: error?.type,
-      clientId
+      clientId,
     });
-
-    return {
-      success: false,
-      error: error?.message || 'Failed to generate captions'
-    };
+    return NextResponse.json(
+      { success: false, error: error?.message || 'Failed to generate captions' },
+      { status: 400 }
+    );
   }
 }
 
@@ -884,7 +864,6 @@ async function remixCaption(
   clientId?: string
 ) {
   try {
-    // Only validate imageData if it's provided - remix can work without image
     if (imageData && imageData.trim()) {
       const validation = isValidImageData(imageData);
       if (!validation.isValid) {
@@ -914,7 +893,9 @@ async function remixCaption(
     }
 
     if (brandContext) {
-      systemPrompt += `\nBrand Context: ${brandContext.company || 'Not specified'} | Tone: ${brandContext.tone || 'Not specified'} | Audience: ${brandContext.audience || 'Not specified'}\n`;
+      systemPrompt += `\nBrand Context: ${brandContext.company || 'Not specified'} | Tone: ${
+        brandContext.tone || 'Not specified'
+      } | Audience: ${brandContext.audience || 'Not specified'}\n`;
       if (brandContext.voice_examples) {
         systemPrompt += `Brand Voice Examples: ${brandContext.voice_examples}\n`;
       }
@@ -928,44 +909,48 @@ async function remixCaption(
 
     systemPrompt += '\nWrite the caption variation now. Output only the caption text, nothing else.';
 
+    let originalCaption = prompt;
+    // fallback for case: 'Original caption: "..."'
+    const og = prompt.match(/Original caption: "([^"]+)"/);
+    if (og && og[1]) {
+      originalCaption = og[1];
+    }
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: systemPrompt
+          content: systemPrompt,
         },
         {
           role: 'user',
-          content: `Create a fresh variation of this caption: "${prompt.split('Original caption: "')[1]?.replace('"', '') || 'Unknown caption'}"`
-        }
+          content: `Create a fresh variation of this caption: "${originalCaption}"`,
+        },
       ],
       max_tokens: 400,
-      temperature: 0.7
+      temperature: 0.7,
     });
 
     let caption = response.choices[0]?.message?.content || 'No caption generated';
-    
-    // Clean up any prompt leakage from remix response
     caption = caption.trim();
-    
-    // Remove common introductory phrases
-    caption = caption.replace(/^(here's|here is|here are|below is|below are|following is|following are|i've created|i've generated|i've written|i'll provide|i'll create|i'll generate|remix|caption remix|caption variation|variation|new caption|fresh variation|here's a remix|here's a variation|caption:)\s*/gi, '');
-    
-    // Remove instruction-like text
-    caption = caption.replace(/^(provide|output|write|generate|create|deliver|ensure|match|follow|integrate|maintain|avoid|do not|don't|no|start|begin|end|critical|important|note|remember|guideline|requirement|rule|instruction)[:\s]*\n?/gmi, '');
-    
-    // Remove markdown formatting
+
+    caption = caption.replace(
+      /^(here's|here is|here are|below is|below are|following is|following are|i've created|i've generated|i've written|i'll provide|i'll create|i'll generate|remix|caption remix|caption variation|variation|new caption|fresh variation|here's a remix|here's a variation|caption:)\s*/gi,
+      ''
+    );
+    caption = caption.replace(
+      /^(provide|output|write|generate|create|deliver|ensure|match|follow|integrate|maintain|avoid|do not|don't|no|start|begin|end|critical|important|note|remember|guideline|requirement|rule|instruction)[:\s]*\n?/gmi,
+      ''
+    );
     caption = caption.replace(/^#{1,6}\s+.*$/gm, '');
     caption = caption.replace(/^\*\*.*?\*\*[:\s]*$/gm, '');
-    
-    // Remove emoji prefixes
     caption = caption.replace(/^[🎯🚨📋🎨🎭👥💼🎤📝🌐📄✅❌]\s*[:\s]*/gm, '');
-    
-    // Remove lines that are clearly instructions
-    const instructionPattern = /\b(must|should|need to|required to|expected to|instructed to|guideline|requirement|rule|instruction|format|output|provide|generate|create|write|deliver|ensure|match|follow|avoid|do not|don't|critical|important)\b/gi;
-    caption = caption.split('\n')
-      .filter(line => {
+
+    const instructionPattern =
+      /\b(must|should|need to|required to|expected to|instructed to|guideline|requirement|rule|instruction|format|output|provide|generate|create|write|deliver|ensure|match|follow|avoid|do not|don't|critical|important)\b/gi;
+    caption = caption
+      .split('\n')
+      .filter((line) => {
         const trimmed = line.trim();
         if (trimmed.length < 5) return false;
         if (trimmed.match(/^["'`]/) || trimmed.includes('#') || trimmed.length > 30) return true;
@@ -976,9 +961,9 @@ async function remixCaption(
 
     return NextResponse.json({
       success: true,
-      caption: caption || 'No caption generated'
+      caption: caption || 'No caption generated',
     });
-  } catch (error) {
+  } catch (error: any) {
     return handleApiError(error, {
       route: '/api/ai',
       operation: 'remix_caption',
@@ -986,15 +971,18 @@ async function remixCaption(
       additionalData: {
         hasImageData: !!imageData,
         hasContext: !!aiContext,
-        hasExistingCaptions: existingCaptions.length > 0
-      }
+        hasExistingCaptions: existingCaptions.length > 0,
+      },
     });
   }
 }
 
-// ... [generateCaptions and remixCaption REMAIN THE SAME, omitted for brevity in this reply]
-
-async function generateContentIdeas(openai: OpenAI, supabase: SupabaseClient, clientId: string, userId: string) {
+async function generateContentIdeas(
+  openai: OpenAI,
+  supabase: SupabaseClient,
+  clientId: string,
+  userId: string
+) {
   try {
     if (!clientId) {
       return NextResponse.json(
@@ -1013,16 +1001,21 @@ async function generateContentIdeas(openai: OpenAI, supabase: SupabaseClient, cl
 
     const clientRegion = brandContext.region || 'New Zealand - Wellington';
     const allUpcomingHolidays = getUpcomingHolidays(8);
-    const upcomingHolidays = allUpcomingHolidays.filter(holiday => {
+    const upcomingHolidays = allUpcomingHolidays.filter((holiday) => {
       if (holiday.type === 'international') return true;
       if (holiday.category === 'National') {
-        if (clientRegion.includes('New Zealand') && (holiday.name.includes('Waitangi') || holiday.name.includes('ANZAC'))) {
+        if (
+          clientRegion.includes('New Zealand') &&
+          (holiday.name.includes('Waitangi') || holiday.name.includes('ANZAC'))
+        ) {
           return true;
         }
         return true;
       }
       if (holiday.category === 'Regional') {
-        const holidayRegion = holiday.name.replace(' Anniversary Day', '').replace(' Day', '');
+        const holidayRegion = holiday.name
+          .replace(' Anniversary Day', '')
+          .replace(' Day', '');
         if (clientRegion.includes(holidayRegion)) {
           return true;
         }
@@ -1048,11 +1041,12 @@ async function generateContentIdeas(openai: OpenAI, supabase: SupabaseClient, cl
       weekday: 'long',
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
     });
 
     const month = now.getMonth() + 1;
-    const isSouthernHemisphere = clientRegion.includes('New Zealand') || clientRegion.includes('Australia');
+    const isSouthernHemisphere =
+      clientRegion.includes('New Zealand') || clientRegion.includes('Australia');
     let season = '';
     if (isSouthernHemisphere) {
       if (month === 12 || month === 1 || month === 2) season = 'Summer';
@@ -1092,241 +1086,50 @@ async function generateContentIdeas(openai: OpenAI, supabase: SupabaseClient, cl
       weatherContext: string;
     }
 
-    // ---- Begin: New Prompt w/ Enforcements ----
-    const generateContentIdeasPrompt = (clientData: ClientData, holidays: HolidayData[], currentContext: CurrentContext, clientRegion: string) => {
+    const generateContentIdeasPrompt = (
+      clientData: ClientData,
+      holidays: HolidayData[],
+      currentContext: CurrentContext,
+      clientRegion: string
+    ) => {
+      const holidaysList = holidays.length > 0
+        ? holidays.map(h => `- ${h.name} (${h.date}, ${h.daysUntil} days away): ${h.marketingAngle}`).join('\n')
+        : 'No upcoming holidays in the next 8 weeks';
+
       return `
-You are a senior marketing strategist with 15+ years of agency experience, generating high-converting social media content that drives measurable business results. You think in terms of customer journeys, platform algorithms, and competitive differentiation—not generic social media templates.
-
-## Core Mission
-
-Generate 3 strategically diverse content ideas that solve real business challenges for ${clientData.company_description || 'this client'}. Each idea must be platform-specific, actionable, and differentiated from typical industry content.
-
-**Current Context:** ${currentContext.date} | ${currentContext.season} | ${clientRegion || 'Not specified'}
-
----
-
-## CRITICAL: ZERO TOLERANCE FOR GENERIC PLACEHOLDERS
-
-- ABSOLUTELY BAN any content containing [, ] or variables like [industry topic], [target audience], [location], [problem], [solution], [audience], [key process], [client name].
-- Every sentence MUST use *actual client data*: 
-    - Company: "${clientData.company_description || '[MISSING COMPANY DESC]'}"
-    - Industry: "${clientData.industry || '[MISSING INDUSTRY]'}"
-    - Target Audience: "${clientData.target_audience || '[MISSING AUDIENCE]'}"
-    - Brand Tone: "${clientData.brand_tone || '[MISSING TONE]'}"
-- Replace ALL placeholders with relevant, real client/company/audience/context info.
-- **If ANY placeholder is present in your output, REJECT and regenerate before submitting!**
-
-**EXAMPLES:**
-- ❌ BAD: “Here’s what most people don’t know about [industry topic]...”
-- ❌ BAD: “Tips for [target audience] to succeed in [industry area].”
-- ✅ GOOD: “The 6am workout myths Wellington professionals still believe.”
-- ✅ GOOD: “Why Wellington’s busy moms love FitLife’s 30-minute sessions.”
-
-Before submitting, perform a full placeholder ban/self-check.
-
----
-
-## CRITICAL DATE & HOLIDAY RULES
-
-**ABSOLUTE REQUIREMENT:** Only suggest content for dates AFTER ${currentContext.date}
-
-**Holiday Content Policy - DEFAULT TO NO HOLIDAYS:**
-- ✅ 0 holiday ideas is IDEAL for most brands
-- ✅ 3 evergreen ideas demonstrates superior strategic thinking  
-- ⚠️ Only include a holiday if it scores 4/5 on the relevance test below
-- 🚫 Never suggest holidays that have passed
-- 🚫 Avoid obscure "international days" unless directly relevant
-
-**Holiday Relevance Score (Must score 4/5+ to include):**
-1. **Direct Business Connection** (2 pts) - Does this holiday relate to their products/services?
-2. **Audience Alignment** (1 pt) - Would 70%+ of their audience genuinely care?
-3. **Unique Angle** (1 pt) - Can they differentiate from competitors?
-4. **Future-Dated** (1 pt) - Event is AFTER ${currentContext.date}?
-5. **Authentic Fit** (1 pt) - Aligns with brand values and tone?
-
-**Available Upcoming Events:** ${holidays.filter(h => h.daysUntil >= 0 && h.daysUntil <= 30).map(h => `${h.name} (${h.date})`).join(', ') || 'None - generate evergreen ideas'}
-
-**If no holiday scores 4/5+, generate 3 evergreen ideas instead.**
-
----
-
-## STRATEGIC FRAMEWORK
-
-### Step 1: Client Intelligence Analysis
-
-**MANDATORY:** Before you write a single idea, you MUST answer these questions USING THE ACTUAL CLIENT DATA (repeat values verbatim from below):
-- Industry (write the client industry): "${clientData.industry || '[NEEDS INDUSTRY]'}"
-- Business Model (guess from description): 
-- Risk Level (see if there’s financial/health/regulatory risk): 
-- Company: "${clientData.company_description || '[MISSING COMPANY DESC]'}"
-- Target Audience: "${clientData.target_audience || '[MISSING AUDIENCE]'}"
-- Brand Tone: "${clientData.brand_tone || '[MISSING TONE]'}"
-
-**Specific Question Responses (show how you use actual client data):**
-1. What keeps their audience awake at 3am? (Call out a pain point SPECIFIC to THEIR audience/company)
-2. What are ${clientData.target_audience || 'their audience'} scrolling for? (Relate to their reality)
-3. What would make them save/share this post? (Insert a trigger tied to business or customer truth)
-4. What objections do they have about ${clientData.company_description || 'this brand/industry'}? (Be as specific as possible)
-5. What unique INSIDER knowledge does "${clientData.company_description || '[MISSING COMPANY DESC]'}" have? (No generalities)
-
-**EXAMPLES**
-- ❌ BAD: "Their audience worries about [pain point]…" or "Their target audience wants [generic goal]."
-- ✅ GOOD: "Wellington professionals struggle to fit workouts into busy mornings—so they look for routines that work before 7am."
-- ✅ GOOD: "FitLife’s main competitor, GymX, offers only evening classes—this is a unique selling angle."
-
-If you cannot answer using client data, state "MISSING DATA: [field]" and proceed with best possible specificity.
-
----
-
-### Step 2: Content Funnel Strategy
-
-**MANDATORY DISTRIBUTION (unless client specifies otherwise):**
-- **2 ideas: TOFU (Top of Funnel)** - Awareness, education, entertainment for cold audiences
-- **1 idea: MOFU/BOFU (Middle/Bottom)** - Consideration, conversion for warm/hot audiences
-
-**TOFU Content Characteristics:**
-- Solves audience problems without selling
-- Educational, entertaining, or inspirational
-- Broad appeal, easily shareable
-- No hard CTAs, builds trust first
-
-**MOFU Content Characteristics:**
-- Demonstrates expertise and results
-- Case studies, client testimonials, process reveals
-- Builds credibility and trust
-- Soft CTAs (Learn more, Follow for tips)
-
-**BOFU Content Characteristics:**
-- Direct conversion focus
-- Limited offers, exclusive access, strong urgency
-- Clear, action-oriented CTAs
-
----
-
-### Step 3: Competitive Differentiation Mandate
-
-**BEFORE finalizing ANY idea, ask:**
-- ❌ REJECT if: 5+ competitors in same city could post the exact same thing
-- ✅ APPROVE if: Idea leverages unique insider knowledge, customer base, or operating model
-- ✅ IDEAL: Only THIS brand, with provided audience/context, could post the idea
-
----
-
-### Step 4: Platform & Format Intelligence
-
-**Platform Selection Criteria (choose by audience/company, not at random):**
-- LinkedIn: Best for B2B, professional, consulting, SaaS, expert content
-- Instagram: Visuals, consumers, lifestyle, products, wellness—pick only if it makes sense
-- TikTok: Fast tips, younger consumer focus, fun/edgy
-- Facebook: Community, local, older conversations
-- Twitter/X: Tech, finance, breaking news
-
----
-
-### Step 5: Psychological Trigger Integration
-
-Weave in Social Proof, Scarcity, Authority, Reciprocity, FOMO, Curiosity Gap, or Transformation—but with ACTUAL company facts/examples, not generic templates.
-
----
-
-## Bad Example vs Good Example (NEVER DO THE BAD VERSION)
-
-**Context**: Client = FitLife Studio in Wellington, Target Audience = Busy local professionals, Brand Tone = Energetic, Friendly
-
-**BAD (TEMPLATE) IDEA — NEVER ALLOWED:**
-- Title: The Power of [industry topic]
-- Hook: “Here’s what most people don’t know about [target audience] and [industry topic].”
-- Hashtag Strategy: #[city] #[topic] #[something]
-
-**GOOD (SPECIFIC) IDEA — REQUIRED:**
-- Title: Beat the Morning Rush
-- Hook: “Wellington pros are winning their day with a 6am sweat session at FitLife Studio.”
-- Hashtags: #FitLifeWellington #BusyProfessionals #EarlyWorkoutWins
-
-If any bracketed template language remains, REJECT and rewrite.
-
----
-
-## PRE-OUTPUT VALIDATION CHECKLIST
-
-**EVERY IDEA must pass ALL of these before submission:**
-
-- [ ] **Specificity Audit:** ZERO bracketed placeholders OR generic templates; all hooks and hashtags refer to real client context/industry/audience
-- [ ] **Client Data Usage:** Hooks, angles, and platform choices CLEARLY reflect the company, its audience, and its differentiators.
-- [ ] **Strategic Audit:** 2 TOFU + 1 MOFU/BOFU; platform reasoning fits THEIR audience/location/industry; funnel logic justified
-- [ ] **Quality Audit:** An experienced CMO would approve it (non-obvious angle, not a re-skinned template, offers measurable business value)
-- [ ] **Competitive Check:** Could 5+ local competitors post it? If yes, REJECT.
-- [ ] **Production Reality:** Business could actually create/post it with available resources
-- [ ] **Zero Placeholder Check:** Any [bracketed term] or variable detected = automatic failure/rewrite
-
-**If ANY check is not satisfied, STOP and regenerate better output. If MISSING DATA, explain what & use SMART fallback.**
-
----
-
-## OUTPUT FORMAT (USE THIS EXACTLY)
-
-- Before presenting the 3 ideas, show your filled answers for "Client Intelligence Analysis" and "Critical Questions" using real client data.
-- For every idea:
-    - Make title, angles, hooks, and hashtags all specific to the client/company/location/industry
-    - DO NOT use any bracketed terms (like [audience], [industry topic], etc) anywhere
-    - Hooks must be ready-to-post, real lines (no brackets)
-    - Platform reasoning must cite facts about their actual audience/location/industry
-    - Hashtags: use 3-5 relevant tags referencing the actual brand/industry/location (never placeholders)
-    - If idea draws on a holiday, cite it with full date and linkage
-
----
-**IDEA 1:** (Title, see above)
-
-**Funnel Stage:** TOFU / MOFU / BOFU  
-**Primary Platform:** {Platform, PLUS 1-sentence reasoning using client/audience}  
-**Content Format:**  
-**Business Goal:**  
-**Target Audience Insight:**  
-**Content Angle:**  
-**Visual Concept:**  
-**Hook/Opening:**  
-**Content Structure:**
-- Opening: 
-- Body: 
-- Close: 
-**CTA Strategy:**  
-**Hashtag Strategy:**  
-**Success Metric:**  
-**Pro Tip:**  
-
----
-
-**IDEA 2:** (repeat structure)
-
----
-
-**IDEA 3:** (repeat structure)
-
----
-
-**CONTENT SERIES OPPORTUNITY:** [If 2+ ideas could build on each other as a series, note "YES: ..." and why; else, "N/A"]
-
----
-
-## FINAL STRATEGIC REMINDERS
-
-🎯 Recheck for genericity/placeholder—reject/rewrite if present  
-🎯 Platform/audience choices must flow from THEIR company context  
-🎯 2 TOFU, 1 MOFU/BOFU idea, properly explained  
-🎯 NO BRACKETED or variable text  
-🎯 Every idea must be production-ready and differentiated
-
-Remember: You're not filling a template. You're solving business challenges using the actual client data provided above. Each idea should make it obvious why an agency would charge real money for your thinking.
-
--- END PROMPT --
-      `.trim();
+You are a senior marketing strategist generating targeted social media content ideas that drive business results.
+
+🎯 CLIENT BUSINESS CONTEXT:
+${clientData.company_description ? `💼 COMPANY: ${clientData.company_description}` : '💼 COMPANY: Not specified'}
+${clientData.industry ? `🏭 INDUSTRY: ${clientData.industry}` : ''}
+${clientData.target_audience ? `👥 AUDIENCE: ${clientData.target_audience}` : '👥 AUDIENCE: Not specified'}
+${clientData.value_proposition ? `✨ VALUE PROPOSITION: ${clientData.value_proposition}` : '✨ VALUE PROPOSITION: Not specified'}
+${clientData.brand_tone ? `🎭 TONE: ${clientData.brand_tone}` : ''}
+
+📍 CONTEXT:
+- Region: ${clientRegion}
+- Date: ${currentContext.date}
+- Season: ${currentContext.season}
+
+📅 UPCOMING HOLIDAYS:
+${holidaysList}
+
+🚨 REQUIREMENTS:
+Every idea must be specifically tailored to THIS client's business by combining:
+1. What they do (company description)
+2. Who their customers are (target audience)  
+3. What makes them unique (value proposition)
+4. Where they operate (${clientRegion})
+5. Current season/timing
+
+Make each idea unique to THIS business - not generic content any competitor could post.
+`.trim();
     };
-    // ---- End: New Prompt w/ Enforcements ----
 
     const currentContext: CurrentContext = {
       date: currentDate,
       season: season,
-      weatherContext: `${season} weather patterns in ${clientRegion}`
+      weatherContext: `${season} weather patterns in ${clientRegion}`,
     };
 
     const clientData: ClientData = {
@@ -1337,121 +1140,350 @@ Remember: You're not filling a template. You're solving business challenges usin
       value_proposition: brandContext.value_proposition,
       brand_voice_examples: brandContext.voice_examples,
       caption_dos: brandContext.dos,
-      caption_donts: brandContext.donts
+      caption_donts: brandContext.donts,
     };
 
-    const futureHolidays = upcomingHolidays.filter(holiday => {
+    const futureHolidays = upcomingHolidays.filter((holiday) => {
       const holidayDate = new Date(holiday.date);
       holidayDate.setHours(0, 0, 0, 0);
       return holidayDate >= today;
     });
 
-    const formattedHolidays: HolidayData[] = futureHolidays.map(holiday => {
+    const formattedHolidays: HolidayData[] = futureHolidays.map((holiday) => {
       const holidayDate = new Date(holiday.date);
       holidayDate.setHours(0, 0, 0, 0);
-      const daysUntil = Math.ceil((holidayDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const daysUntil = Math.ceil(
+        (holidayDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      );
       return {
         name: holiday.name,
         date: holidayDate.toLocaleDateString(locale),
         daysUntil: Math.max(0, daysUntil),
-        marketingAngle: holiday.marketingAngle
+        marketingAngle: holiday.marketingAngle,
       };
     });
 
-    const systemPrompt = generateContentIdeasPrompt(clientData, formattedHolidays, currentContext, clientRegion);
+    const systemPrompt = generateContentIdeasPrompt(
+      clientData,
+      formattedHolidays,
+      currentContext,
+      clientRegion
+    );
 
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
       messages: [
         {
           role: 'system',
-          content: systemPrompt
+          content: 'You are a content strategist that ONLY outputs valid JSON. Never include framework questions, meta-commentary, or prompt artifacts in your output.',
+        },
+        {
+          role: 'system',
+          content: systemPrompt,
         },
         {
           role: 'user',
-          content: `Generate 5 content ideas for this client. Current date is ${currentDate}. Client region: ${clientRegion}. IMPORTANT: Only suggest ideas for future holidays and events that occur AFTER ${currentDate}. DO NOT suggest regional holidays from other regions - only use regional holidays relevant to ${clientRegion}. If a holiday or seasonal event has already passed, use evergreen content ideas instead. Only use the holidays listed in the "Available FUTURE Holidays" section - do not suggest holidays that are not listed there or that have already passed.`
-        }
+          content: `OUTPUT RULES:
+- Output ONLY valid JSON
+- DO NOT include framework questions or meta-commentary
+- No asterisks (**) or prompt artifacts
+
+REQUIRED JSON STRUCTURE:
+{
+  "content_ideas": [
+    {
+      "title": "Clear content idea title",
+      "marketingAngle": "One sentence explaining why this works for this business",
+      "postExample": "Short post text under 50 characters"
+    }
+  ]
+}
+
+FIELD REQUIREMENTS:
+- "title": Clear, engaging content idea title (no questions, no colons)
+- "marketingAngle": ONE sentence explaining why this specific idea works for THIS business and their target audience
+- "postExample": A concise social media post example (maximum 150 characters)
+
+EXAMPLE:
+{
+  "content_ideas": [
+    {
+      "title": "Summer Kickoff Fiesta",
+      "marketingAngle": "Drives foot traffic by targeting families seeking local summer activities, positioning the venue as a community gathering spot.",
+      "postExample": "Summer is here! 🌞 Join us this Saturday for our Summer Kickoff Fiesta - live music, food trucks, and family fun. See you there!"
+    }
+  ]
+}
+
+---
+
+Generate 3 content ideas specifically tailored to this client.
+
+Each idea must combine:
+1. The client's business, audience, and value proposition
+2. Their location (${clientRegion})
+3. Current season/timing (${currentDate}, ${season})
+
+Make the 3 ideas different from each other (vary content types and emotions).
+Each idea should be unique to THIS business - not generic content any competitor could post.
+
+Only suggest future holidays/events after ${currentDate} that are relevant to ${clientRegion}.`,
+        },
       ],
-      max_tokens: 1500,
-      temperature: 0.8,
+      max_tokens: 1000,
+      temperature: 0.7,
+      response_format: { type: 'json_object' },
     });
 
-    const content = response.choices[0]?.message?.content || '';
+    const rawOutput = response.choices[0]?.message?.content || '';
+    const content = rawOutput;
 
-    let ideas: Array<{ idea: string; angle: string; visualSuggestion: string; timing: string; holidayConnection: string }> = [];
+    // TEMPORARY DEBUG: Log raw output and leakage detection
+    console.log('=== AI Content Ideas Debug ===');
+    console.log('Raw output:', rawOutput);
+    const leakageDetected = rawOutput ? detectPromptLeakage(rawOutput) : false;
+    console.log('Leakage detected:', leakageDetected);
+
+    // Monitor for prompt leakage
+    if (rawOutput && leakageDetected) {
+      logLeakageIncident(rawOutput, { 
+        clientId, 
+        operation: 'generateContentIdeas',
+        userId,
+      });
+    }
+
+    let ideas: Array<{
+      idea: string;
+      angle: string;
+      visualSuggestion: string;
+      timing: string;
+      holidayConnection: string;
+    }> = [];
+    
+    // Try to sanitize and validate the response first
+    try {
+      if (!rawOutput || rawOutput.trim() === '') throw new Error('Empty response');
+      
+      // Extract JSON from raw output (may have text before/after)
+      let jsonString = rawOutput.trim();
+      
+      // Remove text prefixes like "Marketing Angle" or "Post Example" that appear before JSON
+      jsonString = jsonString.replace(/^[^{[]*/, ''); // Remove everything before first { or [
+      
+      // Find the first { or [ to start JSON extraction
+      const firstBrace = jsonString.indexOf('{');
+      const firstBracket = jsonString.indexOf('[');
+      
+      let startPos = -1;
+      let endPos = -1;
+      
+      if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+        // JSON object - need to find matching closing brace
+        startPos = firstBrace;
+        let braceCount = 0;
+        for (let i = startPos; i < jsonString.length; i++) {
+          if (jsonString[i] === '{') braceCount++;
+          if (jsonString[i] === '}') braceCount--;
+          if (braceCount === 0) {
+            endPos = i;
+            break;
+          }
+        }
+      } else if (firstBracket !== -1) {
+        // JSON array - need to find matching closing bracket
+        startPos = firstBracket;
+        let bracketCount = 0;
+        for (let i = startPos; i < jsonString.length; i++) {
+          if (jsonString[i] === '[') bracketCount++;
+          if (jsonString[i] === ']') bracketCount--;
+          if (bracketCount === 0) {
+            endPos = i;
+            break;
+          }
+        }
+      }
+      
+      if (startPos !== -1 && endPos !== -1 && endPos > startPos) {
+        jsonString = jsonString.substring(startPos, endPos + 1);
+      } else {
+        // If extraction failed, try using the whole string (might be clean JSON already)
+        // Remove any obvious text prefixes/suffixes
+        jsonString = rawOutput.trim();
+        jsonString = jsonString.replace(/^[^{[]*/, '');
+        // Try to find the end by looking for the last complete closing brace/bracket
+        const lastBrace = jsonString.lastIndexOf('}');
+        const lastBracket = jsonString.lastIndexOf(']');
+        if (lastBrace > lastBracket && lastBrace > 0) {
+          jsonString = jsonString.substring(0, lastBrace + 1);
+        } else if (lastBracket > 0) {
+          jsonString = jsonString.substring(0, lastBracket + 1);
+        }
+      }
+      
+      // TEMPORARY DEBUG: Log extracted JSON
+      console.log('Extracted JSON string:', jsonString.substring(0, 500));
+      
+      // Attempt to sanitize and validate the JSON response
+      const sanitizedIdeas = sanitizeAndValidateContentIdeas(jsonString);
+      
+      // TEMPORARY DEBUG: Log sanitized output
+      console.log('Sanitized ideas:', JSON.stringify(sanitizedIdeas, null, 2));
+      console.log('=============================');
+      
+      // Map sanitized ContentIdea[] to the expected format
+      ideas = sanitizedIdeas.map((sanitized) => ({
+        idea: sanitized.title,
+        angle: sanitized.marketingAngle,
+        visualSuggestion: 'Engaging visual content',
+        timing: sanitized.postExample || sanitized.title || 'Timely and relevant',
+        holidayConnection: 'Evergreen content',
+      }));
+      
+      if (ideas.length > 0) {
+        return NextResponse.json({
+          success: true,
+          ideas: ideas,
+        });
+      }
+    } catch (sanitizationError) {
+      // TEMPORARY DEBUG: Log sanitization errors
+      console.log('Sanitization failed:', sanitizationError instanceof Error ? sanitizationError.message : String(sanitizationError));
+      
+      // Check if this is a validation error from sanitization
+      const isValidationError = sanitizationError instanceof Error && 
+        (sanitizationError.message.includes('validation') || 
+         sanitizationError.message.includes('missing required field') ||
+         sanitizationError.message.includes('empty') ||
+         sanitizationError.message.includes('parse JSON'));
+      
+      if (isValidationError) {
+        // Log detailed error server-side only
+        logger.error('Content ideas validation failed:', {
+          error: sanitizationError instanceof Error ? sanitizationError.message : String(sanitizationError),
+          clientId,
+          userId,
+          operation: 'generate_content_ideas',
+        });
+        
+        // Return user-friendly error without exposing internals
+        return NextResponse.json(
+          {
+            error: 'Failed to generate valid content ideas. Please try again.',
+            code: 'VALIDATION_ERROR',
+          },
+          { status: 500 }
+        );
+      }
+      
+      // If sanitization fails for other reasons, log and fall through to existing parsing logic
+      logger.warn('Content ideas sanitization failed, falling back to legacy parsing:', sanitizationError);
+    }
+    
+    // Fallback to existing parsing logic if sanitization fails
     try {
       if (!content || content.trim() === '') throw new Error('Empty response');
 
-      // Parse the structured text response from OpenAI
-      // The response format includes sections like "IDEA 1:", "IDEA 2:", etc.
-      let parsedIdeas: Array<{ idea: string; angle: string; visualSuggestion: string; timing: string; holidayConnection: string }> = [];
-      
-      // Try to extract ideas using regex patterns - match "**IDEA 1:**" or "IDEA 1:" patterns
-      const ideaRegex = /(?:^|\n)(?:\*\*)?IDEA\s+(\d+)(?:\*\*)?:?\s*\n?(.*?)(?=(?:^|\n)(?:\*\*)?IDEA\s+\d+|CONTENT SERIES|$)/gis;
+      let parsedIdeas: Array<{
+        idea: string;
+        angle: string;
+        visualSuggestion: string;
+        timing: string;
+        holidayConnection: string;
+      }> = [];
+      const ideaRegex =
+        /(?:^|\n)(?:\*\*)?IDEA\s+(\d+)(?:\*\*)?:?\s*\n?(.*?)(?=(?:^|\n)(?:\*\*)?IDEA\s+\d+|CONTENT SERIES|$)/gis;
       const matches = Array.from(content.matchAll(ideaRegex));
-      
-      for (const match of matches.slice(0, 3)) { // Extract up to 3 ideas
+      for (const match of matches.slice(0, 3)) {
         const ideaText = match[2] || '';
-        
-        // Extract title - first non-empty line after "IDEA X:"
-        const lines = ideaText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        const titleLine = lines.find(line => 
-          !line.match(/^(Funnel Stage|Primary Platform|Content Format|Business Goal|Target Audience|Content Angle|Visual|Hook|Content Structure|CTA|Hashtag|Success|Pro Tip)/i) &&
-          line.length > 5
-        ) || lines[0] || 'Content Idea';
-        const idea = titleLine.replace(/^\*\*|\*\*$/g, '').replace(/^[\d\.\-\*]+[\s\.]+/g, '').trim().replace(/^["']+|["']+$/g, '');
-        
-        // Extract Content Angle
-        const angleMatch = ideaText.match(/Content Angle[:\s]+\*?\*?(.*?)(?=\n(?:\*\*)?(?:Visual|Hook|Content Structure|CTA|$))/is);
-        const angle = angleMatch ? angleMatch[1].trim().replace(/^\*\*|\*\*$/g, '').split('\n')[0] : 
-                      (lines.find(l => l.toLowerCase().includes('angle'))?.replace(/^.*?angle[:\s]+/i, '').trim() || 'Strategic content angle');
-        
-        // Extract Visual Concept
-        const visualMatch = ideaText.match(/Visual Concept[:\s]+\*?\*?(.*?)(?=\n(?:\*\*)?(?:Hook|Content Structure|CTA|$))/is);
-        const visualSuggestion = visualMatch ? visualMatch[1].trim().replace(/^\*\*|\*\*$/g, '').split('\n')[0] : 
-                                 (lines.find(l => l.toLowerCase().includes('visual'))?.replace(/^.*?visual[:\s]+/i, '').trim() || 'Engaging visual content');
-        
-        // Extract Hook/Opening as timing
-        const hookMatch = ideaText.match(/Hook[\/\s]*Opening[:\s]+\*?\*?(.*?)(?=\n(?:\*\*)?(?:Content Structure|CTA|$))/is);
-        let timing = hookMatch ? hookMatch[1].trim().replace(/^\*\*|\*\*$/g, '').split('\n')[0].replace(/^["']|["']$/g, '') : 
-                     (lines.find(l => l.toLowerCase().includes('hook'))?.replace(/^.*?hook[:\s]+/i, '').trim() || 'Timely and relevant');
-        // Clean up timing
+        const lines = ideaText
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0);
+        const titleLine =
+          lines.find(
+            (line) =>
+              !line.match(
+                /^(Funnel Stage|Primary Platform|Content Format|Business Goal|Target Audience|Content Angle|Visual|Hook|Content Structure|CTA|Hashtag|Success|Pro Tip)/i
+              ) && line.length > 5
+          ) ||
+          lines[0] ||
+          'Content Idea';
+        const idea = titleLine
+          .replace(/^\*\*|\*\*$/g, '')
+          .replace(/^[\d\.\-\*]+[\s\.]+/g, '')
+          .trim()
+          .replace(/^["']+|["']+$/g, '');
+
+        const angleMatch = ideaText.match(
+          /Content Angle[:\s]+\*?\*?(.*?)(?=\n(?:\*\*)?(?:Visual|Hook|Content Structure|CTA|$))/is
+        );
+        const angle = angleMatch
+          ? angleMatch[1].trim().replace(/^\*\*|\*\*$/g, '').split('\n')[0]
+          : lines
+              .find((l) => l.toLowerCase().includes('angle'))
+              ?.replace(/^.*?angle[:\s]+/i, '')
+              .trim() || 'Strategic content angle';
+
+        const visualMatch = ideaText.match(
+          /Visual Concept[:\s]+\*?\*?(.*?)(?=\n(?:\*\*)?(?:Hook|Content Structure|CTA|$))/is
+        );
+        const visualSuggestion = visualMatch
+          ? visualMatch[1].trim().replace(/^\*\*|\*\*$/g, '').split('\n')[0]
+          : lines
+              .find((l) => l.toLowerCase().includes('visual'))
+              ?.replace(/^.*?visual[:\s]+/i, '')
+              .trim() || 'Engaging visual content';
+
+        const hookMatch = ideaText.match(
+          /Hook[\/\s]*Opening[:\s]+\*?\*?(.*?)(?=\n(?:\*\*)?(?:Content Structure|CTA|$))/is
+        );
+        let timing = hookMatch
+          ? hookMatch[1].trim().replace(/^\*\*|\*\*$/g, '').split('\n')[0].replace(/^["']|["']$/g, '')
+          : lines
+              .find((l) => l.toLowerCase().includes('hook'))
+              ?.replace(/^.*?hook[:\s]+/i, '')
+              .trim() || 'Timely and relevant';
         timing = timing.replace(/^["']|["']$/g, '').trim();
         if (!timing || timing.length < 10) {
           timing = idea.substring(0, 100) || 'Timely and relevant';
         }
-        
-        // Extract holiday connection - look for holiday mentions in the idea text
+
         let holidayConnection = 'Evergreen content';
-        const holidayKeywords = /(holiday|Holiday|event|Event|seasonal|Seasonal|Christmas|Easter|Thanksgiving|New Year|Valentine|Halloween|Independence|Waitangi|ANZAC)/i;
+        const holidayKeywords =
+          /(holiday|Holiday|event|Event|seasonal|Seasonal|Christmas|Easter|Thanksgiving|New Year|Valentine|Halloween|Independence|Waitangi|ANZAC)/i;
         if (holidayKeywords.test(ideaText)) {
-          const holidayMatch = ideaText.match(/(?:holiday|Holiday|event|Event|seasonal|Seasonal).*?(?:\n|$)/i);
+          const holidayMatch = ideaText.match(
+            /(?:holiday|Holiday|event|Event|seasonal|Seasonal).*?(?:\n|$)/i
+          );
           if (holidayMatch) {
             holidayConnection = holidayMatch[0].trim().substring(0, 150);
           } else {
             holidayConnection = 'Holiday-themed content';
           }
         }
-        
+
         parsedIdeas.push({
           idea: idea || 'Content Idea',
           angle: angle || 'Strategic content angle',
           visualSuggestion: visualSuggestion || 'Engaging visual content',
           timing: timing || 'Timely and relevant',
-          holidayConnection: holidayConnection || 'Evergreen content'
+          holidayConnection: holidayConnection || 'Evergreen content',
         });
       }
-      
-      // If we didn't parse any ideas from the structured format, try a simpler approach
+
       if (parsedIdeas.length === 0) {
-        // Try to find numbered sections or bullet points
-        const lines = content.split('\n').filter(line => line.trim().length > 0);
-        let currentIdea: Partial<{ idea: string; angle: string; visualSuggestion: string; timing: string; holidayConnection: string }> = {};
-        
+        const lines = content.split('\n').filter((line) => line.trim().length > 0);
+        let currentIdea: Partial<{
+          idea: string;
+          angle: string;
+          visualSuggestion: string;
+          timing: string;
+          holidayConnection: string;
+        }> = {};
+
         for (let i = 0; i < lines.length && parsedIdeas.length < 3; i++) {
           const line = lines[i].trim();
-          
-          // Look for idea headers
           if (/IDEA\s+\d+|^[\*\-\d]+\./.test(line)) {
             if (currentIdea.idea) {
               parsedIdeas.push({
@@ -1459,12 +1491,16 @@ Remember: You're not filling a template. You're solving business challenges usin
                 angle: currentIdea.angle || 'Strategic content angle',
                 visualSuggestion: currentIdea.visualSuggestion || 'Engaging visual content',
                 timing: currentIdea.timing || currentIdea.idea || 'Timely and relevant',
-                holidayConnection: currentIdea.holidayConnection || 'Evergreen content'
+                holidayConnection: currentIdea.holidayConnection || 'Evergreen content',
               });
             }
-            currentIdea = { idea: line.replace(/^[\*\-\d\.\s]+|IDEA\s+\d+:?\s*/gi, '').trim().replace(/^["']+|["']+$/g, '') };
+            currentIdea = {
+              idea: line
+                .replace(/^[\*\-\d\.\s]+|IDEA\s+\d+:?\s*/gi, '')
+                .trim()
+                .replace(/^["']+|["']+$/g, ''),
+            };
           } else if (currentIdea.idea && line.length > 20) {
-            // If we have an idea started, accumulate details
             if (!currentIdea.angle) {
               currentIdea.angle = line;
             } else if (!currentIdea.visualSuggestion) {
@@ -1474,104 +1510,146 @@ Remember: You're not filling a template. You're solving business challenges usin
             }
           }
         }
-        
-        // Add the last idea if we have one
         if (currentIdea.idea && parsedIdeas.length < 3) {
           parsedIdeas.push({
             idea: currentIdea.idea || 'Content Idea',
             angle: currentIdea.angle || 'Strategic content angle',
             visualSuggestion: currentIdea.visualSuggestion || 'Engaging visual content',
             timing: currentIdea.timing || currentIdea.idea || 'Timely and relevant',
-            holidayConnection: currentIdea.holidayConnection || 'Evergreen content'
+            holidayConnection: currentIdea.holidayConnection || 'Evergreen content',
           });
         }
       }
-      
-      // If still no ideas parsed, create structured ideas from the raw content
+
       if (parsedIdeas.length === 0) {
-        // Split content into chunks and create ideas
-        const chunks = content.split(/\n\n+/).filter(chunk => chunk.trim().length > 50);
+        const chunks = content.split(/\n\n+/).filter((chunk) => chunk.trim().length > 50);
         for (let i = 0; i < Math.min(3, chunks.length); i++) {
           const chunk = chunks[i];
           const firstLine = chunk.split('\n')[0]?.trim() || 'Content Idea';
           parsedIdeas.push({
-            idea: firstLine.replace(/^[\*\-\d\.\s]+/g, '').replace(/^["']+|["']+$/g, '').substring(0, 100),
+            idea: firstLine
+              .replace(/^[\*\-\d\.\s]+/g, '')
+              .replace(/^["']+|["']+$/g, '')
+              .substring(0, 100),
             angle: chunk.substring(0, 200),
             visualSuggestion: 'Engaging visual content',
             timing: firstLine.substring(0, 100),
-            holidayConnection: 'Evergreen content'
+            holidayConnection: 'Evergreen content',
           });
         }
       }
-      
+
       ideas = parsedIdeas.length > 0 ? parsedIdeas : [];
-      
-      // Ensure we have at least one idea, even if parsing failed
       if (ideas.length === 0) {
         throw new Error('Failed to parse ideas from response');
       }
-      
       return NextResponse.json({
         success: true,
-        ideas: ideas
+        ideas: ideas,
       });
     } catch (parseError) {
       logger.error('Failed to parse content ideas response:', parseError);
-
-      // Fallback: create basic ideas structure
       ideas = [
         {
-          idea: "Expert Authority",
-          angle: "Share industry insights that position your brand as the go-to expert",
-          visualSuggestion: "Clean infographic with key insights and data",
+          idea: 'Expert Authority',
+          angle: 'Share industry insights that position your brand as the go-to expert',
+          visualSuggestion: 'Clean infographic with key insights and data',
           timing: "Wellington professionals start their day at FitLife Studio.",
-          holidayConnection: "Evergreen content that builds authority year-round"
+          holidayConnection: 'Evergreen content that builds authority year-round',
         },
         {
-          idea: "Client Success Story",
-          angle: "Showcase a real client transformation to build trust and credibility",
-          visualSuggestion: "Before/after photos with testimonial quote overlay",
+          idea: 'Client Success Story',
+          angle: 'Showcase a real client transformation to build trust and credibility',
+          visualSuggestion: 'Before/after photos with testimonial quote overlay',
           timing: "Sarah's journey from 'No Time' to 'Every Morning' in 90 days with FitLife.",
-          holidayConnection: "Social proof content that converts regardless of season"
+          holidayConnection: 'Social proof content that converts regardless of season',
         },
         {
-          idea: "Behind the Scenes",
-          angle: "Reveal your process and team to build personal connection with audience",
-          visualSuggestion: "Candid team photos or process documentation",
-          timing: "How the FitLife crew preps for your 6am workout, every single day.",
-          holidayConnection: "Authentic content that humanizes your brand"
-        }
+          idea: 'Behind the Scenes',
+          angle: 'Reveal your process and team to build personal connection with audience',
+          visualSuggestion: 'Candid team photos or process documentation',
+          timing: 'How the FitLife crew preps for your 6am workout, every single day.',
+          holidayConnection: 'Authentic content that humanizes your brand',
+        },
       ];
       return NextResponse.json({
         success: true,
-        ideas: ideas
+        ideas: ideas,
       });
     }
-  } catch (error) {
+  } catch (error: any) {
+    // Check if this is a validation error from sanitization
+    const isValidationError = error instanceof Error && 
+      (error.message.includes('validation') || 
+       error.message.includes('missing required field') ||
+       error.message.includes('empty') ||
+       error.message.includes('parse JSON'));
+    
+    if (isValidationError) {
+      // Log detailed error server-side only
+      logger.error('Content ideas validation error:', {
+        error: error instanceof Error ? error.message : String(error),
+        clientId,
+        userId,
+        operation: 'generate_content_ideas',
+      });
+      
+      // Return user-friendly error without exposing internals
+      return NextResponse.json(
+        {
+          error: 'Failed to generate valid content ideas. Please try again.',
+          code: 'VALIDATION_ERROR',
+        },
+        { status: 500 }
+      );
+    }
+    
+    // For other errors, log detailed info server-side and return generic message
+    logger.error('Content ideas generation error:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      clientId,
+      userId,
+      operation: 'generate_content_ideas',
+    });
+    
+    // Use handleApiError for other errors (it will sanitize the response)
     return handleApiError(error, {
       route: '/api/ai',
       operation: 'generate_content_ideas',
       clientId: clientId,
-      additionalData: { clientId }
+      additionalData: { clientId },
     });
   }
 }
 
 function extractIndustry(companyDescription: string): string {
   const industries = [
-    'Technology', 'Healthcare', 'Finance', 'Retail', 'Food & Beverage',
-    'Fashion', 'Beauty', 'Fitness', 'Education', 'Real Estate',
-    'Travel', 'Automotive', 'Professional Services', 'Manufacturing',
-    'Construction', 'Agriculture', 'Entertainment', 'Non-profit'
+    'Technology',
+    'Healthcare',
+    'Finance',
+    'Retail',
+    'Food & Beverage',
+    'Fashion',
+    'Beauty',
+    'Fitness',
+    'Education',
+    'Real Estate',
+    'Travel',
+    'Automotive',
+    'Professional Services',
+    'Manufacturing',
+    'Construction',
+    'Agriculture',
+    'Entertainment',
+    'Non-profit',
   ];
-
   const description = companyDescription ? companyDescription.toLowerCase() : '';
   for (const industry of industries) {
     if (description.includes(industry.toLowerCase())) {
       return industry;
     }
   }
-
   return 'General Business';
 }
 
@@ -1580,123 +1658,108 @@ function getIndustryContentGuidance(companyDescription: string): string {
   const industry = extractIndustry(companyDescription);
 
   const guidanceMap: Record<string, string> = {
-    'Technology': `
+    Technology: `
 - Focus on innovation, digital transformation, and tech trends
 - Use screenshots, demos, and technical visuals
 - Highlight problem-solving and efficiency improvements
 - Target tech-savvy professionals and early adopters`,
-
-    'Healthcare': `
+    Healthcare: `
 - Emphasize patient care, wellness, and medical expertise
 - Use professional medical imagery and infographics
 - Focus on health education and preventive care
 - Target health-conscious individuals and families`,
-
-    'Finance': `
+    Finance: `
 - Highlight financial security, investment advice, and planning
 - Use charts, graphs, and financial visualizations
 - Focus on trust, expertise, and long-term relationships
 - Target individuals and businesses seeking financial guidance`,
-
-    'Retail': `
+    Retail: `
 - Showcase products, customer experiences, and shopping benefits
 - Use high-quality product photography and lifestyle images
 - Focus on value, quality, and customer satisfaction
 - Target consumers and shopping enthusiasts`,
-
     'Food & Beverage': `
 - Emphasize taste, quality ingredients, and dining experiences
 - Use appetizing food photography and kitchen scenes
 - Focus on flavor, freshness, and culinary expertise
 - Target food lovers and dining enthusiasts`,
-
-    'Fashion': `
+    Fashion: `
 - Highlight style, trends, and personal expression
 - Use fashion photography and lifestyle imagery
 - Focus on aesthetics, quality, and individual style
 - Target fashion-conscious consumers`,
-
-    'Beauty': `
+    Beauty: `
 - Emphasize transformation, self-care, and confidence
 - Use beauty photography and before/after visuals
 - Focus on results, techniques, and self-expression
 - Target beauty enthusiasts and self-care advocates`,
-
-    'Fitness': `
+    Fitness: `
 - Highlight health, strength, and personal achievement
 - Use action photography and fitness demonstrations
 - Focus on motivation, results, and healthy lifestyle
 - Target fitness enthusiasts and health-conscious individuals`,
-
-    'Education': `
+    Education: `
 - Emphasize learning, growth, and knowledge sharing
 - Use educational graphics and classroom imagery
 - Focus on skill development and academic success
 - Target students, parents, and lifelong learners`,
-
     'Real Estate': `
 - Highlight properties, locations, and lifestyle opportunities
 - Use property photography and neighborhood imagery
 - Focus on investment potential and lifestyle benefits
 - Target homebuyers, investors, and property seekers`,
-
-    'Travel': `
+    Travel: `
 - Emphasize experiences, destinations, and adventure
 - Use travel photography and destination imagery
 - Focus on discovery, relaxation, and cultural experiences
 - Target travelers and adventure seekers`,
-
-    'Automotive': `
+    Automotive: `
 - Highlight performance, reliability, and innovation
 - Use vehicle photography and technical specifications
 - Focus on safety, efficiency, and driving experience
 - Target car enthusiasts and vehicle buyers`,
-
     'Professional Services': `
 - Emphasize expertise, results, and client success
 - Use professional headshots and office imagery
 - Focus on trust, competence, and value delivery
 - Target business owners and decision-makers`,
-
-    'Manufacturing': `
+    Manufacturing: `
 - Highlight quality, innovation, and production excellence
 - Use factory imagery and product showcases
 - Focus on precision, efficiency, and reliability
 - Target industry professionals and business buyers`,
-
-    'Construction': `
+    Construction: `
 - Emphasize craftsmanship, safety, and project completion
 - Use construction site photography and finished projects
 - Focus on quality workmanship and project success
 - Target property owners and construction professionals`,
-
-    'Agriculture': `
+    Agriculture: `
 - Highlight sustainability, quality, and farming expertise
 - Use farm photography and agricultural imagery
 - Focus on natural products and farming practices
 - Target consumers and agricultural professionals`,
-
-    'Entertainment': `
+    Entertainment: `
 - Emphasize fun, creativity, and memorable experiences
 - Use event photography and entertainment imagery
 - Focus on enjoyment, engagement, and entertainment value
 - Target entertainment seekers and event attendees`,
-
     'Non-profit': `
 - Highlight impact, community service, and social causes
 - Use community photography and impact imagery
 - Focus on social good, volunteerism, and positive change
-- Target supporters, volunteers, and community members`
+- Target supporters, volunteers, and community members`,
   };
 
-  return guidanceMap[industry] || `
+  return (
+    guidanceMap[industry] ||
+    `
 - Focus on your unique value proposition and customer benefits
 - Use professional imagery that represents your brand
 - Highlight what makes your business special
-- Target your ideal customers and their needs`;
+- Target your ideal customers and their needs`
+  );
 }
 
-// Handle CORS preflight requests
 export async function OPTIONS(_request: Request) {
   return new NextResponse(null, {
     status: 200,

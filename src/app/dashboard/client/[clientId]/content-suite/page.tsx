@@ -1278,18 +1278,18 @@ function ContentSuiteContent({
                         <div className="flex-shrink-0 w-5 h-5 text-purple-500 mt-0.5">
                           <Lightbulb className="w-4 h-4" />
                         </div>
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <p className="text-sm font-extrabold text-gray-800 mb-0.5">Marketing Angle</p>
-                          <p className="text-sm text-gray-600">{idea.angle}</p>
+                          <p className="text-sm text-gray-600 break-words whitespace-normal">{idea.angle}</p>
                         </div>
                       </div>
                       <div className="flex items-start space-x-2">
                         <div className="flex-shrink-0 w-5 h-5 text-green-500 mt-0.5">
                           <Clock className="w-4 h-4" />
                         </div>
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <p className="text-sm font-extrabold text-gray-800 mb-0.5">Post Example</p>
-                          <p className="text-sm text-gray-600">{idea.timing}</p>
+                          <p className="text-sm text-gray-600 break-words whitespace-normal">{idea.timing}</p>
                         </div>
                       </div>
                     </div>
