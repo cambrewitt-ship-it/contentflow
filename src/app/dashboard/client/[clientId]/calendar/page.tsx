@@ -783,12 +783,13 @@ export default function CalendarPage() {
   const handleDragLeave = (e: React.DragEvent, _dateKey: string) => {
     e.preventDefault();
     e.stopPropagation();
-    // Only clear if we're actually leaving the date cell (not just moving to a child element)
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX;
-    const y = e.clientY;
     
-    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+    // Only clear drag-over state if we're actually leaving the container
+    // (not just entering a child element)
+    const relatedTarget = e.relatedTarget as Node;
+    const currentTarget = e.currentTarget as Node;
+    
+    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
       setDragOverDate(null);
     }
   };

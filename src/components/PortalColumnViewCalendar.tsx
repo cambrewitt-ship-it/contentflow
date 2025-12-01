@@ -615,9 +615,17 @@ function DroppableDayRow({
   const handleNativeDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsNativeDragOver(false);
-    if (onNativeDragLeave) {
-      onNativeDragLeave(e);
+    
+    // Only clear drag-over state if we're actually leaving the container
+    // (not just entering a child element)
+    const relatedTarget = e.relatedTarget as Node;
+    const currentTarget = e.currentTarget as Node;
+    
+    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
+      setIsNativeDragOver(false);
+      if (onNativeDragLeave) {
+        onNativeDragLeave(e);
+      }
     }
   };
 

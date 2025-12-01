@@ -41,9 +41,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [removingLogo, setRemovingLogo] = useState(false)
   const [isEditingLogo, setIsEditingLogo] = useState(false)
-  const [contentInbox, setContentInbox] = useState<Upload[]>([])
-  const [contentInboxLoading, setContentInboxLoading] = useState(false)
-  const [contentInboxError, setContentInboxError] = useState<string | null>(null)
   const [scheduledPosts, setScheduledPosts] = useState<Post[]>([])
   const [scheduledPostsLoading, setScheduledPostsLoading] = useState(false)
   const [clientUploads, setClientUploads] = useState<{[key: string]: Upload[]}>({})
@@ -61,20 +58,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     platform: string;
     name: string;
     accountId?: string;
-  }
-
-  interface Upload {
-    id: string;
-    client_id: string;
-    project_id: string | null;
-    file_name: string;
-    file_type: string;
-    file_size: number;
-    file_url: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed';
-    notes: string | null;
-    created_at: string;
-    updated_at: string;
   }
 
   interface Post {
@@ -205,31 +188,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     fetchBrandData()
   }, [clientId])
 
-  // Fetch content inbox
-  const fetchContentInbox = useCallback(async () => {
-    if (!clientId) return
-    
-    try {
-      setContentInboxLoading(true)
-      setContentInboxError(null)
-      
-      const response = await fetch(`/api/clients/${clientId}/uploads`)
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch content inbox: ${response.statusText}`)
-      }
-      
-      const data = await response.json()
-      setContentInbox(data.uploads || [])
-      
-    } catch (err) {
-      console.error('Error fetching content inbox:', err)
-      setContentInboxError(err instanceof Error ? err.message : 'Failed to load content inbox')
-    } finally {
-      setContentInboxLoading(false)
-    }
-  }, [clientId])
-
   // Fetch scheduled posts for post status
   const fetchScheduledPosts = useCallback(async () => {
     if (!clientId) return
@@ -286,14 +244,13 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
   }, [clientId])
 
-  // Fetch content inbox, scheduled posts, and activity logs when client is loaded
+  // Fetch scheduled posts and activity logs when client is loaded
   useEffect(() => {
     if (client) {
-      fetchContentInbox()
       fetchScheduledPosts()
       fetchActivityLogs()
     }
-  }, [client, fetchContentInbox, fetchScheduledPosts, fetchActivityLogs])
+  }, [client, fetchScheduledPosts, fetchActivityLogs])
 
   // Check for OAuth callback messages in URL
   useEffect(() => {
@@ -802,37 +759,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       setRemovingLogo(false);
       // Exit editing mode after removal
       setIsEditingLogo(false);
-    }
-  };
-
-  // Content inbox helper functions
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const getFileIcon = (fileType: string) => {
-    if (fileType.startsWith('image/')) {
-      return <Image className="h-6 w-6 text-blue-600" />;
-    }
-    return <File className="h-6 w-6 text-gray-600" />;
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'upload':
-        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">UPLOAD</span>;
-      case 'completed':
-        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Completed</span>;
-      case 'failed':
-        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Failed</span>;
-      case 'processing':
-        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Processing</span>;
-      default:
-        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Pending</span>;
     }
   };
 

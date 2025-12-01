@@ -661,7 +661,6 @@ export async function POST(request: NextRequest) {
         }
 
         // Caption
-        doc.setFontSize(12); // Increased from 10
         doc.setTextColor(60, 60, 60);
         
         const rawCaption = post.caption || 'No caption';
@@ -674,17 +673,42 @@ export async function POST(request: NextRequest) {
         } else {
           doc.setFont('helvetica', 'normal');
         }
+
+        // Dynamic font sizing based on caption length
+        // If caption is over 150 characters, reduce font size to ensure it fits
+        let captionFontSize = 12; // Default font size
+        const lengthThreshold = 150; // Character count threshold
         
-        const maxCaptionLength = 200;
-        const truncatedCaption =
-          captionText.length > maxCaptionLength
-            ? captionText.substring(0, maxCaptionLength) + '...'
-            : captionText;
+        if (captionText.length > lengthThreshold) {
+          // Reduce font size proportionally based on how much over the threshold
+          // More aggressive scaling for longer captions
+          // Scale from 12px down to 7px for very long captions (500+ chars)
+          const excessChars = captionText.length - lengthThreshold;
+          
+          if (excessChars <= 100) {
+            // 150-250 chars: reduce from 12px to 10px
+            captionFontSize = 12 - (excessChars / 100) * 2;
+          } else if (excessChars <= 200) {
+            // 250-350 chars: reduce from 10px to 8.5px
+            captionFontSize = 10 - ((excessChars - 100) / 100) * 1.5;
+          } else {
+            // 350+ chars: reduce from 8.5px to 7px (minimum)
+            captionFontSize = 8.5 - Math.min((excessChars - 200) / 150, 1) * 1.5;
+          }
+          
+          captionFontSize = Math.max(captionFontSize, 7); // Don't go below 7px
+        }
+        
+        doc.setFontSize(captionFontSize);
 
         // Split caption text to fit exactly within the image width
-        const captionLines = doc.splitTextToSize(truncatedCaption, textWidth);
+        const captionLines = doc.splitTextToSize(captionText, textWidth);
+        
+        // Calculate line height based on font size (proportional spacing)
+        const lineHeight = captionFontSize * 0.35; // Approximately 4mm for 12pt font
+        
         doc.text(captionLines, textX, textY + 4);
-        textY += captionLines.length * 4 + 2;
+        textY += captionLines.length * lineHeight + 2;
 
         // Calculate box height based on actual image height
         const boxHeight = Math.max(actualImageHeight + 10, textY - startY + 5);
