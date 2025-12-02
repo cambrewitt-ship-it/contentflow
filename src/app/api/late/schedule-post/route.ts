@@ -115,6 +115,20 @@ export async function POST(request: NextRequest) {
       accountId: account._id
     }));
 
+    // Fetch client's timezone from database
+    const { data: clientData, error: clientError } = await supabase
+      .from('clients')
+      .select('timezone')
+      .eq('id', clientId)
+      .single();
+
+    if (clientError) {
+      logger.error('Error fetching client timezone:', clientError);
+    }
+
+    // Use client's timezone or default to Pacific/Auckland
+    const clientTimezone = clientData?.timezone || 'Pacific/Auckland';
+
     // Parse and format the scheduled date/time
     const [datePart, timePart] = scheduledDateTime.split('T');
     const localDateTime = `${datePart}T${timePart}`; // Use user's local time directly
@@ -127,7 +141,7 @@ export async function POST(request: NextRequest) {
       content: finalContent,
       platforms: platforms,
       scheduledFor: localDateTime, // e.g. "2024-09-16T18:00:00"
-      timezone: 'Pacific/Auckland',
+      timezone: clientTimezone,
       mediaItems: [{
         type: 'image',
         url: lateMediaUrl

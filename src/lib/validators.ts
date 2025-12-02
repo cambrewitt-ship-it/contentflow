@@ -193,6 +193,8 @@ export const createClientSchema = z.object({
   caption_dos: optionalSanitizedString(2000),
   caption_donts: optionalSanitizedString(2000),
   brand_voice_examples: optionalSanitizedString(5000),
+  region: optionalSanitizedString(255),
+  timezone: z.string().min(1, 'Timezone is required').max(100).default('Pacific/Auckland'),
   brand_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid hex color format').optional(),
 });
 

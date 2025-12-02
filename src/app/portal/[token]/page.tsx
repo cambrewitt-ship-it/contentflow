@@ -137,18 +137,21 @@ export default function PortalCalendarPage() {
   
   // View mode state
   const [viewMode, setViewMode] = useState<'column' | 'month'>('column');
+  
+  // Client timezone for calendar display
+  const [clientTimezone, setClientTimezone] = useState<string>('Pacific/Auckland');
 
-  // Get NZ timezone start of week (Monday)
-  const getStartOfWeek = (offset: number = 0) => {
+  // Get start of week (Monday) in client's timezone
+  const getStartOfWeek = useCallback((offset: number = 0) => {
     const today = new Date();
-    const nzDate = new Date(today.toLocaleString("en-US", {timeZone: "Pacific/Auckland"}));
-    const monday = new Date(nzDate);
+    const clientDate = new Date(today.toLocaleString("en-US", {timeZone: clientTimezone}));
+    const monday = new Date(clientDate);
     const dayOfWeek = monday.getDay();
     const diff = monday.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
     monday.setDate(diff + (offset * 7));
     monday.setHours(0, 0, 0, 0);
     return monday;
-  };
+  }, [clientTimezone]);
 
   // Calculate week offset for a given date
   const getWeekOffsetForDate = (date: Date) => {
@@ -233,6 +236,12 @@ export default function PortalCalendarPage() {
       const postsByDate = data.posts || {};
       
       console.log(`✅ Retrieved posts for ${Object.keys(postsByDate).length} dates`);
+      
+      // Set client timezone from response (for calendar display)
+      if (data.timezone) {
+        setClientTimezone(data.timezone);
+        console.log('📍 Portal using client timezone:', data.timezone);
+      }
       
       // The API already returns posts grouped by date, so we can use it directly
       setScheduledPosts(postsByDate);

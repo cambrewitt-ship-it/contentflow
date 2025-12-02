@@ -208,7 +208,7 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select(
-        'company_description, website_url, brand_tone, target_audience, value_proposition, caption_dos, caption_donts, brand_voice_examples, region'
+        'company_description, website_url, brand_tone, target_audience, value_proposition, caption_dos, caption_donts, brand_voice_examples, region, timezone'
       )
       .eq('id', clientId)
       .single();
@@ -251,6 +251,7 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
       donts: client.caption_donts,
       voice_examples: client.brand_voice_examples,
       region: client.region,
+      timezone: client.timezone,
       documents: documents || [],
       website:
         scrapes && Array.isArray(scrapes) && scrapes.length > 0 ? scrapes[0] : null,

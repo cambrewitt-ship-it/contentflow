@@ -213,6 +213,9 @@ export default function CalendarPage() {
   const [showPDFExportModal, setShowPDFExportModal] = useState(false);
   const [clientName, setClientName] = useState<string>('');
   
+  // Client timezone for calendar display
+  const [clientTimezone, setClientTimezone] = useState<string>('Pacific/Auckland');
+  
   // Approval Link states
   const [showApprovalLinkDialog, setShowApprovalLinkDialog] = useState(false);
   const [approvalLinkUrl, setApprovalLinkUrl] = useState<string | null>(null);
@@ -545,30 +548,30 @@ export default function CalendarPage() {
     }
   }, [clientId, selectedProjectFilter, requireAccessToken]); // Removed state dependencies to prevent recreation
 
-  // Get NZ timezone start of week (Monday)
-  const getStartOfWeek = (offset: number = 0) => {
+  // Get start of week (Monday) in client's timezone
+  const getStartOfWeek = useCallback((offset: number = 0) => {
     const today = new Date();
-    const nzDate = new Date(today.toLocaleString("en-US", {timeZone: "Pacific/Auckland"}));
-    const monday = new Date(nzDate);
+    const clientDate = new Date(today.toLocaleString("en-US", {timeZone: clientTimezone}));
+    const monday = new Date(clientDate);
     const dayOfWeek = monday.getDay();
     const diff = monday.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
     monday.setDate(diff + (offset * 7));
     monday.setHours(0, 0, 0, 0);
     return monday;
-  };
+  }, [clientTimezone]);
 
-  // Calculate week offset for a given date
-  const getWeekOffsetForDate = (date: Date) => {
-    const nzDate = new Date(date.toLocaleString("en-US", {timeZone: "Pacific/Auckland"}));
+  // Calculate week offset for a given date in client's timezone
+  const getWeekOffsetForDate = useCallback((date: Date) => {
+    const clientDate = new Date(date.toLocaleString("en-US", {timeZone: clientTimezone}));
     const currentWeekStart = getStartOfWeek(0);
     
     // Calculate the difference in days
-    const diffTime = nzDate.getTime() - currentWeekStart.getTime();
+    const diffTime = clientDate.getTime() - currentWeekStart.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     
     // Calculate week offset (positive for future weeks, negative for past weeks)
     return Math.floor(diffDays / 7);
-  };
+  }, [clientTimezone, getStartOfWeek]);
 
   // Handle date click from month view
   const handleDateClick = (date: Date) => {
@@ -602,6 +605,38 @@ export default function CalendarPage() {
       console.error('Error fetching projects:', error);
     }
   }, [clientId, requireAccessToken]);
+
+  // Fetch client timezone for calendar display
+  useEffect(() => {
+    const fetchClientTimezone = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('timezone, name')
+          .eq('id', clientId)
+          .single();
+        
+        if (error) {
+          console.error('Error fetching client timezone:', error);
+          return;
+        }
+        
+        if (data?.timezone) {
+          setClientTimezone(data.timezone);
+          console.log('📍 Client timezone loaded:', data.timezone);
+        }
+        if (data?.name) {
+          setClientName(data.name);
+        }
+      } catch (err) {
+        console.error('Failed to fetch client timezone:', err);
+      }
+    };
+    
+    if (clientId) {
+      fetchClientTimezone();
+    }
+  }, [clientId, supabase]);
 
   useEffect(() => {
     if (clientId) {
@@ -2248,49 +2283,10 @@ export default function CalendarPage() {
                     if (!postData) return;
 
                     const post = JSON.parse(postData);
-                    const targetDate = new Date(`${dateKey}T00:00:00`);
-
-                    // Find the week index and day index for the target date
-                    const weeks = getWeeksToDisplay();
-                    let weekIndex = -1;
-                    let dayIndex = -1;
-
-                    weeks.forEach((week, wIdx) => {
-                      for (let d = 0; d < 7; d++) {
-                        const dayDate = new Date(week);
-                        dayDate.setDate(week.getDate() + d);
-                        if (dayDate.toLocaleDateString('en-CA') === dateKey) {
-                          weekIndex = wIdx;
-                          dayIndex = d;
-                          break;
-                        }
-                      }
-                    });
-
-                    if (weekIndex === -1 || dayIndex === -1) {
-                      // Calculate week offset if not in current visible weeks
-                      const targetWeekStart = new Date(targetDate);
-                      const dayOfWeek = targetWeekStart.getDay();
-                      const diff = targetWeekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-                      targetWeekStart.setDate(diff);
-                      targetWeekStart.setHours(0, 0, 0, 0);
-
-                      const currentWeekStart = getStartOfWeek(0);
-                      const diffTime = targetWeekStart.getTime() - currentWeekStart.getTime();
-                      const weekOffsetCalc = Math.floor(diffTime / (7 * 24 * 60 * 60 * 1000));
-
-                      setWeekOffset(weekOffsetCalc);
-                      dayIndex = targetDate.getDay() === 0 ? 6 : targetDate.getDay() - 1;
-                      weekIndex = 1; // Middle week
-                    }
-
-                    // Use existing handleDrop logic
-                    const targetWeekStart = weeks[weekIndex] || getWeeksToDisplay()[1];
-                    const targetDateObj = new Date(targetWeekStart);
-                    targetDateObj.setDate(targetWeekStart.getDate() + dayIndex);
-
+                    
+                    // Use the dateKey directly - it already contains the exact date in 'YYYY-MM-DD' format
+                    const scheduledDate = dateKey;
                     const time = '12:00';
-                    const scheduledDate = targetDateObj.toLocaleDateString('en-CA');
                     const scheduledTime = `${time}:00`;
 
                     setMovingPostId(post.id);

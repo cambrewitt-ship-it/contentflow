@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get client info from portal token
+    // Get client info from portal token (including timezone for calendar display)
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('id')
+      .select('id, timezone')
       .eq('portal_token', token)
       .single();
 
@@ -34,6 +34,9 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
+    
+    // Use client's timezone or default to Pacific/Auckland
+    const clientTimezone = client.timezone || 'Pacific/Auckland';
 
     // Build date filter (currently unused in query)
     let dateFilter = '';
@@ -95,7 +98,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       client,
       posts: postsByDate,
-      totalPosts: scheduledPosts.length
+      totalPosts: scheduledPosts.length,
+      timezone: clientTimezone
     });
 
   } catch (error) {

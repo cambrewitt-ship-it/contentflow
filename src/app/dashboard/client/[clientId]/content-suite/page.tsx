@@ -591,8 +591,11 @@ export default function ContentSuitePage({ params }: PageProps) {
         }
       }
       
-      // Redirect to calendar
-      router.push(`/dashboard/client/${clientId}/calendar?refresh=true`)
+      // Show success message and stay on page instead of navigating
+      alert('✅ Successfully added to calendar!')
+      
+      // Optional: Clear the form or reset state here if desired
+      // This allows users to add multiple posts without navigation
       
     } catch (error) {
       console.error('❌ Error adding to calendar:', error)

@@ -16,6 +16,7 @@ interface Client {
   website_url?: string;
   brand_tone?: string;
   logo_url?: string;
+  timezone?: string;
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +58,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
+  const [displayTimezone, setDisplayTimezone] = useState<string>('Pacific/Auckland');
 
   // Check for password reset hash fragments and redirect if needed
   // This handles cases where Supabase redirects to the dashboard instead of reset-password
@@ -162,6 +164,11 @@ export default function Dashboard() {
         console.log('✅ User clients fetched successfully:', data.clients);
         
         setClients(data.clients || []);
+        
+        // Set timezone from first client (or keep default)
+        if (data.clients && data.clients.length > 0 && data.clients[0].timezone) {
+          setDisplayTimezone(data.clients[0].timezone);
+        }
       } catch (err) {
         console.error('❌ Error fetching clients:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch clients');
@@ -175,35 +182,40 @@ export default function Dashboard() {
     }
   }, [user?.id, getAccessToken]); // ✅ Only depend on user ID, not entire user object
 
-  // Update NZST time and date every minute
+  // Update time and date every minute - using first client's timezone
   useEffect(() => {
     const updateTimeAndDate = () => {
       const now = new Date();
       
-      // Format time
-      const nzstTime = now.toLocaleString('en-US', {
-        timeZone: 'Pacific/Auckland',
+      // Format time in client's timezone
+      const formattedTime = now.toLocaleString('en-US', {
+        timeZone: displayTimezone,
         hour: 'numeric',
         minute: '2-digit',
         hour12: true
       });
-      setCurrentTime(nzstTime);
+      setCurrentTime(formattedTime);
       
-      // Format date
-      const nzstDate = now.toLocaleDateString('en-US', {
-        timeZone: 'Pacific/Auckland',
+      // Format date in client's timezone
+      const formattedDateStr = now.toLocaleDateString('en-US', {
+        timeZone: displayTimezone,
         weekday: 'long',
         day: 'numeric',
         month: 'long'
       });
       
-      // Add ordinal suffix to day (1st, 2nd, 3rd, 4th, etc.)
-      const day = now.getDate();
-      const ordinal = day === 1 || day === 21 || day === 31 ? 'st' :
-                     day === 2 || day === 22 ? 'nd' :
-                     day === 3 || day === 23 ? 'rd' : 'th';
+      // Get the day number in the timezone
+      const dayInTimezone = parseInt(now.toLocaleDateString('en-US', {
+        timeZone: displayTimezone,
+        day: 'numeric'
+      }));
       
-      const formattedDate = nzstDate.replace(/\d+/, `${day}${ordinal}`);
+      // Add ordinal suffix to day (1st, 2nd, 3rd, 4th, etc.)
+      const ordinal = dayInTimezone === 1 || dayInTimezone === 21 || dayInTimezone === 31 ? 'st' :
+                     dayInTimezone === 2 || dayInTimezone === 22 ? 'nd' :
+                     dayInTimezone === 3 || dayInTimezone === 23 ? 'rd' : 'th';
+      
+      const formattedDate = formattedDateStr.replace(/\d+/, `${dayInTimezone}${ordinal}`);
       setCurrentDate(formattedDate);
     };
 
@@ -214,7 +226,7 @@ export default function Dashboard() {
     const interval = setInterval(updateTimeAndDate, 60000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [displayTimezone]);
 
   if (loading) {
     return (

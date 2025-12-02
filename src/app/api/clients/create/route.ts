@@ -144,6 +144,8 @@ export async function POST(req: NextRequest) {
       caption_dos, 
       caption_donts,
       brand_voice_examples, // Add brand voice examples field
+      region,
+      timezone, // Add timezone field
       brand_color, // Add brand color field for LATE profile
       skipLateProfile // Flag to skip LATE profile creation for temp clients
     } = body as {
@@ -156,6 +158,8 @@ export async function POST(req: NextRequest) {
       caption_dos?: string;
       caption_donts?: string;
       brand_voice_examples?: string;
+      region?: string;
+      timezone?: string;
       brand_color?: string;
       skipLateProfile?: boolean;
     }
@@ -182,9 +186,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Extract region from body if provided
-    const { region } = body as { region?: string };
-
     // Insert the new client with LATE profile ID and user association
     const { data: client, error: insertError } = await supabase
       .from('clients')
@@ -200,6 +201,7 @@ export async function POST(req: NextRequest) {
           caption_donts: caption_donts?.trim() || null,
           brand_voice_examples: brand_voice_examples?.trim() || null, // Add brand voice examples
           region: region?.trim() || null, // Add region
+          timezone: timezone || 'Pacific/Auckland', // Add timezone with default
           late_profile_id: lateProfileId, // Add LATE profile ID
           user_id: user.id, // Associate with authenticated user
           created_at: new Date().toISOString(),

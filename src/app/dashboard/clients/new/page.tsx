@@ -53,6 +53,7 @@ export default function NewClientPageV2() {
     caption_donts: "",
     brand_voice_examples: "",
     region: "",
+    timezone: "Pacific/Auckland", // Default timezone
     brand_color: "#4ade80" // Default green color for LATE profile
   });
   
@@ -78,6 +79,10 @@ export default function NewClientPageV2() {
       newErrors.name = "Client name is required";
     } else if (formData.name.trim().length < 2) {
       newErrors.name = "Client name must be at least 2 characters";
+    }
+    
+    if (!formData.timezone) {
+      newErrors.timezone = "Timezone is required for scheduling posts";
     }
     
     setErrors(newErrors);
@@ -111,6 +116,14 @@ export default function NewClientPageV2() {
     if (websiteUrl) {
       payload.website_url = websiteUrl;
     }
+
+    const region = formData.region.trim();
+    if (region) {
+      payload.region = region;
+    }
+
+    // Timezone is required
+    payload.timezone = formData.timezone;
 
     return payload;
   };
@@ -939,6 +952,78 @@ export default function NewClientPageV2() {
                     <option value="Other">Other (Please specify)</option>
                   </optgroup>
                 </select>
+              </div>
+
+              {/* Timezone */}
+              <div className="border-t border-gray-200 pt-6 mt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Timezone for Scheduling <span className="text-red-500">*</span>
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  This timezone will be used when scheduling posts via social media platforms
+                </p>
+                <select
+                  value={formData.timezone}
+                  onChange={(e) => handleInputChange('timezone', e.target.value)}
+                  className={`flex h-10 w-full rounded-md border ${
+                    errors.timezone ? 'border-red-500' : 'border-input'
+                  } bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  <optgroup label="Pacific">
+                    <option value="Pacific/Auckland">New Zealand (Pacific/Auckland)</option>
+                    <option value="Pacific/Chatham">New Zealand - Chatham Islands (Pacific/Chatham)</option>
+                    <option value="Australia/Sydney">Australia - Sydney (Australia/Sydney)</option>
+                    <option value="Australia/Melbourne">Australia - Melbourne (Australia/Melbourne)</option>
+                    <option value="Australia/Brisbane">Australia - Brisbane (Australia/Brisbane)</option>
+                    <option value="Australia/Perth">Australia - Perth (Australia/Perth)</option>
+                    <option value="Australia/Adelaide">Australia - Adelaide (Australia/Adelaide)</option>
+                    <option value="Australia/Hobart">Australia - Hobart (Australia/Hobart)</option>
+                    <option value="Australia/Darwin">Australia - Darwin (Australia/Darwin)</option>
+                  </optgroup>
+                  <optgroup label="Americas">
+                    <option value="America/New_York">US Eastern (America/New_York)</option>
+                    <option value="America/Chicago">US Central (America/Chicago)</option>
+                    <option value="America/Denver">US Mountain (America/Denver)</option>
+                    <option value="America/Los_Angeles">US Pacific (America/Los_Angeles)</option>
+                    <option value="America/Anchorage">US Alaska (America/Anchorage)</option>
+                    <option value="Pacific/Honolulu">US Hawaii (Pacific/Honolulu)</option>
+                    <option value="America/Toronto">Canada - Toronto (America/Toronto)</option>
+                    <option value="America/Vancouver">Canada - Vancouver (America/Vancouver)</option>
+                    <option value="America/Edmonton">Canada - Edmonton (America/Edmonton)</option>
+                    <option value="America/Winnipeg">Canada - Winnipeg (America/Winnipeg)</option>
+                    <option value="America/Halifax">Canada - Halifax (America/Halifax)</option>
+                  </optgroup>
+                  <optgroup label="Europe">
+                    <option value="Europe/London">UK (Europe/London)</option>
+                    <option value="Europe/Dublin">Ireland (Europe/Dublin)</option>
+                    <option value="Europe/Paris">France (Europe/Paris)</option>
+                    <option value="Europe/Berlin">Germany (Europe/Berlin)</option>
+                    <option value="Europe/Rome">Italy (Europe/Rome)</option>
+                    <option value="Europe/Madrid">Spain (Europe/Madrid)</option>
+                    <option value="Europe/Amsterdam">Netherlands (Europe/Amsterdam)</option>
+                    <option value="Europe/Brussels">Belgium (Europe/Brussels)</option>
+                    <option value="Europe/Zurich">Switzerland (Europe/Zurich)</option>
+                    <option value="Europe/Stockholm">Sweden (Europe/Stockholm)</option>
+                  </optgroup>
+                  <optgroup label="Asia">
+                    <option value="Asia/Dubai">UAE (Asia/Dubai)</option>
+                    <option value="Asia/Singapore">Singapore (Asia/Singapore)</option>
+                    <option value="Asia/Hong_Kong">Hong Kong (Asia/Hong_Kong)</option>
+                    <option value="Asia/Tokyo">Japan (Asia/Tokyo)</option>
+                    <option value="Asia/Seoul">South Korea (Asia/Seoul)</option>
+                    <option value="Asia/Shanghai">China (Asia/Shanghai)</option>
+                    <option value="Asia/Kolkata">India (Asia/Kolkata)</option>
+                    <option value="Asia/Bangkok">Thailand (Asia/Bangkok)</option>
+                  </optgroup>
+                  <optgroup label="Other">
+                    <option value="Africa/Johannesburg">South Africa (Africa/Johannesburg)</option>
+                    <option value="America/Sao_Paulo">Brazil (America/Sao_Paulo)</option>
+                    <option value="America/Mexico_City">Mexico (America/Mexico_City)</option>
+                  </optgroup>
+                </select>
+                {errors.timezone && (
+                  <p className="text-red-500 text-sm mt-1">{errors.timezone}</p>
+                )}
               </div>
             </CardContent>
           </Card>
