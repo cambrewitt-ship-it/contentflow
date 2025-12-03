@@ -9,7 +9,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, metadata?: { firstName?: string; lastName?: string }) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, metadata?: { firstName?: string; lastName?: string }) => Promise<{ user: User | null; session: Session | null; error: AuthError | null }>;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
@@ -51,8 +51,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Get initial session with error handling
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        logger.error('❌ Error getting session:', error);
+        // If there's an error with the session (e.g., user doesn't exist), clear it
+        if (error.message?.includes('JWT') || error.message?.includes('does not exist')) {
+          logger.warn('⚠️ Invalid JWT detected, clearing auth state');
+          clearAuthAndRedirect();
+          return;
+        }
+      }
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -89,6 +98,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setLoading(false);
       }
+      
+      // Handle token/user errors
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        logger.warn('⚠️ Token refresh returned no session, clearing auth');
+        clearAuthAndRedirect();
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -96,6 +111,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, metadata?: { firstName?: string; lastName?: string }) => {
     try {
+      // Check for stale/invalid JWT and clear it before signup
+      try {
+        const { error: sessionError } = await supabase.auth.getSession();
+        if (sessionError?.message?.includes('JWT') || sessionError?.message?.includes('does not exist')) {
+          logger.warn('⚠️ Clearing invalid session before signup');
+          await supabase.auth.signOut();
+          localStorage.clear();
+          sessionStorage.clear();
+        }
+      } catch (e) {
+        // Ignore errors during cleanup
+        logger.debug('Session cleanup error (ignored):', e);
+      }
+      
       // Debug: Check environment variables (client-side)
       logger.debug('🔐 Starting signup process for:', { email });
       logger.debug('🔍 Supabase Config Check:', {
@@ -108,7 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
         const configError = new Error('Supabase configuration missing. Please check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.');
         logger.error('❌ Supabase configuration error:', { error: configError });
-        return { error: configError as AuthError };
+        return { user: null, session: null, error: configError as AuthError };
       }
 
       // Prepare user metadata
@@ -141,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           userEmail: email,
           fullError: JSON.stringify(error, null, 2), // Serialize to see all properties
         });
-        return { error };
+        return { user: null, session: null, error };
       }
 
       if (data?.user) {
@@ -152,7 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      return { error: null };
+      return { user: data.user, session: data.session, error: null };
     } catch (err) {
       logger.error('💥 UNEXPECTED SIGNUP ERROR:', {
         errorType: err instanceof Error ? err.constructor.name : typeof err,
@@ -161,7 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fullError: JSON.stringify(err, Object.getOwnPropertyNames(err), 2),
       });
       const unexpectedError = err as AuthError;
-      return { error: unexpectedError };
+      return { user: null, session: null, error: unexpectedError };
     }
   };
 

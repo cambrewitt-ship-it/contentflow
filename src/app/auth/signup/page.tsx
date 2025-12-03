@@ -65,12 +65,17 @@ function SignupForm() {
       return;
     }
 
-    const { error } = await signUp(email, password, { firstName, lastName });
+    const { user, session, error } = await signUp(email, password, { firstName, lastName });
     
     if (error) {
       setError(error.message);
       setLoading(false);
+    } else if (session && user) {
+      // User is auto-confirmed and logged in, redirect to dashboard
+      setMessage('Account created successfully! Redirecting...');
+      router.push('/dashboard');
     } else {
+      // Email confirmation required
       setMessage('Check your email for a confirmation link!');
       setLoading(false);
     }
