@@ -61,10 +61,11 @@ function buildCSP(): string {
     // - Supabase URL is dynamically included from environment variable
     // - blob:: Required for fetching blob URLs (e.g., image caption generation)
     // - GTM/GA4: Required for analytics and tag management
+    // - https://www.google.com: Required for GTM consent mode and tracking (ccm/collect endpoint)
     // - In development, also allow localhost variants
     isDevelopment
-      ? `connect-src 'self' blob: ${supabaseUrl} https://www.google-analytics.com https://www.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
-      : `connect-src 'self' blob: ${supabaseUrl} https://www.google-analytics.com https://www.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net`,
+      ? `connect-src 'self' blob: ${supabaseUrl} https://www.google.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
+      : `connect-src 'self' blob: ${supabaseUrl} https://www.google.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net`,
     
     // Media: Allow same origin + blob (for video/audio if needed)
     "media-src 'self' blob:",
