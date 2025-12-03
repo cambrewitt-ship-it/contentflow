@@ -412,7 +412,7 @@ export function SocialPreviewColumn({
 
   // Platform-specific preview components
   const renderFacebookPreview = () => (
-    <div className="bg-white max-w-sm mx-auto" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div className="bg-white max-w-sm mx-auto overflow-hidden" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       {/* Facebook Header */}
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center">
@@ -434,7 +434,7 @@ export function SocialPreviewColumn({
 
       {/* Facebook Caption */}
       <div className="px-4 pb-3">
-        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
+        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
           {displayCaption}
         </p>
       </div>
@@ -596,7 +596,7 @@ export function SocialPreviewColumn({
           <span className="font-semibold text-gray-900 mr-2">
             {currentAccountData?.name || 'your_instagram'}
           </span>
-          <span className="text-gray-900 whitespace-pre-wrap">
+          <span className="text-gray-900 whitespace-pre-wrap break-words overflow-hidden">
             {displayCaption}
           </span>
         </div>
@@ -622,7 +622,7 @@ export function SocialPreviewColumn({
 
       {/* Twitter Content */}
       <div className="p-3">
-        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
+        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
           {displayCaption}
         </p>
 
@@ -747,7 +747,7 @@ export function SocialPreviewColumn({
         })()}
 
         {/* Email Copy */}
-        <div className="text-gray-900 leading-relaxed whitespace-pre-wrap">
+        <div className="text-gray-900 leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
           {displayCaption}
         </div>
       </div>
@@ -768,9 +768,9 @@ export function SocialPreviewColumn({
   }
 
   return (
-    <div className="space-y-6 h-full flex flex-col flex-1">
+    <div className="space-y-6 h-full flex flex-col flex-1 overflow-hidden">
       {/* Content Preview */}
-      <Card className="h-full flex flex-col">
+      <Card className="h-full flex flex-col overflow-hidden">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="card-title-26">
@@ -778,7 +778,7 @@ export function SocialPreviewColumn({
             </CardTitle>
           </div>
         </CardHeader>
-        <CardContent className="flex-1 flex flex-col">
+        <CardContent className="flex-1 flex flex-col overflow-y-auto">
           <div className="space-y-4">
             {copyType === 'email-marketing' ? (
               // Email Marketing Preview
@@ -812,7 +812,7 @@ export function SocialPreviewColumn({
                       </div>
 
                       {/* Email Copy */}
-                      <div className="text-gray-900 leading-relaxed whitespace-pre-wrap">
+                      <div className="text-gray-900 leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
                         {displayCaption || 'Your email content will appear here...'}
                       </div>
                     </div>
@@ -911,7 +911,7 @@ export function SocialPreviewColumn({
 
                       {/* Caption */}
                       <div className={selectedPreviewPlatform === 'twitter' ? 'p-3' : 'px-4 pb-3'}>
-                        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
+                        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
                           {displayCaption || 'Your caption will appear here...'}
                         </p>
                       </div>

@@ -277,9 +277,9 @@ export function CaptionGenerationColumn() {
   }
 
   return (
-    <div className="space-y-6 h-full flex flex-col flex-1">
+    <div className="space-y-6 h-full flex flex-col flex-1 overflow-hidden">
       {/* Copy Type Selection & AI Caption Generation */}
-      <Card className="h-full flex flex-col">
+      <Card className="h-full flex flex-col overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="card-title-26">Copy Type</CardTitle>
           <Button
@@ -292,7 +292,7 @@ export function CaptionGenerationColumn() {
             Settings
           </Button>
         </CardHeader>
-        <CardContent className="flex-1 flex flex-col">
+        <CardContent className="flex-1 flex flex-col overflow-y-auto">
           <div className="space-y-4">
             <div>
               <select 
@@ -420,7 +420,7 @@ export function CaptionGenerationColumn() {
                                     }
                                   }}
                                   placeholder={`Type your ${copyType === 'social-media' ? 'caption' : 'email copy'} here...`}
-                                  className="min-h-[60px] resize-none border-0 bg-transparent focus:ring-0 focus:border-0 p-0 text-sm text-gray-700"
+                                  className="min-h-[60px] max-h-[200px] resize-none border-2 border-blue-500 bg-white focus:outline-none focus:ring-0 focus:shadow-lg focus:border-blue-500 p-2 text-sm text-gray-700 rounded-md overflow-y-auto break-words"
                                   onClick={(e) => e.stopPropagation()}
                                 />
                                 <div className="flex items-center justify-between">

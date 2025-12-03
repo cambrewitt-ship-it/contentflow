@@ -193,7 +193,7 @@ export function ImageUploadColumn() {
               value={postNotes}
               onChange={(e) => setPostNotes(e.target.value)}
               placeholder="Add specific notes, context, or instructions for your post (optional)..."
-              className="min-h-[120px] resize-none"
+              className="min-h-[120px] resize-none border-2 border-blue-500 focus:outline-none focus:ring-0 focus:shadow-lg"
             />
           </div>
 

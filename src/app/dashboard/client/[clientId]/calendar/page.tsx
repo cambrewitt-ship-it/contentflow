@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle, FileDown } from 'lucide-react';
+import { Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle, FileDown } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
@@ -606,48 +606,46 @@ export default function CalendarPage() {
     }
   }, [clientId, requireAccessToken]);
 
-  // Fetch client timezone for calendar display
+  // Consolidated initial data fetch - fetches all necessary data on mount
   useEffect(() => {
-    const fetchClientTimezone = async () => {
+    const initializeCalendar = async () => {
+      if (!clientId) return;
+      
       try {
+        // Fetch client timezone and name (single query)
         const { data, error } = await supabase
           .from('clients')
           .select('timezone, name')
           .eq('id', clientId)
           .single();
         
-        if (error) {
-          console.error('Error fetching client timezone:', error);
-          return;
-        }
-        
-        if (data?.timezone) {
-          setClientTimezone(data.timezone);
-          console.log('📍 Client timezone loaded:', data.timezone);
-        }
-        if (data?.name) {
-          setClientName(data.name);
+        if (!error && data) {
+          if (data.timezone) {
+            setClientTimezone(data.timezone);
+            console.log('📍 Client timezone loaded:', data.timezone);
+          }
+          if (data.name) {
+            setClientName(data.name);
+          }
+        } else {
+          console.error('Error fetching client data:', error);
         }
       } catch (err) {
-        console.error('Failed to fetch client timezone:', err);
+        console.error('Failed to fetch client data:', err);
       }
+      
+      // Batch all API calls to run in parallel
+      await Promise.all([
+        fetchProjects(),
+        fetchConnectedAccounts(),
+        fetchUnscheduledPosts(true),
+        fetchScheduledPosts(0, true)
+      ]);
+      
+      console.log('✅ Calendar initialized with all data loaded');
     };
     
-    if (clientId) {
-      fetchClientTimezone();
-    }
-  }, [clientId, supabase]);
-
-  useEffect(() => {
-    if (clientId) {
-      // Fetch projects first
-      fetchProjects();
-      
-      // Fetch data
-      fetchConnectedAccounts();
-      fetchUnscheduledPosts(true); // Force refresh on initial load
-      fetchScheduledPosts(0, true); // Force refresh on initial load
-    }
+    initializeCalendar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]); // Only clientId to prevent infinite loop - functions are stable via useCallback
   
@@ -659,34 +657,6 @@ export default function CalendarPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectFilter, clientId]); // Only filter and clientId, not the fetch functions
-
-  // Fetch client name for PDF export defaults
-  useEffect(() => {
-    const fetchClientName = async () => {
-      if (!clientId) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('clients')
-          .select('name')
-          .eq('id', clientId)
-          .single();
-        
-        if (error) {
-          console.error('Error fetching client name:', error);
-          return;
-        }
-        
-        if (data?.name) {
-          setClientName(data.name);
-        }
-      } catch (error) {
-        console.error('Error fetching client name:', error);
-      }
-    };
-
-    fetchClientName();
-  }, [clientId, supabase]);
 
   // Check for refresh flag from content suite
   useEffect(() => {
@@ -2005,7 +1975,7 @@ export default function CalendarPage() {
 
 
       {/* Merged Header - Single Navigation Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 mb-6 rounded-lg shadow">
+      <div className="bg-white border-b border-gray-200 px-6 py-4 mb-4 rounded-lg shadow">
         <div className="flex items-center justify-between">
           {/* Left Section - Back Button + Title */}
           <div className="flex items-center space-x-4">
@@ -2080,171 +2050,180 @@ export default function CalendarPage() {
           </div>
         </div>
       </div>
-        {/* Posts Queue */}
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-700">Posts in Project</h3>
-            <button
-              onClick={() => fetchUnscheduledPosts(true)}
-              disabled={isLoadingPosts}
-              className="inline-flex items-center px-2 py-1 text-xs text-gray-600 hover:text-gray-800 disabled:opacity-50"
-              title="Refresh unscheduled posts"
-            >
-              <RefreshCw className={`w-3 h-3 mr-1 ${isLoadingPosts ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-          </div>
-          
-          {/* Loading State for Unscheduled Posts - Only show when no posts are loaded yet */}
-          {isLoadingPosts && projectPosts.length === 0 && (
-            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
-                <p className="text-sm text-blue-800">Loading unscheduled posts...</p>
-              </div>
+
+        {/* Main Layout: Sidebar + Calendar Content */}
+        <div className="flex gap-6 relative">
+          {/* Left Sidebar - Posts in Project (Vertical) */}
+          <div 
+            className="bg-white rounded-lg shadow transition-all duration-300 flex flex-col w-36 flex-shrink-0 sticky top-0"
+            style={{ height: 'calc(100vh - 200px)' }}
+          >
+            {/* Sidebar Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 min-h-[73px]">
+              <h3 className="text-sm font-medium text-gray-700">Posts</h3>
+              <button
+                onClick={() => fetchUnscheduledPosts(true)}
+                disabled={isLoadingPosts}
+                className="inline-flex items-center p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg disabled:opacity-50 transition-colors"
+                title="Refresh unscheduled posts"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoadingPosts ? 'animate-spin' : ''}`} />
+              </button>
             </div>
-          )}
-          
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {projectPosts.length === 0 && !isLoadingPosts ? (
-              <div className="text-gray-400 text-sm py-4">
-                No posts added yet. Add posts from Content Suite.
-            </div>
-            ) : (
-              projectPosts.map((post) => {
-                const isMoving = movingPostId === post.id;
-                const isDeleting = deletingUnscheduledPostIds.has(post.id);
-                return (
-                  <div
-                    key={post.id}
-                    className={`flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border-2 relative ${
-                      isMoving || isDeleting
-                        ? 'border-blue-500 bg-blue-50 cursor-not-allowed opacity-50' 
-                        : 'border-gray-200 cursor-move hover:border-blue-400'
-                    }`}
-                    draggable={!isMoving && !isDeleting}
-                    onDragStart={(e) => !isMoving && !isDeleting && handleDragStart(e, post)}
-                  >
-                    {isMoving ? (
-                      <div className="w-full h-full flex items-center justify-center bg-blue-50">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                      </div>
-                    ) : isDeleting ? (
-                      <div className="w-full h-full flex items-center justify-center bg-red-50">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
-                      </div>
-                    ) : (
-                      <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={post.image_url || '/api/placeholder/100/100'}
-                          alt="Post"
-                          className="w-full h-full object-cover"
-                          loading="eager"
-                          onLoad={(e) => {
-                            // Image is loaded - ensure it's ready for drag preview
-                            (e.target as HTMLImageElement).decode().catch(() => {});
-                          }}
-                          onError={(e) => {
-                            console.log('Image failed to load, using placeholder for post:', post.id);
-                            e.currentTarget.src = '/api/placeholder/100/100';
-                          }}
-                        />
-                        {/* Action buttons - positioned to not interfere with drag */}
-                        <div className="absolute top-1 right-1 flex flex-col gap-1">
-                          {/* Edit button */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              // Navigate to content suite with editPostId parameter in same tab
-                              window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
-                            }}
-                            className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
-                            title="Edit in Content Suite"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          
-                          {/* Delete button */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              if (confirm('Are you sure you want to delete this post?')) {
-                                handleDeleteUnscheduledPost(post.id);
-                              }
-                            }}
-                            className="w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
-                            title="Delete post"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })
-                    )}
+
+            {/* Sidebar Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {/* Loading State for Unscheduled Posts */}
+              {isLoadingPosts && projectPosts.length === 0 && (
+                <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+                    <p className="text-sm text-blue-800">Loading...</p>
                   </div>
                 </div>
-        
+              )}
 
+              {/* Posts Grid - Vertical Layout */}
+              <div className="flex flex-col gap-3">
+                {projectPosts.length === 0 && !isLoadingPosts ? (
+                  <div className="text-gray-400 text-sm py-4 text-center">
+                    No posts added yet. Add posts from Content Suite.
+                  </div>
+                ) : (
+                  projectPosts.map((post) => {
+                    const isMoving = movingPostId === post.id;
+                    const isDeleting = deletingUnscheduledPostIds.has(post.id);
+                    return (
+                      <div
+                        key={post.id}
+                        className={`w-full aspect-square rounded-lg overflow-hidden border-2 relative ${
+                          isMoving || isDeleting
+                            ? 'border-blue-500 bg-blue-50 cursor-not-allowed opacity-50'
+                            : 'border-gray-200 cursor-move hover:border-blue-400'
+                        }`}
+                        draggable={!isMoving && !isDeleting}
+                        onDragStart={(e) => !isMoving && !isDeleting && handleDragStart(e, post)}
+                      >
+                        {isMoving ? (
+                          <div className="w-full h-full flex items-center justify-center bg-blue-50">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                          </div>
+                        ) : isDeleting ? (
+                          <div className="w-full h-full flex items-center justify-center bg-red-50">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
+                          </div>
+                        ) : (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={post.image_url || '/api/placeholder/100/100'}
+                              alt="Post"
+                              className="w-full h-full object-cover"
+                              loading="eager"
+                              onLoad={(e) => {
+                                // Image is loaded - ensure it's ready for drag preview
+                                (e.target as HTMLImageElement).decode().catch(() => {});
+                              }}
+                              onError={(e) => {
+                                console.log('Image failed to load, using placeholder for post:', post.id);
+                                e.currentTarget.src = '/api/placeholder/100/100';
+                              }}
+                            />
+                            {/* Action buttons */}
+                            <div className="absolute top-1 right-1 flex flex-col gap-1">
+                              {/* Edit button */}
+                              <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    // Navigate to content suite with editPostId parameter in same tab
+                                    window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
+                                  }}
+                                  className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
+                                  title="Edit in Content Suite"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+
+                                {/* Delete button */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    if (confirm('Are you sure you want to delete this post?')) {
+                                      handleDeleteUnscheduledPost(post.id);
+                                    }
+                                  }}
+                                  className="w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
+                                  title="Delete post"
+                                >
+                                  ×
+                                </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content - Calendar */}
+          <div className="flex-1">
         {/* Calendar */}
         <div
           key={refreshKey}
           ref={calendarScrollRef}
           className="bg-white rounded-lg shadow overflow-hidden"
         >
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex-1" />
-              <div className="flex items-center justify-center">
-                <h2 className="text-lg font-semibold">
-                  {selectedProjectFilter === 'all'
-                    ? `All Projects - ${viewMode === 'month' ? 'Month' : 'Column'} View`
-                    : selectedProjectFilter === 'untagged'
-                      ? `Untagged Posts - ${viewMode === 'month' ? 'Month' : 'Column'} View`
-                      : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'month' ? 'Month' : 'Column'} View`}
-                </h2>
-              </div>
-              <div className="flex items-center gap-3 flex-1 justify-end">
-                {/* View Toggle */}
-                <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                  <button
-                    onClick={() => setViewMode('month')}
-                    className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                      viewMode === 'month'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <Calendar className="w-4 h-4" />
-                    Month
-                  </button>
-                  <button
-                    onClick={() => setViewMode('column')}
-                    className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                      viewMode === 'column'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <Columns className="w-4 h-4" />
-                    Column
-                  </button>
+          {viewMode === 'month' ? (
+            <>
+              <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center">
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex-1" />
+                  <div className="flex items-center justify-center">
+                    <h2 className="text-lg font-semibold">
+                      {selectedProjectFilter === 'all'
+                        ? `All Projects - ${viewMode === 'month' ? 'Month' : 'Column'} View`
+                        : selectedProjectFilter === 'untagged'
+                          ? `Untagged Posts - ${viewMode === 'month' ? 'Month' : 'Column'} View`
+                          : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'month' ? 'Month' : 'Column'} View`}
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-3 flex-1 justify-end">
+                    {/* View Toggle */}
+                    <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                      <button
+                        onClick={() => setViewMode('month')}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                          viewMode === 'month'
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        <Calendar className="w-4 h-4" />
+                        Month
+                      </button>
+                      <button
+                        onClick={() => setViewMode('column')}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                          viewMode === 'column'
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        <Columns className="w-4 h-4" />
+                        Column
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div className="p-4 space-y-4">
-            {viewMode === 'month' ? (
-              <div className="bg-white rounded-lg shadow">
-                <MonthViewCalendar
+              <MonthViewCalendar
                   posts={Object.values(scheduledPosts).flat()}
                   uploads={clientUploads}
                   loading={isLoadingScheduledPosts}
@@ -2255,9 +2234,51 @@ export default function CalendarPage() {
                   onDrop={handleMonthViewDrop}
                   dragOverDate={dragOverDate}
                 />
-              </div>
+            </>
             ) : (
-              <div className="bg-white rounded-lg shadow p-4">
+              <>
+                <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center">
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex-1" />
+                    <div className="flex items-center justify-center">
+                      <h2 className="text-lg font-semibold">
+                        {selectedProjectFilter === 'all'
+                          ? `All Projects - ${viewMode === 'month' ? 'Month' : 'Column'} View`
+                          : selectedProjectFilter === 'untagged'
+                            ? `Untagged Posts - ${viewMode === 'month' ? 'Month' : 'Column'} View`
+                            : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'month' ? 'Month' : 'Column'} View`}
+                      </h2>
+                    </div>
+                    <div className="flex items-center gap-3 flex-1 justify-end">
+                      {/* View Toggle */}
+                      <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                        <button
+                          onClick={() => setViewMode('month')}
+                          className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                            viewMode === 'month'
+                              ? 'bg-white text-gray-900 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <Calendar className="w-4 h-4" />
+                          Month
+                        </button>
+                        <button
+                          onClick={() => setViewMode('column')}
+                          className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                            viewMode === 'column'
+                              ? 'bg-white text-gray-900 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <Columns className="w-4 h-4" />
+                          Column
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4">
                 <ColumnViewCalendar
                   weeks={getWeeksToDisplay()}
                   scheduledPosts={scheduledPosts as any}
@@ -2435,12 +2456,13 @@ export default function CalendarPage() {
                     }
                   }}
                 />
-              </div>
+                </div>
+              </>
             )}
-          </div>
+        </div>
 
-          {/* Action Buttons - Below Calendar */}
-          <div className="flex justify-between items-center mt-6 mb-4 mx-8">
+        {/* Action Buttons - Below Calendar */}
+        <div className="flex justify-between items-center mt-6 mb-4 mx-8">
             {/* Left side - Delete, Export, and Approval Link buttons */}
             <div className="flex items-center gap-3">
               <button
@@ -2667,9 +2689,8 @@ export default function CalendarPage() {
               )}
             </div>
           </div>
-        
-        
-        </div>
+        </div> {/* End Main Content */}
+        </div> {/* End Sidebar + Calendar Flex Container */}
       </div>
 
       <Dialog open={showPlanRestrictionDialog} onOpenChange={setShowPlanRestrictionDialog}>

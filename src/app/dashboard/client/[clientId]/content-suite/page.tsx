@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { ArrowLeft, Loader2, Plus, Calendar, Edit3, X, User, Settings, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Calendar, Edit3, X, User, Settings, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import { MediaUploadColumn } from './MediaUploadColumn'
 import { CaptionGenerationColumn } from './CaptionGenerationColumn'
@@ -87,6 +87,9 @@ export default function ContentSuitePage({ params }: PageProps) {
     scheduledDate?: string;
     scheduledTime?: string;
   } | null>(null)
+  
+  // Message state for success/error notifications
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   
   // Client state
   const [client, setClient] = useState<Client | null>(null)
@@ -592,14 +595,27 @@ export default function ContentSuitePage({ params }: PageProps) {
       }
       
       // Show success message and stay on page instead of navigating
-      alert('✅ Successfully added to calendar!')
+      setMessage({ type: 'success', text: 'Successfully added to calendar!' })
+      
+      // Auto-hide success message after 5 seconds
+      setTimeout(() => {
+        setMessage(null)
+      }, 5000)
       
       // Optional: Clear the form or reset state here if desired
       // This allows users to add multiple posts without navigation
       
     } catch (error) {
       console.error('❌ Error adding to calendar:', error)
-      alert(`Failed to add post to calendar: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      setMessage({ 
+        type: 'error', 
+        text: `Failed to add post to calendar: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      })
+      
+      // Auto-hide error message after 7 seconds
+      setTimeout(() => {
+        setMessage(null)
+      }, 7000)
     } finally {
       setIsSendingToScheduler(false)
     }
@@ -635,6 +651,8 @@ export default function ContentSuitePage({ params }: PageProps) {
         handleCancelEdit={handleCancelEdit}
         // Preloaded content props
         preloadedContent={preloadedContent}
+        // Message state
+        message={message}
       />
     </ContentStoreProvider>
   )
@@ -674,6 +692,7 @@ interface ContentSuiteContentProps {
     scheduledDate?: string;
     scheduledTime?: string;
   } | null
+  message: { type: 'success' | 'error'; text: string } | null
 }
 
 // Separate component that has access to the content store context
@@ -704,7 +723,9 @@ function ContentSuiteContent({
   updatingPost,
   handleCancelEdit,
   // Preloaded content props
-  preloadedContent
+  preloadedContent,
+  // Message state
+  message
 }: ContentSuiteContentProps) {
   const { getAccessToken } = useAuth()
   const { 
@@ -1146,16 +1167,39 @@ function ContentSuiteContent({
         </div>
       )}
 
-      {/* Top Section: Content Ideas and Add to Calendar Cards */}
-      <div className="max-w-7xl mx-auto px-6 pt-4">
-        <div className="grid grid-cols-3 gap-6 mb-2">
-          {/* Content Ideas Section - spans 2 columns */}
-          <div className="col-span-2">
-            <ContentIdeasColumn />
+      {/* Success/Error Message Banner */}
+      {message && (
+        <div className={`border-b px-6 py-4 ${
+          message.type === 'success' 
+            ? 'bg-green-50 border-green-200' 
+            : 'bg-red-50 border-red-200'
+        }`}>
+          <div className="flex items-center max-w-7xl mx-auto">
+            {message.type === 'success' ? (
+              <CheckCircle className="w-5 h-5 text-green-600 mr-3 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" />
+            )}
+            <span className={`font-medium ${
+              message.type === 'success' ? 'text-green-800' : 'text-red-800'
+            }`}>
+              {message.text}
+            </span>
           </div>
-          
-          {/* Add to Calendar Card - third column */}
-          <div>
+        </div>
+      )}
+
+      {/* Top Section: Content Ideas and Add to Calendar Cards */}
+      <div className="w-full">
+        <div className="px-6 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+            {/* Content Ideas Section - spans 2 columns */}
+            <div className="col-span-2">
+              <ContentIdeasColumn />
+            </div>
+            
+            {/* Add to Calendar Card - third column */}
+            <div>
             {/* Action Buttons Section - Only show when not editing */}
             {!isEditing && (
               <div className="bg-white rounded-lg border border-gray-200 flex h-[116px]">
@@ -1236,6 +1280,7 @@ function ContentSuiteContent({
           </div>
         </div>
       </div>
+      </div>
 
       {/* Full-width Generated Ideas Section */}
       {contentIdeas.length > 0 && (
@@ -1305,26 +1350,28 @@ function ContentSuiteContent({
       )}
 
       {/* Main Content: Three Columns */}
-      <div className="max-w-7xl mx-auto px-6 pb-8">
-        <div className="grid grid-cols-3 gap-6 items-stretch">
-          {/* Content Suite Columns */}
-          <div className="flex h-full">
-            <MediaUploadColumn />
-          </div>
-          <div className="flex h-full">
-            <CaptionGenerationColumn />
-          </div>
+      <div className="w-full">
+        <div className="px-6 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Content Suite Columns */}
+            <div className="flex h-full overflow-hidden">
+              <MediaUploadColumn />
+            </div>
+            <div className="flex h-full overflow-hidden">
+              <CaptionGenerationColumn />
+            </div>
 
-          {/* Column 3: Social Preview */}
-          <div className="flex h-full">
-            <SocialPreviewColumn
-              clientId={clientId}
-              handleSendToScheduler={handleSendToScheduler}
-              isSendingToScheduler={isSendingToScheduler || updatingPost}
-              isEditing={isEditing}
-              updatingPost={updatingPost}
-              onCustomCaptionChange={handleCustomCaptionChange}
-            />
+            {/* Column 3: Social Preview */}
+            <div className="flex h-full overflow-hidden">
+              <SocialPreviewColumn
+                clientId={clientId}
+                handleSendToScheduler={handleSendToScheduler}
+                isSendingToScheduler={isSendingToScheduler || updatingPost}
+                isEditing={isEditing}
+                updatingPost={updatingPost}
+                onCustomCaptionChange={handleCustomCaptionChange}
+              />
+            </div>
           </div>
         </div>
       </div>
