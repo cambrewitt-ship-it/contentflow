@@ -8,7 +8,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useUIThemeStyles } from "@/hooks/useUITheme";
 import Link from "next/link";
-import CreditBadge from "@/components/CreditBadge";
+// import CreditBadge from "@/components/CreditBadge"; // Temporarily hidden - can be restored later
 
 interface TopBarProps {
   className?: string;
@@ -35,7 +35,7 @@ export default function TopBar({ className = "" }: TopBarProps) {
 
       {/* Right side - Profile Menu */}
       <div className="flex items-center space-x-4">
-        <CreditBadge className="hidden sm:inline-flex" />
+        {/* <CreditBadge className="hidden sm:inline-flex" /> */} {/* Temporarily hidden - can be restored later */}
         {/* Profile Info */}
         <div className="flex items-center space-x-3">
           <div className={getThemeClasses(
