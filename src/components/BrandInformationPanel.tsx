@@ -658,7 +658,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
               </div>
             ) : (
               <div>
-                <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px]">
+                <p className="text-gray-900 bg-gray-50 p-3 rounded-md min-h-[80px] whitespace-pre-wrap">
                   {formData.brand_voice_examples || "No brand voice examples provided yet."}
                 </p>
                 <p className="text-blue-600 text-sm mt-1">

@@ -65,10 +65,11 @@ function buildCSP(): string {
     // - GTM/GA4: Required for analytics and tag management
     // - https://www.google.com: Required for GTM consent mode and tracking (ccm/collect endpoint)
     // - Google Ads: Required for Google Ads tracking and conversion pixels
+    // - Google Ad Services: Required for Google Ads conversion tracking and remarketing
     // - In development, also allow localhost variants
     isDevelopment
-      ? `connect-src 'self' blob: ${supabaseUrl} https://www.google.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
-      : `connect-src 'self' blob: ${supabaseUrl} https://www.google.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net`,
+      ? `connect-src 'self' blob: ${supabaseUrl} https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
+      : `connect-src 'self' blob: ${supabaseUrl} https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net`,
     
     // Media: Allow same origin + blob (for video/audio if needed)
     "media-src 'self' blob:",

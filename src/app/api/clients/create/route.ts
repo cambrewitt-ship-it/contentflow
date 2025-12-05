@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
           value_proposition: value_proposition?.trim() || null,
           caption_dos: caption_dos?.trim() || null,
           caption_donts: caption_donts?.trim() || null,
-          brand_voice_examples: brand_voice_examples?.trim() || null, // Add brand voice examples
+          brand_voice_examples: brand_voice_examples || null, // Preserve formatting (line breaks, spacing) for brand voice examples
           region: region?.trim() || null, // Add region
           timezone: timezone || 'Pacific/Auckland', // Add timezone with default
           late_profile_id: lateProfileId, // Add LATE profile ID
