@@ -5,6 +5,92 @@ import { createContext, useContext, useState, useEffect } from 'react'
 import { uploadMediaToBlob, getMediaType } from './blobUpload'
 import logger from './logger'
 
+// Helper function to compress/resize image if it's too large
+async function compressImageIfNeeded(
+  imageData: string,
+  maxSizeBytes: number = 8 * 1024 * 1024, // 8MB default
+  maxRequestSizeBytes: number = 10 * 1024 * 1024 // 10MB total request body limit
+): Promise<string> {
+  // If it's not a data URL, return as-is
+  if (!imageData.startsWith('data:')) {
+    return imageData
+  }
+
+  // Calculate actual image size
+  const base64Data = imageData.split(',')[1] || imageData
+  const padding = (base64Data.match(/=/g) || []).length
+  const actualSize = Math.floor((base64Data.length * 3) / 4) - padding
+
+  // If image is already small enough, return as-is
+  if (actualSize <= maxSizeBytes) {
+    return imageData
+  }
+
+  try {
+    // Create an image element to get dimensions
+    const img = new Image()
+    const imgLoadPromise = new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = reject
+    })
+    img.src = imageData
+    await imgLoadPromise
+
+    // Calculate target dimensions (max 2048px on longest side, maintain aspect ratio)
+    const maxDimension = 2048
+    let targetWidth = img.width
+    let targetHeight = img.height
+
+    if (img.width > maxDimension || img.height > maxDimension) {
+      if (img.width > img.height) {
+        targetWidth = maxDimension
+        targetHeight = Math.round((img.height / img.width) * maxDimension)
+      } else {
+        targetHeight = maxDimension
+        targetWidth = Math.round((img.width / img.height) * maxDimension)
+      }
+    }
+
+    // Create canvas and compress
+    const canvas = document.createElement('canvas')
+    canvas.width = targetWidth
+    canvas.height = targetHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      logger.warn('Could not get canvas context, returning original image')
+      return imageData
+    }
+
+    // Draw resized image
+    ctx.drawImage(img, 0, 0, targetWidth, targetHeight)
+
+    // Get mime type from original data URL
+    const mimeType = imageData.match(/data:([^;]+)/)?.[1] || 'image/jpeg'
+    const quality = 0.85 // 85% quality for good balance
+
+    // Convert to compressed base64
+    const compressedDataUrl = canvas.toDataURL(mimeType, quality)
+
+    // Check if compression helped
+    const compressedBase64 = compressedDataUrl.split(',')[1] || compressedDataUrl
+    const compressedPadding = (compressedBase64.match(/=/g) || []).length
+    const compressedSize = Math.floor((compressedBase64.length * 3) / 4) - compressedPadding
+
+    logger.info('🖼️ Image compressed', {
+      originalSize: `${(actualSize / (1024 * 1024)).toFixed(2)}MB`,
+      compressedSize: `${(compressedSize / (1024 * 1024)).toFixed(2)}MB`,
+      originalDimensions: `${img.width}x${img.height}`,
+      compressedDimensions: `${targetWidth}x${targetHeight}`,
+    })
+
+    return compressedDataUrl
+  } catch (error) {
+    logger.error('Error compressing image:', error)
+    // If compression fails, return original (will be caught by size check later)
+    return imageData
+  }
+}
+
 export interface Caption {
   id: string
   text: string
@@ -475,6 +561,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       // For videos: DON'T send video data (AI can't analyze videos)
       // For images: Convert blob URL to base64 for OpenAI Vision API
       let imageData = ''
+      let actualImageSize = 0 // Store actual image size in bytes
       
       if (isVideo) {
         // For videos, we send an empty string or a placeholder since the API won't use it anyway
@@ -489,9 +576,11 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
 
         // If it's a blob URL, convert it to base64
         if (imageData.startsWith('blob:')) {
-
           const response = await fetch(imageData)
           const blob = await response.blob()
+          
+          // Store actual blob size before encoding
+          actualImageSize = blob.size
           
           // Convert blob to base64 data URL
           const reader = new FileReader()
@@ -501,16 +590,42 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           })
           reader.readAsDataURL(blob)
           imageData = await base64Promise
+        } else if (imageData.startsWith('data:')) {
+          // If it's already a data URL, calculate actual size from base64
+          // Base64 encoding increases size by ~33%, so we decode it
+          const base64Data = imageData.split(',')[1] || imageData
+          const padding = (base64Data.match(/=/g) || []).length
+          // Calculate actual size: (base64Length * 3) / 4 - padding
+          actualImageSize = Math.floor((base64Data.length * 3) / 4) - padding
+        } else {
+          // For other cases (like direct URLs), we can't determine size easily
+          // Skip size check for these cases
+          actualImageSize = 0
+        }
+
+        // Compress image if it's larger than 8MB (actual size)
+        // This helps ensure the base64-encoded version + request body stays under 10MB
+        if (actualImageSize > 8 * 1024 * 1024) {
+          logger.info('🖼️ Image exceeds 8MB, compressing...', {
+            size: `${(actualImageSize / (1024 * 1024)).toFixed(2)}MB`
+          })
+          imageData = await compressImageIfNeeded(imageData, 8 * 1024 * 1024, 10 * 1024 * 1024)
+          
+          // Recalculate size after compression
+          const compressedBase64 = imageData.split(',')[1] || imageData
+          const compressedPadding = (compressedBase64.match(/=/g) || []).length
+          actualImageSize = Math.floor((compressedBase64.length * 3) / 4) - compressedPadding
         }
       }
       
-      // Check image data size (base64 encoded images can be quite large)
+      // Final check: ensure image isn't too large even after compression
       // Note: Videos send a placeholder, so we only check size for images
-      if (!isVideo && imageData !== 'VIDEO_PLACEHOLDER') {
-        const imageSizeMB = (imageData.length / (1024 * 1024)).toFixed(2)
+      if (!isVideo && imageData !== 'VIDEO_PLACEHOLDER' && actualImageSize > 0) {
+        const imageSizeMB = (actualImageSize / (1024 * 1024)).toFixed(2)
 
-        if (imageData.length > 5 * 1024 * 1024) { // 5MB limit for single image
-          throw new Error(`Image is too large (${imageSizeMB}MB). Please use an image smaller than 5MB.`)
+        // Allow up to 8MB actual image size (becomes ~10.6MB base64, but we'll check total request body)
+        if (actualImageSize > 8 * 1024 * 1024) {
+          throw new Error(`Image is too large (${imageSizeMB}MB) even after compression. Please use an image smaller than 8MB.`)
         }
       }
 
@@ -532,11 +647,35 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         contentType: isVideo ? 'video' : 'image'
       }
 
-      const bodyString = JSON.stringify(requestBody)
-      const bodySizeMB = (bodyString.length / (1024 * 1024)).toFixed(2)
+      let bodyString = JSON.stringify(requestBody)
+      let bodySizeMB = (bodyString.length / (1024 * 1024)).toFixed(2)
 
+      // Final check: ensure total request body doesn't exceed API limit
       if (bodyString.length > 10 * 1024 * 1024) {
-        logger.warn('⚠️ Large request body detected:', bodySizeMB, 'MB')
+        // If compression didn't help enough, try one more aggressive compression
+        if (!isVideo && imageData !== 'VIDEO_PLACEHOLDER' && imageData.startsWith('data:')) {
+          logger.warn('⚠️ Request body still too large after compression, trying more aggressive compression...', {
+            size: `${bodySizeMB}MB`
+          })
+          imageData = await compressImageIfNeeded(imageData, 5 * 1024 * 1024, 10 * 1024 * 1024)
+          
+          // Rebuild request body with compressed image
+          requestBody.imageData = imageData
+          bodyString = JSON.stringify(requestBody)
+          bodySizeMB = (bodyString.length / (1024 * 1024)).toFixed(2)
+          
+          if (bodyString.length > 10 * 1024 * 1024) {
+            throw new Error(
+              `Request body is too large (${bodySizeMB}MB). ` +
+              `Please use a smaller image or reduce the size of your notes.`
+            )
+          }
+        } else {
+          throw new Error(
+            `Request body is too large (${bodySizeMB}MB). ` +
+            `Please use a smaller image or reduce the size of your notes.`
+          )
+        }
       }
 
       // Debug: Log what's being sent to the API (without huge payloads)

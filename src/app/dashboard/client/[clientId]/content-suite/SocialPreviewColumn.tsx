@@ -452,11 +452,11 @@ export function SocialPreviewColumn({
         if (!mediaSrc) return null;
 
         return (
-          <div className="relative">
+          <div className="relative flex items-center justify-center bg-gray-50">
             <img
               src={mediaSrc}
               alt={isVideo ? "Video thumbnail" : "Post content"}
-              className="w-full object-cover"
+              className="w-full object-contain"
               style={{ maxHeight: '400px' }}
             />
             {isVideo && (
@@ -548,11 +548,11 @@ export function SocialPreviewColumn({
         if (!mediaSrc) return null;
 
         return (
-          <div className="relative">
+          <div className="relative flex items-center justify-center bg-gray-50 aspect-square">
             <img
               src={mediaSrc}
               alt={isVideo ? "Video thumbnail" : "Post content"}
-              className="w-full aspect-square object-cover"
+              className="max-w-full max-h-full w-auto h-auto object-contain"
             />
             {isVideo && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/20">
@@ -638,11 +638,11 @@ export function SocialPreviewColumn({
           if (!mediaSrc) return null;
 
           return (
-            <div className="mt-3 rounded-lg overflow-hidden relative">
+            <div className="mt-3 rounded-lg overflow-hidden relative flex items-center justify-center bg-gray-50" style={{ minHeight: '192px' }}>
               <img
                 src={mediaSrc}
                 alt={isVideo ? "Video thumbnail" : "Post content"}
-                className="w-full h-48 object-cover"
+                className="w-full h-auto max-h-48 object-contain"
               />
               {isVideo && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">
@@ -727,11 +727,11 @@ export function SocialPreviewColumn({
           if (!mediaSrc) return null;
 
           return (
-            <div className="mb-4 relative">
+            <div className="mb-4 relative flex items-center justify-center bg-gray-50 rounded-lg" style={{ minHeight: '256px' }}>
               <img
                 src={mediaSrc}
                 alt={isVideo ? "Video thumbnail" : "Email content"}
-                className="w-full max-h-64 object-cover rounded-lg"
+                className="w-full h-auto max-h-64 object-contain rounded-lg"
               />
               {isVideo && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">

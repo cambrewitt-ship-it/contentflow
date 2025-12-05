@@ -29,10 +29,11 @@ function buildCSP(): string {
     // - 'unsafe-eval': Required for Next.js development (hot reload) and some build optimizations
     // - blob:: Required for worker scripts and dynamic imports
     // - GTM domains: Required for Google Tag Manager and Google Analytics
+    // - Google Ads domains: Required for Google Ads scripts
     // TODO: In production, consider using nonces or hashes instead of 'unsafe-inline'
     isDevelopment
-      ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://www.googletagmanager.com https://www.google-analytics.com"
-      : "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://www.googletagmanager.com https://www.google-analytics.com",
+      ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://www.googletagmanager.com https://www.google-analytics.com https://googletagmanager.com https://googleads.g.doubleclick.net https://*.google-analytics.com"
+      : "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://www.googletagmanager.com https://www.google-analytics.com https://googletagmanager.com https://googleads.g.doubleclick.net https://*.google-analytics.com",
     
     // Workers: Allow same origin + blob URLs for web workers
     // - blob:: Required for worker scripts created from blob URLs
@@ -50,8 +51,9 @@ function buildCSP(): string {
     // - blob:: Next.js Image Optimization creates blob URLs
     // - https:: Allow HTTPS images (specifically needed for Supabase storage)
     // - GTM: Required for Google Analytics tracking pixels
+    // - Google Ads: Required for Google Ads tracking pixels
     // Consider restricting https: to specific domains in production for tighter security
-    "img-src 'self' data: blob: https: https://www.google-analytics.com https://www.googletagmanager.com",
+    "img-src 'self' data: blob: https: https://www.google-analytics.com https://www.googletagmanager.com https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net",
     
     // Fonts: Allow same origin + data URIs
     // - data:: For embedded font files
@@ -62,10 +64,11 @@ function buildCSP(): string {
     // - blob:: Required for fetching blob URLs (e.g., image caption generation)
     // - GTM/GA4: Required for analytics and tag management
     // - https://www.google.com: Required for GTM consent mode and tracking (ccm/collect endpoint)
+    // - Google Ads: Required for Google Ads tracking and conversion pixels
     // - In development, also allow localhost variants
     isDevelopment
-      ? `connect-src 'self' blob: ${supabaseUrl} https://www.google.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
-      : `connect-src 'self' blob: ${supabaseUrl} https://www.google.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net`,
+      ? `connect-src 'self' blob: ${supabaseUrl} https://www.google.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
+      : `connect-src 'self' blob: ${supabaseUrl} https://www.google.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net`,
     
     // Media: Allow same origin + blob (for video/audio if needed)
     "media-src 'self' blob:",
