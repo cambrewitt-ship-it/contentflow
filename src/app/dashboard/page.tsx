@@ -287,31 +287,39 @@ export default function Dashboard() {
     <div className="flex-1 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8 text-center mt-[50px]">
-          {/* Current Plan Badge */}
-          <div className="mb-4">
-            <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold border-2 ${getPlanBadgeColor()}`}>
-              {getPlanLabel()}
-            </span>
-          </div>
+        <div className="mb-8 mt-[50px]">
+          <div className="glass-card px-8 py-6 max-w-xl mx-auto">
+            {/* Top Row: Time/Date on Left, Plan Badge on Right */}
+            <div className="flex justify-between items-start mb-6">
+              {/* Time and Date on Left */}
+              <div>
+                <p className="text-4xl font-bold font-mono text-foreground">
+                  {currentTime}
+                </p>
+                <p className="text-lg text-muted-foreground mt-2">
+                  {currentDate}
+                </p>
+              </div>
+              
+              {/* Plan Badge on Right */}
+              <div>
+                <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold border-2 ${getPlanBadgeColor()}`}>
+                  {getPlanLabel()}
+                </span>
+              </div>
+            </div>
 
-          {/* NZST Clock */}
-          <div className="mb-6">
-            <p className="text-4xl font-bold font-mono text-foreground">
-              {currentTime}
-            </p>
-            <p className="text-lg text-muted-foreground mt-2">
-              {currentDate}
-            </p>
+            {/* Welcome back text in the middle */}
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-foreground">
+                Welcome back, {(() => {
+                  const fullName = profile?.full_name || '';
+                  const firstName = fullName.split(' ')[0] || profile?.username || user?.email?.split('@')[0] || 'User';
+                  return firstName;
+                })()}!
+              </h1>
+            </div>
           </div>
-          
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Welcome back, {(() => {
-              const fullName = profile?.full_name || '';
-              const firstName = fullName.split(' ')[0] || profile?.username || user?.email?.split('@')[0] || 'User';
-              return firstName;
-            })()}!
-          </h1>
         </div>
 
 
