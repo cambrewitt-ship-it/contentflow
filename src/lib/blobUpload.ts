@@ -107,23 +107,18 @@ export function isValidBlobUrl(url: string): boolean {
     return true;
   }
   
-  // Check if it's a valid HTTPS URL
-  if (!url.startsWith('https://')) {
-    return false;
+  // Check if it's a valid HTTPS URL (OpenAI Vision API accepts any publicly accessible HTTPS URL)
+  if (url.startsWith('https://')) {
+    // Basic URL format validation
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
   }
   
-  // Check if it's from Vercel Blob storage
-  if (!url.includes('blob.vercel-storage.com')) {
-    return false;
-  }
-  
-  // Basic URL format validation
-  try {
-    new URL(url);
-    return true;
-  } catch {
-    return false;
-  }
+  return false;
 }
 
 // Helper function to validate media data (supports both blob URLs and base64, for images and videos)

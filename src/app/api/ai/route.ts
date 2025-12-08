@@ -649,13 +649,42 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
     ];
 
     if (validation.isValid && imageData && !isVideo && !isVideoPlaceholder) {
-      userContent.push({
-        type: 'image_url',
-        image_url: {
-          url: imageData,
-          detail: 'high',
-        },
-      });
+      // Check if imageData is a URL (HTTPS) or base64
+      const isUrl = imageData.startsWith('https://') || imageData.startsWith('http://');
+      
+      if (isUrl) {
+        // For URLs, OpenAI Vision API will fetch the image
+        // Note: URL must be publicly accessible
+        userContent.push({
+          type: 'image_url',
+          image_url: {
+            url: imageData,
+            detail: 'high',
+          },
+        });
+      } else if (imageData.startsWith('data:')) {
+        // For base64, use data URL format
+        userContent.push({
+          type: 'image_url',
+          image_url: {
+            url: imageData,
+            detail: 'high',
+          },
+        });
+      } else {
+        // Unknown format - log warning but try anyway
+        logger.warn('Unknown image data format, attempting to use as URL', {
+          imageDataPrefix: imageData.substring(0, 50),
+          type: validation.type,
+        });
+        userContent.push({
+          type: 'image_url',
+          image_url: {
+            url: imageData,
+            detail: 'high',
+          },
+        });
+      }
     }
 
     if (copyTone === 'promotional' && !aiContext?.trim()) {

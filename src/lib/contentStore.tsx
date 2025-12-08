@@ -6,9 +6,10 @@ import { uploadMediaToBlob, getMediaType } from './blobUpload'
 import logger from './logger'
 
 // Helper function to compress/resize image if it's too large
+// Uses iterative compression with progressively more aggressive settings
 async function compressImageIfNeeded(
   imageData: string,
-  maxSizeBytes: number = 8 * 1024 * 1024, // 8MB default
+  maxSizeBytes: number = 6 * 1024 * 1024, // 6MB default (accounts for base64 overhead)
   maxRequestSizeBytes: number = 10 * 1024 * 1024 // 10MB total request body limit
 ): Promise<string> {
   // If it's not a data URL, return as-is
@@ -36,54 +37,84 @@ async function compressImageIfNeeded(
     img.src = imageData
     await imgLoadPromise
 
-    // Calculate target dimensions (max 2048px on longest side, maintain aspect ratio)
-    const maxDimension = 2048
-    let targetWidth = img.width
-    let targetHeight = img.height
+    const originalWidth = img.width
+    const originalHeight = img.height
+    const mimeType = imageData.match(/data:([^;]+)/)?.[1] || 'image/jpeg'
+    
+    // Progressive compression: try multiple quality/dimension combinations
+    const compressionAttempts = [
+      { maxDimension: 2048, quality: 0.85 }, // First attempt: moderate compression
+      { maxDimension: 1920, quality: 0.75 }, // Second attempt: more aggressive
+      { maxDimension: 1600, quality: 0.65 }, // Third attempt: very aggressive
+      { maxDimension: 1280, quality: 0.55 }, // Fourth attempt: maximum compression
+    ]
 
-    if (img.width > maxDimension || img.height > maxDimension) {
-      if (img.width > img.height) {
-        targetWidth = maxDimension
-        targetHeight = Math.round((img.height / img.width) * maxDimension)
-      } else {
-        targetHeight = maxDimension
-        targetWidth = Math.round((img.width / img.height) * maxDimension)
+    for (const attempt of compressionAttempts) {
+      // Calculate target dimensions
+      let targetWidth = originalWidth
+      let targetHeight = originalHeight
+
+      if (originalWidth > attempt.maxDimension || originalHeight > attempt.maxDimension) {
+        if (originalWidth > originalHeight) {
+          targetWidth = attempt.maxDimension
+          targetHeight = Math.round((originalHeight / originalWidth) * attempt.maxDimension)
+        } else {
+          targetHeight = attempt.maxDimension
+          targetWidth = Math.round((originalWidth / originalHeight) * attempt.maxDimension)
+        }
+      }
+
+      // Create canvas and compress
+      const canvas = document.createElement('canvas')
+      canvas.width = targetWidth
+      canvas.height = targetHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        logger.warn('Could not get canvas context, returning original image')
+        return imageData
+      }
+
+      // Use better image rendering for compression
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+
+      // Draw resized image
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight)
+
+      // Convert to compressed base64
+      const compressedDataUrl = canvas.toDataURL(mimeType, attempt.quality)
+
+      // Check if compression achieved target size
+      const compressedBase64 = compressedDataUrl.split(',')[1] || compressedDataUrl
+      const compressedPadding = (compressedBase64.match(/=/g) || []).length
+      const compressedSize = Math.floor((compressedBase64.length * 3) / 4) - compressedPadding
+
+      logger.info('🖼️ Image compression attempt', {
+        originalSize: `${(actualSize / (1024 * 1024)).toFixed(2)}MB`,
+        compressedSize: `${(compressedSize / (1024 * 1024)).toFixed(2)}MB`,
+        originalDimensions: `${originalWidth}x${originalHeight}`,
+        compressedDimensions: `${targetWidth}x${targetHeight}`,
+        quality: attempt.quality,
+        maxDimension: attempt.maxDimension,
+      })
+
+      // If we've achieved the target size, return this version
+      if (compressedSize <= maxSizeBytes) {
+        return compressedDataUrl
+      }
+
+      // If this is the last attempt, return it anyway (best we can do)
+      if (attempt === compressionAttempts[compressionAttempts.length - 1]) {
+        logger.warn('⚠️ Image still too large after maximum compression', {
+          finalSize: `${(compressedSize / (1024 * 1024)).toFixed(2)}MB`,
+          targetSize: `${(maxSizeBytes / (1024 * 1024)).toFixed(2)}MB`,
+        })
+        return compressedDataUrl
       }
     }
 
-    // Create canvas and compress
-    const canvas = document.createElement('canvas')
-    canvas.width = targetWidth
-    canvas.height = targetHeight
-    const ctx = canvas.getContext('2d')
-    if (!ctx) {
-      logger.warn('Could not get canvas context, returning original image')
-      return imageData
-    }
-
-    // Draw resized image
-    ctx.drawImage(img, 0, 0, targetWidth, targetHeight)
-
-    // Get mime type from original data URL
-    const mimeType = imageData.match(/data:([^;]+)/)?.[1] || 'image/jpeg'
-    const quality = 0.85 // 85% quality for good balance
-
-    // Convert to compressed base64
-    const compressedDataUrl = canvas.toDataURL(mimeType, quality)
-
-    // Check if compression helped
-    const compressedBase64 = compressedDataUrl.split(',')[1] || compressedDataUrl
-    const compressedPadding = (compressedBase64.match(/=/g) || []).length
-    const compressedSize = Math.floor((compressedBase64.length * 3) / 4) - compressedPadding
-
-    logger.info('🖼️ Image compressed', {
-      originalSize: `${(actualSize / (1024 * 1024)).toFixed(2)}MB`,
-      compressedSize: `${(compressedSize / (1024 * 1024)).toFixed(2)}MB`,
-      originalDimensions: `${img.width}x${img.height}`,
-      compressedDimensions: `${targetWidth}x${targetHeight}`,
-    })
-
-    return compressedDataUrl
+    // Fallback: return original if all attempts somehow failed
+    return imageData
   } catch (error) {
     logger.error('Error compressing image:', error)
     // If compression fails, return original (will be caught by size check later)
@@ -568,14 +599,41 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         // The API route will detect this is a video from the request and skip visual analysis
         imageData = 'VIDEO_PLACEHOLDER' // Placeholder to indicate video content
       } else {
-        // IMAGES ONLY: Convert blob URL to base64 data URL for OpenAI API
+        // IMAGES ONLY: Use Vercel Blob URL directly (OpenAI Vision API supports URLs!)
+        // Only convert browser blob URLs or base64 to base64 if needed
         imageData = image.blobUrl || image.preview
         if (!imageData) {
           throw new Error('No image data available for AI processing')
         }
 
-        // If it's a blob URL, convert it to base64
-        if (imageData.startsWith('blob:')) {
+        // Check if it's a Vercel Blob URL (HTTPS) - send directly, no conversion needed!
+        const isVercelBlobUrl = imageData.startsWith('https://') && (
+          imageData.includes('blob.vercel-storage.com') || 
+          imageData.includes('vercel-storage.com') ||
+          imageData.includes('public.blob.vercel-storage.com')
+        )
+        
+        // Check if it's any other HTTPS URL (could be from other CDNs)
+        const isAnyHttpsUrl = imageData.startsWith('https://')
+        
+        // Check if it's a browser blob URL (blob:http://...) - needs conversion
+        const isBrowserBlobUrl = imageData.startsWith('blob:')
+        
+        // Check if it's already base64
+        const isBase64 = imageData.startsWith('data:')
+
+        if (isVercelBlobUrl || (isAnyHttpsUrl && !isBase64)) {
+          // HTTPS URLs: Send directly! OpenAI Vision API accepts publicly accessible HTTPS URLs.
+          // This avoids the 413 error entirely since we're just sending a URL string (~100 bytes)
+          // instead of a huge base64 payload (10MB+)
+          logger.info('✅ Using HTTPS URL directly (no base64 conversion needed)', {
+            url: imageData.substring(0, 80) + '...',
+            isVercelBlob: isVercelBlobUrl
+          })
+          actualImageSize = 0 // No size check needed for URLs
+        } else if (isBrowserBlobUrl) {
+          // Browser blob URLs: Convert to base64 (OpenAI can't access browser blob URLs)
+          logger.info('🔄 Converting browser blob URL to base64...')
           const response = await fetch(imageData)
           const blob = await response.blob()
           
@@ -590,42 +648,41 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           })
           reader.readAsDataURL(blob)
           imageData = await base64Promise
-        } else if (imageData.startsWith('data:')) {
-          // If it's already a data URL, calculate actual size from base64
-          // Base64 encoding increases size by ~33%, so we decode it
+          
+          // Compress if needed (browser blob URLs might be large)
+          if (actualImageSize > 6 * 1024 * 1024) {
+            logger.info('🖼️ Browser blob image exceeds 6MB, compressing...', {
+              size: `${(actualImageSize / (1024 * 1024)).toFixed(2)}MB`
+            })
+            imageData = await compressImageIfNeeded(imageData, 6 * 1024 * 1024, 10 * 1024 * 1024)
+            
+            // Recalculate size after compression
+            const compressedBase64 = imageData.split(',')[1] || imageData
+            const compressedPadding = (compressedBase64.match(/=/g) || []).length
+            actualImageSize = Math.floor((compressedBase64.length * 3) / 4) - compressedPadding
+          }
+        } else if (isBase64) {
+          // Already base64: Calculate size and compress if needed
           const base64Data = imageData.split(',')[1] || imageData
           const padding = (base64Data.match(/=/g) || []).length
-          // Calculate actual size: (base64Length * 3) / 4 - padding
           actualImageSize = Math.floor((base64Data.length * 3) / 4) - padding
-        } else {
-          // For other cases (like direct URLs), we can't determine size easily
-          // Skip size check for these cases
-          actualImageSize = 0
-        }
-
-        // Compress image if it's larger than 8MB (actual size)
-        // This helps ensure the base64-encoded version + request body stays under 10MB
-        if (actualImageSize > 8 * 1024 * 1024) {
-          logger.info('🖼️ Image exceeds 8MB, compressing...', {
-            size: `${(actualImageSize / (1024 * 1024)).toFixed(2)}MB`
-          })
-          imageData = await compressImageIfNeeded(imageData, 8 * 1024 * 1024, 10 * 1024 * 1024)
           
-          // Recalculate size after compression
-          const compressedBase64 = imageData.split(',')[1] || imageData
-          const compressedPadding = (compressedBase64.match(/=/g) || []).length
-          actualImageSize = Math.floor((compressedBase64.length * 3) / 4) - compressedPadding
-        }
-      }
-      
-      // Final check: ensure image isn't too large even after compression
-      // Note: Videos send a placeholder, so we only check size for images
-      if (!isVideo && imageData !== 'VIDEO_PLACEHOLDER' && actualImageSize > 0) {
-        const imageSizeMB = (actualImageSize / (1024 * 1024)).toFixed(2)
-
-        // Allow up to 8MB actual image size (becomes ~10.6MB base64, but we'll check total request body)
-        if (actualImageSize > 8 * 1024 * 1024) {
-          throw new Error(`Image is too large (${imageSizeMB}MB) even after compression. Please use an image smaller than 8MB.`)
+          // Compress if needed
+          if (actualImageSize > 6 * 1024 * 1024) {
+            logger.info('🖼️ Base64 image exceeds 6MB, compressing...', {
+              size: `${(actualImageSize / (1024 * 1024)).toFixed(2)}MB`
+            })
+            imageData = await compressImageIfNeeded(imageData, 6 * 1024 * 1024, 10 * 1024 * 1024)
+            
+            // Recalculate size after compression
+            const compressedBase64 = imageData.split(',')[1] || imageData
+            const compressedPadding = (compressedBase64.match(/=/g) || []).length
+            actualImageSize = Math.floor((compressedBase64.length * 3) / 4) - compressedPadding
+          }
+        } else {
+          // Unknown format - assume it's a URL and send directly
+          logger.warn('⚠️ Unknown image format, sending as URL:', imageData.substring(0, 50))
+          actualImageSize = 0
         }
       }
 
@@ -647,17 +704,33 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         contentType: isVideo ? 'video' : 'image'
       }
 
+      // Convert request body to string (always needed for fetch)
       let bodyString = JSON.stringify(requestBody)
-      let bodySizeMB = (bodyString.length / (1024 * 1024)).toFixed(2)
+      
+      // Only check request body size for base64 images (URLs are tiny)
+      const isBase64Image = !isVideo && imageData !== 'VIDEO_PLACEHOLDER' && imageData.startsWith('data:')
+      
+      if (isBase64Image) {
+        let bodySizeMB = (bodyString.length / (1024 * 1024)).toFixed(2)
 
-      // Final check: ensure total request body doesn't exceed API limit
-      if (bodyString.length > 10 * 1024 * 1024) {
-        // If compression didn't help enough, try one more aggressive compression
-        if (!isVideo && imageData !== 'VIDEO_PLACEHOLDER' && imageData.startsWith('data:')) {
-          logger.warn('⚠️ Request body still too large after compression, trying more aggressive compression...', {
-            size: `${bodySizeMB}MB`
+        // Check if base64 image + other fields exceed the limit
+        if (bodyString.length > 10 * 1024 * 1024) {
+          // Calculate how much we need to reduce the image
+          const otherFieldsSize = JSON.stringify({
+            ...requestBody,
+            imageData: ''
+          }).length
+          const currentBase64Size = (imageData.split(',')[1] || imageData).length
+          const excessSize = bodyString.length - (10 * 1024 * 1024)
+          const targetBase64Size = Math.max(0, currentBase64Size - excessSize - 1000) // 1KB buffer
+          const targetActualSize = Math.floor((targetBase64Size * 3) / 4) // Convert base64 size to actual size
+          
+          logger.warn('⚠️ Request body too large, attempting maximum compression...', {
+            size: `${bodySizeMB}MB`,
+            targetActualSize: `${(targetActualSize / (1024 * 1024)).toFixed(2)}MB`
           })
-          imageData = await compressImageIfNeeded(imageData, 5 * 1024 * 1024, 10 * 1024 * 1024)
+          
+          imageData = await compressImageIfNeeded(imageData, Math.max(2 * 1024 * 1024, targetActualSize), 10 * 1024 * 1024)
           
           // Rebuild request body with compressed image
           requestBody.imageData = imageData
@@ -666,24 +739,25 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           
           if (bodyString.length > 10 * 1024 * 1024) {
             throw new Error(
-              `Request body is too large (${bodySizeMB}MB). ` +
-              `Please use a smaller image or reduce the size of your notes.`
+              `Request body is too large (${bodySizeMB}MB) even after maximum compression. ` +
+              `Please use a smaller image (under 4MB) or reduce the size of your notes.`
             )
           }
-        } else {
-          throw new Error(
-            `Request body is too large (${bodySizeMB}MB). ` +
-            `Please use a smaller image or reduce the size of your notes.`
-          )
         }
       }
 
       // Debug: Log what's being sent to the API (without huge payloads)
       try {
         const { imageData: _, ...debugBody } = requestBody
+        const imageDataType = imageData.startsWith('https://') ? 'HTTPS URL' : 
+                             imageData.startsWith('data:') ? 'Base64' : 
+                             imageData.startsWith('blob:') ? 'Browser Blob' : 
+                             'Unknown'
         logger.info('🛰️ Sending AI request body:', {
           ...debugBody,
           hasImageData: !!imageData,
+          imageDataType,
+          imageDataPreview: imageData.substring(0, 100) + (imageData.length > 100 ? '...' : ''),
         })
       } catch (_) {}
 
@@ -761,8 +835,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         throw new Error(`Failed to generate captions: ${response.status}`)
       }
 
-      if (data.captions && Array.isArray(data.captions)) {
-
+      if (data.captions && Array.isArray(data.captions) && data.captions.length > 0) {
         // Convert the captions array to the expected format with IDs
         const newCaptions = data.captions.map((text: string, index: number) => ({
           id: `caption-${Date.now()}-${index}`,
@@ -778,7 +851,16 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           window.dispatchEvent(new CustomEvent('credits-used'));
         }
       } else {
-        logger.error('No captions in response or not an array:', data)
+        logger.error('No captions in response or empty array:', {
+          hasCaptions: !!data.captions,
+          isArray: Array.isArray(data.captions),
+          captionsLength: Array.isArray(data.captions) ? data.captions.length : 0,
+          responseData: data
+        })
+        throw new Error(
+          data.error || 
+          'No captions were generated. Please try again with different content or notes.'
+        )
       }
     } catch (error) {
       logger.error('Error generating AI captions:', error)
