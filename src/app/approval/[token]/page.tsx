@@ -531,14 +531,26 @@ export default function PublicApprovalPage() {
                             </label>
                             <textarea
                               value={editedCaptions[`${post.post_type}-${post.id}`] || post.caption}
-                              onChange={e =>
+                              onChange={e => {
                                 setEditedCaptions(prev => ({
                                   ...prev,
                                   [`${post.post_type}-${post.id}`]: e.target.value,
-                                }))
-                              }
-                              className="w-full p-2 text-sm border border-gray-300 rounded resize-none"
-                              rows={3}
+                                }));
+                                // Auto-expand textarea
+                                e.target.style.height = 'auto';
+                                e.target.style.height = Math.max(60, e.target.scrollHeight) + 'px';
+                              }}
+                              className="w-full p-2 text-sm border border-gray-300 rounded resize-none overflow-hidden"
+                              style={{ 
+                                minHeight: '60px',
+                                height: 'auto',
+                              }}
+                              ref={(textarea) => {
+                                if (textarea) {
+                                  textarea.style.height = 'auto';
+                                  textarea.style.height = Math.max(60, textarea.scrollHeight) + 'px';
+                                }
+                              }}
                             />
                             {editedCaptions[`${post.post_type}-${post.id}`] &&
                               editedCaptions[`${post.post_type}-${post.id}`] !== post.caption && (
