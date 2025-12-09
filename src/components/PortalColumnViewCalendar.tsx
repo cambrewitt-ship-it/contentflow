@@ -767,22 +767,27 @@ export function PortalColumnViewCalendar({
   deletingUploadIds,
 }: PortalColumnViewCalendarProps) {
   const clientUploadsMap = clientUploads ?? {};
-  const VISIBLE_WEEK_COUNT = 3;
+  const VISIBLE_WEEK_COUNT = 5; // Show 5 weeks: 1 partial before, 3 main, 1 partial after
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
   const [startWeek, setStartWeek] = useState<Date | null>(() => {
+    let initial: Date;
     if (weeks.length > 0) {
-      const initialWeek = new Date(weeks[0]);
-      initialWeek.setHours(0, 0, 0, 0);
-      return initialWeek;
+      initial = new Date(weeks[0]);
+      initial.setHours(0, 0, 0, 0);
+    } else {
+      const today = new Date();
+      const currentWeekStart = new Date(today);
+      const dayOfWeek = currentWeekStart.getDay();
+      const diff = currentWeekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+      currentWeekStart.setDate(diff);
+      currentWeekStart.setHours(0, 0, 0, 0);
+      initial = currentWeekStart;
     }
-    const today = new Date();
-    const currentWeekStart = new Date(today);
-    const dayOfWeek = currentWeekStart.getDay();
-    const diff = currentWeekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    currentWeekStart.setDate(diff);
-    currentWeekStart.setHours(0, 0, 0, 0);
-    return currentWeekStart;
+    // Start one week earlier to show partial week before
+    const adjusted = new Date(initial);
+    adjusted.setDate(initial.getDate() - 7);
+    return adjusted;
   });
   const hasInitializedStartWeek = useRef(false);
 
@@ -808,7 +813,10 @@ export function PortalColumnViewCalendar({
     if (!hasInitializedStartWeek.current && weeks.length > 0) {
       const firstWeek = new Date(weeks[0]);
       firstWeek.setHours(0, 0, 0, 0);
-      setStartWeek(firstWeek);
+      // Start one week earlier to show partial week before
+      const adjusted = new Date(firstWeek);
+      adjusted.setDate(firstWeek.getDate() - 7);
+      setStartWeek(adjusted);
       hasInitializedStartWeek.current = true;
     }
   }, [weeks]);
@@ -1064,7 +1072,7 @@ export function PortalColumnViewCalendar({
         <button
           type="button"
           onClick={() => handleNavigate('left')}
-          className="absolute top-[1.5rem] left-4 z-10 flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white text-gray-600 shadow-md transition hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="absolute -top-[4.75rem] left-4 z-10 flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white text-gray-600 shadow-md transition hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
           aria-label="Scroll to previous weeks"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -1072,25 +1080,27 @@ export function PortalColumnViewCalendar({
         <button
           type="button"
           onClick={() => handleNavigate('right')}
-          className="absolute top-[1.5rem] right-4 z-10 flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white text-gray-600 shadow-md transition hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="absolute -top-[4.75rem] right-4 z-10 flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white text-gray-600 shadow-md transition hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
           aria-label="Scroll to next weeks"
         >
           <ArrowRight className="h-5 w-5" />
         </button>
         <div
-          className="flex justify-center gap-2 overflow-x-hidden pb-4 px-2 pt-4 min-h-screen"
+          className="flex justify-center gap-2 overflow-x-clip pb-4 px-2 pt-4 min-h-screen max-w-[1312px] mx-auto"
         >
-          {columns.map((column) => {
+          {columns.map((column, index) => {
             const isCurrent = isCurrentWeek(column.weekStart);
+            const isEdgeColumn = index === 0 || index === columns.length - 1;
+            const opacityClass = isEdgeColumn ? 'opacity-40' : 'opacity-100';
             
             return (
               <div
                 key={column.weekStart.toISOString()}
                 data-week-column
-                className="flex-shrink-0 w-80 rounded-lg border-2 border-transparent p-4 transition-all duration-200"
+                className={`flex-shrink-0 w-80 rounded-lg border-2 border-transparent p-4 transition-all duration-200 ${opacityClass}`}
               >
                 {/* Column Header */}
-                <div className="flex items-center justify-between mb-4 pb-2 px-3 py-2 rounded bg-gray-700">
+                <div className={`flex items-center justify-center mb-4 pb-2 px-3 py-2 rounded ${isCurrent ? 'bg-blue-900' : 'bg-gray-700'}`}>
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-white" />
                     <h3 className="font-semibold text-sm uppercase tracking-wide text-white">

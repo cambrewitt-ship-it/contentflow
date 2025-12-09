@@ -77,7 +77,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     type: 'upload' | 'approval' | 'scheduled' | 'published' | 'portal_visit' | 'next_scheduled';
     title: string;
     timestamp: string;
-    status: 'completed' | 'approved' | 'scheduled' | 'published' | 'upload' | 'none';
+    status: 'completed' | 'approved' | 'scheduled' | 'published' | 'upload' | 'none' | 'not_posted';
     timeAgo?: string;
     count?: number;
     details?: any;
@@ -195,9 +195,27 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     try {
       setScheduledPostsLoading(true)
       
-      const response = await fetch(`/api/calendar/scheduled?clientId=${clientId}&limit=500`)
+      const accessToken = getAccessToken()
+      if (!accessToken) {
+        console.log('⚠️ No access token available for scheduled posts fetch')
+        return
+      }
+      
+      const response = await fetch(`/api/calendar/scheduled?clientId=${clientId}&limit=200`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
       
       if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        console.error('❌ Scheduled posts fetch error:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+          clientId
+        })
         throw new Error(`Failed to fetch scheduled posts: ${response.statusText}`)
       }
       
@@ -228,7 +246,18 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     try {
       setActivityLoading(true)
       
-      const response = await fetch(`/api/clients/${clientId}/activity-logs`)
+      const accessToken = getAccessToken()
+      if (!accessToken) {
+        console.log('⚠️ No access token available for activity logs fetch')
+        return
+      }
+      
+      const response = await fetch(`/api/clients/${clientId}/activity-logs`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
       
       if (!response.ok) {
         throw new Error(`Failed to fetch activity logs: ${response.statusText}`)
@@ -772,6 +801,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Approved</span>;
       case 'scheduled':
         return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Scheduled</span>;
+      case 'not_posted':
+        return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Not Posted Yet</span>;
       case 'completed':
         return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Completed</span>;
       case 'none':

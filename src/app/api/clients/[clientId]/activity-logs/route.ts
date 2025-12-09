@@ -109,19 +109,29 @@ export async function GET(
     // Add next scheduled post as activity entry
     const nextPost = nextPostData && nextPostData.length > 0 ? nextPostData[0] : null;
     if (nextPost) {
-      // Determine if post is published or just scheduled
-      const isPublished = nextPost.platforms_scheduled && nextPost.platforms_scheduled.length > 0;
+      // Determine post status based on late_status
+      // Only show as "published" if late_status is 'published' (actually posted to social media)
+      // Show as "scheduled" if late_status is 'scheduled' (queued in LATE but not yet posted)
+      // Show as "not_posted" if no late_status or pending (not sent to LATE yet)
+      const isPublished = nextPost.late_status === 'published';
+      const isScheduledInLate = nextPost.late_status === 'scheduled';
       
-      // TEMPORARY DEBUG: Force published status for testing
-      // TODO: Remove this after confirming the fix works
-      const forcePublished = true; // Set to false to use original logic
+      let status: string;
+      if (isPublished) {
+        status = 'published';
+      } else if (isScheduledInLate) {
+        status = 'scheduled';
+      } else {
+        status = 'not_posted';
+      }
       
       // Debug logging for upcoming post status
       logger.debug('Upcoming post status determination', {
         postId: nextPost.id,
+        late_status: nextPost.late_status,
         platforms_scheduled: nextPost.platforms_scheduled,
         platformsCount: nextPost.platforms_scheduled?.length || 0,
-        isPublished,
+        determinedStatus: status,
         scheduledDate: nextPost.scheduled_date,
         scheduledTime: nextPost.scheduled_time
       });
@@ -135,7 +145,7 @@ export async function GET(
           year: 'numeric'
         })} at ${nextPost.scheduled_time}`,
         timestamp: new Date().toISOString(), // Current time to show at top
-        status: (forcePublished || isPublished) ? 'published' : 'scheduled',
+        status: status,
         timeAgo: 'Upcoming',
         details: {
           caption: nextPost.caption?.substring(0, 100) || 'No caption',
@@ -143,7 +153,8 @@ export async function GET(
           platforms: nextPost.platforms_scheduled || [],
           scheduledDate: nextPost.scheduled_date,
           scheduledTime: nextPost.scheduled_time,
-          isPublished
+          isPublished,
+          lateStatus: nextPost.late_status
         }
       });
     } else {

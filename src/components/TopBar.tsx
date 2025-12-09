@@ -24,7 +24,7 @@ export default function TopBar({ className = "" }: TopBarProps) {
       `glass-card border-b border-white/20 px-6 py-4 flex items-center justify-between ${className}`
     )}>
       {/* Left side - Logo/Brand */}
-      <div className="flex items-center">
+      <div className="flex items-center flex-1">
         <h1 className={getThemeClasses(
           "text-xl font-bold text-gray-900",
           "text-xl font-bold glass-text-primary"
@@ -33,8 +33,21 @@ export default function TopBar({ className = "" }: TopBarProps) {
         </h1>
       </div>
 
+      {/* Center - See Plans Button */}
+      <div className="flex items-center justify-center">
+        <Link href="/pricing">
+          <Button 
+            variant="default" 
+            size="sm"
+            className="flex items-center space-x-2"
+          >
+            <span>See Plans</span>
+          </Button>
+        </Link>
+      </div>
+
       {/* Right side - Profile Menu */}
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-4 flex-1 justify-end">
         {/* <CreditBadge className="hidden sm:inline-flex" /> */} {/* Temporarily hidden - can be restored later */}
         {/* Profile Info */}
         <div className="flex items-center space-x-3">

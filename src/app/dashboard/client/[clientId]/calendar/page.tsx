@@ -2182,45 +2182,31 @@ export default function CalendarPage() {
         >
           {viewMode === 'month' ? (
             <>
-              <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center">
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex-1" />
-                  <div className="flex items-center justify-center">
-                    <h2 className="text-lg font-semibold">
-                      {selectedProjectFilter === 'all'
-                        ? `All Projects - ${viewMode === 'month' ? 'Month' : 'Column'} View`
-                        : selectedProjectFilter === 'untagged'
-                          ? `Untagged Posts - ${viewMode === 'month' ? 'Month' : 'Column'} View`
-                          : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'month' ? 'Month' : 'Column'} View`}
-                    </h2>
-                  </div>
-                  <div className="flex items-center gap-3 flex-1 justify-end">
-                    {/* View Toggle */}
-                    <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                      <button
-                        onClick={() => setViewMode('month')}
-                        className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                          viewMode === 'month'
-                            ? 'bg-white text-gray-900 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                        }`}
-                      >
-                        <Calendar className="w-4 h-4" />
-                        Month
-                      </button>
-                      <button
-                        onClick={() => setViewMode('column')}
-                        className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                          viewMode === 'column'
-                            ? 'bg-white text-gray-900 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                        }`}
-                      >
-                        <Columns className="w-4 h-4" />
-                        Column
-                      </button>
-                    </div>
-                  </div>
+              <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center justify-center">
+                {/* View Toggle */}
+                <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('month')}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                      viewMode === 'month'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Month
+                  </button>
+                  <button
+                    onClick={() => setViewMode('column')}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                      viewMode === 'column'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Columns className="w-4 h-4" />
+                    Column
+                  </button>
                 </div>
               </div>
               <MonthViewCalendar
@@ -2237,45 +2223,31 @@ export default function CalendarPage() {
             </>
             ) : (
               <>
-                <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center">
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex-1" />
-                    <div className="flex items-center justify-center">
-                      <h2 className="text-lg font-semibold">
-                        {selectedProjectFilter === 'all'
-                          ? `All Projects - ${viewMode === 'month' ? 'Month' : 'Column'} View`
-                          : selectedProjectFilter === 'untagged'
-                            ? `Untagged Posts - ${viewMode === 'month' ? 'Month' : 'Column'} View`
-                            : `${projects.find(p => p.id === selectedProjectFilter)?.name || 'Project'} - ${viewMode === 'month' ? 'Month' : 'Column'} View`}
-                      </h2>
-                    </div>
-                    <div className="flex items-center gap-3 flex-1 justify-end">
-                      {/* View Toggle */}
-                      <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                        <button
-                          onClick={() => setViewMode('month')}
-                          className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                            viewMode === 'month'
-                              ? 'bg-white text-gray-900 shadow-sm'
-                              : 'text-gray-600 hover:text-gray-900'
-                          }`}
-                        >
-                          <Calendar className="w-4 h-4" />
-                          Month
-                        </button>
-                        <button
-                          onClick={() => setViewMode('column')}
-                          className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                            viewMode === 'column'
-                              ? 'bg-white text-gray-900 shadow-sm'
-                              : 'text-gray-600 hover:text-gray-900'
-                          }`}
-                        >
-                          <Columns className="w-4 h-4" />
-                          Column
-                        </button>
-                      </div>
-                    </div>
+                <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center justify-center">
+                  {/* View Toggle */}
+                  <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => setViewMode('month')}
+                      className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                        viewMode === 'month'
+                          ? 'bg-white text-gray-900 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      <Calendar className="w-4 h-4" />
+                      Month
+                    </button>
+                    <button
+                      onClick={() => setViewMode('column')}
+                      className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                        viewMode === 'column'
+                          ? 'bg-white text-gray-900 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      <Columns className="w-4 h-4" />
+                      Column
+                    </button>
                   </div>
                 </div>
                 <div className="p-4">
