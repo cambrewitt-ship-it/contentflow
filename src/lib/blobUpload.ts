@@ -1,18 +1,120 @@
 import logger from '@/lib/logger';
 
+// Helper function to compress/resize image if it's too large (same as in contentStore)
+async function compressImageIfNeeded(
+  imageData: string,
+  maxSizeBytes: number = 3 * 1024 * 1024, // 3MB default
+  maxRequestSizeBytes: number = 4.5 * 1024 * 1024 // 4.5MB total request body limit
+): Promise<string> {
+  if (!imageData.startsWith('data:')) {
+    return imageData;
+  }
+
+  const base64Data = imageData.split(',')[1] || imageData;
+  const padding = (base64Data.match(/=/g) || []).length;
+  const actualSize = Math.floor((base64Data.length * 3) / 4) - padding;
+
+  if (actualSize <= maxSizeBytes) {
+    return imageData;
+  }
+
+  try {
+    const img = new Image();
+    const imgLoadPromise = new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = reject;
+    });
+    img.src = imageData;
+    await imgLoadPromise;
+
+    const originalWidth = img.width;
+    const originalHeight = img.height;
+    const mimeType = imageData.match(/data:([^;]+)/)?.[1] || 'image/jpeg';
+    
+    const compressionAttempts = [
+      { maxDimension: 1920, quality: 0.75 },
+      { maxDimension: 1600, quality: 0.65 },
+      { maxDimension: 1280, quality: 0.55 },
+      { maxDimension: 1024, quality: 0.45 },
+    ];
+
+    for (const attempt of compressionAttempts) {
+      let targetWidth = originalWidth;
+      let targetHeight = originalHeight;
+
+      if (originalWidth > attempt.maxDimension || originalHeight > attempt.maxDimension) {
+        if (originalWidth > originalHeight) {
+          targetWidth = attempt.maxDimension;
+          targetHeight = Math.round((originalHeight / originalWidth) * attempt.maxDimension);
+        } else {
+          targetHeight = attempt.maxDimension;
+          targetWidth = Math.round((originalWidth / originalHeight) * attempt.maxDimension);
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return imageData;
+      }
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+      const compressedDataUrl = canvas.toDataURL(mimeType, attempt.quality);
+      const compressedBase64 = compressedDataUrl.split(',')[1] || compressedDataUrl;
+      const compressedPadding = (compressedBase64.match(/=/g) || []).length;
+      const compressedSize = Math.floor((compressedBase64.length * 3) / 4) - compressedPadding;
+
+      if (compressedSize <= maxSizeBytes) {
+        return compressedDataUrl;
+      }
+
+      if (attempt === compressionAttempts[compressionAttempts.length - 1]) {
+        return compressedDataUrl;
+      }
+    }
+
+    return imageData;
+  } catch (error) {
+    logger.error('Error compressing image for upload:', error);
+    return imageData;
+  }
+}
+
 // Upload media (images or videos) to blob storage
 export async function uploadMediaToBlob(
   mediaFile: File | Blob,
   filename: string
 ): Promise<{ url: string; mediaType: 'image' | 'video'; mimeType: string }> {
   try {
+    const isVideo = mediaFile.type.startsWith('video/');
+    
     // Convert file to base64 first
-    const base64Data = await new Promise<string>((resolve, reject) => {
+    let base64Data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
       reader.onerror = () => reject(new Error('Failed to read media file'));
       reader.readAsDataURL(mediaFile);
     });
+
+    // For images, compress before uploading to avoid 4.5MB request body limit
+    if (!isVideo && base64Data.startsWith('data:image/')) {
+      const originalSize = (base64Data.length * 3) / 4;
+      if (originalSize > 3 * 1024 * 1024) {
+        logger.info('🖼️ Compressing image before upload to avoid size limits...', {
+          originalSize: `${(originalSize / (1024 * 1024)).toFixed(2)}MB`
+        });
+        base64Data = await compressImageIfNeeded(base64Data, 3 * 1024 * 1024, 4.5 * 1024 * 1024);
+        const compressedSize = (base64Data.length * 3) / 4;
+        logger.info('✅ Image compressed for upload', {
+          compressedSize: `${(compressedSize / (1024 * 1024)).toFixed(2)}MB`
+        });
+      }
+    }
 
     const mediaType = mediaFile.type.startsWith('video/') ? 'video' : 'image';
 
@@ -31,8 +133,18 @@ export async function uploadMediaToBlob(
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(errorData.error || `Upload failed with status ${response.status}`);
+      let errorData: any;
+      try {
+        errorData = await response.json();
+      } catch {
+        const text = await response.text().catch(() => 'No error details');
+        errorData = { error: `Upload failed with status ${response.status}`, details: text };
+      }
+      
+      const error = new Error(errorData.error || `Upload failed with status ${response.status}`);
+      (error as any).status = response.status;
+      (error as any).data = errorData;
+      throw error;
     }
 
     const data = await response.json();
@@ -48,26 +160,44 @@ export async function uploadMediaToBlob(
     };
     
   } catch (error) {
-    logger.error('❌ Error uploading to blob:', error);
+    // Log detailed error information
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStatus = (error as any)?.status || (error as any)?.response?.status;
+    const errorData = (error as any)?.response?.data || (error as any)?.data;
     
-    // Fallback: convert to base64 data URL
-
-    const base64Data = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        resolve(reader.result as string);
-      };
-      reader.onerror = () => {
-        reject(new Error('Failed to convert media to base64'));
-      };
-      reader.readAsDataURL(mediaFile);
+    logger.error('❌ Error uploading to blob:', {
+      message: errorMessage,
+      status: errorStatus,
+      data: errorData,
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      } : error
     });
     
-    return {
-      url: base64Data,
-      mediaType: mediaFile.type.startsWith('video/') ? 'video' : 'image',
-      mimeType: mediaFile.type
-    };
+    // Fallback: convert to base64 data URL
+    try {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          resolve(reader.result as string);
+        };
+        reader.onerror = () => {
+          reject(new Error('Failed to convert media to base64'));
+        };
+        reader.readAsDataURL(mediaFile);
+      });
+      
+      return {
+        url: base64Data,
+        mediaType: mediaFile.type.startsWith('video/') ? 'video' : 'image',
+        mimeType: mediaFile.type
+      };
+    } catch (fallbackError) {
+      logger.error('❌ Fallback base64 conversion also failed:', fallbackError);
+      throw new Error(`Upload failed: ${errorMessage}. Fallback also failed.`);
+    }
   }
 }
 

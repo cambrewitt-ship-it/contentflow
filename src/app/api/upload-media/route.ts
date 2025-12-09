@@ -13,6 +13,24 @@ const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
 
 export async function POST(request: NextRequest) {
   try {
+    // Check content length first to avoid reading huge request bodies
+    const contentLength = request.headers.get('content-length');
+    const VERCEL_API_LIMIT = 4.5 * 1024 * 1024; // 4.5MB - Vercel's hard limit
+    if (contentLength && parseInt(contentLength) > VERCEL_API_LIMIT) {
+      const sizeMB = (parseInt(contentLength) / (1024 * 1024)).toFixed(2);
+      logger.warn('Upload request too large', {
+        size: `${sizeMB}MB`,
+        limit: `${(VERCEL_API_LIMIT / (1024 * 1024)).toFixed(2)}MB`
+      });
+      return NextResponse.json(
+        {
+          error: 'Request too large',
+          message: `Request body is ${sizeMB}MB, maximum allowed is ${(VERCEL_API_LIMIT / (1024 * 1024)).toFixed(2)}MB. Please compress your image before uploading.`,
+        },
+        { status: 413 }
+      );
+    }
+
     const { mediaData, filename, mediaType } = await request.json();
 
     if (!mediaData) {
@@ -86,9 +104,24 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Error uploading media to blob:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorDetails = error instanceof Error ? {
+      name: error.name,
+      message: error.message,
+      stack: error.stack?.split('\n').slice(0, 5).join('\n') // First 5 lines of stack
+    } : error;
+    
+    logger.error('Error uploading media to blob:', {
+      error: errorMessage,
+      details: errorDetails,
+      errorType: error instanceof Error ? error.constructor.name : typeof error
+    });
+    
     return NextResponse.json(
-      { error: 'Failed to upload media to blob storage' },
+      { 
+        error: 'Failed to upload media to blob storage',
+        message: errorMessage
+      },
       { status: 500 }
     );
   }

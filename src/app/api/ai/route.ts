@@ -267,15 +267,17 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
 export async function POST(request: NextRequest) {
   try {
     // Check content length first (before reading body)
+    // Note: Vercel has a hard limit of ~4.5MB for API route bodies
     const contentLength = request.headers.get('content-length');
+    const VERCEL_API_LIMIT = 4.5 * 1024 * 1024; // 4.5MB - Vercel's hard limit
     if (contentLength) {
       const sizeMB = (parseInt(contentLength) / (1024 * 1024)).toFixed(2);
-      if (parseInt(contentLength) > 10 * 1024 * 1024) {
-        logger.error(`Request too large: ${sizeMB}MB (max 10MB)`);
+      if (parseInt(contentLength) > VERCEL_API_LIMIT) {
+        logger.error(`Request too large: ${sizeMB}MB (max ${(VERCEL_API_LIMIT / (1024 * 1024)).toFixed(2)}MB)`);
         return NextResponse.json(
           {
             error: 'Payload Too Large',
-            message: `Request body is ${sizeMB}MB, maximum allowed is 10MB. Please use a smaller image.`,
+            message: `Request body is ${sizeMB}MB, maximum allowed is ${(VERCEL_API_LIMIT / (1024 * 1024)).toFixed(2)}MB. Please use a smaller image (under 3MB original size) or compress your image.`,
           },
           { status: 413 }
         );
@@ -285,7 +287,7 @@ export async function POST(request: NextRequest) {
     // Validate request body first (this reads the body once)
     const validation = await validateApiRequest(request, {
       body: aiRequestSchema,
-      maxBodySize: 10 * 1024 * 1024,
+      maxBodySize: VERCEL_API_LIMIT,
     });
 
     if (!validation.success) {
@@ -554,6 +556,19 @@ async function generateCaptions(
     let brandContext: Awaited<ReturnType<typeof getBrandContext>> | null = null;
     if (clientId) {
       brandContext = await getBrandContext(supabase, clientId);
+      logger.info('🎨 Brand context fetched for caption generation:', {
+        clientId,
+        hasContext: !!brandContext,
+        hasCompany: !!brandContext?.company,
+        hasTone: !!brandContext?.tone,
+        hasAudience: !!brandContext?.audience,
+        hasValueProp: !!brandContext?.value_proposition,
+        hasVoiceExamples: !!brandContext?.voice_examples,
+        hasDos: !!brandContext?.dos,
+        hasDonts: !!brandContext?.donts,
+        documentsCount: brandContext?.documents?.length || 0,
+        hasWebsite: !!brandContext?.website,
+      });
     }
 
     let brandContextSection = '';
@@ -690,6 +705,21 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
     if (copyTone === 'promotional' && !aiContext?.trim()) {
       // eslint-disable-next-line no-console
       console.warn('Generating promotional content without Post Notes - results may be generic');
+    }
+
+    // Debug logging to verify brand context is being used
+    if (!brandContext || !brandContext.company) {
+      logger.warn('⚠️ Generating captions WITHOUT brand context - will be generic!', {
+        clientId,
+        hasBrandContext: !!brandContext,
+        hasCompany: !!brandContext?.company,
+      });
+    } else {
+      logger.info('✅ Brand context will be used in prompt', {
+        clientId,
+        brandContextSectionLength: brandContextSection.length,
+        hasVoiceExamples: !!brandContext.voice_examples,
+      });
     }
 
     const response = await callOpenAIWithRetry(openai, {

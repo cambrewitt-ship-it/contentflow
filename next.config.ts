@@ -49,27 +49,29 @@ function buildCSP(): string {
     // - 'self': Same origin images
     // - data:: Base64 encoded images and SVGs
     // - blob:: Next.js Image Optimization creates blob URLs
-    // - https:: Allow HTTPS images (specifically needed for Supabase storage)
+    // - https:: Allow HTTPS images (specifically needed for Supabase storage and Vercel Blob)
+    // - Vercel Blob: Required for displaying images from Vercel Blob Storage
     // - GTM: Required for Google Analytics tracking pixels
     // - Google Ads: Required for Google Ads tracking pixels
     // Consider restricting https: to specific domains in production for tighter security
-    "img-src 'self' data: blob: https: https://www.google-analytics.com https://www.googletagmanager.com https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net",
+    "img-src 'self' data: blob: https: https://*.public.blob.vercel-storage.com https://www.google-analytics.com https://www.googletagmanager.com https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net",
     
     // Fonts: Allow same origin + data URIs
     // - data:: For embedded font files
     "font-src 'self' data:",
     
-    // API Connections: Allow same origin + Supabase backend + GTM/GA4
+    // API Connections: Allow same origin + Supabase backend + Vercel Blob + GTM/GA4
     // - Supabase URL is dynamically included from environment variable
     // - blob:: Required for fetching blob URLs (e.g., image caption generation)
+    // - Vercel Blob: Required for fetching images from Vercel Blob Storage (*.public.blob.vercel-storage.com)
     // - GTM/GA4: Required for analytics and tag management
     // - https://www.google.com: Required for GTM consent mode and tracking (ccm/collect endpoint)
     // - Google Ads: Required for Google Ads tracking and conversion pixels
     // - Google Ad Services: Required for Google Ads conversion tracking and remarketing
     // - In development, also allow localhost variants
     isDevelopment
-      ? `connect-src 'self' blob: ${supabaseUrl} https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
-      : `connect-src 'self' blob: ${supabaseUrl} https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net`,
+      ? `connect-src 'self' blob: ${supabaseUrl} https://*.public.blob.vercel-storage.com https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
+      : `connect-src 'self' blob: ${supabaseUrl} https://*.public.blob.vercel-storage.com https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net`,
     
     // Media: Allow same origin + blob (for video/audio if needed)
     "media-src 'self' blob:",

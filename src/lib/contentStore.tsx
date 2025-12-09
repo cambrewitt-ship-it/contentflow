@@ -9,8 +9,8 @@ import logger from './logger'
 // Uses iterative compression with progressively more aggressive settings
 async function compressImageIfNeeded(
   imageData: string,
-  maxSizeBytes: number = 6 * 1024 * 1024, // 6MB default (accounts for base64 overhead)
-  maxRequestSizeBytes: number = 10 * 1024 * 1024 // 10MB total request body limit
+  maxSizeBytes: number = 3 * 1024 * 1024, // 3MB default - accounts for base64 overhead (~33%) + other request fields
+  maxRequestSizeBytes: number = 4.5 * 1024 * 1024 // 4.5MB total request body limit (Vercel's API route limit)
 ): Promise<string> {
   // If it's not a data URL, return as-is
   if (!imageData.startsWith('data:')) {
@@ -42,11 +42,12 @@ async function compressImageIfNeeded(
     const mimeType = imageData.match(/data:([^;]+)/)?.[1] || 'image/jpeg'
     
     // Progressive compression: try multiple quality/dimension combinations
+    // More aggressive compression to stay under Vercel's 4.5MB API route limit
     const compressionAttempts = [
-      { maxDimension: 2048, quality: 0.85 }, // First attempt: moderate compression
-      { maxDimension: 1920, quality: 0.75 }, // Second attempt: more aggressive
-      { maxDimension: 1600, quality: 0.65 }, // Third attempt: very aggressive
-      { maxDimension: 1280, quality: 0.55 }, // Fourth attempt: maximum compression
+      { maxDimension: 1920, quality: 0.75 }, // First attempt: moderate compression
+      { maxDimension: 1600, quality: 0.65 }, // Second attempt: more aggressive
+      { maxDimension: 1280, quality: 0.55 }, // Third attempt: very aggressive
+      { maxDimension: 1024, quality: 0.45 }, // Fourth attempt: maximum compression
     ]
 
     for (const attempt of compressionAttempts) {
@@ -623,14 +624,46 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         const isBase64 = imageData.startsWith('data:')
 
         if (isVercelBlobUrl || (isAnyHttpsUrl && !isBase64)) {
-          // HTTPS URLs: Send directly! OpenAI Vision API accepts publicly accessible HTTPS URLs.
-          // This avoids the 413 error entirely since we're just sending a URL string (~100 bytes)
-          // instead of a huge base64 payload (10MB+)
-          logger.info('✅ Using HTTPS URL directly (no base64 conversion needed)', {
+          // HTTPS URLs: Convert to base64 for reliability
+          // OpenAI Vision API sometimes can't fetch external URLs, so we convert to base64
+          // Compression will handle large images automatically
+          logger.info('🔄 Converting HTTPS URL to base64 for OpenAI compatibility...', {
             url: imageData.substring(0, 80) + '...',
             isVercelBlob: isVercelBlobUrl
           })
-          actualImageSize = 0 // No size check needed for URLs
+          
+          // Fetch the image from the URL
+          const response = await fetch(imageData)
+          if (!response.ok) {
+            throw new Error(`Failed to fetch image from URL: ${response.statusText}`)
+          }
+          const blob = await response.blob()
+          
+          // Store actual blob size before encoding
+          actualImageSize = blob.size
+          
+          // Convert blob to base64 data URL
+          const reader = new FileReader()
+          const base64Promise = new Promise<string>((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string)
+            reader.onerror = reject
+          })
+          reader.readAsDataURL(blob)
+          imageData = await base64Promise
+          
+          // Compress if needed (HTTPS URLs might point to large images)
+          // Use 3MB limit to account for base64 overhead + other request fields (Vercel 4.5MB limit)
+          if (actualImageSize > 3 * 1024 * 1024) {
+            logger.info('🖼️ HTTPS image exceeds 3MB, compressing...', {
+              size: `${(actualImageSize / (1024 * 1024)).toFixed(2)}MB`
+            })
+            imageData = await compressImageIfNeeded(imageData, 3 * 1024 * 1024, 4.5 * 1024 * 1024)
+            
+            // Recalculate size after compression
+            const compressedBase64 = imageData.split(',')[1] || imageData
+            const compressedPadding = (compressedBase64.match(/=/g) || []).length
+            actualImageSize = Math.floor((compressedBase64.length * 3) / 4) - compressedPadding
+          }
         } else if (isBrowserBlobUrl) {
           // Browser blob URLs: Convert to base64 (OpenAI can't access browser blob URLs)
           logger.info('🔄 Converting browser blob URL to base64...')
@@ -650,11 +683,12 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           imageData = await base64Promise
           
           // Compress if needed (browser blob URLs might be large)
-          if (actualImageSize > 6 * 1024 * 1024) {
-            logger.info('🖼️ Browser blob image exceeds 6MB, compressing...', {
+          // Use 3MB limit to account for base64 overhead + other request fields (Vercel 4.5MB limit)
+          if (actualImageSize > 3 * 1024 * 1024) {
+            logger.info('🖼️ Browser blob image exceeds 3MB, compressing...', {
               size: `${(actualImageSize / (1024 * 1024)).toFixed(2)}MB`
             })
-            imageData = await compressImageIfNeeded(imageData, 6 * 1024 * 1024, 10 * 1024 * 1024)
+            imageData = await compressImageIfNeeded(imageData, 3 * 1024 * 1024, 4.5 * 1024 * 1024)
             
             // Recalculate size after compression
             const compressedBase64 = imageData.split(',')[1] || imageData
@@ -668,11 +702,12 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           actualImageSize = Math.floor((base64Data.length * 3) / 4) - padding
           
           // Compress if needed
-          if (actualImageSize > 6 * 1024 * 1024) {
-            logger.info('🖼️ Base64 image exceeds 6MB, compressing...', {
+          // Use 3MB limit to account for base64 overhead + other request fields (Vercel 4.5MB limit)
+          if (actualImageSize > 3 * 1024 * 1024) {
+            logger.info('🖼️ Base64 image exceeds 3MB, compressing...', {
               size: `${(actualImageSize / (1024 * 1024)).toFixed(2)}MB`
             })
-            imageData = await compressImageIfNeeded(imageData, 6 * 1024 * 1024, 10 * 1024 * 1024)
+            imageData = await compressImageIfNeeded(imageData, 3 * 1024 * 1024, 4.5 * 1024 * 1024)
             
             // Recalculate size after compression
             const compressedBase64 = imageData.split(',')[1] || imageData
@@ -713,34 +748,36 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       if (isBase64Image) {
         let bodySizeMB = (bodyString.length / (1024 * 1024)).toFixed(2)
 
-        // Check if base64 image + other fields exceed the limit
-        if (bodyString.length > 10 * 1024 * 1024) {
+        // Check if base64 image + other fields exceed the limit (Vercel's 4.5MB API route limit)
+        const VERCEL_API_LIMIT = 4.5 * 1024 * 1024 // 4.5MB - Vercel's hard limit for API routes
+        if (bodyString.length > VERCEL_API_LIMIT) {
           // Calculate how much we need to reduce the image
           const otherFieldsSize = JSON.stringify({
             ...requestBody,
             imageData: ''
           }).length
           const currentBase64Size = (imageData.split(',')[1] || imageData).length
-          const excessSize = bodyString.length - (10 * 1024 * 1024)
+          const excessSize = bodyString.length - VERCEL_API_LIMIT
           const targetBase64Size = Math.max(0, currentBase64Size - excessSize - 1000) // 1KB buffer
           const targetActualSize = Math.floor((targetBase64Size * 3) / 4) // Convert base64 size to actual size
           
           logger.warn('⚠️ Request body too large, attempting maximum compression...', {
             size: `${bodySizeMB}MB`,
+            limit: `${(VERCEL_API_LIMIT / (1024 * 1024)).toFixed(2)}MB`,
             targetActualSize: `${(targetActualSize / (1024 * 1024)).toFixed(2)}MB`
           })
           
-          imageData = await compressImageIfNeeded(imageData, Math.max(2 * 1024 * 1024, targetActualSize), 10 * 1024 * 1024)
+          imageData = await compressImageIfNeeded(imageData, Math.max(1.5 * 1024 * 1024, targetActualSize), VERCEL_API_LIMIT)
           
           // Rebuild request body with compressed image
           requestBody.imageData = imageData
           bodyString = JSON.stringify(requestBody)
           bodySizeMB = (bodyString.length / (1024 * 1024)).toFixed(2)
           
-          if (bodyString.length > 10 * 1024 * 1024) {
+          if (bodyString.length > VERCEL_API_LIMIT) {
             throw new Error(
               `Request body is too large (${bodySizeMB}MB) even after maximum compression. ` +
-              `Please use a smaller image (under 4MB) or reduce the size of your notes.`
+              `Please use a smaller image (under 3MB original size) or reduce the size of your notes.`
             )
           }
         }
