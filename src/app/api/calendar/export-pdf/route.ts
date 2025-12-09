@@ -29,11 +29,6 @@ function loadFont(fontFileName: string): string {
   }
 }
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 // Helper function to fetch image as base64
 async function fetchImageAsBase64(imageUrl: string): Promise<string | null> {
   try {
@@ -306,6 +301,11 @@ export async function POST(request: NextRequest) {
 
     const token = authHeader.substring(7);
     const userSupabase = createSupabaseWithToken(token);
+    
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
     
     // Get authenticated user
     const { data: { user }, error: userError } = await userSupabase.auth.getUser();
