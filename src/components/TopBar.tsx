@@ -8,6 +8,8 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useUIThemeStyles } from "@/hooks/useUITheme";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 // import CreditBadge from "@/components/CreditBadge"; // Temporarily hidden - can be restored later
 
 interface TopBarProps {
@@ -17,6 +19,36 @@ interface TopBarProps {
 export default function TopBar({ className = "" }: TopBarProps) {
   const { user } = useAuth();
   const { getThemeClasses } = useUIThemeStyles();
+  const [subscriptionTier, setSubscriptionTier] = useState<string>('freemium');
+  const supabase = createClientComponentClient();
+
+  useEffect(() => {
+    async function fetchSubscription() {
+      if (!user?.id) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .select('subscription_tier')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (data) {
+          setSubscriptionTier(data.subscription_tier);
+        }
+      } catch (err) {
+        console.error('Error fetching subscription:', err);
+      }
+    }
+
+    fetchSubscription();
+  }, [user?.id, supabase]);
+
+  // Format plan name for display
+  const getPlanDisplayName = (tier: string) => {
+    if (tier === 'freemium') return 'FREE';
+    return tier.toUpperCase();
+  };
 
   return (
     <div className={getThemeClasses(
@@ -33,8 +65,18 @@ export default function TopBar({ className = "" }: TopBarProps) {
         </h1>
       </div>
 
-      {/* Center - See Plans Button */}
-      <div className="flex items-center justify-center">
+      {/* Center - Plan Badge and See Plans Button */}
+      <div className="flex items-center justify-center gap-3">
+        <div className={getThemeClasses(
+          "px-3 py-1.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs font-bold rounded-full shadow-sm",
+          "px-3 py-1.5 glass-card text-xs font-bold rounded-full shadow-sm glass-text-primary border border-white/20"
+        )}>
+          {getPlanDisplayName(subscriptionTier)}
+        </div>
+        <span className={getThemeClasses(
+          "text-gray-400",
+          "glass-text-muted"
+        )}>|</span>
         <Link href="/pricing">
           <Button 
             variant="default" 

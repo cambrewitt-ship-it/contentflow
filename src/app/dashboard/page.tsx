@@ -289,24 +289,14 @@ export default function Dashboard() {
         {/* Header */}
         <div className="mb-8 mt-[50px]">
           <div className="glass-card px-8 py-6 max-w-xl mx-auto">
-            {/* Top Row: Time/Date on Left, Plan Badge on Right */}
-            <div className="flex justify-between items-start mb-6">
-              {/* Time and Date on Left */}
-              <div>
-                <p className="text-4xl font-bold font-mono text-foreground">
-                  {currentTime}
-                </p>
-                <p className="text-lg text-muted-foreground mt-2">
-                  {currentDate}
-                </p>
-              </div>
-              
-              {/* Plan Badge on Right */}
-              <div>
-                <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold border-2 ${getPlanBadgeColor()}`}>
-                  {getPlanLabel()}
-                </span>
-              </div>
+            {/* Time and Date */}
+            <div className="mb-4 text-center">
+              <p className="text-4xl font-bold font-mono text-foreground">
+                {currentTime}
+              </p>
+              <p className="text-lg text-muted-foreground mt-2">
+                {currentDate}
+              </p>
             </div>
 
             {/* Welcome back text in the middle */}
