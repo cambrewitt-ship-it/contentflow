@@ -287,13 +287,18 @@ export function validateOriginAndReferer(request: NextRequest): boolean {
 export async function enhancedCSRFProtection(
   request: NextRequest
 ): Promise<NextResponse | null> {
+  // Skip Origin/Referer validation for safe methods (GET, HEAD, OPTIONS)
+  if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+    return null;
+  }
+  
   // First check basic CSRF protection
   const csrfResponse = await csrfProtectionMiddleware(request);
   if (csrfResponse) {
     return csrfResponse;
   }
   
-  // Then validate Origin and Referer headers
+  // Then validate Origin and Referer headers for state-changing methods only
   if (!validateOriginAndReferer(request)) {
     logger.warn('CSRF protection failed due to Origin/Referer validation');
     
