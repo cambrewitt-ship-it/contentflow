@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHmac, randomBytes } from 'crypto';
 import logger from '@/lib/logger';
 
 // Validate CSRF secret exists at startup
@@ -26,19 +25,64 @@ interface CSRFToken {
   expires: number;
 }
 
+// Convert string to Uint8Array for Web Crypto API
+function stringToUint8Array(str: string): Uint8Array {
+  const encoder = new TextEncoder();
+  return encoder.encode(str);
+}
+
+// Convert Uint8Array to hex string
+function uint8ArrayToHex(buffer: Uint8Array): string {
+  return Array.from(buffer)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// Convert base64 to string (for Node.js Buffer compatibility)
+function base64ToString(base64: string): string {
+  const binaryString = atob(base64);
+  return binaryString;
+}
+
+// Convert string to base64 (for Node.js Buffer compatibility)
+function stringToBase64(str: string): string {
+  return btoa(str);
+}
+
+// Generate secure random bytes using Web Crypto API
+function getRandomBytes(length: number): string {
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+  return uint8ArrayToHex(array);
+}
+
+// Create HMAC using Web Crypto API
+async function createHmac(message: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const messageData = encoder.encode(message);
+  
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', key, messageData);
+  return uint8ArrayToHex(new Uint8Array(signature));
+}
+
 // Generate a secure CSRF token
-export function generateCSRFToken(): string {
-  const randomToken = randomBytes(CSRF_CONFIG.TOKEN_LENGTH).toString('hex');
+export async function generateCSRFToken(): Promise<string> {
+  const randomToken = getRandomBytes(CSRF_CONFIG.TOKEN_LENGTH);
   const timestamp = Date.now();
   const expires = timestamp + CSRF_CONFIG.MAX_AGE;
   
   // Create HMAC signature for token integrity
-  const hmac = createHmac('sha256', CSRF_CONFIG.SECRET_KEY);
-  hmac.update(randomToken);
-  hmac.update(timestamp.toString());
-  hmac.update(expires.toString());
-  
-  const signature = hmac.digest('hex');
+  const message = `${randomToken}${timestamp}${expires}`;
+  const signature = await createHmac(message, CSRF_CONFIG.SECRET_KEY);
   
   // Combine token data with signature
   const tokenData = {
@@ -48,14 +92,15 @@ export function generateCSRFToken(): string {
     signature
   };
   
-  return Buffer.from(JSON.stringify(tokenData)).toString('base64');
+  return stringToBase64(JSON.stringify(tokenData));
 }
 
 // Verify CSRF token
-export function verifyCSRFToken(token: string): boolean {
+export async function verifyCSRFToken(token: string): Promise<boolean> {
   try {
     // Decode token
-    const tokenData = JSON.parse(Buffer.from(token, 'base64').toString('utf8')) as CSRFToken & { signature: string };
+    const tokenDataStr = base64ToString(token);
+    const tokenData = JSON.parse(tokenDataStr) as CSRFToken & { signature: string };
     
     // Check if token is expired
     if (Date.now() > tokenData.expires) {
@@ -64,12 +109,8 @@ export function verifyCSRFToken(token: string): boolean {
     }
     
     // Verify HMAC signature
-    const hmac = createHmac('sha256', CSRF_CONFIG.SECRET_KEY);
-    hmac.update(tokenData.token);
-    hmac.update(tokenData.timestamp.toString());
-    hmac.update(tokenData.expires.toString());
-    
-    const expectedSignature = hmac.digest('hex');
+    const message = `${tokenData.token}${tokenData.timestamp}${tokenData.expires}`;
+    const expectedSignature = await createHmac(message, CSRF_CONFIG.SECRET_KEY);
     
     if (tokenData.signature !== expectedSignature) {
       logger.warn('CSRF token signature verification failed');
@@ -150,7 +191,8 @@ export async function validateCSRFToken(
     };
   }
   
-  if (!verifyCSRFToken(token)) {
+  const isValid = await verifyCSRFToken(token);
+  if (!isValid) {
     return {
       isValid: false,
       error: 'Invalid or expired CSRF token'
@@ -161,8 +203,8 @@ export async function validateCSRFToken(
 }
 
 // Create CSRF token response with cookie
-export function createCSRFTokenResponse(): NextResponse {
-  const token = generateCSRFToken();
+export async function createCSRFTokenResponse(): Promise<NextResponse> {
+  const token = await generateCSRFToken();
   
   const response = NextResponse.json({ 
     success: true,
@@ -315,14 +357,14 @@ export async function enhancedCSRFProtection(
 }
 
 // Generate CSRF token for client-side use
-export function generateClientCSRFToken(): { token: string; expires: number } {
-  const token = generateCSRFToken();
+export async function generateClientCSRFToken(): Promise<{ token: string; expires: number }> {
+  const token = await generateCSRFToken();
   const expires = Date.now() + CSRF_CONFIG.MAX_AGE;
   
   return { token, expires };
 }
 
 // CSRF token refresh endpoint handler
-export function handleCSRFTokenRefresh(): NextResponse {
-  return createCSRFTokenResponse();
+export async function handleCSRFTokenRefresh(): Promise<NextResponse> {
+  return await createCSRFTokenResponse();
 }

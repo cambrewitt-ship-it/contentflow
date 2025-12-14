@@ -24,12 +24,16 @@ function LoginForm() {
     setLoading(true);
     setError('');
 
+    console.log('📝 Login form submitted');
+    
     const { error } = await signIn(email, password);
     
     if (error) {
-      setError(error.message);
+      console.error('❌ Login failed in form handler:', error);
+      setError(error.message || 'An error occurred during login');
       setLoading(false);
     } else {
+      console.log('✅ Login successful in form handler, redirecting...');
       // Redirect to the original page or dashboard
       const redirectTo = searchParams?.get('redirectTo') || '/dashboard';
       router.push(redirectTo);

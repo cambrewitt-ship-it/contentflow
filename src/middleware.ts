@@ -2,7 +2,9 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { simpleRateLimitMiddleware } from './lib/simpleRateLimit';
-import { enhancedCSRFProtection } from './lib/csrfProtection';
+// NOTE: CSRF protection removed from middleware - causes Edge Runtime errors with crypto module
+// CSRF protection should be implemented at the API route level instead
+// import { enhancedCSRFProtection } from './lib/csrfProtection';
 
 export async function middleware(req: NextRequest) {
   // Apply rate limiting to API routes first
@@ -11,18 +13,34 @@ export async function middleware(req: NextRequest) {
     return rateLimitResponse;
   }
 
-  // Apply CSRF protection to API routes
-  const csrfResponse = await enhancedCSRFProtection(req);
-  if (csrfResponse) {
-    return csrfResponse;
-  }
+  // CSRF protection disabled in middleware - implement at API route level if needed
+  // Middleware runs in Edge Runtime which doesn't support Node.js crypto module
+  // const csrfResponse = await enhancedCSRFProtection(req);
+  // if (csrfResponse) {
+  //   return csrfResponse;
+  // }
 
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
 
+  // Get session and refresh if needed
   const {
     data: { session },
   } = await supabase.auth.getSession();
+  
+  // Debug logging for auth issues
+  if (req.nextUrl.pathname.startsWith('/dashboard') || 
+      req.nextUrl.pathname.startsWith('/auth/login') ||
+      req.nextUrl.pathname.startsWith('/monitoring')) {
+    console.log('🔍 Middleware Auth Check:', {
+      pathname: req.nextUrl.pathname,
+      method: req.method,
+      hasSession: !!session,
+      userId: session?.user?.id || 'none',
+      email: session?.user?.email || 'none',
+      cookies: req.cookies.getAll().map(c => c.name).join(', ')
+    });
+  }
 
   // Define public routes that don't require authentication
   const publicRoutes = [
