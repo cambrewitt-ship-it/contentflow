@@ -18,6 +18,23 @@ export async function requireAuth(request: Request) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }
 
+  // Explicit JWT expiration check for additional security
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (sessionData?.session) {
+    const expiresAt = sessionData.session.expires_at 
+      ? new Date(sessionData.session.expires_at * 1000) 
+      : null;
+    
+    if (expiresAt && expiresAt < new Date()) {
+      return { 
+        error: NextResponse.json(
+          { error: 'Token expired', code: 'TOKEN_EXPIRED' }, 
+          { status: 401 }
+        ) 
+      };
+    }
+  }
+
   return { user, supabase, token };
 }
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import logger from '@/lib/logger';
 import {
   DndContext,
   DragEndEvent,
@@ -842,7 +843,7 @@ export function ColumnViewCalendar({
   }, [startWeek, scheduledPosts, clientUploads]);
 
   const handleDragStart = (event: DragStartEvent) => {
-    console.log('🔵 ColumnView DragStart:', event.active.id);
+    logger.debug('🔵 ColumnView DragStart:', event.active.id);
     setActiveId(event.active.id as string);
   };
 
@@ -851,7 +852,7 @@ export function ColumnViewCalendar({
     
     setDragOverDay(null);
     
-    console.log('🔵 ColumnView DragEnd:', { activeId: active.id, overId: over?.id });
+    logger.debug('🔵 ColumnView DragEnd:', { activeId: active.id, overId: over?.id });
 
     const activeIdStr = String(active.id);
     if (activeIdStr.startsWith('client-upload-')) {
@@ -860,7 +861,7 @@ export function ColumnViewCalendar({
     }
 
     if (!over || !onPostMove) {
-      console.log('🔵 No over target or onPostMove handler');
+      logger.debug('🔵 No over target or onPostMove handler');
       setActiveId(null);
       return;
     }
@@ -868,7 +869,7 @@ export function ColumnViewCalendar({
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    console.log('🔵 Looking for drop target:', { activeId, overId });
+    logger.debug('🔵 Looking for drop target:', { activeId, overId });
 
     // Find which day row the post is being dropped into
     // The overId could be either:
@@ -883,7 +884,7 @@ export function ColumnViewCalendar({
       for (const dayRow of column.dayRows) {
         if (dayRow.dateKey === overId) {
           targetDateKey = dayRow.dateKey;
-          console.log('🔵 Found target date (direct match):', targetDateKey);
+          logger.debug('🔵 Found target date (direct match):', targetDateKey);
           break outerLoop;
         }
       }
@@ -897,7 +898,7 @@ export function ColumnViewCalendar({
           const postInDay = dayRow.posts.find(post => `${post.post_type || 'post'}-${post.id}` === overId);
           if (postInDay) {
             targetDateKey = dayRow.dateKey;
-            console.log('🔵 Found target date (via post):', targetDateKey);
+            logger.debug('🔵 Found target date (via post):', targetDateKey);
             break outerLoop2;
           }
         }
@@ -913,7 +914,7 @@ export function ColumnViewCalendar({
           for (const dayRow of column.dayRows) {
             if (dayRow.dateKey === data.dateKey) {
               targetDateKey = data.dateKey;
-              console.log('🔵 Found target date (via data):', targetDateKey);
+              logger.debug('🔵 Found target date (via data):', targetDateKey);
               break;
             }
           }
@@ -933,10 +934,10 @@ export function ColumnViewCalendar({
     });
 
     if (targetDateKey && targetDateKey !== currentDateKey) {
-      console.log('🔵 Moving post from', currentDateKey, 'to:', targetDateKey);
+      logger.debug('🔵 Moving post from', currentDateKey, 'to:', targetDateKey);
       onPostMove(activeId, targetDateKey);
     } else {
-      console.log('🔵 No valid target found or same location', { targetDateKey, currentDateKey });
+      logger.debug('🔵 No valid target found or same location', { targetDateKey, currentDateKey });
     }
     
     setActiveId(null);

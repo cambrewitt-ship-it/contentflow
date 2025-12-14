@@ -7,6 +7,9 @@ import { AuthProvider } from "../contexts/AuthContext";
 import ConditionalCreditsProvider from "./ConditionalCreditsProvider";
 import { GoogleTagManager, GoogleTagManagerNoScript } from "../components/GoogleTagManager";
 
+// Validate environment variables on server startup
+import "../lib/validateEnv";
+
 const poppins = Poppins({ 
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700", "800", "900"],

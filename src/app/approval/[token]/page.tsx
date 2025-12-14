@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, AlertCircle, CheckCircle, XCircle, AlertTriangle, Minus } from 'lucide-react';
+import logger from '@/lib/logger';
 
 interface WeekData {
   weekStart: Date;
@@ -86,7 +87,7 @@ export default function PublicApprovalPage() {
     setError(null);
 
     try {
-      console.log('🔍 Fetching approval data...');
+      logger.debug('🔍 Fetching approval data...');
       const response = await fetch(`/api/approval-sessions/posts-by-token?token=${token}`);
 
       if (!response.ok) {
@@ -104,7 +105,7 @@ export default function PublicApprovalPage() {
       setSession(sessionData);
       setWeeks(weeksData || []);
     } catch (err: any) {
-      console.error('❌ Error fetching approval data:', err);
+      logger.error('❌ Error fetching approval data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load approval data');
     } finally {
       setLoading(false);
@@ -146,20 +147,20 @@ export default function PublicApprovalPage() {
       return;
     }
 
-    console.log('🚀 Starting batch submission:', selectedPosts);
+    logger.info('🚀 Starting batch submission:', selectedPosts);
     setIsSubmitting(true);
     setError(null);
 
     try {
       const promises = Object.entries(selectedPosts).map(async ([postKey, approvalStatus]) => {
-        console.log(`📝 Processing post ${postKey} with status ${approvalStatus}`);
+        logger.debug(`📝 Processing post ${postKey} with status ${approvalStatus}`);
         // Split on the first hyphen only (UUIDs contain hyphens)
         // Key format: "calendar_scheduled-a77281ae-f505-4b56-8b9a-22c48435407d"
         const firstHyphenIndex = postKey.indexOf('-');
         const postType = postKey.substring(0, firstHyphenIndex);
         const postId = postKey.substring(firstHyphenIndex + 1);
 
-        console.log(
+        logger.debug(
           `🔍 Parsed key "${postKey}" -> postType: "${postType}", postId: "${postId}"`
         );
 
@@ -169,13 +170,13 @@ export default function PublicApprovalPage() {
           .find(p => p.id === postId && p.post_type === postType);
 
         if (!post) {
-          console.error(`❌ Post not found for key ${postKey}`);
+          logger.error(`❌ Post not found for key ${postKey}`);
           throw new Error(`Post not found for key ${postKey}`);
         }
 
         const hasEditedCaption = editedCaption && editedCaption !== post.caption;
 
-        console.log(`🔄 Making API call for post ${postId}:`, {
+        logger.debug(`🔄 Making API call for post ${postId}:`, {
           session_id: session.id,
           post_id: post.id,
           post_type: post.post_type,
@@ -197,7 +198,7 @@ export default function PublicApprovalPage() {
           }),
         });
 
-        console.log(
+        logger.debug(
           `📡 API response for ${postId}:`,
           response.status,
           response.statusText
@@ -210,39 +211,39 @@ export default function PublicApprovalPage() {
           } catch (e) {
             errorData = {};
           }
-          console.error(`❌ API error for ${postId}:`, errorData);
+          logger.error(`❌ API error for ${postId}:`, errorData);
           throw new Error(errorData.error || `Failed to submit approval for post ${postId}`);
         }
 
         const result = await response.json();
-        console.log(`✅ API success for ${postId}:`, result);
+        logger.debug(`✅ API success for ${postId}:`, result);
 
         return { postKey, success: true, result };
       });
 
       const results = await Promise.allSettled(promises);
-      console.log('✅ Batch submission results:', results);
+      logger.debug('✅ Batch submission results:', results);
 
       // Check for any failures
       const failures = results.filter(result => result.status === 'rejected');
       if (failures.length > 0) {
-        console.error('❌ Some submissions failed:', failures);
+        logger.error('❌ Some submissions failed:', failures);
         // @ts-expect-error - Promise.allSettled results can have different shapes
         const errorMessages = failures.map(f => (f as any).reason?.message || 'Unknown error');
         throw new Error(`Some submissions failed: ${errorMessages.join(', ')}`);
       }
 
       // const successes = results.filter(result => result.status === 'fulfilled');
-      // console.log(`✅ Successfully submitted ${successes.length} approvals`);
+      // logger.debug(`✅ Successfully submitted ${successes.length} approvals`);
 
       // Clear selections and refresh data
       setSelectedPosts({});
       setComments({});
       setEditedCaptions({});
 
-      console.log('🔄 Refreshing approval data...');
+      logger.debug('🔄 Refreshing approval data...');
       await fetchApprovalData();
-      console.log('✅ Approval data refreshed');
+      logger.debug('✅ Approval data refreshed');
 
       // Show success message
       const count = Object.keys(selectedPosts).length;
@@ -252,7 +253,7 @@ export default function PublicApprovalPage() {
       setTimeout(() => setSuccessMessage(null), 8000);
 
     } catch (error: any) {
-      console.error('Error submitting batch approvals:', error);
+      logger.error('Error submitting batch approvals:', error);
       setError(error instanceof Error ? error.message : 'Failed to submit approvals');
     } finally {
       setIsSubmitting(false);

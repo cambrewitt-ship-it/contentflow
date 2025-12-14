@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import { PortalColumnViewCalendar } from '@/components/PortalColumnViewCalendar';
+import logger from '@/lib/logger';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -179,7 +180,7 @@ export default function PortalCalendarPage() {
     // Check cache first (unless force refresh)
     const now = Date.now();
     if (!forceRefresh && now - lastFetchTime < 30000 && Object.keys(scheduledPosts).length > 0) {
-      console.log('📦 Using cached scheduled posts data');
+      logger.debug('📦 Using cached scheduled posts data');
       return;
     }
     
@@ -191,7 +192,7 @@ export default function PortalCalendarPage() {
         setIsLoadingScheduledPosts(true);
       setError(null);
       }
-      console.log(`🔍 FETCHING - Scheduled posts for portal (attempt ${retryCount + 1})`);
+      logger.debug(`🔍 FETCHING - Scheduled posts for portal (attempt ${retryCount + 1})`);
       
       // Calculate date range for calendar views (3 weeks to support column layout)
       const weeksToFetch = 3;
@@ -210,10 +211,10 @@ export default function PortalCalendarPage() {
         const errorData = await response.json();
         
         if (response.status === 408) {
-          console.error('⏰ Query timeout:', errorData);
+          logger.error('⏰ Query timeout:', errorData);
           
           if (retryCount < maxRetries) {
-            console.log(`🔄 Retrying... (attempt ${retryCount + 1})`);
+            logger.debug(`🔄 Retrying... (attempt ${retryCount + 1})`);
             return fetchScheduledPosts(retryCount + 1);
           } else {
             setError('Query timeout - please try refreshing the page');
@@ -223,7 +224,7 @@ export default function PortalCalendarPage() {
         }
         
         if (response.status === 404) {
-          console.log('📭 No scheduled posts found for this period');
+          logger.debug('📭 No scheduled posts found for this period');
           setScheduledPosts({});
           setIsLoadingScheduledPosts(false);
           return;
@@ -235,12 +236,12 @@ export default function PortalCalendarPage() {
       const data = await response.json();
       const postsByDate = data.posts || {};
       
-      console.log(`✅ Retrieved posts for ${Object.keys(postsByDate).length} dates`);
+      logger.debug(`✅ Retrieved posts for ${Object.keys(postsByDate).length} dates`);
       
       // Set client timezone from response (for calendar display)
       if (data.timezone) {
         setClientTimezone(data.timezone);
-        console.log('📍 Portal using client timezone:', data.timezone);
+        logger.debug('📍 Portal using client timezone:', data.timezone);
       }
       
       // The API already returns posts grouped by date, so we can use it directly
@@ -248,17 +249,17 @@ export default function PortalCalendarPage() {
       setLastFetchTime(Date.now());
       setIsLoadingScheduledPosts(false);
       setRefreshKey(prev => prev + 1);
-      console.log('Scheduled posts loaded - dates:', Object.keys(postsByDate).length);
+      logger.debug('Scheduled posts loaded - dates:', Object.keys(postsByDate).length);
       
     } catch (error) {
       if (retryCount === 0) {
         setIsLoadingScheduledPosts(false);
       }
-      console.error('❌ Error fetching scheduled posts:', error);
+      logger.error('❌ Error fetching scheduled posts:', error);
       
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (retryCount < maxRetries && errorMessage.includes('fetch')) {
-        console.log(`🔄 Network error, retrying... (attempt ${retryCount + 1})`);
+        logger.debug(`🔄 Network error, retrying... (attempt ${retryCount + 1})`);
         setTimeout(() => fetchScheduledPosts(retryCount + 1), 2000);
         return;
       }
@@ -295,7 +296,7 @@ export default function PortalCalendarPage() {
       
       setUploads(uploadsByDate);
     } catch (err) {
-      console.error('Error fetching uploads:', err);
+      logger.error('Error fetching uploads:', err);
     } finally {
       setIsLoadingUploads(false);
     }
@@ -306,7 +307,7 @@ export default function PortalCalendarPage() {
     if (files.length === 0) return;
 
     setUploading(true);
-    console.log(`📤 Uploading files to date: ${targetDate}`);
+    logger.debug(`📤 Uploading files to date: ${targetDate}`);
 
     try {
       for (const file of Array.from(files)) {
@@ -343,7 +344,7 @@ export default function PortalCalendarPage() {
       // Refresh uploads list
       await fetchUploads();
     } catch (err) {
-      console.error('Error uploading files:', err);
+      logger.error('Error uploading files:', err);
       alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setUploading(false);
@@ -418,7 +419,7 @@ export default function PortalCalendarPage() {
       setEditingNotes(null);
       setTempNotes('');
     } catch (err) {
-      console.error('Error updating notes:', err);
+      logger.error('Error updating notes:', err);
       alert('Failed to update notes');
     }
   };
@@ -484,7 +485,7 @@ export default function PortalCalendarPage() {
         return newUploads;
       });
     } catch (err) {
-      console.error('Error deleting upload:', err);
+      logger.error('Error deleting upload:', err);
       alert('Failed to delete upload. Please try again.');
     } finally {
       setDeletingItems(prev => ({ ...prev, [itemKey]: false }));
@@ -500,7 +501,7 @@ export default function PortalCalendarPage() {
       (upload.created_at ? new Date(upload.created_at).toLocaleDateString('en-CA') : null);
 
     if (!uploadDateKey) {
-      console.warn('Unable to determine upload date for deletion', upload);
+      logger.warn('Unable to determine upload date for deletion', upload);
       return;
     }
 
@@ -542,7 +543,7 @@ export default function PortalCalendarPage() {
         return newPosts;
       });
     } catch (err) {
-      console.error('Error deleting post:', err);
+      logger.error('Error deleting post:', err);
       alert('Failed to delete post. Please try again.');
     } finally {
       setDeletingItems(prev => ({ ...prev, [itemKey]: false }));
@@ -582,13 +583,13 @@ export default function PortalCalendarPage() {
       return;
     }
 
-    console.log('🚀 Starting approval submission:', selectedPosts);
+    logger.info('🚀 Starting approval submission:', selectedPosts);
     setIsSubmittingApprovals(true);
     setError(null);
 
     try {
       const promises = Object.entries(selectedPosts).map(async ([postKey, approvalStatus]) => {
-        console.log(`📝 Processing post ${postKey} with status ${approvalStatus}`);
+        logger.debug(`📝 Processing post ${postKey} with status ${approvalStatus}`);
         
         // Split on the first hyphen only (UUIDs contain hyphens)
         const firstHyphenIndex = postKey.indexOf('-');
@@ -597,7 +598,7 @@ export default function PortalCalendarPage() {
         // Portal calendar posts come from calendar_scheduled_posts table, so use 'planner_scheduled' type
         const postType = 'planner_scheduled';
         
-        console.log(`🔍 Parsed key "${postKey}" -> postType: "${postType}", postId: "${postId}"`);
+        logger.debug(`🔍 Parsed key "${postKey}" -> postType: "${postType}", postId: "${postId}"`);
         
         const editedCaption = editedCaptions[postKey];
         const post = Object.values(scheduledPosts)
@@ -605,13 +606,13 @@ export default function PortalCalendarPage() {
           .find(p => p.id === postId);
         
         if (!post) {
-          console.error(`❌ Post not found for key ${postKey}`);
+          logger.error(`❌ Post not found for key ${postKey}`);
           throw new Error(`Post not found for key ${postKey}`);
         }
 
         const hasEditedCaption = editedCaption && editedCaption !== post.caption;
         
-        console.log(`🔄 Making API call for post ${postId}:`, {
+        logger.debug(`🔄 Making API call for post ${postId}:`, {
           token: token.substring(0, 8) + '...',
           post_id: post.id,
           post_type: postType,
@@ -633,42 +634,42 @@ export default function PortalCalendarPage() {
           })
         });
         
-        console.log(`📡 API response for ${postId}:`, response.status, response.statusText);
+        logger.debug(`📡 API response for ${postId}:`, response.status, response.statusText);
         
         if (!response.ok) {
           const errorData = await response.json();
-          console.error(`❌ API error for ${postId}:`, errorData);
+          logger.error(`❌ API error for ${postId}:`, errorData);
           throw new Error(errorData.error || `Failed to submit approval for post ${postId}`);
         }
         
         const result = await response.json();
-        console.log(`✅ API success for ${postId}:`, result);
+        logger.debug(`✅ API success for ${postId}:`, result);
         
         return { postKey, success: true, result };
       });
 
       const results = await Promise.allSettled(promises);
-      console.log('✅ Approval submission results:', results);
+      logger.debug('✅ Approval submission results:', results);
       
       // Check for any failures
       const failures = results.filter(result => result.status === 'rejected');
       if (failures.length > 0) {
-        console.error('❌ Some submissions failed:', failures);
+        logger.error('❌ Some submissions failed:', failures);
         const errorMessages = failures.map(f => f.reason?.message || 'Unknown error');
         throw new Error(`Some submissions failed: ${errorMessages.join(', ')}`);
       }
       
       const successes = results.filter(result => result.status === 'fulfilled');
-      console.log(`✅ Successfully submitted ${successes.length} approvals`);
+      logger.debug(`✅ Successfully submitted ${successes.length} approvals`);
       
       // Clear selections and refresh data
       setSelectedPosts({});
       setComments({});
       setEditedCaptions({});
       
-      console.log('🔄 Refreshing calendar data...');
+      logger.debug('🔄 Refreshing calendar data...');
       await fetchScheduledPosts(0, true);
-      console.log('✅ Calendar data refreshed');
+      logger.debug('✅ Calendar data refreshed');
       
       // Show success message
       const count = Object.keys(selectedPosts).length;
@@ -676,7 +677,7 @@ export default function PortalCalendarPage() {
       setTimeout(() => setSuccessMessage(null), 8000);
       
     } catch (error) {
-      console.error('Error submitting approvals:', error);
+      logger.error('Error submitting approvals:', error);
       setError(error instanceof Error ? error.message : 'Failed to submit approvals');
     } finally {
       setIsSubmittingApprovals(false);
@@ -796,7 +797,7 @@ export default function PortalCalendarPage() {
         throw new Error('Failed to move post');
       }
     } catch (err) {
-      console.error('Error moving post in column view:', err);
+      logger.error('Error moving post in column view:', err);
       setScheduledPosts(previousState);
       await fetchScheduledPosts(0, true);
       alert('Failed to move post. Please try again.');

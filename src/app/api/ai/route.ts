@@ -515,8 +515,7 @@ async function callOpenAIWithRetry(openai: OpenAI, params: any, maxRetries = 3) 
       }
       if (attempt < maxRetries) {
         const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-        // eslint-disable-next-line no-console
-        console.log(`OpenAI attempt ${attempt} failed, retrying in ${delay}ms...`);
+        logger.debug(`OpenAI attempt ${attempt} failed, retrying in ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -703,8 +702,7 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
     }
 
     if (copyTone === 'promotional' && !aiContext?.trim()) {
-      // eslint-disable-next-line no-console
-      console.warn('Generating promotional content without Post Notes - results may be generic');
+      logger.warn('Generating promotional content without Post Notes - results may be generic');
     }
 
     // Debug logging to verify brand context is being used
@@ -900,8 +898,7 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
       captions,
     });
   } catch (error: any) {
-    // eslint-disable-next-line no-console
-    console.error('Caption generation error:', {
+    logger.error('Caption generation error:', {
       message: error?.message,
       status: error?.status,
       type: error?.type,
@@ -1298,11 +1295,11 @@ Only suggest future holidays/events after ${currentDate} that are relevant to ${
     const rawOutput = response.choices[0]?.message?.content || '';
     const content = rawOutput;
 
-    // TEMPORARY DEBUG: Log raw output and leakage detection
-    console.log('=== AI Content Ideas Debug ===');
-    console.log('Raw output:', rawOutput);
+    // Debug: Log raw output and leakage detection
+    logger.debug('=== AI Content Ideas Debug ===');
+    logger.debug('Raw output:', rawOutput);
     const leakageDetected = rawOutput ? detectPromptLeakage(rawOutput) : false;
-    console.log('Leakage detected:', leakageDetected);
+    logger.debug('Leakage detected:', leakageDetected);
 
     // Monitor for prompt leakage
     if (rawOutput && leakageDetected) {
@@ -1381,15 +1378,15 @@ Only suggest future holidays/events after ${currentDate} that are relevant to ${
         }
       }
       
-      // TEMPORARY DEBUG: Log extracted JSON
-      console.log('Extracted JSON string:', jsonString.substring(0, 500));
+      // Debug: Log extracted JSON
+      logger.debug('Extracted JSON string:', jsonString.substring(0, 500));
       
       // Attempt to sanitize and validate the JSON response
       const sanitizedIdeas = sanitizeAndValidateContentIdeas(jsonString);
       
-      // TEMPORARY DEBUG: Log sanitized output
-      console.log('Sanitized ideas:', JSON.stringify(sanitizedIdeas, null, 2));
-      console.log('=============================');
+      // Debug: Log sanitized output
+      logger.debug('Sanitized ideas:', JSON.stringify(sanitizedIdeas, null, 2));
+      logger.debug('=============================');
       
       // Map sanitized ContentIdea[] to the expected format
       ideas = sanitizedIdeas.map((sanitized) => ({
@@ -1407,8 +1404,8 @@ Only suggest future holidays/events after ${currentDate} that are relevant to ${
         });
       }
     } catch (sanitizationError) {
-      // TEMPORARY DEBUG: Log sanitization errors
-      console.log('Sanitization failed:', sanitizationError instanceof Error ? sanitizationError.message : String(sanitizationError));
+      // Debug: Log sanitization errors
+      logger.debug('Sanitization failed:', sanitizationError instanceof Error ? sanitizationError.message : String(sanitizationError));
       
       // Check if this is a validation error from sanitization
       const isValidationError = sanitizationError instanceof Error && 

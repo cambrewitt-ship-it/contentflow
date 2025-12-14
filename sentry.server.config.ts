@@ -16,6 +16,9 @@ Sentry.init({
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
 
+  // SECURITY: Disable sending PII (Personally Identifiable Information) by default
+  sendDefaultPii: false,
+
   // Ignore known harmless development errors
   ignoreErrors: [
     // Next.js manifest loading error: Empty or corrupted manifest files during development
@@ -23,7 +26,7 @@ Sentry.init({
     'Unexpected end of JSON input',
   ],
 
-  // Filter out known harmless development errors
+  // Filter out known harmless development errors and scrub sensitive data
   beforeSend(event, hint) {
     // Ignore Next.js manifest loading errors in development
     // This happens when manifest files are empty or corrupted during hot reload
@@ -37,6 +40,72 @@ Sentry.init({
       )
     ) {
       return null; // Don't send this error to Sentry
+    }
+
+    // SECURITY: Scrub sensitive data from all events
+    if (event.request) {
+      // Remove sensitive headers
+      if (event.request.headers) {
+        delete event.request.headers['authorization'];
+        delete event.request.headers['cookie'];
+        delete event.request.headers['x-api-key'];
+        delete event.request.headers['x-csrf-token'];
+        delete event.request.headers['x-auth-token'];
+      }
+      
+      // Scrub tokens from query strings
+      if (event.request.query_string) {
+        event.request.query_string = event.request.query_string.replace(
+          /token=[^&]+/gi,
+          'token=[REDACTED]'
+        ).replace(
+          /key=[^&]+/gi,
+          'key=[REDACTED]'
+        ).replace(
+          /apikey=[^&]+/gi,
+          'apikey=[REDACTED]'
+        );
+      }
+      
+      // Scrub tokens from URLs
+      if (event.request.url) {
+        event.request.url = event.request.url.replace(
+          /token=[^&]+/gi,
+          'token=[REDACTED]'
+        ).replace(
+          /key=[^&]+/gi,
+          'key=[REDACTED]'
+        ).replace(
+          /apikey=[^&]+/gi,
+          'apikey=[REDACTED]'
+        );
+      }
+    }
+
+    // Scrub sensitive data from breadcrumbs
+    if (event.breadcrumbs) {
+      event.breadcrumbs = event.breadcrumbs.map(breadcrumb => {
+        if (breadcrumb.data) {
+          // Remove common sensitive fields
+          const sensitiveFields = ['password', 'token', 'apiKey', 'secret', 'authorization'];
+          sensitiveFields.forEach(field => {
+            if (breadcrumb.data && field in breadcrumb.data) {
+              breadcrumb.data[field] = '[REDACTED]';
+            }
+          });
+        }
+        return breadcrumb;
+      });
+    }
+
+    // Scrub sensitive data from extra context
+    if (event.extra) {
+      const sensitiveFields = ['password', 'token', 'apiKey', 'secret', 'authorization', 'cookie'];
+      sensitiveFields.forEach(field => {
+        if (event.extra && field in event.extra) {
+          event.extra[field] = '[REDACTED]';
+        }
+      });
     }
 
     return event;

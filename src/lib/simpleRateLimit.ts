@@ -17,12 +17,14 @@ const rateLimits = {
   portal: { requests: 20, windowMs: 60 * 60 * 1000 }, // 20 per hour
   portalAuth: { requests: 5, windowMs: 60 * 60 * 1000 }, // 5 per hour
   auth: { requests: 20, windowMs: 15 * 60 * 1000 }, // 20 per 15 min
+  webhook: { requests: 1000, windowMs: 60 * 60 * 1000 }, // 1000 per hour - High limit for Stripe webhooks
 };
 
 export type RateLimitTier = keyof typeof rateLimits;
 
 // Route patterns
 const routePatterns: Record<string, RateLimitTier> = {
+  '/api/stripe/webhook': 'webhook', // Stripe webhooks need high limits
   '/api/ai': 'ai',
   '/api/analyze-website-temp': 'ai',
   '/api/auth': 'auth',

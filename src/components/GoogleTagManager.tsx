@@ -26,10 +26,19 @@ export function GoogleTagManager({ gtmId }: GoogleTagManagerProps) {
     }
   }, []);
 
-  if (!gtmId || gtmId === '') {
-    console.warn('GTM ID not provided. Google Tag Manager will not be loaded.');
+  // Validate GTM ID format (must match GTM-XXXXXXX pattern)
+  const isValidGtmId = /^GTM-[A-Z0-9]{7,}$/i.test(gtmId);
+  
+  if (!gtmId || gtmId === '' || !isValidGtmId) {
+    if (process.env.NODE_ENV === 'development') {
+      // Intentional console.warn - GTM configuration is non-sensitive and helpful for debugging
+      console.warn('Invalid or missing GTM ID. Expected format: GTM-XXXXXXX. Google Tag Manager will not be loaded.');
+    }
     return null;
   }
+
+  // Sanitize GTM ID by removing any special characters (defense in depth)
+  const sanitizedGtmId = gtmId.replace(/[^A-Z0-9-]/gi, '');
 
   return (
     <>
@@ -43,7 +52,7 @@ export function GoogleTagManager({ gtmId }: GoogleTagManagerProps) {
             new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
             j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-            })(window,document,'script','dataLayer','${gtmId}');
+            })(window,document,'script','dataLayer','${sanitizedGtmId}');
           `,
         }}
       />
@@ -58,14 +67,20 @@ export function GoogleTagManager({ gtmId }: GoogleTagManagerProps) {
  * Should be placed immediately after the opening <body> tag.
  */
 export function GoogleTagManagerNoScript({ gtmId }: GoogleTagManagerProps) {
-  if (!gtmId || gtmId === '') {
+  // Validate GTM ID format
+  const isValidGtmId = /^GTM-[A-Z0-9]{7,}$/i.test(gtmId);
+  
+  if (!gtmId || gtmId === '' || !isValidGtmId) {
     return null;
   }
+
+  // Sanitize GTM ID by removing any special characters
+  const sanitizedGtmId = gtmId.replace(/[^A-Z0-9-]/gi, '');
 
   return (
     <noscript>
       <iframe
-        src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
+        src={`https://www.googletagmanager.com/ns.html?id=${sanitizedGtmId}`}
         height="0"
         width="0"
         style={{ display: 'none', visibility: 'hidden' }}
