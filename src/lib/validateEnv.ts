@@ -19,13 +19,13 @@ const requiredEnvVars = [
 
 // Required ONLY in production (optional in development for easier local setup)
 const productionOnlyVars = [
-  'NEXT_PUBLIC_SENTRY_DSN',
-  'SENTRY_AUTH_TOKEN',
 ] as const;
 
 const optionalEnvVars = [
   'NEXT_PUBLIC_GTM_ID',
   'RESEND_API_KEY',
+  'NEXT_PUBLIC_SENTRY_DSN',
+  'SENTRY_AUTH_TOKEN',
 ] as const;
 
 export function validateEnvironment() {

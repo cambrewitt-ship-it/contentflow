@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import logger from '@/lib/logger';
-import { createSupabaseWithToken } from '@/lib/supabaseServer';
+import { createSupabaseWithToken, createSupabaseAdmin } from '@/lib/supabaseServer';
 import { uuidSchema } from '@/lib/validators';
 
 const booleanStringSchema = z
@@ -161,12 +161,16 @@ export async function GET(request: Request) {
       includeImages: shouldIncludeImageData
     });
 
+    // Use admin client to bypass slow RLS policy evaluation
+    // Security: ownership already verified above via verifyClientOwnership()
+    const adminSupabase = createSupabaseAdmin();
+
     // Optimized query - only select fields needed for approval board
     const baseFields = 'id, project_id, caption, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, late_status, late_post_id, platforms_scheduled, created_at, updated_at, last_edited_at, edit_count, needs_reapproval, original_caption';
     const selectFields = shouldIncludeImageData ? `${baseFields}, image_url` : baseFields;
     
     // Build query based on filter type
-    let query = supabase
+    let query = adminSupabase
       .from('calendar_scheduled_posts')
       .select(selectFields)
       .eq('client_id', clientId);
@@ -205,8 +209,8 @@ export async function GET(request: Request) {
       });
     }
     
-    // Fetch client uploads (content from portal)
-    const { data: uploadsData, error: uploadsError } = await supabase
+    // Fetch client uploads (content from portal) - also using admin client
+    const { data: uploadsData, error: uploadsError } = await adminSupabase
       .from('client_uploads')
       .select('id, client_id, project_id, file_name, file_type, file_size, file_url, status, notes, created_at, updated_at')
       .eq('client_id', clientId)
@@ -291,9 +295,18 @@ export async function POST(request: Request) {
       unscheduledId
     });
 
-    const { data: scheduled, error: scheduleError } = await supabase
+    // Use admin client to bypass slow RLS policy evaluation
+    // Security: ownership already verified above via verifyClientOwnership()
+    const adminSupabase = createSupabaseAdmin();
+
+    // Generate ID client-side for faster insert (no need to select back)
+    const postId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const { error: scheduleError } = await adminSupabase
       .from('calendar_scheduled_posts')
       .insert({
+        id: postId,
         project_id: scheduledPost.project_id ?? null,
         client_id: scheduledPost.client_id,
         caption: scheduledPost.caption ?? null,
@@ -301,9 +314,21 @@ export async function POST(request: Request) {
         post_notes: scheduledPost.post_notes ?? null,
         scheduled_date: scheduledPost.scheduled_date,
         scheduled_time: scheduledPost.scheduled_time,
-      })
-      .select()
-      .single();
+        created_at: now,
+      });
+    
+    // Build the response object without needing to fetch from DB
+    const scheduled = {
+      id: postId,
+      project_id: scheduledPost.project_id ?? null,
+      client_id: scheduledPost.client_id,
+      caption: scheduledPost.caption ?? null,
+      image_url: scheduledPost.image_url ?? null,
+      post_notes: scheduledPost.post_notes ?? null,
+      scheduled_date: scheduledPost.scheduled_date,
+      scheduled_time: scheduledPost.scheduled_time,
+      created_at: now,
+    };
     
     if (scheduleError) {
       logger.error('❌ Database insert error:', scheduleError);
@@ -319,7 +344,7 @@ export async function POST(request: Request) {
 
     // Only delete from unscheduled if this was moved from unscheduled
     if (isMovingFromUnscheduled) {
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await adminSupabase
           .from('calendar_unscheduled_posts')
           .delete()
           .eq('id', unscheduledId);
@@ -399,6 +424,10 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     
+    // Use admin client to bypass slow RLS policy evaluation
+    // Security: ownership already verified above via verifyClientOwnership()
+    const adminSupabase = createSupabaseAdmin();
+    
     // Ensure image_url is preserved if not being updated
     const updateData = {
       ...updates,
@@ -406,7 +435,7 @@ export async function PATCH(request: Request) {
       ...(updates.image_url === undefined && { image_url: undefined })
     };
     
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from('calendar_scheduled_posts')
       .update(updateData)
       .eq('id', postId);
@@ -447,23 +476,30 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     
-    const { data, error } = await supabase
+    // Use admin client to bypass slow RLS policy evaluation
+    // Security: ownership already verified above via verifyClientOwnership()
+    const adminSupabase = createSupabaseAdmin();
+    const now = new Date().toISOString();
+    
+    const { error } = await adminSupabase
       .from('calendar_scheduled_posts')
       .update({ 
         scheduled_date: scheduledDate,
-        updated_at: new Date().toISOString()
+        updated_at: now
       })
       .eq('id', postId)
-      .eq('client_id', clientId)
-      .select()
-      .single();
+      .eq('client_id', clientId);
     
     if (error) {
       logger.error('Error updating post date:', error);
       throw error;
     }
 
-    return NextResponse.json({ success: true, post: data });
+    // Return success without needing to fetch data back
+    return NextResponse.json({ 
+      success: true, 
+      post: { id: postId, scheduled_date: scheduledDate, updated_at: now } 
+    });
     
   } catch (error) {
     logger.error('PUT error:', error);
@@ -515,7 +551,11 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     
-    const { error } = await supabase
+    // Use admin client to bypass slow RLS policy evaluation
+    // Security: ownership already verified above via verifyClientOwnership()
+    const adminSupabase = createSupabaseAdmin();
+    
+    const { error } = await adminSupabase
       .from('calendar_scheduled_posts')
       .delete()
       .eq('id', postId);

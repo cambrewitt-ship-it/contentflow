@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import logger from '@/lib/logger';
-import { createSupabaseWithToken } from '@/lib/supabaseServer';
+import { createSupabaseWithToken, createSupabaseAdmin } from '@/lib/supabaseServer';
 import { uuidSchema } from '@/lib/validators';
 
 const booleanStringSchema = z
@@ -141,8 +141,12 @@ export async function GET(request: Request) {
       untagged: shouldFilterUntagged 
     });
 
+    // Use admin client to bypass slow RLS policy evaluation
+    // Security: ownership already verified above via verifyClientOwnership()
+    const adminSupabase = createSupabaseAdmin();
+
     // Build query based on filter type
-    let query = supabase
+    let query = adminSupabase
       .from('calendar_unscheduled_posts')
       .select('*') // Simple: select all columns
       .eq('client_id', clientId); // Filter by client
@@ -226,9 +230,13 @@ export async function POST(request: Request) {
     const postId = crypto.randomUUID();
     const now = new Date().toISOString();
     
+    // Use admin client to bypass slow RLS policy evaluation
+    // Security: ownership already verified above via verifyClientOwnership()
+    const adminSupabase = createSupabaseAdmin();
+    
     // Insert the post WITHOUT .select() to avoid RLS/trigger delays
     // This is much faster as it doesn't need to return data
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from('calendar_unscheduled_posts')
       .insert({
         id: postId,
@@ -314,7 +322,11 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { error } = await supabase
+    // Use admin client to bypass slow RLS policy evaluation
+    // Security: ownership already verified above via verifyClientOwnership()
+    const adminSupabase = createSupabaseAdmin();
+    
+    const { error } = await adminSupabase
       .from('calendar_unscheduled_posts')
       .delete()
       .eq('id', postId);

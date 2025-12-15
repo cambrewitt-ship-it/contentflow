@@ -325,12 +325,12 @@ export default function Dashboard() {
             <div className="p-12 text-center">
               <User className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-foreground mb-2">
-                No clients yet
+                No business profiles yet
               </h3>
               <Link href="/dashboard/clients/new">
                 <Button size="lg" className="px-8">
                   <Plus className="w-5 h-5 mr-2" />
-                  Create Your First Client
+                  Create New Business Profile
                 </Button>
               </Link>
             </div>
