@@ -222,18 +222,52 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     
-    const { data, error } = await supabase
+    // Generate ID client-side to avoid needing to select it back
+    const postId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    
+    // Insert the post WITHOUT .select() to avoid RLS/trigger delays
+    // This is much faster as it doesn't need to return data
+    const { error } = await supabase
       .from('calendar_unscheduled_posts')
-      .insert(postData)
-      .select()
-      .single();
+      .insert({
+        id: postId,
+        ...postData,
+        created_at: now,
+      });
     
     if (error) throw error;
     
-    return NextResponse.json({ success: true, post: data });
-  } catch (error) {
-    logger.error('Error:', error);
-    return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
+    // Return the data we already know without fetching from DB
+    return NextResponse.json({ 
+      success: true, 
+      post: {
+        id: postId,
+        client_id: postData.client_id,
+        project_id: postData.project_id || null,
+        caption: postData.caption || null,
+        image_url: postData.image_url || null,
+        post_notes: postData.post_notes || null,
+        created_at: now,
+      }
+    });
+  } catch (error: unknown) {
+    logger.error('❌ Error creating unscheduled post:', error);
+    
+    // Enhanced error handling for timeouts
+    if (error && typeof error === 'object' && 'code' in error && error.code === '57014') {
+      logger.error('❌ Database timeout on POST - possible index issue');
+      return NextResponse.json({ 
+        error: 'Database operation timed out',
+        code: 'TIMEOUT',
+        suggestion: 'The post may have been created. Please refresh the page.'
+      }, { status: 408 });
+    }
+    
+    return NextResponse.json({ 
+      error: 'Failed to create post',
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 });
   }
 }
 

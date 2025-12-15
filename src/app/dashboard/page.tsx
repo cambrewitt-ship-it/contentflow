@@ -317,7 +317,7 @@ export default function Dashboard() {
         <div className="mb-8">
           <div className="mb-6 text-center">
             <h2 className="text-2xl font-bold text-foreground">
-              Your Clients
+              Your Business Profiles
             </h2>
           </div>
 
