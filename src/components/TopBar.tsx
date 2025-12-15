@@ -47,6 +47,9 @@ export default function TopBar({ className = "" }: TopBarProps) {
   // Format plan name for display
   const getPlanDisplayName = (tier: string) => {
     if (tier === 'freemium') return 'FREE';
+    if (tier === 'starter') return 'IN-HOUSE';
+    if (tier === 'professional') return 'FREELANCER';
+    if (tier === 'agency') return 'AGENCY';
     return tier.toUpperCase();
   };
 

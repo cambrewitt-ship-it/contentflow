@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { isValidMediaData, base64ToBlob } from '../../../../lib/blobUpload';
 import logger from '@/lib/logger';
 
+// Configure route to accept larger payloads for video uploads
+export const runtime = 'nodejs';
+export const maxDuration = 60; // Allow up to 60 seconds for video processing
+
 export async function POST(request: Request) {
   try {
     const { imageBlob } = await request.json();

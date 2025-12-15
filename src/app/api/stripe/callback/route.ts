@@ -32,7 +32,10 @@ export async function GET(req: NextRequest) {
     }
 
     // Try to get the user's session
-    const supabase = createRouteHandlerClient({ cookies });
+    // Next.js 15+ requires await for cookies()
+    const supabase = createRouteHandlerClient({ 
+      cookies: async () => await cookies() 
+    });
     const { data: { session: authSession } } = await supabase.auth.getSession();
 
     // If this is a subscription checkout, sync it immediately

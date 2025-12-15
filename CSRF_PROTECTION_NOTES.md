@@ -174,3 +174,4 @@ After re-enabling CSRF (if using Web Crypto API):
 **Last Updated:** December 14, 2025  
 **Status:** CSRF protection disabled in middleware, enabled for API route endpoint only
 
+

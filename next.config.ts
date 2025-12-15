@@ -73,8 +73,10 @@ function buildCSP(): string {
       ? `connect-src 'self' blob: ${supabaseUrl} https://*.public.blob.vercel-storage.com https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
       : `connect-src 'self' blob: ${supabaseUrl} https://*.public.blob.vercel-storage.com https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net`,
     
-    // Media: Allow same origin + blob (for video/audio if needed)
-    "media-src 'self' blob:",
+    // Media: Allow same origin + blob + Vercel Blob Storage (for video/audio)
+    // - blob:: Required for video playback from blob URLs
+    // - Vercel Blob Storage: Required for videos stored in Vercel Blob
+    "media-src 'self' blob: https: https://*.public.blob.vercel-storage.com",
     
     // Objects: Disallow <object>, <embed>, <applet>
     "object-src 'none'",
@@ -100,10 +102,20 @@ function buildCSP(): string {
 }
 
 const nextConfig: NextConfig = {
-  // Configure API route body size limits
+  // Configure API route and server action body size limits
   experimental: {
     serverActions: {
-      bodySizeLimit: '10mb', // Allow up to 10MB for API requests with images
+      bodySizeLimit: '50mb', // Allow up to 50MB for server actions with videos
+    },
+    // Increase middleware body size limit for App Router (addresses the 10MB default limit)
+    // This allows requests with bodies larger than 10MB to pass through middleware
+    middlewareClientMaxBodySize: '50mb' as any, // Support large image uploads through middleware
+  },
+  
+  // Increase API route body size limit to support large file uploads (Pages Router)
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
     },
   },
   

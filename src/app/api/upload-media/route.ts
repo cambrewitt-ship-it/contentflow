@@ -3,6 +3,10 @@ import { put } from '@vercel/blob';
 import { base64ToBlob } from '../../../lib/blobUpload';
 import logger from '@/lib/logger';
 
+// Configure route to accept larger payloads for video uploads
+export const runtime = 'nodejs';
+export const maxDuration = 60; // Allow up to 60 seconds for video processing
+
 // Supported media types
 const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
 const SUPPORTED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm', 'video/mpeg'];
@@ -10,22 +14,22 @@ const SUPPORTED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo'
 // File size limits
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_REQUEST_SIZE = 50 * 1024 * 1024; // 50MB - reasonable limit for API requests
 
 export async function POST(request: NextRequest) {
   try {
     // Check content length first to avoid reading huge request bodies
     const contentLength = request.headers.get('content-length');
-    const VERCEL_API_LIMIT = 4.5 * 1024 * 1024; // 4.5MB - Vercel's hard limit
-    if (contentLength && parseInt(contentLength) > VERCEL_API_LIMIT) {
+    if (contentLength && parseInt(contentLength) > MAX_REQUEST_SIZE) {
       const sizeMB = (parseInt(contentLength) / (1024 * 1024)).toFixed(2);
       logger.warn('Upload request too large', {
         size: `${sizeMB}MB`,
-        limit: `${(VERCEL_API_LIMIT / (1024 * 1024)).toFixed(2)}MB`
+        limit: `${(MAX_REQUEST_SIZE / (1024 * 1024)).toFixed(2)}MB`
       });
       return NextResponse.json(
         {
           error: 'Request too large',
-          message: `Request body is ${sizeMB}MB, maximum allowed is ${(VERCEL_API_LIMIT / (1024 * 1024)).toFixed(2)}MB. Please compress your image before uploading.`,
+          message: `Request body is ${sizeMB}MB, maximum allowed is ${(MAX_REQUEST_SIZE / (1024 * 1024)).toFixed(2)}MB. Please compress your media before uploading.`,
         },
         { status: 413 }
       );

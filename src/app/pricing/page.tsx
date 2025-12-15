@@ -35,7 +35,7 @@ const tiers = [
   {
     name: 'In-House',
     id: 'starter',
-    price: 35,
+    price: 50,
     description: 'For marketing managers',
     priceId: process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID!,
     longDescription: 'Everything in Free, plus higher capacity and the ability to schedule posts.',
@@ -47,13 +47,13 @@ const tiers = [
       '100 AI Credits per month — 10x more generation power',
     ],
     bestFor: 'Freelancers, solopreneurs, and individuals managing one brand.',
-    buttonText: 'Start Free Trial',
+    buttonText: 'Get Started',
     highlighted: false,
   },
   {
     name: 'Freelancer',
     id: 'professional',
-    price: 79,
+    price: 89,
     description: 'For freelancers and agencies',
     priceId: process.env.NEXT_PUBLIC_STRIPE_PROFESSIONAL_PRICE_ID!,
     longDescription: 'Everything in In-House, plus capacity for multiple clients, advanced analytics, and custom branding.',
@@ -65,7 +65,7 @@ const tiers = [
       '500 AI Credits per month',
     ],
     bestFor: 'Growing agencies, consultants, and multi-client managers.',
-    buttonText: 'Start Free Trial',
+    buttonText: 'Get Started',
     highlighted: true,
   },
   {
@@ -85,7 +85,7 @@ const tiers = [
       '2,000 AI Credits per month',
     ],
     bestFor: 'Established agencies managing 10+ clients with high-volume content needs.',
-    buttonText: 'Start Free Trial',
+    buttonText: 'Get Started',
     highlighted: false,
   },
 ];
@@ -447,7 +447,7 @@ export default function PricingPage() {
           <div className="mb-12 text-center">
             <h1 className="mb-6 text-5xl font-black text-gray-900 sm:text-6xl">Start Free &amp; Scale</h1>
             <h2 className="mb-4 text-3xl font-bold text-gray-900">Choose Your Plan</h2>
-            <p className="text-xl text-gray-600">Start with a 14-day free trial. Cancel anytime.</p>
+            <p className="text-xl text-gray-600">Start Free. Cancel anytime.</p>
           </div>
 
           <div className="mx-auto grid max-w-7xl grid-cols-1 items-stretch gap-8 md:grid-cols-4">
@@ -707,7 +707,7 @@ export default function PricingPage() {
             </div>
 
             <div className="mt-8 text-center text-sm text-gray-500">
-              <p>All paid plans start with a 14-day free trial. Cancel anytime.</p>
+              <p>Start Free. Cancel anytime.</p>
               <p className="mt-2">
                 Questions?{' '}
                 <a href="mailto:support@example.com" className="text-blue-600 hover:underline">

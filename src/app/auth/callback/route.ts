@@ -20,7 +20,9 @@ export async function GET(request: NextRequest) {
   }
 
   if (code) {
-    const supabase = createRouteHandlerClient({ cookies });
+    // Next.js 15+ requires await for cookies()
+    const cookieStore = await cookies();
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     
     // Verify session was established before redirecting

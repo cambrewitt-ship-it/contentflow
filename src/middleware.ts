@@ -77,7 +77,8 @@ export async function middleware(req: NextRequest) {
   // If it's a public route, allow access
   if (isPublicRoute || isPublicApi || isPublicDynamic) {
     // Redirect authenticated users away from auth pages to dashboard
-    if (session && (pathname === '/auth/login' || pathname === '/auth/signup')) {
+    // Only redirect if we have a valid session with a user
+    if (session?.user && (pathname === '/auth/login' || pathname === '/auth/signup')) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
     return res;

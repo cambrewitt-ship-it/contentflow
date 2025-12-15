@@ -164,16 +164,27 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     async function fetchBrandData() {
       try {
         fetchBrandDataRef.current = true
+        const accessToken = getAccessToken()
+        
+        if (!accessToken) {
+          console.log('⚠️ No access token available for brand data fetch');
+          return;
+        }
+        
+        const headers = {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        };
         
         // Fetch brand documents
-        const docsResponse = await fetch(`/api/clients/${clientId}/brand-documents`)
+        const docsResponse = await fetch(`/api/clients/${clientId}/brand-documents`, { headers })
         if (docsResponse.ok) {
           const docsData = await docsResponse.json()
           setBrandDocuments(docsData.documents || [])
         }
 
         // Fetch website scrapes
-        const scrapesResponse = await fetch(`/api/clients/${clientId}/scrape-website`)
+        const scrapesResponse = await fetch(`/api/clients/${clientId}/scrape-website`, { headers })
         if (scrapesResponse.ok) {
           const scrapesData = await scrapesResponse.json()
           setWebsiteScrapes(scrapesData.scrapes || [])
@@ -186,7 +197,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
     }
     
     fetchBrandData()
-  }, [clientId])
+  }, [clientId, getAccessToken])
 
   // Fetch scheduled posts for post status
   const fetchScheduledPosts = useCallback(async () => {
@@ -544,7 +555,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         ? 'border-2 border-emerald-500 bg-emerald-50 shadow-sm hover:bg-emerald-100'
         : 'border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50',
       iconWrapperClasses: connected
-        ? 'ring-2 ring-offset-2 ring-emerald-400 scale-105'
+        ? 'ring-4 ring-green-500 scale-105'
         : '',
       labelClasses: connected ? 'text-emerald-700' : 'text-gray-700'
     };

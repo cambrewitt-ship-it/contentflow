@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Calendar, Clock, Check, Send, Trash2, AlertCircle } from 'lucide-react'
 import { Post, LateAccount } from '@/types/api'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface Account {
   _id: string;
@@ -24,6 +25,7 @@ interface LocalScheduledPost {
 
 export default function NewScheduler({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params);
+  const { getAccessToken } = useAuth();
   const [readyPosts, setReadyPosts] = useState<Post[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +40,14 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
   const fetchPosts = useCallback(async () => {
     try {
       console.log('Fetching posts for client:', clientId);
-      const response = await fetch(`/api/posts/${clientId}`);
+      const accessToken = getAccessToken();
+      
+      const response = await fetch(`/api/posts/${clientId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
       const data = await response.json();
       console.log('Fetched posts:', data.posts);
       setReadyPosts(data.posts || []);
@@ -47,19 +56,26 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
     } finally {
       setLoading(false);
     }
-  }, [clientId]);
+  }, [clientId, getAccessToken]);
 
   const fetchAccounts = useCallback(async () => {
     try {
       console.log('Fetching accounts for client:', clientId);
-      const response = await fetch(`/api/late/get-accounts/${clientId}`);
+      const accessToken = getAccessToken();
+      
+      const response = await fetch(`/api/late/get-accounts/${clientId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
       const data = await response.json();
       console.log('Fetched accounts:', data.accounts);
       setAccounts(data.accounts || []);
     } catch (error) {
       console.error('Error fetching accounts:', error);
     }
-  }, [clientId]);
+  }, [clientId, getAccessToken]);
 
   useEffect(() => {
     fetchPosts();

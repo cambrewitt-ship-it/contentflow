@@ -14,33 +14,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const { user, loading } = useAuth();
   
-  // Redirect to login if not authenticated (give it time for OAuth callback)
+  // Redirect to login if not authenticated
   useEffect(() => {
-    // Add a small delay to allow OAuth callback to complete
-    const timer = setTimeout(() => {
-      if (!loading && !user && pathname?.startsWith('/dashboard')) {
-        router.push('/auth/login');
-      }
-    }, 1000); // Wait 1 second before redirecting
-    
-    return () => clearTimeout(timer);
+    if (!loading && !user && pathname?.startsWith('/dashboard')) {
+      console.log('🔒 Not authenticated, redirecting to login...');
+      router.push('/auth/login');
+    }
   }, [user, loading, router, pathname]);
 
-  // Show loading state while checking authentication
-  if (loading) {
+  // Show loading state while checking authentication OR if not authenticated
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading...</p>
+          <p>{loading ? 'Loading...' : 'Redirecting to login...'}</p>
         </div>
       </div>
     );
-  }
-
-  // Don't render if not authenticated
-  if (!user) {
-    return null;
   }
   
   // Hide TopBar for pages that have their own merged headers

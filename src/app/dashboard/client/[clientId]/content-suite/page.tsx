@@ -189,7 +189,14 @@ export default function ContentSuitePage({ params }: PageProps) {
       
       try {
         setProjectsLoading(true)
-        const response = await fetch(`/api/projects?clientId=${clientId}`)
+        const accessToken = getAccessToken()
+        
+        const response = await fetch(`/api/projects?clientId=${clientId}`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        })
         
         if (!response.ok) {
           throw new Error(`Failed to fetch projects: ${response.status}`)

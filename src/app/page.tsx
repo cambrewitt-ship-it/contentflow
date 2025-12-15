@@ -4,7 +4,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabaseClient";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, X, Check, Plug } from "lucide-react";
@@ -52,7 +52,7 @@ const pricingTiers = [
   {
     name: 'In-House',
     id: 'starter',
-    price: 35,
+    price: 50,
     description: 'For marketing managers',
     trialText: '14-day free trial',
     features: [
@@ -66,7 +66,7 @@ const pricingTiers = [
   {
     name: 'Freelancer',
     id: 'professional',
-    price: 79,
+    price: 89,
     description: 'For freelancers and agencies',
     trialText: '14-day free trial',
     features: [
@@ -94,12 +94,93 @@ const pricingTiers = [
   },
 ];
 
+const comparisonSections = [
+  {
+    title: 'Core Features',
+    rows: [
+      {
+        label: 'Client Profiles',
+        values: ['1', '1', '5', 'Unlimited'],
+      },
+      {
+        label: 'AI Copy Generation',
+        values: ['check', 'check', 'check', 'check'],
+      },
+      {
+        label: 'AI Content Ideas',
+        values: ['check', 'check', 'check', 'check'],
+      },
+      {
+        label: 'Content Calendar',
+        values: ['check', 'check', 'check', 'check'],
+      },
+      {
+        label: 'AI Credits per Month',
+        values: ['10', '100', '500', '2,000'],
+      },
+    ],
+  },
+  {
+    title: 'Scheduling & Publishing',
+    rows: [
+      {
+        label: 'Social Media Scheduling',
+        values: ['cross', 'check', 'check', 'check'],
+      },
+      {
+        label: 'Scheduled Posts per Month',
+        values: ['dash', '30', '150', 'Unlimited'],
+      },
+    ],
+  },
+  {
+    title: 'Support & Branding',
+    rows: [
+      {
+        label: 'Email Support',
+        values: ['cross', 'check', 'check', 'check'],
+      },
+      {
+        label: 'White-Label Branding',
+        values: ['cross', 'cross', 'cross', 'check'],
+      },
+      {
+        label: 'Dedicated Account Manager',
+        values: ['cross', 'cross', 'cross', 'check'],
+      },
+    ],
+  },
+];
+
 export default function Home() {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [email, setEmail] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const planColumns = pricingTiers.map((tier) => ({
+    id: tier.id,
+    name: tier.name,
+    price: tier.price,
+    description: tier.description,
+    highlighted: tier.highlighted,
+    buttonText: tier.price === 0 ? 'Get Started Free' : 'Start Free Trial',
+  }));
+
+  const renderComparisonValue = (value: string) => {
+    if (value === 'check') {
+      return <Check className="mx-auto h-5 w-5 text-emerald-500" />;
+    }
+    if (value === 'cross') {
+      return <X className="mx-auto h-5 w-5 text-rose-500" />;
+    }
+    if (value === 'dash') {
+      return <span className="text-gray-400">—</span>;
+    }
+
+    return <span className="text-gray-700">{value}</span>;
+  };
 
   // Check for password reset hash fragments and redirect if needed
   // This handles cases where Supabase redirects to the home page instead of reset-password
@@ -165,7 +246,7 @@ export default function Home() {
               <a href="/features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                 Features
               </a>
-              <a href="#pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <a href="/pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                 Pricing
               </a>
               <Link href="/contact" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
@@ -233,7 +314,7 @@ export default function Home() {
                   Features
                 </a>
                 <a 
-                  href="#pricing" 
+                  href="/pricing" 
                   className="block px-3 py-2 text-base font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
@@ -591,6 +672,119 @@ export default function Home() {
                   </div>
                 </Card>
               ))}
+            </div>
+          </div>
+
+          {/* Compare Plans Section */}
+          <div className="mt-20">
+            <div className="mb-8 text-center">
+              <h2 className="text-3xl font-bold text-gray-900">Compare Plans</h2>
+              <p className="mt-2 text-gray-600">
+                See what's included with each tier so you can choose the right fit for your team.
+              </p>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-white">
+                    <tr>
+                      <th className="min-w-[200px] px-6 py-6 text-left text-sm font-semibold uppercase tracking-wide text-gray-500">
+                        Features
+                      </th>
+                      {planColumns.map((plan) => (
+                        <th
+                          key={plan.id}
+                          className={`px-6 py-6 text-center text-sm font-semibold uppercase tracking-wide ${
+                            plan.highlighted ? 'bg-blue-50 text-blue-700' : 'text-gray-500'
+                          }`}
+                        >
+                          <div className="mx-auto flex max-w-[200px] flex-col items-center gap-2">
+                            {plan.highlighted && (
+                              <span className="rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white">
+                                Most Popular
+                              </span>
+                            )}
+                            <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
+                            <p className="text-3xl font-extrabold text-gray-900">
+                              {plan.price === 0 ? '$0' : `$${plan.price}`}
+                              <span className="text-base font-medium text-gray-500">/month</span>
+                            </p>
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {comparisonSections.map((section) => (
+                      <Fragment key={section.title}>
+                        <tr className="bg-gray-50">
+                          <td
+                            colSpan={planColumns.length + 1}
+                            className="px-6 py-3 text-left text-sm font-semibold uppercase tracking-wide text-gray-600"
+                          >
+                            {section.title}
+                          </td>
+                        </tr>
+                        {section.rows.map((row) => (
+                          <tr key={row.label} className="bg-white">
+                            <td className="px-6 py-4 text-sm font-medium text-gray-900">{row.label}</td>
+                            {row.values.map((value, index) => {
+                              const plan = planColumns[index];
+                              return (
+                                <td
+                                  key={`${row.label}-${plan.id}`}
+                                  className={`px-6 py-4 text-center text-sm ${
+                                    plan.highlighted ? 'bg-blue-50 font-semibold text-gray-900' : 'text-gray-600'
+                                  }`}
+                                >
+                                  {renderComparisonValue(value)}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </Fragment>
+                    ))}
+                    <tr className="bg-gray-50">
+                      <td className="px-6 py-6"></td>
+                      {planColumns.map((plan) => (
+                        <td
+                          key={`${plan.id}-cta`}
+                          className={`px-6 py-6 text-center ${
+                            plan.highlighted ? 'bg-blue-50' : 'bg-gray-50'
+                          }`}
+                        >
+                          <Button
+                            asChild
+                            className={`w-full py-3 ${
+                              plan.highlighted
+                                ? 'bg-blue-600 hover:bg-blue-700'
+                                : plan.price === 0
+                                ? 'bg-green-600 hover:bg-green-700'
+                                : 'bg-gray-800 hover:bg-gray-900'
+                            }`}
+                          >
+                            <Link href="/auth/signup">
+                              {plan.buttonText}
+                            </Link>
+                          </Button>
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="mt-8 text-center text-sm text-gray-500">
+              <p>Start Free. Cancel anytime.</p>
+              <p className="mt-2">
+                Questions?{' '}
+                <a href="mailto:support@example.com" className="text-blue-600 hover:underline">
+                  Contact our team
+                </a>
+              </p>
             </div>
           </div>
         </div>

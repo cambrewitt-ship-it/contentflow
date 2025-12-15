@@ -1,13 +1,23 @@
+import { upload } from '@vercel/blob/client';
 import logger from '@/lib/logger';
+
+// Size threshold for using client-side upload (reduced to 3MB to stay well under API route limit)
+// Videos ALWAYS use client-side upload regardless of size
+const CLIENT_UPLOAD_THRESHOLD = 3 * 1024 * 1024; // 3MB
 
 // Helper function to compress/resize image if it's too large (same as in contentStore)
 async function compressImageIfNeeded(
   imageData: string,
-  maxSizeBytes: number = 3 * 1024 * 1024, // 3MB default
-  maxRequestSizeBytes: number = 4.5 * 1024 * 1024 // 4.5MB total request body limit
+  maxSizeBytes: number = 2.5 * 1024 * 1024, // 2.5MB default - conservative to stay under 3MB threshold
+  maxRequestSizeBytes: number = 3 * 1024 * 1024 // 3MB total request body limit
 ): Promise<string> {
   if (!imageData.startsWith('data:')) {
     return imageData;
+  }
+
+  // NEVER try to compress videos
+  if (imageData.startsWith('data:video/')) {
+    throw new Error('Cannot compress video files - they should use client-side upload');
   }
 
   const base64Data = imageData.split(',')[1] || imageData;
@@ -92,7 +102,68 @@ export async function uploadMediaToBlob(
 ): Promise<{ url: string; mediaType: 'image' | 'video'; mimeType: string }> {
   try {
     const isVideo = mediaFile.type.startsWith('video/');
-    
+    const fileSize = mediaFile.size;
+    const mediaType = isVideo ? 'video' : 'image';
+
+    logger.info(`📤 Starting upload for ${mediaType}`, {
+      size: `${(fileSize / (1024 * 1024)).toFixed(2)}MB`,
+      type: mediaFile.type,
+      fileName: filename,
+      willUseClientSide: isVideo || fileSize > CLIENT_UPLOAD_THRESHOLD
+    });
+
+    // For videos or large files, use client-side upload to bypass API route size limit
+    // IMPORTANT: All videos MUST use client-side upload to avoid 4.5MB API route limit
+    if (isVideo || fileSize > CLIENT_UPLOAD_THRESHOLD) {
+      logger.info(`🎬 Uploading ${isVideo ? 'video' : 'large file'} via client-side upload...`, {
+        size: `${(fileSize / (1024 * 1024)).toFixed(2)}MB`,
+        type: mediaFile.type
+      });
+
+      try {
+        // Upload directly to blob storage using presigned URL
+        // The handleUploadUrl endpoint manages the BLOB_READ_WRITE_TOKEN server-side
+        logger.info('📡 Requesting presigned URL for direct upload...');
+        const blob = await upload(filename, mediaFile, {
+          access: 'public',
+          handleUploadUrl: '/api/upload-presigned-url',
+          clientPayload: JSON.stringify({
+            size: fileSize,
+            type: mediaFile.type,
+          }),
+        });
+
+        logger.info('✅ Client-side upload successful', {
+          url: blob.url,
+          size: `${(fileSize / (1024 * 1024)).toFixed(2)}MB`
+        });
+
+        return {
+          url: blob.url,
+          mediaType,
+          mimeType: mediaFile.type
+        };
+      } catch (uploadError) {
+        logger.error('❌ Client-side upload failed:', {
+          error: uploadError,
+          message: uploadError instanceof Error ? uploadError.message : String(uploadError),
+          fileSize: `${(fileSize / (1024 * 1024)).toFixed(2)}MB`,
+          mediaType
+        });
+        throw new Error(`Failed to upload ${mediaType} via client-side upload: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
+      }
+    }
+
+    // For small images, use the original base64 upload method
+    // IMPORTANT: Videos should NEVER reach this path - they should always use client-side upload
+    if (isVideo) {
+      throw new Error('Videos must use client-side upload - should not reach API route upload path');
+    }
+
+    logger.info('🖼️ Uploading small image via API route...', {
+      size: `${(fileSize / (1024 * 1024)).toFixed(2)}MB`
+    });
+
     // Convert file to base64 first
     let base64Data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -101,14 +172,14 @@ export async function uploadMediaToBlob(
       reader.readAsDataURL(mediaFile);
     });
 
-    // For images, compress before uploading to avoid 4.5MB request body limit
-    if (!isVideo && base64Data.startsWith('data:image/')) {
+    // Compress image if needed to avoid API route body size limit
+    if (base64Data.startsWith('data:image/')) {
       const originalSize = (base64Data.length * 3) / 4;
-      if (originalSize > 3 * 1024 * 1024) {
+      if (originalSize > 2 * 1024 * 1024) {
         logger.info('🖼️ Compressing image before upload to avoid size limits...', {
           originalSize: `${(originalSize / (1024 * 1024)).toFixed(2)}MB`
         });
-        base64Data = await compressImageIfNeeded(base64Data, 3 * 1024 * 1024, 4.5 * 1024 * 1024);
+        base64Data = await compressImageIfNeeded(base64Data, 2.5 * 1024 * 1024, 3 * 1024 * 1024);
         const compressedSize = (base64Data.length * 3) / 4;
         logger.info('✅ Image compressed for upload', {
           compressedSize: `${(compressedSize / (1024 * 1024)).toFixed(2)}MB`
@@ -116,7 +187,15 @@ export async function uploadMediaToBlob(
       }
     }
 
-    const mediaType = mediaFile.type.startsWith('video/') ? 'video' : 'image';
+    // Double-check the final size before sending to API route
+    const finalSize = (base64Data.length * 3) / 4;
+    if (finalSize > CLIENT_UPLOAD_THRESHOLD) {
+      logger.warn('⚠️ Image still too large after compression, should use client-side upload', {
+        size: `${(finalSize / (1024 * 1024)).toFixed(2)}MB`,
+        threshold: `${(CLIENT_UPLOAD_THRESHOLD / (1024 * 1024)).toFixed(2)}MB`
+      });
+      throw new Error(`Image too large (${(finalSize / (1024 * 1024)).toFixed(2)}MB) - please use a smaller image or it will be uploaded via client-side upload`);
+    }
 
     // Upload via server API route (this keeps the blob token secure)
     const response = await fetch('/api/upload-media', {
@@ -176,28 +255,34 @@ export async function uploadMediaToBlob(
       } : error
     });
     
-    // Fallback: convert to base64 data URL
-    try {
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          resolve(reader.result as string);
+    // Fallback: convert to base64 data URL (only for images, not videos)
+    if (!mediaFile.type.startsWith('video/')) {
+      try {
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            resolve(reader.result as string);
+          };
+          reader.onerror = () => {
+            reject(new Error('Failed to convert media to base64'));
+          };
+          reader.readAsDataURL(mediaFile);
+        });
+        
+        logger.info('⚠️ Using base64 fallback for image');
+        
+        return {
+          url: base64Data,
+          mediaType: 'image',
+          mimeType: mediaFile.type
         };
-        reader.onerror = () => {
-          reject(new Error('Failed to convert media to base64'));
-        };
-        reader.readAsDataURL(mediaFile);
-      });
-      
-      return {
-        url: base64Data,
-        mediaType: mediaFile.type.startsWith('video/') ? 'video' : 'image',
-        mimeType: mediaFile.type
-      };
-    } catch (fallbackError) {
-      logger.error('❌ Fallback base64 conversion also failed:', fallbackError);
-      throw new Error(`Upload failed: ${errorMessage}. Fallback also failed.`);
+      } catch (fallbackError) {
+        logger.error('❌ Fallback base64 conversion also failed:', fallbackError);
+        throw new Error(`Upload failed: ${errorMessage}. Fallback also failed.`);
+      }
     }
+    
+    throw new Error(`Upload failed: ${errorMessage}`);
   }
 }
 

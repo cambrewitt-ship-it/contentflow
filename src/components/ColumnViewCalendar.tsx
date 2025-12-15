@@ -4,6 +4,15 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
+import { 
+  FacebookIcon, 
+  InstagramIcon, 
+  TwitterIcon, 
+  LinkedInIcon,
+  TikTokIcon,
+  YouTubeIcon,
+  ThreadsIcon 
+} from '@/components/social-icons';
 import {
   DndContext,
   DragEndEvent,
@@ -91,6 +100,31 @@ const normalizeToWeekStart = (input: Date) => {
   date.setDate(diff);
   date.setHours(0, 0, 0, 0);
   return date;
+};
+
+// Helper to get platform icon
+const getPlatformIcon = (platform: string, size: number = 14) => {
+  const normalizedPlatform = platform.toLowerCase();
+  
+  switch (normalizedPlatform) {
+    case 'facebook':
+      return <FacebookIcon size={size} className="text-white" />;
+    case 'instagram':
+      return <InstagramIcon size={size} className="text-white" />;
+    case 'twitter':
+    case 'x':
+      return <TwitterIcon size={size} className="text-white" />;
+    case 'linkedin':
+      return <LinkedInIcon size={size} className="text-white" />;
+    case 'tiktok':
+      return <TikTokIcon size={size} className="text-white" />;
+    case 'youtube':
+      return <YouTubeIcon size={size} className="text-white" />;
+    case 'threads':
+      return <ThreadsIcon size={size} className="text-white" />;
+    default:
+      return null;
+  }
 };
 
 const computeInitialStartWeek = (weekDates: Date[]) => {
@@ -360,36 +394,66 @@ function SortablePostCard({
     );
   }
 
+  // Check if this post is published
+  const isPublished = post.late_status === 'published' || 
+                     (post.platforms_scheduled && post.platforms_scheduled.length > 0);
+  
+  const publishedPlatforms: string[] = [];
+  if (isPublished && post.platforms_scheduled) {
+    post.platforms_scheduled.forEach((platform: string) => {
+      publishedPlatforms.push(platform.toLowerCase());
+    });
+  }
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      className={`rounded-lg border-2 border-gray-200 bg-white p-2 mb-2 shadow-sm hover:shadow-md transition-all duration-200 ${
+      className={`rounded-lg border-2 border-gray-200 bg-white overflow-hidden mb-2 shadow-sm hover:shadow-md transition-all duration-200 ${
         isDragging ? 'opacity-50 scale-105' : ''
       } ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''} ${
         isDeleting ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-grab active:cursor-grabbing'
       } ${isSelected ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200' : ''}`}
     >
+      {/* Published Indicator Bar */}
+      {isPublished && publishedPlatforms.length > 0 && (
+        <div className="bg-green-500 px-3 py-1.5 flex items-center gap-2">
+          <span className="text-white text-xs font-bold tracking-wide">PUBLISHED</span>
+          <div className="flex items-center gap-1.5">
+            {publishedPlatforms.map((platform, index) => (
+              <div key={`${platform}-${index}`} className="flex items-center">
+                {getPlatformIcon(platform, 14)}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Header with Date and Status */}
-      <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
+      <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200 p-2">
         <div className="text-xs text-gray-600">
-          {post.scheduled_date ? formatDate(post.scheduled_date) : ''}
+          {post.scheduled_date ? `:: ${formatDate(post.scheduled_date)}` : ''}
         </div>
         <div className="flex items-center gap-2">
           {onTogglePostSelection && (
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={(e) => {
+            <button
+              type="button"
+              onClick={(e) => {
                 e.stopPropagation();
                 onTogglePostSelection(post.id);
               }}
               disabled={isDeleting}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
-              title="Select post for scheduling or deletion"
-            />
+              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                isSelected
+                  ? 'bg-blue-500 text-white hover:bg-blue-600'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
+              }`}
+              title={isSelected ? "Deselect post" : "Select post for scheduling or deletion"}
+            >
+              {isSelected ? 'Selected' : 'Select'}
+            </button>
           )}
           {getStatusTag()}
           {onDeletePost && (
@@ -417,7 +481,7 @@ function SortablePostCard({
 
       {/* Post Image */}
       {post.image_url && (
-        <div className="w-full mb-2 rounded overflow-hidden">
+        <div className="w-full mb-2 rounded overflow-hidden px-2">
           <LazyImage
             src={post.image_url}
             alt="Post"
@@ -427,13 +491,13 @@ function SortablePostCard({
       )}
 
       {/* Caption Preview */}
-      <p className="text-xs text-gray-700 whitespace-pre-wrap mb-1">
+      <p className="text-xs text-gray-700 whitespace-pre-wrap mb-1 px-2">
         {post.caption || 'No caption'}
       </p>
 
       {/* Time and Project - Editable */}
       {post.scheduled_time && (
-        <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
+        <div className="flex items-center justify-between gap-2 text-xs text-gray-500 px-2 pb-2">
           <div className="flex items-center gap-1">
             <Clock className="w-3 h-3" />
             {isEditing ? (
@@ -490,7 +554,7 @@ function SortablePostCard({
 
       {/* Platform */}
       {post.platform && (
-        <div className="mt-1">
+        <div className="mt-1 px-2">
           <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
             {post.platform}
           </span>
@@ -499,7 +563,7 @@ function SortablePostCard({
 
       {/* Approval Comment */}
       {approvalComment && (
-        <div className="mt-2 rounded-md border border-blue-100 bg-blue-50 p-2">
+        <div className="mt-2 mx-2 mb-2 rounded-md border border-blue-100 bg-blue-50 p-2">
           <div className="flex items-start gap-2">
             <MessageCircle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
             <div className="text-xs text-blue-700 whitespace-pre-wrap">

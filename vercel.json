@@ -1,0 +1,23 @@
+{
+  "functions": {
+    "src/app/api/upload-media/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "src/app/api/upload-presigned-url/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "src/app/api/late/upload-media/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    }
+  ]
+}
+

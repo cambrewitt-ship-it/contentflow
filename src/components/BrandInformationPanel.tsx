@@ -107,12 +107,16 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
 
     setUploading(true);
     try {
+      const accessToken = getAccessToken();
       const formData = new FormData();
       formData.append('file', file);
       formData.append('filename', file.name);
 
       const response = await fetch(`/api/clients/${clientId}/brand-documents`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        },
         body: formData
       });
 
@@ -140,10 +144,16 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
 
     setScraping(true);
     try {
+      const accessToken = getAccessToken();
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      };
+      
       // First, scrape the website
       const scrapeResponse = await fetch(`/api/clients/${clientId}/scrape-website`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ url: formData.website_url })
       });
 
@@ -157,7 +167,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
         // Now analyze the scraped content with AI
         const analysisResponse = await fetch(`/api/clients/${clientId}/analyze-website`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ scrapeId: scrapeData.data.id })
         });
 

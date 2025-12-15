@@ -21,7 +21,7 @@ export function createSupabaseAdmin() {
 }
 
 // Server-side Supabase client with user context (for RLS operations)
-export function createSupabaseServer() {
+export async function createSupabaseServer() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -29,7 +29,9 @@ export function createSupabaseServer() {
     throw new Error('Missing Supabase configuration for server client');
   }
 
-  return createRouteHandlerClient({ cookies });
+  // Next.js 15+ requires await for cookies()
+  const cookieStore = await cookies();
+  return createRouteHandlerClient({ cookies: () => cookieStore });
 }
 
 // Server-side Supabase client with user token (for API routes)
@@ -136,7 +138,7 @@ export function requiresAdminPrivileges(operation: string): boolean {
 }
 
 // Helper function to create appropriate Supabase client based on context
-export function createAppropriateSupabaseClient(
+export async function createAppropriateSupabaseClient(
   context: 'admin' | 'user' | 'token',
   token?: string
 ) {
@@ -144,7 +146,7 @@ export function createAppropriateSupabaseClient(
     case 'admin':
       return createSupabaseAdmin();
     case 'user':
-      return createSupabaseServer();
+      return await createSupabaseServer();
     case 'token':
       if (!token) {
         throw new Error('Token required for token-based client');

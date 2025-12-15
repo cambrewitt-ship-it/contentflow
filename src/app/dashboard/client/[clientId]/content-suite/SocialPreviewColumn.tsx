@@ -51,6 +51,7 @@ export function SocialPreviewColumn({
   updatingPost = false,
   onCustomCaptionChange,
 }: SocialPreviewColumnProps) {
+  const { getAccessToken } = useAuth()
   const {
     uploadedImages,
     captions,
@@ -61,7 +62,6 @@ export function SocialPreviewColumn({
     setCaptions,
     setSelectedCaptions,
   } = useContentStore()
-  const { getAccessToken } = useAuth()
 
   // Scheduling state
   const [showScheduleModal, setShowScheduleModal] = useState(false)
@@ -159,7 +159,15 @@ export function SocialPreviewColumn({
   const fetchConnectedAccounts = useCallback(async () => {
     try {
       setIsLoadingAccounts(true)
-      const response = await fetch(`/api/late/get-accounts/${clientId}`)
+      const accessToken = getAccessToken()
+      
+      const response = await fetch(`/api/late/get-accounts/${clientId}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch accounts: ${response.status}`)
       }
@@ -172,7 +180,7 @@ export function SocialPreviewColumn({
     } finally {
       setIsLoadingAccounts(false)
     }
-  }, [clientId])
+  }, [clientId, getAccessToken])
 
   useEffect(() => {
     fetchConnectedAccounts()

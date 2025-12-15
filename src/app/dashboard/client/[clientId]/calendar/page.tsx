@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle, FileDown } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
@@ -149,11 +149,11 @@ export default function CalendarPage() {
     return token;
   }, [getAccessToken]);
   
-  // Initialize Supabase client
-  const supabase = createClient(
+  // Initialize Supabase client (memoized to prevent multiple instances)
+  const supabase = useMemo(() => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  ), []);
   
   console.log('📍 CalendarPage render - clientId:', clientId);
 
@@ -231,20 +231,33 @@ export default function CalendarPage() {
 
   const fetchConnectedAccounts = useCallback(async () => {
     try {
+      console.log('🔄 Fetching connected accounts for client:', clientId);
       const accessToken = requireAccessToken();
+      console.log('🔑 Got access token:', !!accessToken);
+      
       const response = await fetch(`/api/late/get-accounts/${clientId}`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
         },
       });
+      
+      console.log('📡 Connected accounts response status:', response.status);
+      
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Failed to fetch accounts:', errorText);
         throw new Error(`Failed to fetch accounts: ${response.status}`);
       }
+      
       const data = await response.json();
+      console.log('✅ Connected accounts data:', data);
+      console.log('📊 Connected accounts count:', data.accounts?.length || 0);
+      console.log('📋 Accounts:', data.accounts);
+      
       setConnectedAccounts(data.accounts || []);
-      console.log('Connected accounts count:', data.accounts?.length || 0);
     } catch (error) {
-      console.error('Error fetching accounts:', error);
+      console.error('💥 Error fetching accounts:', error);
       setError(error instanceof Error ? error.message : 'Failed to load connected accounts');
     }
   }, [clientId, requireAccessToken]); // Removed state dependencies to prevent recreation
@@ -609,10 +622,16 @@ export default function CalendarPage() {
   // Consolidated initial data fetch - fetches all necessary data on mount
   useEffect(() => {
     const initializeCalendar = async () => {
-      if (!clientId) return;
+      console.log('🚀 Starting calendar initialization for client:', clientId);
+      
+      if (!clientId) {
+        console.log('⚠️ No clientId, skipping initialization');
+        return;
+      }
       
       try {
         // Fetch client timezone and name (single query)
+        console.log('📍 Fetching client timezone and name...');
         const { data, error } = await supabase
           .from('clients')
           .select('timezone, name')
@@ -626,23 +645,29 @@ export default function CalendarPage() {
           }
           if (data.name) {
             setClientName(data.name);
+            console.log('📍 Client name loaded:', data.name);
           }
         } else {
-          console.error('Error fetching client data:', error);
+          console.error('❌ Error fetching client data:', error);
         }
       } catch (err) {
-        console.error('Failed to fetch client data:', err);
+        console.error('💥 Failed to fetch client data:', err);
       }
       
-      // Batch all API calls to run in parallel
-      await Promise.all([
-        fetchProjects(),
-        fetchConnectedAccounts(),
-        fetchUnscheduledPosts(true),
-        fetchScheduledPosts(0, true)
-      ]);
-      
-      console.log('✅ Calendar initialized with all data loaded');
+      try {
+        // Batch all API calls to run in parallel
+        console.log('🔄 Fetching all calendar data in parallel...');
+        await Promise.all([
+          fetchProjects(),
+          fetchConnectedAccounts(),
+          fetchUnscheduledPosts(true),
+          fetchScheduledPosts(0, true)
+        ]);
+        
+        console.log('✅ Calendar initialized with all data loaded');
+      } catch (err) {
+        console.error('💥 Error during parallel data fetch:', err);
+      }
     };
     
     initializeCalendar();
@@ -1327,17 +1352,39 @@ export default function CalendarPage() {
       try {
         const post = allPosts.find(p => p.id === postId);
         
+        console.log(`🗑️ Deleting post ${postId}:`, {
+          hasLatePostId: !!post?.late_post_id,
+          latePostId: post?.late_post_id,
+          caption: post?.caption?.substring(0, 50)
+        });
+        
         // Delete from LATE if applicable
         if (post?.late_post_id) {
-          await fetch(`/api/late/delete-post?latePostId=${post.late_post_id}`, {
+          console.log(`📡 Calling LATE API to delete post ${post.late_post_id}...`);
+          const lateResponse = await fetch(`/api/late/delete-post?latePostId=${post.late_post_id}`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
             },
           });
+          
+          console.log(`📡 LATE delete response status for ${post.late_post_id}:`, lateResponse.status);
+          
+          if (!lateResponse.ok) {
+            const errorData = await lateResponse.json().catch(() => ({}));
+            console.error(`❌ Failed to delete from LATE (${post.late_post_id}):`, errorData);
+            throw new Error(`Failed to delete from LATE: ${errorData.error || lateResponse.statusText}`);
+          }
+          
+          const lateData = await lateResponse.json();
+          console.log(`✅ Successfully deleted from LATE (${post.late_post_id}):`, lateData);
+        } else {
+          console.log(`⚠️ No late_post_id found for post ${postId}, skipping LATE deletion`);
         }
         
         // Delete from database
+        console.log(`🗄️ Deleting post ${postId} from database...`);
         const dbResponse = await fetch('/api/calendar/scheduled', {
           method: 'DELETE',
           headers: { 
@@ -1348,12 +1395,15 @@ export default function CalendarPage() {
         });
         
         if (!dbResponse.ok) {
-          throw new Error(`Failed to delete ${postId}`);
+          const dbError = await dbResponse.text();
+          console.error(`❌ Failed to delete from database:`, dbError);
+          throw new Error(`Failed to delete ${postId} from database`);
         }
         
+        console.log(`✅ Successfully deleted post ${postId} from database`);
         return { success: true, postId };
       } catch (error) {
-        console.error(`Error deleting ${postId}:`, error);
+        console.error(`💥 Error deleting ${postId}:`, error);
         return { success: false, postId, error: error instanceof Error ? error.message : 'Unknown error' };
       }
     });
@@ -2501,6 +2551,13 @@ export default function CalendarPage() {
             
             {/* Right side - Schedule buttons or guidance */}
             <div className="flex items-center gap-2">
+              {/* Debug info */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="text-xs text-gray-500 mr-2">
+                  Accounts: {connectedAccounts.length}
+                </div>
+              )}
+              
               {(connectedAccounts.length > 0 || selectedPosts.size > 0) && (
                 <span
                   className={`text-sm py-2 transition-colors ${
@@ -2561,7 +2618,7 @@ export default function CalendarPage() {
                       title={
                         selectedPosts.size === 0 ? 'Select posts to schedule' :
                         hasEmptyCaptions ? 'Add captions to selected posts before scheduling' : 
-                        ''
+                        `Schedule ${selectedPosts.size} post${selectedPosts.size === 1 ? '' : 's'} to ${account.platform}`
                       }
                     >
                       {isScheduling ? (
@@ -2572,7 +2629,7 @@ export default function CalendarPage() {
                           {account.platform === 'instagram' && <InstagramIcon size={16} />}
                           {account.platform === 'twitter' && <TwitterIcon size={16} />}
                           {account.platform === 'linkedin' && <LinkedInIcon size={16} />}
-                          <span>Schedule</span>
+                          <span>Schedule {selectedPosts.size > 0 ? `(${selectedPosts.size})` : ''}</span>
                         </div>
                       )}
                     </button>

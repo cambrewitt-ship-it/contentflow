@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import logger from '@/lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -19,12 +19,11 @@ if (supabaseAnonKey.startsWith('eyJ')) {
   logger.warn('Supabase anon key format may be incorrect');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
-  }
+// Use createClientComponentClient to properly handle cookies set by server-side auth
+// This ensures the client reads auth tokens from cookies (matching server-side handlers)
+export const supabase = createClientComponentClient({
+  supabaseUrl,
+  supabaseKey: supabaseAnonKey,
 });
 
 // Helper function to check if user is authenticated

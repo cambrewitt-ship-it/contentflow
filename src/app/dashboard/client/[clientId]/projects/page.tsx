@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Loader2, Plus, FolderOpen, Calendar, Edit3, Trash2, Eye } from 'lucide-react'
 import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface Project {
   id: string
@@ -52,6 +53,8 @@ export default function ProjectsPage({ params }: PageProps) {
   const [creatingProject, setCreatingProject] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
 
+  const { getAccessToken } = useAuth()
+  
   // Fetch projects for the client
   useEffect(() => {
     async function fetchProjects() {
@@ -59,7 +62,14 @@ export default function ProjectsPage({ params }: PageProps) {
       
       try {
         setProjectsLoading(true)
-        const response = await fetch(`/api/projects?clientId=${clientId}`)
+        const accessToken = getAccessToken()
+        
+        const response = await fetch(`/api/projects?clientId=${clientId}`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        })
         
         if (!response.ok) {
           throw new Error(`Failed to fetch projects: ${response.status}`)

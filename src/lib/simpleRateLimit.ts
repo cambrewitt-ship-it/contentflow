@@ -12,7 +12,7 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 // Simple rate limit configurations
 const rateLimits = {
   ai: { requests: 20, windowMs: 60 * 60 * 1000 }, // 20 per hour
-  authenticated: { requests: 100, windowMs: 15 * 60 * 1000 }, // 100 per 15 min
+  authenticated: { requests: 1000, windowMs: 15 * 60 * 1000 }, // 1000 per 15 min - Increased for normal app usage
   public: { requests: 10, windowMs: 15 * 60 * 1000 }, // 10 per 15 min
   portal: { requests: 20, windowMs: 60 * 60 * 1000 }, // 20 per hour
   portalAuth: { requests: 5, windowMs: 60 * 60 * 1000 }, // 5 per hour
@@ -35,6 +35,10 @@ const routePatterns: Record<string, RateLimitTier> = {
   '/api/portal': 'portal',
   '/portal': 'portal',
   '/api/clients': 'authenticated',
+  '/api/projects': 'authenticated',
+  '/api/late': 'authenticated',
+  '/api/calendar': 'authenticated',
+  '/api/upload-media': 'authenticated',
   '/api': 'public',
 };
 
@@ -67,6 +71,39 @@ export function getClientIdentifier(request: NextRequest): string {
   return `ip_${ip}`;
 }
 
+// Function to clear rate limit cache for specific identifier or tier
+export function clearRateLimit(identifier?: string, tier?: RateLimitTier) {
+  if (!identifier && !tier) {
+    // Clear all
+    rateLimitStore.clear();
+    logger.info('🧹 Cleared all rate limit cache');
+    return;
+  }
+  
+  if (identifier && tier) {
+    // Clear specific entry
+    const key = `${tier}:${identifier}`;
+    rateLimitStore.delete(key);
+    logger.info(`🧹 Cleared rate limit cache for ${key}`);
+  } else if (tier) {
+    // Clear all entries for a tier
+    for (const [key] of rateLimitStore.entries()) {
+      if (key.startsWith(`${tier}:`)) {
+        rateLimitStore.delete(key);
+      }
+    }
+    logger.info(`🧹 Cleared rate limit cache for tier ${tier}`);
+  } else if (identifier) {
+    // Clear all entries for an identifier across all tiers
+    for (const [key] of rateLimitStore.entries()) {
+      if (key.endsWith(`:${identifier}`)) {
+        rateLimitStore.delete(key);
+      }
+    }
+    logger.info(`🧹 Cleared rate limit cache for identifier ${identifier}`);
+  }
+}
+
 export function checkSimpleRateLimit(
   request: NextRequest,
   tier: RateLimitTier,
@@ -76,16 +113,27 @@ export function checkSimpleRateLimit(
   const now = Date.now();
   const key = `${tier}:${identifier}`;
   
-  // Clean up expired entries
+  // Clean up expired entries (more aggressive cleanup)
   for (const [k, v] of rateLimitStore.entries()) {
     if (v.resetTime < now) {
       rateLimitStore.delete(k);
     }
   }
   
+  // Check if entry exists but config changed (different limit)
   const entry = rateLimitStore.get(key);
+  if (entry) {
+    // If the stored entry has different window, it's stale - delete it
+    const expectedResetTime = Math.floor(entry.resetTime / config.windowMs) * config.windowMs;
+    if (Math.abs(expectedResetTime - entry.resetTime) > 60000) { // More than 1 minute difference
+      logger.info(`🧹 Clearing stale rate limit entry for ${key} due to config change`);
+      rateLimitStore.delete(key);
+    }
+  }
   
-  if (!entry) {
+  const currentEntry = rateLimitStore.get(key);
+  
+  if (!currentEntry) {
     // First request
     rateLimitStore.set(key, {
       count: 1,
@@ -100,7 +148,7 @@ export function checkSimpleRateLimit(
     };
   }
   
-  if (entry.resetTime < now) {
+  if (currentEntry.resetTime < now) {
     // Window expired, reset
     rateLimitStore.set(key, {
       count: 1,
@@ -115,25 +163,25 @@ export function checkSimpleRateLimit(
     };
   }
   
-  if (entry.count >= config.requests) {
+  if (currentEntry.count >= config.requests) {
     // Rate limit exceeded
     return {
       success: false,
       limit: config.requests,
       remaining: 0,
-      reset: new Date(entry.resetTime),
+      reset: new Date(currentEntry.resetTime),
     };
   }
   
   // Increment count
-  entry.count++;
-  rateLimitStore.set(key, entry);
+  currentEntry.count++;
+  rateLimitStore.set(key, currentEntry);
   
   return {
     success: true,
     limit: config.requests,
-    remaining: config.requests - entry.count,
-    reset: new Date(entry.resetTime),
+    remaining: config.requests - currentEntry.count,
+    reset: new Date(currentEntry.resetTime),
   };
 }
 
