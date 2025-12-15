@@ -289,7 +289,7 @@ export default function FacebookPageSelection({ params }: PageSelectionProps) {
         {/* Help Text */}
         <div className="mt-6 text-center text-sm text-gray-500">
           <p>
-            This page will be connected to your client profile and can be used for content publishing.
+            This page will be connected to your business profile and can be used for content publishing.
           </p>
         </div>
       </div>

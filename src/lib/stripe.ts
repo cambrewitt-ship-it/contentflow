@@ -49,7 +49,7 @@ export const SUBSCRIPTION_TIERS = {
     maxPostsPerMonth: 0, // No posting to social media
     maxAICreditsPerMonth: 10,
     features: [
-      '1 Client Account',
+      '1 Business Profile',
       '10 AI Credits per month',
       'No social media posting',
       'Basic Analytics',
@@ -64,7 +64,7 @@ export const SUBSCRIPTION_TIERS = {
     maxPostsPerMonth: 30,
     maxAICreditsPerMonth: 100,
     features: [
-      '1 Client Account',
+      '1 Business Profile',
       '30 Posts per month',
       '100 AI Credits per month',
       'Basic Analytics',
@@ -79,7 +79,7 @@ export const SUBSCRIPTION_TIERS = {
     maxPostsPerMonth: 150,
     maxAICreditsPerMonth: 500,
     features: [
-      '5 Client Accounts',
+      '5 Business Profiles',
       '150 Posts per month',
       '500 AI Credits per month',
       'Advanced Analytics',
@@ -95,7 +95,7 @@ export const SUBSCRIPTION_TIERS = {
     maxPostsPerMonth: -1, // unlimited
     maxAICreditsPerMonth: 2000,
     features: [
-      'Unlimited Client Accounts',
+      'Unlimited Business Profiles',
       'Unlimited Posts per month',
       '2000 AI Credits per month',
       'Advanced Analytics',

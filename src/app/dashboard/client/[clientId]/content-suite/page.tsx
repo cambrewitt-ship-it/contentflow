@@ -345,7 +345,7 @@ export default function ContentSuitePage({ params }: PageProps) {
   // Handle updating an existing post
   const handleUpdatePost = async (
     selectedCaption: string,
-    uploadedImages: { preview: string; id: string; file?: File }[]
+    uploadedImages: { preview: string; id: string; file?: File; blobUrl?: string }[]
   ) => {
     if (!editingPostId || !clientId) return
     
@@ -471,7 +471,7 @@ export default function ContentSuitePage({ params }: PageProps) {
 
   const handleSendToScheduler = async (
     selectedCaption: string,
-    uploadedImages: { preview: string; id: string; file?: File }[]
+    uploadedImages: { preview: string; id: string; file?: File; blobUrl?: string }[]
   ) => {
     // If editing, update the post instead of sending to scheduler
     if (isEditing) {
@@ -498,6 +498,39 @@ export default function ContentSuitePage({ params }: PageProps) {
       // Get the active image
       const activeImage = uploadedImages[0] // Use first image for now
       
+      // Get the proper image URL - prefer blobUrl (Vercel Blob) over preview
+      // This prevents storing huge base64 data in the database
+      let imageUrl = activeImage.blobUrl || activeImage.preview
+      
+      // Validate that we have a proper URL, not base64 data
+      if (!imageUrl) {
+        throw new Error('No image URL available. Please wait for the image to finish uploading.')
+      }
+      
+      // Check if we have a valid HTTPS URL (either from blobUrl or preview)
+      const isValidUrl = imageUrl.startsWith('https://')
+      
+      if (!isValidUrl) {
+        // Image hasn't been uploaded to blob storage yet
+        if (imageUrl.startsWith('data:')) {
+          console.error('❌ Image is base64 data - blob upload may have failed or is pending')
+          // Calculate approximate size for user feedback
+          const base64Size = Math.round((imageUrl.length * 3) / 4 / (1024 * 1024))
+          throw new Error(`Image is still processing (${base64Size}MB). Large images take longer to upload. Please wait a moment and try again.`)
+        }
+        
+        if (imageUrl.startsWith('blob:')) {
+          console.error('❌ Image is still a temporary blob URL - waiting for Vercel Blob upload')
+          throw new Error('Image is still uploading to cloud storage. For large images (10MB+), this may take 10-30 seconds. Please wait and try again.')
+        }
+        
+        // Unknown format - reject for safety
+        console.error('❌ Unknown image URL format:', imageUrl.substring(0, 50))
+        throw new Error('Invalid image format. Please re-upload the image.')
+      }
+      
+      console.log('✅ Using image URL:', imageUrl.substring(0, 80) + '...')
+      
       // Check if this upload came from a specific date in the calendar
       const hasScheduledDate = preloadedContent?.scheduledDate
       
@@ -512,7 +545,7 @@ export default function ContentSuitePage({ params }: PageProps) {
           client_id: clientId,
           project_id: selectedProjectId,
           caption: selectedCaption,
-          image_url: activeImage.preview,
+          image_url: imageUrl,
           scheduled_date: preloadedContent?.scheduledDate,
           scheduled_time: scheduledTime,
           post_notes: '',
@@ -520,7 +553,7 @@ export default function ContentSuitePage({ params }: PageProps) {
         
         console.log('Sending scheduled post to calendar API:', { 
           ...scheduledPostData, 
-          image_url: activeImage.preview?.substring(0, 50) + '...' 
+          image_url: imageUrl.substring(0, 50) + '...' 
         })
         
         // Add to calendar_scheduled_posts via API
@@ -552,13 +585,13 @@ export default function ContentSuitePage({ params }: PageProps) {
           client_id: clientId,
           project_id: selectedProjectId,
           caption: selectedCaption,
-          image_url: activeImage.preview,
+          image_url: imageUrl,
           post_notes: '',
         }
         
         console.log('Sending post to calendar API:', { 
           ...postData, 
-          image_url: activeImage.preview?.substring(0, 50) + '...' 
+          image_url: imageUrl.substring(0, 50) + '...' 
         })
         
         // Add to calendar_unscheduled_posts via API
@@ -674,7 +707,7 @@ interface ContentSuiteContentProps {
   setProjects: (projects: Project[]) => void
   selectedProjectId: string | null
   setSelectedProjectId: (projectId: string | null) => void
-  handleSendToScheduler: (selectedCaption: string, uploadedImages: { preview: string; id: string; file?: File }[]) => Promise<void>
+  handleSendToScheduler: (selectedCaption: string, uploadedImages: { preview: string; id: string; file?: File; blobUrl?: string }[]) => Promise<void>
   isSendingToScheduler: boolean
   addingToProject: string | null
   setAddingToProject: (projectId: string | null) => void
@@ -1212,27 +1245,44 @@ function ContentSuiteContent({
               <div className="bg-white rounded-lg border border-gray-200 flex h-[116px]">
                 <div className="w-full flex flex-col gap-3 px-6 py-4">
                   {/* Add to Calendar Button */}
-                  <Button
-                    onClick={() => {
-                      // Use custom caption from preview if available, otherwise use selected caption
-                      const caption = customCaptionFromPreview.trim() || getSelectedCaption()
-                      handleSendToScheduler(caption, uploadedImages)
-                    }}
-                    disabled={isSendingToScheduler || (!customCaptionFromPreview.trim() && !getSelectedCaption())}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-                  >
-                    {isSendingToScheduler ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Adding...
-                      </>
-                    ) : (
-                      <>
-                        <Calendar className="w-5 h-5 mr-2" />
-                        Add to Calendar
-                      </>
-                    )}
-                  </Button>
+                  {(() => {
+                    // Check if any images are still uploading
+                    const hasUploadingImages = uploadedImages.some(img => 
+                      !img.blobUrl && (img.preview?.startsWith('blob:') || img.preview?.startsWith('data:'))
+                    )
+                    const isDisabled = isSendingToScheduler || 
+                      (!customCaptionFromPreview.trim() && !getSelectedCaption()) ||
+                      hasUploadingImages
+                    
+                    return (
+                      <Button
+                        onClick={() => {
+                          // Use custom caption from preview if available, otherwise use selected caption
+                          const caption = customCaptionFromPreview.trim() || getSelectedCaption()
+                          handleSendToScheduler(caption, uploadedImages)
+                        }}
+                        disabled={isDisabled}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                      >
+                        {isSendingToScheduler ? (
+                          <>
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                            Adding...
+                          </>
+                        ) : hasUploadingImages ? (
+                          <>
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                            Uploading Image...
+                          </>
+                        ) : (
+                          <>
+                            <Calendar className="w-5 h-5 mr-2" />
+                            Add to Calendar
+                          </>
+                        )}
+                      </Button>
+                    )
+                  })()}
                   
                   {/* Project Selector */}
                   <div>

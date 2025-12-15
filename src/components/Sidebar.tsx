@@ -150,7 +150,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
       <div className="w-64 bg-white border-r border-gray-200 p-4 min-h-screen">
         <div className="text-center p-4">
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-          <p className="text-sm text-red-600 mb-2">Failed to load clients</p>
+          <p className="text-sm text-red-600 mb-2">Failed to load profiles</p>
           <Button onClick={refreshClients} size="sm" variant="outline">
             Retry
           </Button>
@@ -257,7 +257,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
               <h3 className={getThemeClasses(
                 "text-sm font-medium text-gray-500",
                 "text-sm font-medium glass-text-muted"
-              )}>All Clients</h3>
+              )}>All Profiles</h3>
               
               <div className="flex items-center gap-2">
                 {/* Add Client Button */}
@@ -265,7 +265,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                   <Button 
                     size="sm" 
                     variant="outline"
-                    title="Add new client"
+                    title="Add new business profile"
                     className={getThemeClasses(
                       "h-6 px-2 text-xs",
                       "h-6 px-2 text-xs glass-button"
@@ -281,7 +281,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                   size="sm" 
                   variant="outline" 
                   onClick={refreshClients}
-                  title="Refresh clients list"
+                  title="Refresh profiles list"
                   className={getThemeClasses(
                     "h-6 w-6 p-0",
                     "h-6 w-6 p-0 glass-button"
@@ -301,11 +301,11 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                 <p className={getThemeClasses(
                   "text-sm text-gray-500",
                   "text-sm glass-text-muted"
-                )}>No clients yet</p>
+                )}>No profiles yet</p>
                 <p className={getThemeClasses(
                   "text-xs text-gray-400",
                   "text-xs glass-text-muted"
-                )}>Create your first client to get started</p>
+                )}>Create your first profile to get started</p>
               </div>
             ) : (
               <div className="space-y-2">

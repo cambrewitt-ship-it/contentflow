@@ -65,22 +65,22 @@ export function QuickActions({ className }: QuickActionsProps) {
       case 'content':
         return {
           title: 'Create Content',
-          description: 'Select a client to create social media content'
+          description: 'Select a business profile to create social media content'
         };
       case 'calendar':
         return {
           title: 'View Calendar',
-          description: 'Select a client to view their content calendar'
+          description: 'Select a business profile to view their content calendar'
         };
       case 'ideas':
         return {
           title: 'Ideas Generator',
-          description: 'Select a client to generate content ideas'
+          description: 'Select a business profile to generate content ideas'
         };
       default:
         return {
-          title: 'Select Client',
-          description: 'Choose a client to continue'
+          title: 'Select Business Profile',
+          description: 'Choose a business profile to continue'
         };
     }
   };

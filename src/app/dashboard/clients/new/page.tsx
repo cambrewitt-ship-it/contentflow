@@ -76,9 +76,9 @@ export default function NewClientPageV2() {
     const newErrors: { [key: string]: string } = {};
     
     if (!formData.name.trim()) {
-      newErrors.name = "Client name is required";
+      newErrors.name = "Business name is required";
     } else if (formData.name.trim().length < 2) {
-      newErrors.name = "Client name must be at least 2 characters";
+      newErrors.name = "Business name must be at least 2 characters";
     }
     
     if (!formData.timezone) {
@@ -192,12 +192,12 @@ export default function NewClientPageV2() {
         // Handle plan limit errors specifically
         if (response.status === 403 && errorData.current && errorData.max) {
           setErrors({
-            submit: `${errorData.error} You currently have ${errorData.current} clients out of ${errorData.max} allowed.`
+            submit: `${errorData.error} You currently have ${errorData.current} business profiles out of ${errorData.max} allowed.`
           });
         } else {
           // Handle other API errors
           setErrors({
-            submit: errorData.error || "Failed to create client"
+            submit: errorData.error || "Failed to create business profile"
           });
         }
         return; // Don't throw, just return early
@@ -210,8 +210,8 @@ export default function NewClientPageV2() {
 
       let finalMessageType: 'success' | 'error' = 'success';
       let finalMessageText = lateProfileCreated
-        ? 'Client created successfully! Social media profile is ready with LATE integration.'
-        : 'Client created successfully! Note: Social media profile setup encountered an issue but client was saved.';
+        ? 'Business profile created successfully! Social media profile is ready with LATE integration.'
+        : 'Business profile created successfully! Note: Social media profile setup encountered an issue but profile was saved.';
 
       if (logoFileData) {
         try {
@@ -220,7 +220,7 @@ export default function NewClientPageV2() {
         } catch (logoError) {
           console.error('❌ Logo upload failed after client creation:', logoError);
           finalMessageType = 'error';
-          finalMessageText = `Client created but failed to upload logo: ${logoError instanceof Error ? logoError.message : 'Unknown error'}`;
+          finalMessageText = `Business profile created but failed to upload logo: ${logoError instanceof Error ? logoError.message : 'Unknown error'}`;
         }
       }
 
@@ -464,7 +464,7 @@ export default function NewClientPageV2() {
             brand_tone: analysisData.analysis.brand_tone
           }));
 
-          setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully! Click "Create New Client" to save.' });
+          setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully! Click "Create New Business Profile" to save.' });
           setTimeout(() => setMessage(null), 3000);
         } else {
           let errorData;
@@ -543,9 +543,9 @@ export default function NewClientPageV2() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Create New Client</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Create New Business Profile</h1>
           <p className="text-gray-600 mt-2">
-            Add a new client with full brand information and web scraping capabilities
+            Add a new business profile with full brand information and web scraping capabilities
           </p>
         </div>
 
@@ -621,7 +621,7 @@ export default function NewClientPageV2() {
                 {/* Client Logo Upload Card */}
                 <div className="lg:col-span-1 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
-                    Client Logo
+                    Business Logo
                   </h3>
 
                   <div className="flex flex-col items-center gap-3">
@@ -630,7 +630,7 @@ export default function NewClientPageV2() {
                         <>
                           <img
                             src={logoPreview}
-                            alt="Client logo preview"
+                            alt="Business logo preview"
                             className="h-24 w-24 rounded-full object-cover border border-gray-200"
                           />
                           <button
@@ -684,19 +684,19 @@ export default function NewClientPageV2() {
               {/* Client Name Field */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Client Name <span className="text-red-500">*</span>
+                  Business Name <span className="text-red-500">*</span>
                 </label>
                 {true ? (
                   <Input
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
-                    placeholder="Enter client name"
+                    placeholder="Enter business name"
                     className={errors.name ? "border-red-500" : ""}
                     disabled={loading}
                   />
                 ) : (
                   <p className="text-gray-900 bg-gray-50 p-3 rounded-md">
-                    {formData.name || 'No client name provided'}
+                    {formData.name || 'No business name provided'}
                   </p>
                 )}
                 {errors.name && (
@@ -886,10 +886,10 @@ export default function NewClientPageV2() {
               {/* Region */}
               <div className="border-t border-gray-200 pt-6 mt-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Client Region *
+                  Business Region *
                 </label>
                 <p className="text-xs text-gray-500 mb-2">
-                  Select your client&apos;s region to ensure content ideas only reference relevant regional holidays and events.
+                  Select the business region to ensure content ideas only reference relevant regional holidays and events.
                 </p>
                 <select
                   value={formData.region}
@@ -1051,15 +1051,15 @@ export default function NewClientPageV2() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {loadingStage === 'creating' ? 'Creating client...' : 
-                   loadingStage === 'setting-up-social' ? 'Setting up social media...' : 
-                   loadingStage === 'uploading-logo' ? 'Uploading logo...' :
-                   'Creating...'}
+              {loadingStage === 'creating' ? 'Creating business profile...' : 
+               loadingStage === 'setting-up-social' ? 'Setting up social media...' : 
+               loadingStage === 'uploading-logo' ? 'Uploading logo...' :
+               'Creating...'}
                 </>
               ) : (
                 <>
                   <Plus className="w-4 h-4 mr-2" />
-                  Create New Client
+                  Create New Business Profile
                 </>
               )}
             </Button>
@@ -1071,7 +1071,7 @@ export default function NewClientPageV2() {
               <div className="flex items-start">
                 <AlertCircle className="w-5 h-5 text-red-500 mr-3 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="text-red-800 font-medium">Error creating client</p>
+                  <p className="text-red-800 font-medium">Error creating business profile</p>
                   <p className="text-red-700 text-sm mt-1">{errors.submit}</p>
                   {errors.submit.includes('upgrade your plan') && (
                     <div className="mt-3">

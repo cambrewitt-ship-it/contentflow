@@ -33,7 +33,7 @@ interface SocialPreviewColumnProps {
   clientId: string
   handleSendToScheduler: (
     selectedCaption: string,
-    uploadedImages: { preview: string; id: string; file?: File }[]
+    uploadedImages: { preview: string; id: string; file?: File; blobUrl?: string }[]
   ) => Promise<void>
   isSendingToScheduler: boolean
   // Editing props

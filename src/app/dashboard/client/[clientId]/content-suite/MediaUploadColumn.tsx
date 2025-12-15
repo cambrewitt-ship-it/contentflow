@@ -117,16 +117,30 @@ export function MediaUploadColumn() {
           {uploadedImages.length > 0 && (
             <div className="mt-6 mb-6">
               <div className="grid grid-cols-4 gap-3">
-                {uploadedImages.map((media) => (
+                {uploadedImages.map((media) => {
+                  // Check if image is still uploading (no blobUrl yet and preview is temporary)
+                  const isUploading = !media.blobUrl && (media.preview?.startsWith('blob:') || media.preview?.startsWith('data:'))
+                  
+                  return (
                   <div
                     key={media.id}
                     className={`relative aspect-square border-2 rounded-lg cursor-pointer transition-all ${
                       activeImageId === media.id
                         ? 'border-blue-500 bg-blue-50'
                         : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                    } ${isUploading ? 'opacity-70' : ''}`}
                     onClick={() => setActiveImageId(media.id)}
                   >
+                    {/* Upload Progress Indicator */}
+                    {isUploading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-md z-20">
+                        <div className="flex flex-col items-center">
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span className="text-white text-xs mt-1">Uploading...</span>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Media Type Indicator */}
                     <div className="absolute top-1 left-1 z-10 bg-black/60 rounded-full p-1 flex items-center justify-center">
                       {media.mediaType === 'video' ? (
@@ -171,7 +185,8 @@ export function MediaUploadColumn() {
                       <X className="w-3 h-3" />
                     </button>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}

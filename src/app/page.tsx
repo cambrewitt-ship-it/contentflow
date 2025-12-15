@@ -41,7 +41,7 @@ const pricingTiers = [
     price: 0,
     description: 'Available to everyone',
     features: [
-      '1 Client profile',
+      '1 Business profile',
       'AI copy generation',
       'AI content ideas',
       'Content calendar',
@@ -71,7 +71,7 @@ const pricingTiers = [
     trialText: '14-day free trial',
     features: [
       'Everything in In-House',
-      '5 Client profiles',
+      '5 Business profiles',
       '150 Scheduled posts per month',
       '500 AI Credits per month',
     ],

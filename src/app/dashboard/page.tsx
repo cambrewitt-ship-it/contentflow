@@ -155,7 +155,7 @@ export default function Dashboard() {
         
         if (!response.ok) {
           if (response.status === 401) {
-            throw new Error('Please log in to view your clients');
+            throw new Error('Please log in to view your business profiles');
           }
           throw new Error(`Failed to fetch clients: ${response.statusText}`);
         }
@@ -233,7 +233,7 @@ export default function Dashboard() {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading your clients...</p>
+          <p className="text-muted-foreground">Loading your business profiles...</p>
         </div>
       </div>
     );
@@ -246,7 +246,7 @@ export default function Dashboard() {
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <User className="h-8 w-8 text-red-600" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground mb-4">Error Loading Clients</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-4">Error Loading Business Profiles</h1>
           <p className="text-muted-foreground mb-6">{error}</p>
           <Button onClick={() => window.location.reload()}>
             Try Again

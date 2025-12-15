@@ -830,7 +830,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading client dashboard...</p>
+              <p className="text-gray-600">Loading business profile dashboard...</p>
             </div>
           </div>
         </div>
@@ -949,7 +949,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <div className="flex-1 flex flex-col justify-center">
                     <div className="flex items-center justify-between mb-3">
                       <h1 className="text-3xl font-bold text-gray-800">
-                        {client?.name || 'Client Dashboard'}
+                        {client?.name || 'Business Profile Dashboard'}
                       </h1>
                       
                       {/* Logo Upload/Edit Button */}
@@ -1478,9 +1478,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               <div className="border-t-2 pt-8">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-2xl font-bold text-red-900" style={{ fontSize: '24px' }}>Delete Client</h3>
+                    <h3 className="text-2xl font-bold text-red-900" style={{ fontSize: '24px' }}>Delete Business Profile</h3>
                     <p className="text-sm text-red-700 mt-2">
-                      Permanently delete this client and all associated data. This action cannot be undone.
+                      Permanently delete this business profile and all associated data. This action cannot be undone.
                     </p>
                   </div>
                   <div className="flex gap-3">
@@ -1491,7 +1491,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         className="bg-red-600 hover:bg-red-700"
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
-                        Delete Client
+                        Delete Business Profile
                       </Button>
                     ) : (
                       <div className="flex gap-2">

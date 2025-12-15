@@ -290,18 +290,18 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
           {/* Client Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Client Name *
+              Business Name *
             </label>
             {isEditing ? (
               <Input
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
-                placeholder="Enter client name"
+                placeholder="Enter business name"
                 className="font-medium"
               />
             ) : (
               <p className="text-gray-900 bg-gray-50 p-3 rounded-md font-medium">
-                {client?.name || 'No client name specified'}
+                {client?.name || 'No business name specified'}
               </p>
             )}
           </div>
@@ -401,10 +401,10 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
           {/* Region */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Client Region *
+              Business Region *
             </label>
             <p className="text-xs text-gray-500 mb-2">
-              Select your client&apos;s region to ensure content ideas only reference relevant regional holidays and events.
+              Select the business region to ensure content ideas only reference relevant regional holidays and events.
             </p>
             {isEditing ? (
               <select
