@@ -63,15 +63,16 @@ function buildCSP(): string {
     // API Connections: Allow same origin + Supabase backend + Vercel Blob + GTM/GA4
     // - Supabase URL is dynamically included from environment variable
     // - blob:: Required for fetching blob URLs (e.g., image caption generation)
-    // - Vercel Blob: Required for fetching images from Vercel Blob Storage (*.public.blob.vercel-storage.com)
+    // - Vercel Blob Storage: Required for fetching images from Vercel Blob Storage (*.public.blob.vercel-storage.com)
+    // - vercel.com: Required for @vercel/blob/client presigned URL upload (client-side large file uploads)
     // - GTM/GA4: Required for analytics and tag management
     // - https://www.google.com: Required for GTM consent mode and tracking (ccm/collect endpoint)
     // - Google Ads: Required for Google Ads tracking and conversion pixels
     // - Google Ad Services: Required for Google Ads conversion tracking and remarketing
     // - In development, also allow localhost variants
     isDevelopment
-      ? `connect-src 'self' blob: ${supabaseUrl} https://*.public.blob.vercel-storage.com https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
-      : `connect-src 'self' blob: ${supabaseUrl} https://*.public.blob.vercel-storage.com https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net`,
+      ? `connect-src 'self' blob: ${supabaseUrl} https://*.public.blob.vercel-storage.com https://vercel.com https://*.vercel.com https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
+      : `connect-src 'self' blob: ${supabaseUrl} https://*.public.blob.vercel-storage.com https://vercel.com https://*.vercel.com https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net`,
     
     // Media: Allow same origin + blob + Vercel Blob Storage (for video/audio)
     // - blob:: Required for video playback from blob URLs

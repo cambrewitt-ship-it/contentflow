@@ -1,9 +1,10 @@
 import { upload } from '@vercel/blob/client';
 import logger from '@/lib/logger';
 
-// Size threshold for using client-side upload (reduced to 3MB to stay well under API route limit)
+// Size threshold for using client-side upload
+// For images > 5MB, use client-side upload to bypass API route and avoid compression
 // Videos ALWAYS use client-side upload regardless of size
-const CLIENT_UPLOAD_THRESHOLD = 3 * 1024 * 1024; // 3MB
+const CLIENT_UPLOAD_THRESHOLD = 5 * 1024 * 1024; // 5MB
 
 // Helper function to compress/resize image if it's too large (same as in contentStore)
 async function compressImageIfNeeded(
@@ -144,6 +145,22 @@ export async function uploadMediaToBlob(
           mimeType: mediaFile.type
         };
       } catch (uploadError) {
+        // Enhanced error logging for debugging (sanitized to avoid exposing tokens)
+        const errorMessage = uploadError instanceof Error ? uploadError.message : String(uploadError);
+        const sanitizedMessage = errorMessage.replace(/vercel_blob_rw_[A-Za-z0-9_-]+/g, 'vercel_blob_rw_***REDACTED***');
+
+        console.error('🔍 Client-side upload error details:', {
+          errorType: typeof uploadError,
+          errorConstructor: uploadError?.constructor?.name,
+          errorMessage: sanitizedMessage,
+          // Only include stack trace in development
+          errorStack: process.env.NODE_ENV === 'development' && uploadError instanceof Error ? uploadError.stack : undefined,
+          fileSize: `${(fileSize / (1024 * 1024)).toFixed(2)}MB`,
+          fileName: filename,
+          mediaType,
+          fileType: mediaFile.type
+        });
+
         logger.error('❌ Client-side upload failed:', {
           error: uploadError,
           message: uploadError instanceof Error ? uploadError.message : String(uploadError),

@@ -14,9 +14,15 @@ export async function POST(request: NextRequest) {
   try {
     // Check if BLOB_READ_WRITE_TOKEN is available first
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      logger.error('BLOB_READ_WRITE_TOKEN environment variable is not set');
+      const errorMsg = 'BLOB_READ_WRITE_TOKEN environment variable is not set. Please add it to your .env.local file or Vercel environment variables.';
+      logger.error(errorMsg);
+      console.error('❌ [BLOB UPLOAD ERROR]:', errorMsg);
+      console.error('💡 Fix: Add BLOB_READ_WRITE_TOKEN to .env.local (development) or Vercel environment variables (production)');
       return NextResponse.json(
-        { error: 'Blob storage not configured - missing BLOB_READ_WRITE_TOKEN' },
+        {
+          error: 'Blob storage not configured - missing BLOB_READ_WRITE_TOKEN',
+          details: 'Please configure BLOB_READ_WRITE_TOKEN in your environment variables'
+        },
         { status: 500 }
       );
     }
