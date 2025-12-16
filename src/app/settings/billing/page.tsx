@@ -51,8 +51,8 @@ const tierNames: Record<string, string> = {
 
 const tierPrices: Record<string, number> = {
   freemium: 0,
-  starter: 35,
-  professional: 79,
+  starter: 50,
+  professional: 89,
   agency: 199,
 };
 

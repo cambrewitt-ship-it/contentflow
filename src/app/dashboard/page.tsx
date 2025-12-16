@@ -288,7 +288,7 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8 mt-[50px]">
-          <div className="glass-card px-8 py-6 max-w-xl mx-auto">
+          <div className="max-w-xl mx-auto">
             {/* Time and Date */}
             <div className="mb-4 text-center">
               <p className="text-4xl font-bold font-mono text-foreground">
