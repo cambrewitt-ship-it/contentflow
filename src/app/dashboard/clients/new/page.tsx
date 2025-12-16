@@ -219,8 +219,8 @@ export default function NewClientPageV2() {
           finalMessageText += ' Logo uploaded successfully.';
         } catch (logoError) {
           console.error('❌ Logo upload failed after client creation:', logoError);
-          finalMessageType = 'error';
-          finalMessageText = `Business profile created but failed to upload logo: ${logoError instanceof Error ? logoError.message : 'Unknown error'}`;
+          // Don't change finalMessageType to error - client was created successfully
+          finalMessageText += ` Note: Logo upload failed (${logoError instanceof Error ? logoError.message : 'Unknown error'}). You can upload it later from the client settings.`;
         }
       }
 
@@ -241,19 +241,19 @@ export default function NewClientPageV2() {
         caption_donts: "",
         brand_voice_examples: "",
         region: "",
+        timezone: "Pacific/Auckland",
         brand_color: "#4ade80"
       });
       
-      if (finalMessageType === 'success') {
-        // Redirect after a short delay to show the success message
-        setTimeout(() => {
-          // Trigger sidebar refresh by dispatching a custom event
-          window.dispatchEvent(new CustomEvent('clientCreated', { detail: { clientId } }));
-          
-          // Redirect to the client's dashboard
-          router.push(`/dashboard/client/${clientId}`);
-        }, 2000);
-      }
+      // Always redirect after successful client creation, regardless of logo upload status
+      // Redirect after a short delay to show the success message
+      setTimeout(() => {
+        // Trigger sidebar refresh by dispatching a custom event
+        window.dispatchEvent(new CustomEvent('clientCreated', { detail: { clientId } }));
+        
+        // Redirect to the client's dashboard
+        router.push(`/dashboard/client/${clientId}`);
+      }, 2000);
       
     } catch (error) {
       console.error("❌ Unexpected error creating client:", error);

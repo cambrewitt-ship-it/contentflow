@@ -4,10 +4,10 @@ import { requireClientOwnership } from '@/lib/authHelpers';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { clientId: string } }
+  { params }: { params: Promise<{ clientId: string }> }
 ) {
   try {
-    const { clientId } = params;
+    const { clientId } = await params;
 
     // Get the authorization header
     const authHeader = request.headers.get('authorization');
@@ -64,10 +64,10 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { clientId: string } }
+  { params }: { params: Promise<{ clientId: string }> }
 ) {
   try {
-    const { clientId } = params;
+    const { clientId } = await params;
     const body = await request.json();
 
     // Get the authorization header

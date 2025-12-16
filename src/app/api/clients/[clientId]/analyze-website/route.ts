@@ -4,10 +4,10 @@ import { requireClientOwnership } from '@/lib/authHelpers';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { clientId: string } }
+  { params }: { params: Promise<{ clientId: string }> }
 ) {
   try {
-    const { clientId } = params;
+    const { clientId } = await params;
     const auth = await requireClientOwnership(request, clientId);
     if (auth.error) return auth.error;
     const { supabase } = auth;
