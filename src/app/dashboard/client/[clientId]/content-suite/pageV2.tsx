@@ -15,6 +15,7 @@ import { ContentIdeasColumn } from './ContentIdeasColumn'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ContentStoreProvider, ContentFocus, CopyTone } from '@/lib/contentStore'
 import { useAuth } from '@/contexts/AuthContext'
+import { SchedulePostModal, Platform } from '@/components/SchedulePostModal'
 
 interface Project {
   id: string
@@ -89,6 +90,12 @@ export default function ContentSuitePageV2({ params }: PageProps) {
   
   // Message state for success/error notifications
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  
+  // Schedule modal state
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
+  
+  // Connected accounts for scheduling
+  const [connectedAccounts, setConnectedAccounts] = useState<any[]>([])
   
   // Client state
   const [client, setClient] = useState<Client | null>(null)
@@ -219,6 +226,37 @@ export default function ContentSuitePageV2({ params }: PageProps) {
       fetchProjects()
     }
   }, [clientId])
+
+  // Fetch connected accounts for scheduling
+  useEffect(() => {
+    async function fetchConnectedAccounts() {
+      if (!clientId) return
+      
+      try {
+        const accessToken = getAccessToken()
+        
+        const response = await fetch(`/api/late/get-accounts/${clientId}`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch accounts: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        setConnectedAccounts(data.accounts || [])
+      } catch (error) {
+        console.error('Error fetching connected accounts:', error)
+      }
+    }
+
+    if (clientId) {
+      fetchConnectedAccounts()
+    }
+  }, [clientId, getAccessToken])
 
   // Fetch client data when clientId changes
   useEffect(() => {
@@ -660,6 +698,13 @@ export default function ContentSuitePageV2({ params }: PageProps) {
     }
   }
 
+  // Convert connected accounts to Platform[] format for modal
+  const availablePlatforms: Platform[] = connectedAccounts.map(acc => ({
+    id: acc._id,
+    name: acc.name || `${acc.platform.charAt(0).toUpperCase() + acc.platform.slice(1)} Account`,
+    type: acc.platform as Platform['type']
+  }))
+
   return (
     <ContentStoreProvider clientId={clientId}>
       <ContentSuiteContentV2 
@@ -692,6 +737,11 @@ export default function ContentSuitePageV2({ params }: PageProps) {
         preloadedContent={preloadedContent}
         // Message state
         message={message}
+        // Schedule modal props
+        isScheduleModalOpen={isScheduleModalOpen}
+        setIsScheduleModalOpen={setIsScheduleModalOpen}
+        availablePlatforms={availablePlatforms}
+        connectedAccounts={connectedAccounts}
       />
     </ContentStoreProvider>
   )
@@ -732,6 +782,10 @@ interface ContentSuiteContentProps {
     scheduledTime?: string;
   } | null
   message: { type: 'success' | 'error'; text: string } | null
+  isScheduleModalOpen: boolean
+  setIsScheduleModalOpen: (open: boolean) => void
+  availablePlatforms: Platform[]
+  connectedAccounts: any[]
 }
 
 // Separate component that has access to the content store context
@@ -764,7 +818,12 @@ function ContentSuiteContentV2({
   // Preloaded content props
   preloadedContent,
   // Message state
-  message
+  message,
+  // Schedule modal props
+  isScheduleModalOpen,
+  setIsScheduleModalOpen,
+  availablePlatforms,
+  connectedAccounts
 }: ContentSuiteContentProps) {
   const { getAccessToken } = useAuth()
   const { 
@@ -803,6 +862,185 @@ function ContentSuiteContentV2({
   // State for caption generation
   const [generatingCaptions, setGeneratingCaptions] = useState(false)
   const [remixingCaption, setRemixingCaption] = useState<string | null>(null)
+  const [bounceHelperText, setBounceHelperText] = useState(false)
+
+  // Handler for scheduling posts via modal
+  const handleScheduleFromModal = async (date: string, time: string, platform: Platform) => {
+    if (!uploadedImages || uploadedImages.length === 0) {
+      alert('Please upload an image first')
+      return
+    }
+
+    const selectedCaption = selectedCaptions.length > 0
+      ? captions.find(cap => cap.id === selectedCaptions[0])?.text
+      : ''
+
+    if (!selectedCaption || selectedCaption.trim() === '') {
+      alert('Please provide a caption for your post')
+      return
+    }
+
+    try {
+      const accessToken = getAccessToken()
+      
+      // Get the active image
+      const activeImage = uploadedImages[0]
+      let imageUrl = activeImage.blobUrl || activeImage.preview
+
+      // Validate image URL
+      if (!imageUrl) {
+        throw new Error('No image URL available. Please wait for the image to finish uploading.')
+      }
+
+      if (!imageUrl.startsWith('https://')) {
+        if (imageUrl.startsWith('data:')) {
+          const base64Size = Math.round((imageUrl.length * 3) / 4 / (1024 * 1024))
+          throw new Error(`Image is still processing (${base64Size}MB). Please wait and try again.`)
+        }
+        if (imageUrl.startsWith('blob:')) {
+          throw new Error('Image is still uploading. Please wait and try again.')
+        }
+        throw new Error('Invalid image format. Please re-upload the image.')
+      }
+
+      // Step 1: Upload image to LATE
+      console.log('Uploading image to LATE...')
+      let imageData = imageUrl
+      
+      // Convert blob URL to base64 if needed
+      if (imageUrl.startsWith('blob:')) {
+        try {
+          const response = await fetch(imageUrl)
+          const blob = await response.blob()
+          const reader = new FileReader()
+          imageData = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.onerror = reject
+            reader.readAsDataURL(blob)
+          })
+        } catch (error) {
+          console.error('Blob conversion failed:', error)
+          throw new Error('Failed to process image')
+        }
+      }
+
+      const mediaResponse = await fetch('/api/late/upload-media', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ imageBlob: imageData })
+      })
+
+      if (!mediaResponse.ok) {
+        const errorText = await mediaResponse.text()
+        console.error('Media upload error:', errorText)
+        throw new Error('Failed to upload image to LATE')
+      }
+
+      const { lateMediaUrl } = await mediaResponse.json()
+      console.log('✅ Image uploaded to LATE successfully')
+
+      // Step 2: Format date and time for LATE API
+      // Convert time from HH:MM format to 24-hour format
+      const [hours, minutes] = time.split(':')
+      const hour24 = parseInt(hours, 10)
+      const minute24 = parseInt(minutes, 10)
+      
+      const scheduledDateTime = new Date(date)
+      scheduledDateTime.setHours(hour24, minute24, 0, 0)
+      
+      const scheduledDateStr = scheduledDateTime.toISOString().split('T')[0]
+      const scheduledTimeStr = `${hour24.toString().padStart(2, '0')}:${minute24.toString().padStart(2, '0')}:00`
+      const scheduledDateTimeStr = `${scheduledDateStr}T${scheduledTimeStr}`
+
+      // Step 3: Find the account for the selected platform
+      const selectedAccount = connectedAccounts.find(acc => 
+        acc._id === platform.id || (acc.platform === platform.type && acc._id === platform.id)
+      )
+
+      if (!selectedAccount) {
+        throw new Error(`No account found for ${platform.name}`)
+      }
+
+      // Step 4: Schedule via LATE API
+      console.log('Scheduling post via LATE API...')
+      const scheduleResponse = await fetch('/api/late/schedule-post', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          postId: `content-suite-${Date.now()}`,
+          caption: selectedCaption,
+          lateMediaUrl: lateMediaUrl,
+          scheduledDateTime: scheduledDateTimeStr,
+          selectedAccounts: [selectedAccount],
+          clientId: clientId
+        })
+      })
+
+      if (!scheduleResponse.ok) {
+        if (scheduleResponse.status === 403) {
+          const errorBody = await scheduleResponse.json().catch(() => null)
+          const errorMessage =
+            errorBody?.error ||
+            'Social media posting is not available on the free plan. Please upgrade to post to social media.'
+          alert(errorMessage)
+          return
+        }
+
+        const errorText = await scheduleResponse.text()
+        console.error('LATE scheduling error:', errorText)
+        throw new Error('Failed to schedule post via LATE')
+      }
+
+      const scheduleResult = await scheduleResponse.json()
+      console.log('✅ Post scheduled successfully via LATE API')
+
+      // Step 5: Add to calendar database (same way "Add to Calendar" does)
+      const scheduledTime = `${hour24.toString().padStart(2, '0')}:${minute24.toString().padStart(2, '0')}`
+      const scheduledPostData = {
+        client_id: clientId,
+        project_id: selectedProjectId,
+        caption: selectedCaption,
+        image_url: imageUrl,
+        scheduled_date: date,
+        scheduled_time: scheduledTime,
+        post_notes: '',
+      }
+
+      const calendarResponse = await fetch('/api/calendar/scheduled', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          scheduledPost: scheduledPostData
+        })
+      })
+
+      if (!calendarResponse.ok) {
+        const errorData = await calendarResponse.json()
+        console.error('Failed to add to calendar:', errorData)
+        // Don't throw - LATE scheduling succeeded, calendar addition is secondary
+      } else {
+        console.log('✅ Post added to calendar database')
+      }
+
+      // Close modal and show success
+      setIsScheduleModalOpen(false)
+      // Note: message state is in parent, so we'll use alert for now
+      alert(`Post scheduled successfully for ${date} at ${time} to ${platform.name}!`)
+
+    } catch (error) {
+      console.error('Error scheduling post:', error)
+      alert(`Failed to schedule post: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
 
   // Function to refresh/generate new content ideas
   const handleRefreshIdeas = async () => {
@@ -1372,114 +1610,11 @@ function ContentSuiteContentV2({
         </div>
       )}
 
-      {/* Top Section: Content Ideas and Add to Calendar Cards */}
+      {/* Top Section: Content Ideas - Full Width */}
       <div className="w-full">
         <div className="px-6 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
-            {/* Content Ideas Section - spans 2 columns */}
-            <div className="col-span-2">
-              <ContentIdeasColumn />
-            </div>
-            
-            {/* Add to Calendar Card - third column */}
-            <div>
-            {/* Action Buttons Section - Only show when not editing */}
-            {!isEditing && (
-              <div className="bg-white rounded-lg border border-gray-200 flex h-[116px]">
-                <div className="w-full flex flex-col gap-3 px-6 py-4">
-                  {/* Add to Calendar Button */}
-                  {(() => {
-                    // Check if any images are still uploading
-                    const hasUploadingImages = uploadedImages.some(img => 
-                      !img.blobUrl && (img.preview?.startsWith('blob:') || img.preview?.startsWith('data:'))
-                    )
-                    const isDisabled = isSendingToScheduler || 
-                      (!customCaptionFromPreview.trim() && !getSelectedCaption()) ||
-                      hasUploadingImages
-                    
-                    return (
-                      <Button
-                        onClick={() => {
-                          // Use custom caption from preview if available, otherwise use selected caption
-                          const caption = customCaptionFromPreview.trim() || getSelectedCaption()
-                          handleSendToScheduler(caption, uploadedImages)
-                        }}
-                        disabled={isDisabled}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-                      >
-                        {isSendingToScheduler ? (
-                          <>
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            Adding...
-                          </>
-                        ) : hasUploadingImages ? (
-                          <>
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            Uploading Image...
-                          </>
-                        ) : (
-                          <>
-                            <Calendar className="w-5 h-5 mr-2" />
-                            Add to Calendar
-                          </>
-                        )}
-                      </Button>
-                    )
-                  })()}
-                  
-                  {/* Project Selector */}
-                  <div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          className="w-full justify-between text-left font-normal"
-                        >
-                          {selectedProjectId 
-                            ? projects.find(p => p.id === selectedProjectId)?.name || 'Select Project'
-                            : 'No Project'
-                          }
-                          <ChevronDown className="h-4 w-4 opacity-50" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="w-full min-w-[200px]" align="start">
-                        <DropdownMenuItem 
-                          onClick={() => setSelectedProjectId(null)}
-                          className={!selectedProjectId ? 'bg-accent' : ''}
-                        >
-                          No Project
-                        </DropdownMenuItem>
-                        {projects.length > 0 && (
-                          <>
-                            <DropdownMenuSeparator />
-                            {projects.map((project) => (
-                              <DropdownMenuItem 
-                                key={project.id} 
-                                onClick={() => setSelectedProjectId(project.id)}
-                                className={selectedProjectId === project.id ? 'bg-accent' : ''}
-                              >
-                                {project.name}
-                              </DropdownMenuItem>
-                            ))}
-                          </>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => setShowNewProjectForm(true)}
-                          className="text-blue-600 focus:text-blue-600"
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          New Project
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <ContentIdeasColumn />
         </div>
-      </div>
       </div>
 
       {/* Full-width Generated Ideas Section */}
@@ -1552,28 +1687,30 @@ function ContentSuiteContentV2({
       {/* Main Content: Two Columns (2/3 and 1/3) */}
       <div className="w-full">
         <div className="px-6 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
             {/* Left Column: 2/3 width - Contains All Left Side Elements in One Card */}
-            <div className="col-span-2">
+            <div className="col-span-2 flex">
               {/* Consolidated Card - All Left Side Elements */}
-              <Card className="flex flex-col overflow-hidden">
+              <Card className="flex flex-col overflow-hidden w-full h-full min-h-[600px]">
                 <CardHeader>
                   <CardTitle className="card-title-26">Content Creation</CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1 flex flex-col space-y-6 overflow-y-auto">
-                  {/* Upload Media Section */}
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-700 mb-4">Upload Media</h3>
+                <CardContent className="flex-1 flex flex-col overflow-y-auto">
+                  {/* Top Section - Natural Height */}
+                  <div className="space-y-6">
+                    {/* Upload Media Section */}
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-700 mb-4">Upload Media</h3>
                   {/* Top Row: Square Upload Box + Thumbnails + Dropdowns */}
                   <div className="grid grid-cols-[200px_1fr_280px] gap-4 mb-4 items-start">
                     {/* Square Upload Box on Left */}
                     <div
-                      className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors cursor-pointer w-[200px] h-[200px] flex flex-col items-center justify-center"
+                      className="rounded-2xl p-4 text-center transition-colors cursor-pointer w-[200px] h-[200px] flex flex-col items-center justify-center bg-gradient-to-br from-blue-700/90 to-blue-400/90"
                       onDragOver={handleDragOver}
                       onDrop={handleDrop}
                       onClick={() => document.getElementById('media-upload-v2')?.click()}
                     >
-                      <div className="text-6xl font-light text-gray-400">+</div>
+                      <div className="text-[100px] font-light text-white leading-none">+</div>
                       <input
                         id="media-upload-v2"
                         type="file"
@@ -1660,6 +1797,37 @@ function ContentSuiteContentV2({
 
                     {/* Dropdowns on Right - Fixed position */}
                     <div className="flex flex-col gap-4 w-[280px] flex-shrink-0">
+                      {/* Copy Type (moved to top) */}
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-medium text-gray-700 whitespace-nowrap w-28 flex-shrink-0">Copy Type</h4>
+                        <div className="flex-1 min-w-0">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-8 w-full px-3 justify-between">
+                                <span className="text-left flex-1 min-w-0 whitespace-nowrap">
+                                  {copyType === 'social-media' ? 'Social Media' : 'Email Marketing'}
+                                </span>
+                                <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                onClick={() => setCopyType('social-media')}
+                                className={copyType === 'social-media' ? 'bg-accent' : ''}
+                              >
+                                Social Media
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => setCopyType('email-marketing')}
+                                className={copyType === 'email-marketing' ? 'bg-accent' : ''}
+                              >
+                                Email Marketing
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+
                       {/* Content Focus */}
                       <div className="flex items-center gap-2">
                         <h4 className="text-sm font-medium text-gray-700 whitespace-nowrap w-28 flex-shrink-0">Content Focus</h4>
@@ -1741,37 +1909,6 @@ function ContentSuiteContentV2({
                           </DropdownMenu>
                         </div>
                       </div>
-
-                      {/* Copy Type */}
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium text-gray-700 whitespace-nowrap w-28 flex-shrink-0">Copy Type</h4>
-                        <div className="flex-1 min-w-0">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="sm" className="h-8 w-full px-3 justify-between">
-                                <span className="text-left flex-1 min-w-0 whitespace-nowrap">
-                                  {copyType === 'social-media' ? 'Social Media' : 'Email Marketing'}
-                                </span>
-                                <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem 
-                                onClick={() => setCopyType('social-media')}
-                                className={copyType === 'social-media' ? 'bg-accent' : ''}
-                              >
-                                Social Media
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={() => setCopyType('email-marketing')}
-                                className={copyType === 'email-marketing' ? 'bg-accent' : ''}
-                              >
-                                Email Marketing
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
                     </div>
                   </div>
 
@@ -1779,7 +1916,7 @@ function ContentSuiteContentV2({
 
                   {/* Upload media message - left aligned above border line */}
                   {!activeImage && (
-                    <p className="text-xs text-gray-500 mb-1 -mt-4">
+                    <p className={`text-xs text-gray-500 mb-1 -mt-4 transition-transform duration-300 ${bounceHelperText ? 'animate-bounce' : ''}`}>
                       Upload media to enable caption generation
                     </p>
                   )}
@@ -1831,9 +1968,18 @@ function ContentSuiteContentV2({
                       />
                       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
                         <Button
-                          onClick={handleGenerateCaptions}
+                          onClick={() => {
+                            const isDisabled = generatingCaptions || !activeImage || (isVideoSelected && !postNotes.trim())
+                            if (isDisabled && !activeImage) {
+                              // Trigger bounce animation
+                              setBounceHelperText(true)
+                              setTimeout(() => setBounceHelperText(false), 600)
+                            } else if (!isDisabled) {
+                              handleGenerateCaptions()
+                            }
+                          }}
                           disabled={generatingCaptions || !activeImage || (isVideoSelected && !postNotes.trim())}
-                          className="h-9 px-6 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white disabled:bg-gray-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-2 font-semibold text-sm"
+                          className="h-9 px-6 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white disabled:bg-blue-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-2 font-semibold text-sm"
                           title={generatingCaptions ? 'Generating...' : `Generate ${copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy`}
                         >
                           {generatingCaptions ? (
@@ -1853,25 +1999,27 @@ function ContentSuiteContentV2({
 
                     {/* Helper text */}
                     <div className="mt-2">
-                      {activeImage && !isVideoSelected && (
-                        <p className="text-xs text-gray-500 text-center">
-                          AI will analyze your image and Post Notes to generate captions
-                        </p>
-                      )}
+                      <p className="text-xs text-gray-500 text-center">
+                        AI will analyze your image and Post Notes to generate captions
+                      </p>
                       {isVideoSelected && postNotes.trim() && (
                         <p className="text-xs text-gray-500 text-center">
                           Captions will be generated from your Post Notes
                         </p>
                       )}
                     </div>
+                  </div>
 
-                    {/* OR divider */}
+                  {/* OR divider */}
                     <div className="flex items-center my-6">
                       <div className="flex-1 border-t border-gray-300"></div>
                       <span className="px-4 text-sm font-bold text-gray-700">OR</span>
                       <div className="flex-1 border-t border-gray-300"></div>
                     </div>
+                  </div>
 
+                  {/* Bottom Section - Caption Cards */}
+                  <div>
                     {/* Caption boxes */}
                     <div className="w-full flex justify-center">
                       {(() => {
@@ -1894,34 +2042,75 @@ function ContentSuiteContentV2({
                                       : 'border-gray-200'
                                   }`}
                                 >
-                                  <div className="space-y-2">
-                                    <Textarea
-                                      value={caption.text}
-                                      onChange={(e) => {
-                                        const newText = e.target.value
-                                        
-                                        if (isFirstEmpty) {
-                                          const newCaption = {
-                                            id: 'custom-caption-1',
-                                            text: newText
+                                  {isFirstEmpty || caption.id === 'custom-caption-1' ? (
+                                    <div className="flex flex-col items-center justify-center py-8">
+                                      <Textarea
+                                        value={caption.text}
+                                        onChange={(e) => {
+                                          const newText = e.target.value
+                                          
+                                          if (isFirstEmpty) {
+                                            const newCaption = {
+                                              id: 'custom-caption-1',
+                                              text: newText
+                                            }
+                                            setCaptions([newCaption])
+                                            if (newText.trim()) {
+                                              selectCaption('custom-caption-1')
+                                            }
+                                          } else {
+                                            updateCaption(caption.id, newText)
+                                            if (newText.trim() && !selectedCaptions.includes(caption.id)) {
+                                              selectCaption(caption.id)
+                                            }
                                           }
-                                          setCaptions([newCaption])
-                                          if (newText.trim()) {
-                                            selectCaption('custom-caption-1')
-                                          }
-                                        } else {
+                                        }}
+                                        placeholder="Type your own caption..."
+                                        className="min-h-[60px] resize-none border-2 border-blue-500 bg-white focus:outline-none focus:ring-0 focus:shadow-lg focus:border-blue-500 p-2 text-sm text-gray-700 rounded-md break-words w-full"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                      <div className="flex items-center justify-center mt-4">
+                                        <Button
+                                          size="sm"
+                                          variant={selectedCaptions.includes(caption.id) ? "default" : "outline"}
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            selectCaption(caption.id)
+                                          }}
+                                          disabled={!caption.text.trim() || isFirstEmpty}
+                                          className={`text-xs ${
+                                            selectedCaptions.includes(caption.id)
+                                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                              : 'border-blue-300 text-blue-700 hover:bg-blue-50'
+                                          }`}
+                                        >
+                                          {selectedCaptions.includes(caption.id) ? (
+                                            <>
+                                              <Check className="w-3 h-3 mr-1" />
+                                              Selected
+                                            </>
+                                          ) : (
+                                            'Select'
+                                          )}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <Textarea
+                                        value={caption.text}
+                                        onChange={(e) => {
+                                          const newText = e.target.value
                                           updateCaption(caption.id, newText)
                                           if (newText.trim() && !selectedCaptions.includes(caption.id)) {
                                             selectCaption(caption.id)
                                           }
-                                        }
-                                      }}
-                                      placeholder={isFirstEmpty || caption.id === 'custom-caption-1' ? 'Type your own caption...' : `Type your ${copyType === 'social-media' ? 'caption' : 'email copy'} here...`}
-                                      className="min-h-[60px] max-h-[200px] resize-none border-2 border-blue-500 bg-white focus:outline-none focus:ring-0 focus:shadow-lg focus:border-blue-500 p-2 text-sm text-gray-700 rounded-md overflow-y-auto break-words"
-                                      onClick={(e) => e.stopPropagation()}
-                                    />
-                                    <div className="flex items-center justify-between">
-                                      {!isFirstEmpty && caption.id !== 'custom-caption-1' && (
+                                        }}
+                                        placeholder={`Type your ${copyType === 'social-media' ? 'caption' : 'email copy'} here...`}
+                                        className="min-h-[60px] resize-none border-2 border-blue-500 bg-white focus:outline-none focus:ring-0 focus:shadow-lg focus:border-blue-500 p-2 text-sm text-gray-700 rounded-md break-words w-full"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                      <div className="flex items-center justify-between">
                                         <Button
                                           size="sm"
                                           variant="outline"
@@ -1935,33 +2124,32 @@ function ContentSuiteContentV2({
                                           <RefreshCw className={`w-3 h-3 mr-1 ${remixingCaption === caption.id ? 'animate-spin' : ''}`} />
                                           {remixingCaption === caption.id ? 'Remixing...' : 'Remix'}
                                         </Button>
-                                      )}
-                                      {(isFirstEmpty || caption.id === 'custom-caption-1') && <div />}
-                                      <Button
-                                        size="sm"
-                                        variant={selectedCaptions.includes(caption.id) ? "default" : "outline"}
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          selectCaption(caption.id)
-                                        }}
-                                        disabled={!caption.text.trim() || isFirstEmpty}
-                                        className={`text-xs ${
-                                          selectedCaptions.includes(caption.id)
-                                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                            : 'border-blue-300 text-blue-700 hover:bg-blue-50'
-                                        }`}
-                                      >
-                                        {selectedCaptions.includes(caption.id) ? (
-                                          <>
-                                            <Check className="w-3 h-3 mr-1" />
-                                            Selected
-                                          </>
-                                        ) : (
-                                          'Select'
-                                        )}
-                                      </Button>
+                                        <Button
+                                          size="sm"
+                                          variant={selectedCaptions.includes(caption.id) ? "default" : "outline"}
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            selectCaption(caption.id)
+                                          }}
+                                          disabled={!caption.text.trim()}
+                                          className={`text-xs ${
+                                            selectedCaptions.includes(caption.id)
+                                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                              : 'border-blue-300 text-blue-700 hover:bg-blue-50'
+                                          }`}
+                                        >
+                                          {selectedCaptions.includes(caption.id) ? (
+                                            <>
+                                              <Check className="w-3 h-3 mr-1" />
+                                              Selected
+                                            </>
+                                          ) : (
+                                            'Select'
+                                          )}
+                                        </Button>
+                                      </div>
                                     </div>
-                                  </div>
+                                  )}
                                 </div>
                               )
                             })}
@@ -1975,7 +2163,7 @@ function ContentSuiteContentV2({
             </div>
 
             {/* Right Column: 1/3 width - Social Preview */}
-            <div className="col-span-1 flex h-full overflow-hidden">
+            <div className="col-span-1 flex h-full">
               <SocialPreviewColumn
                 clientId={clientId}
                 handleSendToScheduler={handleSendToScheduler}
@@ -1983,8 +2171,24 @@ function ContentSuiteContentV2({
                 isEditing={isEditing}
                 updatingPost={updatingPost}
                 onCustomCaptionChange={handleCustomCaptionChange}
+                projects={projects}
+                selectedProjectId={selectedProjectId}
+                setSelectedProjectId={setSelectedProjectId}
+                showNewProjectForm={showNewProjectForm}
+                setShowNewProjectForm={setShowNewProjectForm}
+                getSelectedCaption={getSelectedCaption}
+                customCaptionFromPreview={customCaptionFromPreview}
+                onOpenScheduleModal={() => setIsScheduleModalOpen(true)}
               />
             </div>
+
+            {/* Schedule Post Modal */}
+            <SchedulePostModal
+              isOpen={isScheduleModalOpen}
+              onClose={() => setIsScheduleModalOpen(false)}
+              onSchedule={handleScheduleFromModal}
+              availablePlatforms={availablePlatforms}
+            />
           </div>
         </div>
       </div>

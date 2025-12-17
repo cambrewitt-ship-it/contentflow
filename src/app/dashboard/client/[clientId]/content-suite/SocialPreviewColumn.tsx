@@ -3,7 +3,7 @@
 import { useContentStore } from '@/lib/contentStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, X, FolderOpen, Calendar, Clock, Check, AlertCircle } from 'lucide-react'
+import { Loader2, X, FolderOpen, Calendar, Clock, Check, AlertCircle, ChevronDown, Plus, Send } from 'lucide-react'
 import { 
   FacebookIcon, 
   InstagramIcon, 
@@ -17,6 +17,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface ConnectedAccount {
@@ -27,6 +28,14 @@ interface ConnectedAccount {
   profilePicture?: string;
   username?: string;
   additionalData?: any;
+}
+
+interface Project {
+  id: string
+  name: string
+  description: string
+  status: string
+  created_at: string
 }
 
 interface SocialPreviewColumnProps {
@@ -41,6 +50,15 @@ interface SocialPreviewColumnProps {
   updatingPost?: boolean
   // Custom caption change handler
   onCustomCaptionChange?: (customCaption: string) => void
+  // Add to Calendar props
+  projects?: Project[]
+  selectedProjectId?: string | null
+  setSelectedProjectId?: (projectId: string | null) => void
+  showNewProjectForm?: boolean
+  setShowNewProjectForm?: (show: boolean) => void
+  getSelectedCaption?: () => string
+  customCaptionFromPreview?: string
+  onOpenScheduleModal?: () => void
 }
 
 export function SocialPreviewColumn({
@@ -50,6 +68,14 @@ export function SocialPreviewColumn({
   isEditing = false,
   updatingPost = false,
   onCustomCaptionChange,
+  projects = [],
+  selectedProjectId = null,
+  setSelectedProjectId,
+  showNewProjectForm = false,
+  setShowNewProjectForm,
+  getSelectedCaption,
+  customCaptionFromPreview = '',
+  onOpenScheduleModal,
 }: SocialPreviewColumnProps) {
   const { getAccessToken } = useAuth()
   const {
@@ -779,13 +805,135 @@ export function SocialPreviewColumn({
     <div className="space-y-6 h-full flex flex-col flex-1 overflow-hidden">
       {/* Content Preview */}
       <Card className="h-full flex flex-col overflow-hidden">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="card-title-26">
-              {copyType === 'email-marketing' ? 'Email Marketing Preview' : 'Social Media Preview'}
-            </CardTitle>
+        <CardHeader className="pb-0">
+          <div className="flex items-center justify-center">
+            {/* Schedule Button */}
+            {!isEditing && (() => {
+              // Check if any images are still uploading
+              const hasUploadingImages = uploadedImages.some(img => 
+                !img.blobUrl && (img.preview?.startsWith('blob:') || img.preview?.startsWith('data:'))
+              )
+              const selectedCaption = getSelectedCaption ? getSelectedCaption() : ''
+              const isDisabled = isSendingToScheduler || 
+                (!customCaptionFromPreview.trim() && !selectedCaption) ||
+                hasUploadingImages
+              
+              return (
+                <Button
+                  onClick={() => {
+                    if (onOpenScheduleModal) {
+                      onOpenScheduleModal()
+                    } else {
+                      console.log('Schedule button clicked - modal handler not provided')
+                    }
+                  }}
+                  disabled={isDisabled}
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white disabled:opacity-50"
+                >
+                  <Send className="w-5 h-5 mr-2 text-white" />
+                  Schedule
+                </Button>
+              )
+            })()}
           </div>
         </CardHeader>
+        
+        {/* Action Buttons - Below header */}
+        {!isEditing && (
+          <div className="px-6 -mt-4 pb-4 space-y-3 border-b border-gray-200">
+            {/* Add to Calendar Button */}
+            {(() => {
+              // Check if any images are still uploading
+              const hasUploadingImages = uploadedImages.some(img => 
+                !img.blobUrl && (img.preview?.startsWith('blob:') || img.preview?.startsWith('data:'))
+              )
+              const selectedCaption = getSelectedCaption ? getSelectedCaption() : ''
+              const isDisabled = isSendingToScheduler || 
+                (!customCaptionFromPreview.trim() && !selectedCaption) ||
+                hasUploadingImages
+              
+              return (
+                <Button
+                  onClick={() => {
+                    // Use custom caption from preview if available, otherwise use selected caption
+                    const caption = customCaptionFromPreview.trim() || selectedCaption
+                    handleSendToScheduler(caption, uploadedImages)
+                  }}
+                  disabled={isDisabled}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                >
+                  {isSendingToScheduler ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Adding...
+                    </>
+                  ) : hasUploadingImages ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Uploading Image...
+                    </>
+                  ) : (
+                    <>
+                      <Calendar className="w-5 h-5 mr-2" />
+                      Add to Calendar
+                    </>
+                  )}
+                </Button>
+              )
+            })()}
+            
+            {/* Project Selector */}
+            {setSelectedProjectId && setShowNewProjectForm && (
+              <div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-between text-left font-normal"
+                    >
+                      {selectedProjectId 
+                        ? projects.find(p => p.id === selectedProjectId)?.name || 'Select Project'
+                        : 'No Project'
+                      }
+                      <ChevronDown className="h-4 w-4 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-full min-w-[200px]" align="start">
+                    <DropdownMenuItem 
+                      onClick={() => setSelectedProjectId(null)}
+                      className={!selectedProjectId ? 'bg-accent' : ''}
+                    >
+                      No Project
+                    </DropdownMenuItem>
+                    {projects.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        {projects.map((project) => (
+                          <DropdownMenuItem 
+                            key={project.id} 
+                            onClick={() => setSelectedProjectId(project.id)}
+                            className={selectedProjectId === project.id ? 'bg-accent' : ''}
+                          >
+                            {project.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => setShowNewProjectForm(true)}
+                      className="text-blue-600 focus:text-blue-600"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Project
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
+          </div>
+        )}
+        
         <CardContent className="flex-1 flex flex-col overflow-y-auto">
           <div className="space-y-4">
             {copyType === 'email-marketing' ? (
