@@ -381,12 +381,48 @@ export function SocialPreviewColumn({
       const { lateMediaUrl } = await mediaResponse.json()
       console.log('✅ Image uploaded to LATE successfully')
 
-      // Step 2: Create a temporary post ID for LATE API
-      const tempPostId = `content-suite-${Date.now()}`
+      // Step 2: Add to calendar database FIRST (so we have a real UUID postId)
+      const scheduledDate = scheduledDateTime.toISOString().split('T')[0]
+      const scheduledTime = `${hour24.toString().padStart(2, '0')}:${minutes}:00`
+      const scheduledPostData = {
+        client_id: clientId,
+        project_id: selectedProjectId || null,
+        caption: displayCaption,
+        image_url: lateMediaUrl, // Use the LATE media URL for the calendar post
+        scheduled_date: scheduledDate,
+        scheduled_time: scheduledTime,
+        post_notes: '',
+      }
 
-      // Step 3: Schedule via LATE API
+      const calendarResponse = await fetch('/api/calendar/scheduled', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          scheduledPost: scheduledPostData
+        })
+      })
+
+      if (!calendarResponse.ok) {
+        const errorData = await calendarResponse.json()
+        console.error('Failed to add to calendar:', errorData)
+        throw new Error('Failed to create calendar scheduled post')
+      }
+
+      const calendarResult = await calendarResponse.json()
+      const calendarPostId = calendarResult.post?.id
+      
+      if (!calendarPostId) {
+        throw new Error('Failed to get post ID from calendar response')
+      }
+
+      console.log('✅ Post added to calendar database with ID:', calendarPostId)
+
+      // Step 3: Schedule via LATE API using the real UUID postId
       const lateRequestBody = {
-        postId: tempPostId,
+        postId: calendarPostId,
         caption: displayCaption,
         lateMediaUrl: lateMediaUrl,
         scheduledDateTime: scheduledDateTimeStr,

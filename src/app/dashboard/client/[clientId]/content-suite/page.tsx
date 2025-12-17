@@ -874,6 +874,9 @@ function ContentSuiteContent({
   const [generatingCaptions, setGeneratingCaptions] = useState(false)
   const [remixingCaption, setRemixingCaption] = useState<string | null>(null)
   const [bounceHelperText, setBounceHelperText] = useState(false)
+  
+  // State for scheduling
+  const [isScheduling, setIsScheduling] = useState(false)
 
   // Handler for scheduling posts via modal
   const handleScheduleFromModal = async (date: string, time: string, platform: Platform) => {
@@ -891,6 +894,7 @@ function ContentSuiteContent({
       return
     }
 
+    setIsScheduling(true)
     try {
       const accessToken = getAccessToken()
       
@@ -975,7 +979,45 @@ function ContentSuiteContent({
         throw new Error(`No account found for ${platform.name}`)
       }
 
-      // Step 4: Schedule via LATE API
+      // Step 4: Add to calendar database FIRST (so we have a real UUID postId)
+      const scheduledTime = `${hour24.toString().padStart(2, '0')}:${minute24.toString().padStart(2, '0')}`
+      const scheduledPostData = {
+        client_id: clientId,
+        project_id: selectedProjectId,
+        caption: selectedCaption,
+        image_url: imageUrl,
+        scheduled_date: date,
+        scheduled_time: scheduledTime,
+        post_notes: '',
+      }
+
+      const calendarResponse = await fetch('/api/calendar/scheduled', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          scheduledPost: scheduledPostData
+        })
+      })
+
+      if (!calendarResponse.ok) {
+        const errorData = await calendarResponse.json()
+        console.error('Failed to add to calendar:', errorData)
+        throw new Error('Failed to create calendar scheduled post')
+      }
+
+      const calendarResult = await calendarResponse.json()
+      const calendarPostId = calendarResult.post?.id
+      
+      if (!calendarPostId) {
+        throw new Error('Failed to get post ID from calendar response')
+      }
+
+      console.log('✅ Post added to calendar database with ID:', calendarPostId)
+
+      // Step 5: Schedule via LATE API using the real UUID postId
       console.log('Scheduling post via LATE API...')
       const scheduleResponse = await fetch('/api/late/schedule-post', {
         method: 'POST',
@@ -984,7 +1026,7 @@ function ContentSuiteContent({
           'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-          postId: `content-suite-${Date.now()}`,
+          postId: calendarPostId,
           caption: selectedCaption,
           lateMediaUrl: lateMediaUrl,
           scheduledDateTime: scheduledDateTimeStr,
@@ -1011,37 +1053,6 @@ function ContentSuiteContent({
       const scheduleResult = await scheduleResponse.json()
       console.log('✅ Post scheduled successfully via LATE API')
 
-      // Step 5: Add to calendar database (same way "Add to Calendar" does)
-      const scheduledTime = `${hour24.toString().padStart(2, '0')}:${minute24.toString().padStart(2, '0')}`
-      const scheduledPostData = {
-        client_id: clientId,
-        project_id: selectedProjectId,
-        caption: selectedCaption,
-        image_url: imageUrl,
-        scheduled_date: date,
-        scheduled_time: scheduledTime,
-        post_notes: '',
-      }
-
-      const calendarResponse = await fetch('/api/calendar/scheduled', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({
-          scheduledPost: scheduledPostData
-        })
-      })
-
-      if (!calendarResponse.ok) {
-        const errorData = await calendarResponse.json()
-        console.error('Failed to add to calendar:', errorData)
-        // Don't throw - LATE scheduling succeeded, calendar addition is secondary
-      } else {
-        console.log('✅ Post added to calendar database')
-      }
-
       // Close modal and show success
       setIsScheduleModalOpen(false)
       // Note: message state is in parent, so we'll use alert for now
@@ -1050,6 +1061,8 @@ function ContentSuiteContent({
     } catch (error) {
       console.error('Error scheduling post:', error)
       alert(`Failed to schedule post: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsScheduling(false)
     }
   }
 
@@ -2199,6 +2212,7 @@ function ContentSuiteContent({
               onClose={() => setIsScheduleModalOpen(false)}
               onSchedule={handleScheduleFromModal}
               availablePlatforms={availablePlatforms}
+              isScheduling={isScheduling}
             />
           </div>
         </div>

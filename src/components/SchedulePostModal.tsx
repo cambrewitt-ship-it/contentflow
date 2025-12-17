@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Calendar, Clock } from 'lucide-react';
+import { Calendar, Clock, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ interface SchedulePostModalProps {
   onClose: () => void;
   onSchedule: (date: string, time: string, platform: Platform) => void;
   availablePlatforms: Platform[];
+  isScheduling?: boolean;
 }
 
 export function SchedulePostModal({
@@ -33,6 +34,7 @@ export function SchedulePostModal({
   onClose,
   onSchedule,
   availablePlatforms,
+  isScheduling = false,
 }: SchedulePostModalProps) {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
@@ -50,6 +52,8 @@ export function SchedulePostModal({
   };
 
   const handleClose = () => {
+    // Don't allow closing while scheduling
+    if (isScheduling) return;
     // Reset form when closing
     setSelectedDate('');
     setSelectedTime('');
@@ -105,7 +109,7 @@ export function SchedulePostModal({
   const canSchedule = selectedDate && selectedTime && selectedPlatform;
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !isScheduling && handleClose()}>
       <DialogContent className="max-w-md bg-white/50 backdrop-blur-md border border-white/20 shadow-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-gray-900">
@@ -127,7 +131,8 @@ export function SchedulePostModal({
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               min={new Date().toISOString().split('T')[0]}
-              className="bg-white/80 backdrop-blur-sm"
+              disabled={isScheduling}
+              className="bg-white/80 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -142,7 +147,8 @@ export function SchedulePostModal({
               type="time"
               value={selectedTime}
               onChange={(e) => setSelectedTime(e.target.value)}
-              className="bg-white/80 backdrop-blur-sm"
+              disabled={isScheduling}
+              className="bg-white/80 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -163,10 +169,12 @@ export function SchedulePostModal({
                     <button
                       key={platform.id}
                       type="button"
-                      onClick={() => setSelectedPlatform(platform)}
+                      onClick={() => !isScheduling && setSelectedPlatform(platform)}
+                      disabled={isScheduling}
                       className={`
                         flex items-center justify-center gap-2 px-4 py-3 rounded-md
                         transition-all duration-200
+                        ${isScheduling ? 'opacity-50 cursor-not-allowed' : ''}
                         ${isSelected
                           ? `${getPlatformButtonStyles(platform.type)} text-white shadow-lg scale-[1.02]`
                           : 'bg-white/80 backdrop-blur-sm border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
@@ -191,16 +199,24 @@ export function SchedulePostModal({
             <Button
               variant="outline"
               onClick={handleClose}
-              className="flex-1 bg-white/80 backdrop-blur-sm border-gray-300 hover:bg-gray-50"
+              disabled={isScheduling}
+              className="flex-1 bg-white/80 backdrop-blur-sm border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </Button>
             <Button
               onClick={handleSchedule}
-              disabled={!canSchedule}
+              disabled={!canSchedule || isScheduling}
               className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Schedule Post
+              {isScheduling ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Scheduling...
+                </>
+              ) : (
+                'Schedule Post'
+              )}
             </Button>
           </div>
         </div>
