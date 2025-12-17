@@ -699,11 +699,22 @@ export default function ContentSuitePageV2({ params }: PageProps) {
   }
 
   // Convert connected accounts to Platform[] format for modal
-  const availablePlatforms: Platform[] = connectedAccounts.map(acc => ({
-    id: acc._id,
-    name: acc.name || `${acc.platform.charAt(0).toUpperCase() + acc.platform.slice(1)} Account`,
-    type: acc.platform as Platform['type']
-  }))
+  const availablePlatforms: Platform[] = connectedAccounts.map(acc => {
+    // Extract just the platform name (remove "Account" suffix if present)
+    let platformName = acc.name || ''
+    if (platformName.toLowerCase().endsWith(' account')) {
+      platformName = platformName.slice(0, -8) // Remove " Account" suffix
+    }
+    // If no name or still empty, use platform type capitalized
+    if (!platformName) {
+      platformName = acc.platform.charAt(0).toUpperCase() + acc.platform.slice(1)
+    }
+    return {
+      id: acc._id,
+      name: platformName,
+      type: acc.platform as Platform['type']
+    }
+  })
 
   return (
     <ContentStoreProvider clientId={clientId}>
