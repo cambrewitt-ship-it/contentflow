@@ -8,15 +8,13 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { ArrowLeft, Loader2, Plus, Calendar, Edit3, X, User, Settings, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Calendar, Edit3, X, User, Settings, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Send } from 'lucide-react'
 import Link from 'next/link'
-import { MediaUploadColumn } from './MediaUploadColumn'
-import { CaptionGenerationColumn } from './CaptionGenerationColumn'
 import { SocialPreviewColumn } from './SocialPreviewColumn'
 import { ContentIdeasColumn } from './ContentIdeasColumn'
-import { ContentStoreProvider } from '@/lib/contentStore'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ContentStoreProvider, ContentFocus, CopyTone } from '@/lib/contentStore'
 import { useAuth } from '@/contexts/AuthContext'
-import ContentSuitePageV2 from './pageV2'
 
 interface Project {
   id: string
@@ -57,18 +55,11 @@ interface PageProps {
 
 import { useContentStore } from '@/lib/contentStore'
 
-export default function ContentSuitePage({ params }: PageProps) {
+export default function ContentSuitePageV2({ params }: PageProps) {
   const { clientId } = use(params)
   const searchParams = useSearchParams()
   const router = useRouter()
   const { getAccessToken } = useAuth()
-  
-  // Check if V2 layout should be rendered
-  const isV2 = searchParams?.get('layout') === 'v2'
-  
-  if (isV2) {
-    return <ContentSuitePageV2 params={params} />
-  }
   
   // Editing state
   const [isEditing, setIsEditing] = useState(false)
@@ -671,7 +662,7 @@ export default function ContentSuitePage({ params }: PageProps) {
 
   return (
     <ContentStoreProvider clientId={clientId}>
-      <ContentSuiteContent 
+      <ContentSuiteContentV2 
         clientId={clientId}
         client={client}
         projects={projects}
@@ -706,7 +697,7 @@ export default function ContentSuitePage({ params }: PageProps) {
   )
 }
 
-// Props interface for ContentSuiteContent
+// Props interface for ContentSuiteContentV2
 interface ContentSuiteContentProps {
   clientId: string
   client: Client | null
@@ -744,7 +735,7 @@ interface ContentSuiteContentProps {
 }
 
 // Separate component that has access to the content store context
-function ContentSuiteContent({
+function ContentSuiteContentV2({
   clientId,
   client,
   projects,
@@ -787,7 +778,19 @@ function ContentSuiteContent({
     setCaptions,
     setSelectedCaptions,
     setPostNotes,
-    setActiveImageId
+    setActiveImageId,
+    addImage,
+    removeImage,
+    contentFocus,
+    setContentFocus,
+    copyTone,
+    setCopyTone,
+    copyType,
+    setCopyType,
+    generateAICaptions,
+    remixCaption,
+    selectCaption,
+    updateCaption
   } = useContentStore()
   const { contentIdeas, setContentIdeas } = useContentStore()
   
@@ -796,6 +799,10 @@ function ContentSuiteContent({
   // State for refreshing content ideas
   const [refreshingIdeas, setRefreshingIdeas] = useState(false)
   const [showCreditDialog, setShowCreditDialog] = useState(false)
+  
+  // State for caption generation
+  const [generatingCaptions, setGeneratingCaptions] = useState(false)
+  const [remixingCaption, setRemixingCaption] = useState<string | null>(null)
 
   // Function to refresh/generate new content ideas
   const handleRefreshIdeas = async () => {
@@ -904,6 +911,134 @@ function ContentSuiteContent({
   // Handle custom caption changes from SocialPreviewColumn
   const handleCustomCaptionChange = (customCaption: string) => {
     setCustomCaptionFromPreview(customCaption)
+  }
+
+  // Get active image for caption generation
+  const activeImage = uploadedImages.find(img => img.id === activeImageId)
+  const isVideoSelected = activeImage?.mediaType === 'video'
+
+  // Handler for generating AI captions
+  const handleGenerateCaptions = async () => {
+    if (!activeImage) {
+      alert('Please select media first')
+      return
+    }
+
+    // For videos, require post notes since we can't analyze video content
+    if (isVideoSelected && !postNotes.trim()) {
+      alert('Post Notes are required when generating captions for videos. Please add notes describing your video content.')
+      return
+    }
+
+    setGeneratingCaptions(true)
+    try {
+      const accessToken = getAccessToken()
+      if (!accessToken) {
+        throw new Error('Authentication required. Please log in again.')
+      }
+
+      // For videos: Generate captions based only on post notes (no visual analysis)
+      // For images: Generate captions with AI vision analysis + post notes
+      if (isVideoSelected) {
+        await generateAICaptions(activeImage.id, postNotes.trim(), copyType, accessToken)
+      } else {
+        const aiContext = postNotes?.trim() || 'Generate engaging social media captions for this content.'
+        await generateAICaptions(activeImage.id, aiContext, copyType, accessToken)
+      }
+    } catch (error) {
+      console.error('Failed to generate captions:', error)
+      if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
+        setShowCreditDialog(true)
+      } else {
+        alert(`Failed to generate captions: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    } finally {
+      setGeneratingCaptions(false)
+    }
+  }
+
+  // Handler for remixing captions
+  const handleRemixCaption = async (captionId: string) => {
+    if (!activeImage) {
+      alert('Please select an image first')
+      return
+    }
+
+    setRemixingCaption(captionId)
+    try {
+      const accessToken = getAccessToken()
+      if (!accessToken) {
+        throw new Error('Authentication required. Please log in again.')
+      }
+
+      await remixCaption(captionId, accessToken)
+    } catch (error) {
+      console.error('Failed to remix caption:', error)
+      alert(`Failed to remix caption: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setRemixingCaption(null)
+    }
+  }
+
+  // Helper functions for Content Focus and Copy Tone
+  const getContentFocusDisplayText = (focus: ContentFocus): string => {
+    switch (focus) {
+      case 'main-focus':
+        return 'Main focus'
+      case 'supporting':
+        return 'Supporting'
+      case 'background':
+        return 'Background'
+      case 'none':
+        return 'None'
+      default:
+        return 'Main focus'
+    }
+  }
+
+  const getCopyToneDisplayText = (tone: CopyTone): string => {
+    switch (tone) {
+      case 'promotional':
+        return 'Promotional'
+      case 'educational':
+        return 'Educational'
+      case 'personal':
+        return 'Personal'
+      case 'testimonial':
+        return 'Testimonial'
+      case 'engagement':
+        return 'Engagement'
+      default:
+        return 'Promotional'
+    }
+  }
+
+  // Media upload handlers
+  const handleMediaUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (files) {
+      for (const file of Array.from(files)) {
+        // Accept both images and videos
+        if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+          await addImage(file)
+        }
+      }
+    }
+  }
+
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault()
+  }
+
+  const handleDrop = async (event: React.DragEvent) => {
+    event.preventDefault()
+    const files = event.dataTransfer.files
+    for (const file of Array.from(files)) {
+      // Accept both images and videos
+      if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+        await addImage(file)
+      }
+    }
   }
 
 
@@ -1414,20 +1549,433 @@ function ContentSuiteContent({
         </div>
       )}
 
-      {/* Main Content: Three Columns */}
+      {/* Main Content: Two Columns (2/3 and 1/3) */}
       <div className="w-full">
         <div className="px-6 py-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Content Suite Columns */}
-            <div className="flex h-full overflow-hidden">
-              <MediaUploadColumn />
-            </div>
-            <div className="flex h-full overflow-hidden">
-              <CaptionGenerationColumn />
+            {/* Left Column: 2/3 width - Contains All Left Side Elements in One Card */}
+            <div className="col-span-2">
+              {/* Consolidated Card - All Left Side Elements */}
+              <Card className="flex flex-col overflow-hidden">
+                <CardHeader>
+                  <CardTitle className="card-title-26">Content Creation</CardTitle>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col space-y-6 overflow-y-auto">
+                  {/* Upload Media Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-700 mb-4">Upload Media</h3>
+                  {/* Top Row: Square Upload Box + Thumbnails + Dropdowns */}
+                  <div className="grid grid-cols-[200px_1fr_280px] gap-4 mb-4 items-start">
+                    {/* Square Upload Box on Left */}
+                    <div
+                      className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors cursor-pointer w-[200px] h-[200px] flex flex-col items-center justify-center"
+                      onDragOver={handleDragOver}
+                      onDrop={handleDrop}
+                      onClick={() => document.getElementById('media-upload-v2')?.click()}
+                    >
+                      <div className="text-6xl font-light text-gray-400">+</div>
+                      <input
+                        id="media-upload-v2"
+                        type="file"
+                        multiple
+                        accept="image/*,video/*"
+                        onChange={handleMediaUpload}
+                        className="hidden"
+                      />
+                    </div>
+
+                    {/* Uploaded Media Thumbnails - To the right of upload box */}
+                    <div className="flex gap-3 flex-wrap items-start min-w-0">
+                      {uploadedImages.map((media) => {
+                        // Check if image is still uploading (no blobUrl yet and preview is temporary)
+                        const isUploading = !media.blobUrl && (media.preview?.startsWith('blob:') || media.preview?.startsWith('data:'))
+                        
+                        return (
+                          <div
+                            key={media.id}
+                            className={`relative w-24 h-24 border-2 rounded-lg cursor-pointer transition-all flex-shrink-0 ${
+                              activeImageId === media.id
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:border-gray-300'
+                            } ${isUploading ? 'opacity-70' : ''}`}
+                            onClick={() => setActiveImageId(media.id)}
+                          >
+                            {/* Upload Progress Indicator */}
+                            {isUploading && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-md z-20">
+                                <div className="flex flex-col items-center">
+                                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                  <span className="text-white text-xs mt-1">Uploading...</span>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Media Type Indicator */}
+                            <div className="absolute top-1 left-1 z-10 bg-black/60 rounded-full p-1 flex items-center justify-center">
+                              {media.mediaType === 'video' ? (
+                                <>
+                                  <VideoIcon className="w-3 h-3 text-white" />
+                                  <span className="sr-only">Video</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ImageIcon className="w-3 h-3 text-white" />
+                                  <span className="sr-only">Image</span>
+                                </>
+                              )}
+                            </div>
+
+                            {/* Media Preview - Show thumbnail for videos, image for images */}
+                            <img
+                              src={media.mediaType === 'video' ? (media.videoThumbnail || media.preview) : media.preview}
+                              alt={media.mediaType === 'video' ? "Video thumbnail" : "Uploaded content"}
+                              className="w-full h-full object-cover rounded-md"
+                            />
+                            
+                            {/* Play icon overlay for videos */}
+                            {media.mediaType === 'video' && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-md">
+                                <div className="bg-white/90 rounded-full p-2">
+                                  <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z"/>
+                                  </svg>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Remove button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removeImage(media.id)
+                              }}
+                              className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors z-10"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Dropdowns on Right - Fixed position */}
+                    <div className="flex flex-col gap-4 w-[280px] flex-shrink-0">
+                      {/* Content Focus */}
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-medium text-gray-700 whitespace-nowrap w-28 flex-shrink-0">Content Focus</h4>
+                        <div className="flex-1 min-w-0">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-8 w-full px-3 justify-between">
+                                <span className="text-left flex-1 min-w-0 whitespace-nowrap">{getContentFocusDisplayText(contentFocus)}</span>
+                                <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                onClick={() => setContentFocus('main-focus')}
+                                className={contentFocus === 'main-focus' ? 'bg-accent' : ''}
+                              >
+                                Main focus
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => setContentFocus('supporting')}
+                                className={contentFocus === 'supporting' ? 'bg-accent' : ''}
+                              >
+                                Supporting
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => setContentFocus('background')}
+                                className={contentFocus === 'background' ? 'bg-accent' : ''}
+                              >
+                                Background
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+
+                      {/* Copy Tone */}
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-medium text-gray-700 whitespace-nowrap w-28 flex-shrink-0">Copy Tone</h4>
+                        <div className="flex-1 min-w-0">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-8 w-full px-3 justify-between">
+                                <span className="text-left flex-1 min-w-0 whitespace-nowrap">{getCopyToneDisplayText(copyTone)}</span>
+                                <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                onClick={() => setCopyTone('promotional')}
+                                className={copyTone === 'promotional' ? 'bg-accent' : ''}
+                              >
+                                Promotional
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => setCopyTone('educational')}
+                                className={copyTone === 'educational' ? 'bg-accent' : ''}
+                              >
+                                Educational
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => setCopyTone('personal')}
+                                className={copyTone === 'personal' ? 'bg-accent' : ''}
+                              >
+                                Personal
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => setCopyTone('testimonial')}
+                                className={copyTone === 'testimonial' ? 'bg-accent' : ''}
+                              >
+                                Testimonial
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => setCopyTone('engagement')}
+                                className={copyTone === 'engagement' ? 'bg-accent' : ''}
+                              >
+                                Engagement
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+
+                      {/* Copy Type */}
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-medium text-gray-700 whitespace-nowrap w-28 flex-shrink-0">Copy Type</h4>
+                        <div className="flex-1 min-w-0">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-8 w-full px-3 justify-between">
+                                <span className="text-left flex-1 min-w-0 whitespace-nowrap">
+                                  {copyType === 'social-media' ? 'Social Media' : 'Email Marketing'}
+                                </span>
+                                <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                onClick={() => setCopyType('social-media')}
+                                className={copyType === 'social-media' ? 'bg-accent' : ''}
+                              >
+                                Social Media
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => setCopyType('email-marketing')}
+                                className={copyType === 'email-marketing' ? 'bg-accent' : ''}
+                              >
+                                Email Marketing
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  </div>
+
+                  {/* Upload media message - left aligned above border line */}
+                  {!activeImage && (
+                    <p className="text-xs text-gray-500 mb-1 -mt-4">
+                      Upload media to enable caption generation
+                    </p>
+                  )}
+
+                  {/* ChatGPT-style Input: Post Notes + Generate Button */}
+                  <div className="border-t border-gray-200 pt-6">
+                    {/* Video Notice */}
+                    {isVideoSelected && (
+                      <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <VideoIcon className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <div className="text-xs text-blue-800">
+                            <p className="font-medium mb-1">Video Selected</p>
+                            <p>AI will generate captions based on your <strong>Post Notes only</strong>. Video visual analysis is not available. Please ensure your Post Notes describe the video content.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Warning if video but no notes */}
+                    {isVideoSelected && !postNotes.trim() && (
+                      <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                          <div className="text-xs text-amber-800">
+                            <p className="font-medium">Post Notes Required</p>
+                            <p>Add Post Notes below to describe your video before generating captions.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ChatGPT-style unified input container */}
+                    <div className="relative flex items-end gap-2 border-2 border-gray-300 rounded-3xl bg-white focus-within:border-blue-500 focus-within:shadow-lg transition-all">
+                      <Textarea
+                        value={postNotes}
+                        onChange={(e) => setPostNotes(e.target.value)}
+                        placeholder="Add notes, context, or instructions for your post..."
+                        className="h-14 min-h-[56px] max-h-[200px] resize-none border-0 focus:outline-none focus:ring-0 shadow-none rounded-3xl pr-36 pt-[18px] pb-[18px] pl-4 leading-5"
+                        rows={1}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                            e.preventDefault()
+                            if (!generatingCaptions && activeImage && !(isVideoSelected && !postNotes.trim())) {
+                              handleGenerateCaptions()
+                            }
+                          }
+                        }}
+                      />
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                        <Button
+                          onClick={handleGenerateCaptions}
+                          disabled={generatingCaptions || !activeImage || (isVideoSelected && !postNotes.trim())}
+                          className="h-9 px-6 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white disabled:bg-gray-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-2 font-semibold text-sm"
+                          title={generatingCaptions ? 'Generating...' : `Generate ${copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy`}
+                        >
+                          {generatingCaptions ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Brain className="w-4 h-4 text-white" />
+                              Generate Text
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Helper text */}
+                    <div className="mt-2">
+                      {activeImage && !isVideoSelected && (
+                        <p className="text-xs text-gray-500 text-center">
+                          AI will analyze your image and Post Notes to generate captions
+                        </p>
+                      )}
+                      {isVideoSelected && postNotes.trim() && (
+                        <p className="text-xs text-gray-500 text-center">
+                          Captions will be generated from your Post Notes
+                        </p>
+                      )}
+                    </div>
+
+                    {/* OR divider */}
+                    <div className="flex items-center my-6">
+                      <div className="flex-1 border-t border-gray-300"></div>
+                      <span className="px-4 text-sm font-bold text-gray-700">OR</span>
+                      <div className="flex-1 border-t border-gray-300"></div>
+                    </div>
+
+                    {/* Caption boxes */}
+                    <div className="w-full flex justify-center">
+                      {(() => {
+                        const firstCaption = captions.length > 0 ? captions[0] : { id: 'custom-caption-1', text: '' }
+                        const displayCaptions = captions.length > 0 ? captions.slice(0, 3) : [firstCaption]
+                        const isEmptyBox = captions.length === 0
+                        const isSingleCaption = displayCaptions.length === 1
+                        
+                        return (
+                          <div className={`grid gap-3 w-full ${isSingleCaption ? 'grid-cols-1 max-w-md' : 'grid-cols-1 md:grid-cols-3 max-w-5xl'}`}>
+                            {displayCaptions.map((caption, index) => {
+                              const isFirstEmpty = isEmptyBox && index === 0
+                              
+                              return (
+                                <div
+                                  key={caption.id}
+                                  className={`border rounded-lg p-3 transition-all ${
+                                    selectedCaptions.includes(caption.id)
+                                      ? 'border-blue-500 bg-blue-50'
+                                      : 'border-gray-200'
+                                  }`}
+                                >
+                                  <div className="space-y-2">
+                                    <Textarea
+                                      value={caption.text}
+                                      onChange={(e) => {
+                                        const newText = e.target.value
+                                        
+                                        if (isFirstEmpty) {
+                                          const newCaption = {
+                                            id: 'custom-caption-1',
+                                            text: newText
+                                          }
+                                          setCaptions([newCaption])
+                                          if (newText.trim()) {
+                                            selectCaption('custom-caption-1')
+                                          }
+                                        } else {
+                                          updateCaption(caption.id, newText)
+                                          if (newText.trim() && !selectedCaptions.includes(caption.id)) {
+                                            selectCaption(caption.id)
+                                          }
+                                        }
+                                      }}
+                                      placeholder={isFirstEmpty || caption.id === 'custom-caption-1' ? 'Type your own caption...' : `Type your ${copyType === 'social-media' ? 'caption' : 'email copy'} here...`}
+                                      className="min-h-[60px] max-h-[200px] resize-none border-2 border-blue-500 bg-white focus:outline-none focus:ring-0 focus:shadow-lg focus:border-blue-500 p-2 text-sm text-gray-700 rounded-md overflow-y-auto break-words"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <div className="flex items-center justify-between">
+                                      {!isFirstEmpty && caption.id !== 'custom-caption-1' && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleRemixCaption(caption.id)
+                                          }}
+                                          disabled={remixingCaption === caption.id || !caption.text.trim()}
+                                          className="text-xs"
+                                        >
+                                          <RefreshCw className={`w-3 h-3 mr-1 ${remixingCaption === caption.id ? 'animate-spin' : ''}`} />
+                                          {remixingCaption === caption.id ? 'Remixing...' : 'Remix'}
+                                        </Button>
+                                      )}
+                                      {(isFirstEmpty || caption.id === 'custom-caption-1') && <div />}
+                                      <Button
+                                        size="sm"
+                                        variant={selectedCaptions.includes(caption.id) ? "default" : "outline"}
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          selectCaption(caption.id)
+                                        }}
+                                        disabled={!caption.text.trim() || isFirstEmpty}
+                                        className={`text-xs ${
+                                          selectedCaptions.includes(caption.id)
+                                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                            : 'border-blue-300 text-blue-700 hover:bg-blue-50'
+                                        }`}
+                                      >
+                                        {selectedCaptions.includes(caption.id) ? (
+                                          <>
+                                            <Check className="w-3 h-3 mr-1" />
+                                            Selected
+                                          </>
+                                        ) : (
+                                          'Select'
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
-            {/* Column 3: Social Preview */}
-            <div className="flex h-full overflow-hidden">
+            {/* Right Column: 1/3 width - Social Preview */}
+            <div className="col-span-1 flex h-full overflow-hidden">
               <SocialPreviewColumn
                 clientId={clientId}
                 handleSendToScheduler={handleSendToScheduler}

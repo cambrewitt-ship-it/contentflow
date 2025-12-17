@@ -24,16 +24,17 @@ function buildCSP(): string {
     // Default: Only allow resources from same origin
     "default-src 'self'",
     
-    // Scripts: Allow same origin + inline scripts + eval + blob + GTM
+    // Scripts: Allow same origin + inline scripts + eval + blob + GTM + Facebook Pixel
     // - 'unsafe-inline': Required for Next.js and some React hydration
     // - 'unsafe-eval': Required for Next.js development (hot reload) and some build optimizations
     // - blob:: Required for worker scripts and dynamic imports
     // - GTM domains: Required for Google Tag Manager and Google Analytics
     // - Google Ads domains: Required for Google Ads scripts
+    // - Facebook Pixel: Required for Facebook Pixel script (connect.facebook.net)
     // TODO: In production, consider using nonces or hashes instead of 'unsafe-inline'
     isDevelopment
-      ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://www.googletagmanager.com https://www.google-analytics.com https://googletagmanager.com https://googleads.g.doubleclick.net https://*.google-analytics.com"
-      : "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://www.googletagmanager.com https://www.google-analytics.com https://googletagmanager.com https://googleads.g.doubleclick.net https://*.google-analytics.com",
+      ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://www.googletagmanager.com https://www.google-analytics.com https://googletagmanager.com https://googleads.g.doubleclick.net https://*.google-analytics.com https://connect.facebook.net"
+      : "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://www.googletagmanager.com https://www.google-analytics.com https://googletagmanager.com https://googleads.g.doubleclick.net https://*.google-analytics.com https://connect.facebook.net",
     
     // Workers: Allow same origin + blob URLs for web workers
     // - blob:: Required for worker scripts created from blob URLs
@@ -53,14 +54,15 @@ function buildCSP(): string {
     // - Vercel Blob: Required for displaying images from Vercel Blob Storage
     // - GTM: Required for Google Analytics tracking pixels
     // - Google Ads: Required for Google Ads tracking pixels
+    // - Facebook Pixel: Required for Facebook Pixel tracking images
     // Consider restricting https: to specific domains in production for tighter security
-    "img-src 'self' data: blob: https: https://*.public.blob.vercel-storage.com https://www.google-analytics.com https://www.googletagmanager.com https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net",
+    "img-src 'self' data: blob: https: https://*.public.blob.vercel-storage.com https://www.google-analytics.com https://www.googletagmanager.com https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net https://www.facebook.com",
     
     // Fonts: Allow same origin + data URIs
     // - data:: For embedded font files
     "font-src 'self' data:",
     
-    // API Connections: Allow same origin + Supabase backend + Vercel Blob + GTM/GA4
+    // API Connections: Allow same origin + Supabase backend + Vercel Blob + GTM/GA4 + Facebook Pixel
     // - Supabase URL is dynamically included from environment variable
     // - blob:: Required for fetching blob URLs (e.g., image caption generation)
     // - Vercel Blob Storage: Required for fetching images from Vercel Blob Storage (*.public.blob.vercel-storage.com)
@@ -69,10 +71,11 @@ function buildCSP(): string {
     // - https://www.google.com: Required for GTM consent mode and tracking (ccm/collect endpoint)
     // - Google Ads: Required for Google Ads tracking and conversion pixels
     // - Google Ad Services: Required for Google Ads conversion tracking and remarketing
+    // - Facebook Pixel: Required for sending Facebook Pixel events
     // - In development, also allow localhost variants
     isDevelopment
-      ? `connect-src 'self' blob: ${supabaseUrl} https://*.public.blob.vercel-storage.com https://vercel.com https://*.vercel.com https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net http://localhost:* ws://localhost:* wss://localhost:*`
-      : `connect-src 'self' blob: ${supabaseUrl} https://*.public.blob.vercel-storage.com https://vercel.com https://*.vercel.com https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net`,
+      ? `connect-src 'self' blob: ${supabaseUrl} https://*.public.blob.vercel-storage.com https://vercel.com https://*.vercel.com https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net https://www.facebook.com https://*.facebook.com http://localhost:* ws://localhost:* wss://localhost:*`
+      : `connect-src 'self' blob: ${supabaseUrl} https://*.public.blob.vercel-storage.com https://vercel.com https://*.vercel.com https://www.google.com https://*.google.com https://www.googleadservices.com https://*.googleadservices.com https://www.google-analytics.com https://*.googletagmanager.com https://analytics.google.com https://*.analytics.google.com https://*.g.doubleclick.net https://googleads.g.doubleclick.net https://*.google-analytics.com https://*.doubleclick.net https://www.facebook.com https://*.facebook.com`,
     
     // Media: Allow same origin + blob + Vercel Blob Storage (for video/audio)
     // - blob:: Required for video playback from blob URLs
@@ -92,8 +95,9 @@ function buildCSP(): string {
     // This is more specific than X-Frame-Options
     "frame-ancestors 'none'",
     
-    // Child frames: Allow same origin frames (for modals/dialogs if needed)
-    "frame-src 'self'",
+    // Child frames: Allow same origin frames + GTM preview mode
+    // - GTM: Required for Google Tag Manager preview/debug mode
+    "frame-src 'self' https://www.googletagmanager.com",
     
     // Upgrade insecure requests in production
     isDevelopment ? "" : "upgrade-insecure-requests",
