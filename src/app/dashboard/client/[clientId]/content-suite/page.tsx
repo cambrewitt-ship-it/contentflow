@@ -1726,7 +1726,7 @@ function ContentSuiteContent({
                     <div>
                       <h3 className="text-lg font-semibold text-gray-700 mb-4">Upload Media</h3>
                   {/* Top Row: Square Upload Box + Thumbnails + Dropdowns */}
-                  <div className="grid grid-cols-[200px_1fr_280px] gap-4 mb-4 items-start">
+                  <div className="grid grid-cols-[200px_1fr_320px] gap-4 mb-4 items-start">
                     {/* Square Upload Box on Left */}
                     <div
                       className="rounded-2xl p-4 text-center transition-colors cursor-pointer w-[200px] h-[200px] flex flex-col items-center justify-center bg-gradient-to-br from-blue-700/90 to-blue-400/90"
@@ -1820,15 +1820,15 @@ function ContentSuiteContent({
                     </div>
 
                     {/* Dropdowns on Right - Fixed position */}
-                    <div className="flex flex-col gap-4 w-[280px] flex-shrink-0">
+                    <div className="flex flex-col gap-4 w-[320px] flex-shrink-0">
                       {/* Copy Type (moved to top) */}
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium text-gray-700 whitespace-nowrap w-28 flex-shrink-0">Copy Type</h4>
+                      <div className="flex items-center gap-4">
+                        <h4 className="text-lg font-semibold text-gray-700 whitespace-nowrap w-32 flex-shrink-0 text-right">Copy Type</h4>
                         <div className="flex-1 min-w-0">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="outline" size="sm" className="h-8 w-full px-3 justify-between">
-                                <span className="text-left flex-1 min-w-0 whitespace-nowrap">
+                                <span className="text-lg font-semibold text-left flex-1 min-w-0 whitespace-nowrap">
                                   {copyType === 'social-media' ? 'Social Media' : 'Email Marketing'}
                                 </span>
                                 <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
@@ -1839,13 +1839,13 @@ function ContentSuiteContent({
                                 onClick={() => setCopyType('social-media')}
                                 className={copyType === 'social-media' ? 'bg-accent' : ''}
                               >
-                                Social Media
+                                <span className="text-lg font-semibold">Social Media</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setCopyType('email-marketing')}
                                 className={copyType === 'email-marketing' ? 'bg-accent' : ''}
                               >
-                                Email Marketing
+                                <span className="text-lg font-semibold">Email Marketing</span>
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1853,13 +1853,13 @@ function ContentSuiteContent({
                       </div>
 
                       {/* Content Focus */}
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium text-gray-700 whitespace-nowrap w-28 flex-shrink-0">Content Focus</h4>
+                      <div className="flex items-center gap-4">
+                        <h4 className="text-lg font-semibold text-gray-700 whitespace-nowrap w-32 flex-shrink-0 text-right">Content Focus</h4>
                         <div className="flex-1 min-w-0">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="outline" size="sm" className="h-8 w-full px-3 justify-between">
-                                <span className="text-left flex-1 min-w-0 whitespace-nowrap">{getContentFocusDisplayText(contentFocus)}</span>
+                                <span className="text-lg font-semibold text-left flex-1 min-w-0 whitespace-nowrap">{getContentFocusDisplayText(contentFocus)}</span>
                                 <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -1868,19 +1868,19 @@ function ContentSuiteContent({
                                 onClick={() => setContentFocus('main-focus')}
                                 className={contentFocus === 'main-focus' ? 'bg-accent' : ''}
                               >
-                                Main focus
+                                <span className="text-lg font-semibold">Main focus</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setContentFocus('supporting')}
                                 className={contentFocus === 'supporting' ? 'bg-accent' : ''}
                               >
-                                Supporting
+                                <span className="text-lg font-semibold">Supporting</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setContentFocus('background')}
                                 className={contentFocus === 'background' ? 'bg-accent' : ''}
                               >
-                                Background
+                                <span className="text-lg font-semibold">Background</span>
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1888,13 +1888,13 @@ function ContentSuiteContent({
                       </div>
 
                       {/* Copy Tone */}
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium text-gray-700 whitespace-nowrap w-28 flex-shrink-0">Copy Tone</h4>
+                      <div className="flex items-center gap-4">
+                        <h4 className="text-lg font-semibold text-gray-700 whitespace-nowrap w-32 flex-shrink-0 text-right">Copy Tone</h4>
                         <div className="flex-1 min-w-0">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="outline" size="sm" className="h-8 w-full px-3 justify-between">
-                                <span className="text-left flex-1 min-w-0 whitespace-nowrap">{getCopyToneDisplayText(copyTone)}</span>
+                                <span className="text-lg font-semibold text-left flex-1 min-w-0 whitespace-nowrap">{getCopyToneDisplayText(copyTone)}</span>
                                 <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -1903,31 +1903,31 @@ function ContentSuiteContent({
                                 onClick={() => setCopyTone('promotional')}
                                 className={copyTone === 'promotional' ? 'bg-accent' : ''}
                               >
-                                Promotional
+                                <span className="text-lg font-semibold">Promotional</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setCopyTone('educational')}
                                 className={copyTone === 'educational' ? 'bg-accent' : ''}
                               >
-                                Educational
+                                <span className="text-lg font-semibold">Educational</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setCopyTone('personal')}
                                 className={copyTone === 'personal' ? 'bg-accent' : ''}
                               >
-                                Personal
+                                <span className="text-lg font-semibold">Personal</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setCopyTone('testimonial')}
                                 className={copyTone === 'testimonial' ? 'bg-accent' : ''}
                               >
-                                Testimonial
+                                <span className="text-lg font-semibold">Testimonial</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setCopyTone('engagement')}
                                 className={copyTone === 'engagement' ? 'bg-accent' : ''}
                               >
-                                Engagement
+                                <span className="text-lg font-semibold">Engagement</span>
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>

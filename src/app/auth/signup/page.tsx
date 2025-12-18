@@ -70,14 +70,25 @@ function SignupForm() {
     if (error) {
       setError(error.message);
       setLoading(false);
-    } else if (session && user) {
-      // User is auto-confirmed and logged in, redirect to dashboard
-      setMessage('Account created successfully! Redirecting...');
-      router.push('/dashboard');
-    } else {
-      // Email confirmation required
-      setMessage('Check your email for a confirmation link!');
-      setLoading(false);
+    } else if (user) {
+      // Account successfully created - fire GTM conversion tracking
+      if (typeof window !== 'undefined' && window.dataLayer) {
+        window.dataLayer.push({
+          'event': 'signup_success',
+          'user_id': user?.id, // optional: include sanitized user ID
+          'signup_method': 'email' // or whatever method they used
+        });
+      }
+      
+      if (session) {
+        // User is auto-confirmed and logged in, redirect to dashboard
+        setMessage('Account created successfully! Redirecting...');
+        router.push('/dashboard');
+      } else {
+        // Email confirmation required
+        setMessage('Check your email for a confirmation link!');
+        setLoading(false);
+      }
     }
   };
 
