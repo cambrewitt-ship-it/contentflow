@@ -220,6 +220,48 @@ export async function DELETE(
       throw fetchError;
     }
 
+    // Delete from LATE if applicable
+    if (postToDelete?.late_post_id) {
+      logger.info(`🗑️ Deleting post ${postId} from LATE (late_post_id: ${postToDelete.late_post_id})`);
+      
+      if (!process.env.LATE_API_KEY) {
+        logger.error('❌ LATE_API_KEY not configured');
+        return NextResponse.json({ error: 'LATE API key not configured' }, { status: 500 });
+      }
+
+      try {
+        const lateResponse = await fetch(`https://getlate.dev/api/v1/posts/${postToDelete.late_post_id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${process.env.LATE_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        logger.info(`📡 LATE delete response status for ${postToDelete.late_post_id}:`, lateResponse.status);
+
+        if (!lateResponse.ok) {
+          const errorText = await lateResponse.text();
+          logger.error(`❌ Failed to delete from LATE (${postToDelete.late_post_id}):`, errorText);
+          return NextResponse.json({ 
+            error: 'Failed to delete from LATE',
+            details: errorText 
+          }, { status: lateResponse.status });
+        }
+
+        const lateData = await lateResponse.json().catch(() => ({}));
+        logger.info(`✅ Successfully deleted from LATE (${postToDelete.late_post_id}):`, lateData);
+      } catch (lateError) {
+        logger.error(`💥 Error deleting post from LATE (${postToDelete.late_post_id}):`, lateError);
+        return NextResponse.json({ 
+          error: 'Failed to delete from LATE',
+          details: lateError instanceof Error ? lateError.message : 'Unknown error'
+        }, { status: 500 });
+      }
+    } else {
+      logger.info(`⚠️ No late_post_id found for post ${postId}, skipping LATE deletion`);
+    }
+
     // Delete the scheduled post
     const { error } = await supabase
       .from('calendar_scheduled_posts')
