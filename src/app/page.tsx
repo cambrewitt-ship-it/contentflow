@@ -781,9 +781,9 @@ export default function Home() {
               <p>Start Free. Cancel anytime.</p>
               <p className="mt-2">
                 Questions?{' '}
-                <a href="mailto:support@example.com" className="text-blue-600 hover:underline">
+                <Link href="/contact" className="text-blue-600 hover:underline">
                   Contact our team
-                </a>
+                </Link>
               </p>
             </div>
           </div>
