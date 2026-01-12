@@ -4,7 +4,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabaseClient";
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, Fragment, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, X, Check, Plug } from "lucide-react";
@@ -18,6 +18,7 @@ import {
   ThreadsIcon 
 } from "@/components/social-icons";
 import { Oswald } from "next/font/google";
+import { isSingleClientTier } from "../lib/tierUtils";
 
 interface UserProfile {
   id: string;
@@ -27,6 +28,11 @@ interface UserProfile {
   avatar_url: string;
   company_name: string;
   role: string;
+}
+
+interface Client {
+  id: string;
+  name: string;
 }
 
 const oswald = Oswald({
@@ -153,11 +159,28 @@ const comparisonSections = [
 ];
 
 export default function Home() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, getAccessToken } = useAuth();
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [email, setEmail] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
+  const [clients, setClients] = useState<Client[]>([]);
+
+  // Compute the correct dashboard URL based on subscription tier
+  // Single-client tiers (Free, In-House) go directly to their client dashboard
+  // Multi-client tiers (Freelancer, Agency) go to the home dashboard
+  const dashboardUrl = useMemo(() => {
+    if (!user) return '/dashboard';
+    
+    // If single-client tier and has exactly 1 client, go directly to client dashboard
+    if (isSingleClientTier(subscriptionTier) && clients.length === 1) {
+      return `/dashboard/client/${clients[0].id}`;
+    }
+    
+    // Otherwise, go to home dashboard (which will handle any further redirects)
+    return '/dashboard';
+  }, [user, subscriptionTier, clients]);
 
   const planColumns = pricingTiers.map((tier) => ({
     id: tier.id,
@@ -220,6 +243,52 @@ export default function Home() {
     fetchProfile();
   }, [user?.id]); // ✅ Only depend on user ID, not fetchProfile function
 
+  // Fetch subscription tier and clients for tier-based dashboard routing
+  useEffect(() => {
+    async function fetchSubscriptionAndClients() {
+      if (!user) {
+        setSubscriptionTier(null);
+        setClients([]);
+        return;
+      }
+
+      try {
+        // Fetch subscription tier
+        const { data: subData, error: subError } = await supabase
+          .from('subscriptions')
+          .select('subscription_tier')
+          .eq('user_id', user.id)
+          .single();
+
+        if (subError && subError.code !== 'PGRST116') {
+          console.error('Error fetching subscription:', subError);
+        }
+        setSubscriptionTier(subData?.subscription_tier || 'freemium');
+
+        // Fetch clients for single-client tier routing
+        const token = getAccessToken();
+        if (token) {
+          const response = await fetch('/api/clients', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            setClients(data.clients || []);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching subscription/clients:', err);
+        setSubscriptionTier('freemium');
+      }
+    }
+
+    fetchSubscriptionAndClients();
+  }, [user?.id, getAccessToken]);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -257,7 +326,7 @@ export default function Home() {
                   <span className="text-sm text-muted-foreground">
                     Welcome, {profile?.username || profile?.full_name || user.email}
                   </span>
-                  <Link href="/dashboard">
+                  <Link href={dashboardUrl}>
                     <Button size="sm">Dashboard</Button>
                   </Link>
                   <Button
@@ -338,7 +407,7 @@ export default function Home() {
                         </p>
                       </div>
                       <div className="px-3">
-                        <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                        <Link href={dashboardUrl} onClick={() => setMobileMenuOpen(false)}>
                           <Button size="sm" className="w-full">
                             Dashboard
                           </Button>
@@ -408,7 +477,8 @@ export default function Home() {
                   className="px-8 py-3 text-base whitespace-nowrap" 
                   onClick={() => {
                     if (user) {
-                      router.push('/dashboard');
+                      // Use computed dashboard URL based on tier
+                      router.push(dashboardUrl);
                     } else {
                       const signupUrl = email 
                         ? `/auth/signup?email=${encodeURIComponent(email)}`
@@ -811,7 +881,8 @@ export default function Home() {
                   className="px-8 py-3 text-base whitespace-nowrap"
                   onClick={() => {
                     if (user) {
-                      router.push('/dashboard');
+                      // Use computed dashboard URL based on tier
+                      router.push(dashboardUrl);
                     } else {
                       const signupUrl = email
                         ? `/auth/signup?email=${encodeURIComponent(email)}`

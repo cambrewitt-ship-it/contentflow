@@ -870,10 +870,10 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         {/* Header */}
         <div className="mb-8">
           
-          {/* Client Details Card and Action Buttons - Full Width Layout */}
-          <div className="flex flex-col lg:flex-row gap-6 items-stretch">
-            {/* Client Details Card - Takes remaining space */}
-            <Card className="flex-1 shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
+          {/* Client Details Card and Action Buttons - Flex Layout */}
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Client Details Card - Takes ~55% of width */}
+            <Card className="flex-[1.1] shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
               <CardContent className="p-6 h-full">
                 <div className="flex items-center space-x-6 h-full">
                   {/* Logo Display/Upload Section */}
@@ -985,25 +985,25 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               </CardContent>
             </Card>
             
-            {/* Action Buttons Container - Equal Width */}
-            <div className="flex gap-6">
+            {/* Action Buttons Container - Takes ~45% of width, right edge aligns with Content Calendar */}
+            <div className="flex-[0.9] flex gap-6">
               {/* Create Content Button */}
               <Button 
                 onClick={() => window.location.href = `/dashboard/client/${clientId}/content-suite`}
-                className="bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white w-48 font-bold shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
-                style={{ height: '177px', borderRadius: '16px' }}
+                className="bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white flex-1 h-full font-bold shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
+                style={{ borderRadius: '16px' }}
               >
-                <Plus className="w-16 h-16 mb-3 stroke-[3]" />
+                <Plus className="w-96 h-96 mb-3 stroke-[2.5]" />
                 <span className="text-xl font-bold">Create Content</span>
               </Button>
               
               {/* Calendar Button */}
               <Button 
                 onClick={() => window.location.href = `/dashboard/client/${clientId}/calendar`}
-                className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 hover:from-blue-600 hover:via-blue-700 hover:to-blue-800 text-white w-48 font-bold shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
-                style={{ height: '177px', borderRadius: '16px' }}
+                className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 hover:from-blue-600 hover:via-blue-700 hover:to-blue-800 text-white flex-1 h-full font-bold shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
+                style={{ borderRadius: '16px' }}
               >
-                <Calendar className="w-16 h-16 mb-3 stroke-[3]" />
+                <Calendar className="w-96 h-96 mb-3 stroke-[2.5]" />
                 <span className="text-xl font-bold">Calendar</span>
               </Button>
             </div>

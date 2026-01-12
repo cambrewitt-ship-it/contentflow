@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../..
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { isSingleClientTier } from "../../lib/tierUtils";
 
 interface Client {
   id: string;
@@ -59,6 +60,10 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
   const [displayTimezone, setDisplayTimezone] = useState<string>('Pacific/Auckland');
+  
+  // Track if we're redirecting single-client tier users to their client dashboard
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const hasCheckedRedirect = useRef(false);
 
   // Check for password reset hash fragments and redirect if needed
   // This handles cases where Supabase redirects to the dashboard instead of reset-password
@@ -228,12 +233,65 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [displayTimezone]);
 
-  if (loading) {
+  // =============================================
+  // TIER-BASED REDIRECT LOGIC
+  // =============================================
+  // Single-client tiers (Free, In-House) should skip this home dashboard
+  // and be redirected directly to their client dashboard.
+  // Multi-client tiers (Freelancer, Agency) see this home dashboard.
+  useEffect(() => {
+    // Only run redirect logic once when data is loaded
+    if (loading || hasCheckedRedirect.current) return;
+    
+    // Need subscription data to determine tier
+    if (!subscription) return;
+    
+    const tier = subscription.subscription_tier;
+    const shouldRedirect = isSingleClientTier(tier);
+    
+    console.log('🔀 Tier-based navigation check:', {
+      tier,
+      isSingleClient: shouldRedirect,
+      clientsCount: clients.length,
+      hasCheckedRedirect: hasCheckedRedirect.current
+    });
+    
+    // Mark as checked to prevent re-running
+    hasCheckedRedirect.current = true;
+    
+    if (shouldRedirect) {
+      if (clients.length === 1) {
+        // Single-client tier with exactly 1 client: redirect to client dashboard
+        const clientId = clients[0].id;
+        console.log(`🔀 Redirecting single-client tier user (${tier}) to client dashboard:`, clientId);
+        setIsRedirecting(true);
+        router.replace(`/dashboard/client/${clientId}`);
+      } else if (clients.length === 0) {
+        // Single-client tier with 0 clients: stay on dashboard to show onboarding
+        // The "no clients" UI will prompt them to create their first client
+        console.log(`📝 Single-client tier user (${tier}) has no clients - showing onboarding`);
+      } else {
+        // Edge case: single-client tier with multiple clients (shouldn't happen)
+        // Log warning but don't break - just show the dashboard
+        console.warn(`⚠️ Single-client tier user (${tier}) has multiple clients (${clients.length}). This shouldn't happen.`);
+      }
+    } else {
+      // Multi-client tier: show the home dashboard
+      console.log(`🏠 Multi-client tier user (${tier}) - showing home dashboard`);
+    }
+  }, [loading, subscription, clients, router]);
+
+  // Show loading state while fetching data or while redirecting
+  if (loading || isRedirecting) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading your business profiles...</p>
+          <p className="text-muted-foreground">
+            {isRedirecting 
+              ? 'Redirecting to your dashboard...' 
+              : 'Loading your business profiles...'}
+          </p>
         </div>
       </div>
     );

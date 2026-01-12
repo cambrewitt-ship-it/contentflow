@@ -1,6 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 import { SubscriptionTier, SUBSCRIPTION_TIERS } from './stripe';
 
+// Re-export tier utilities for server-side use
+// Client-side code should import directly from './tierUtils' instead
+export {
+  isSingleClientTier,
+  isMultiClientTier,
+  SINGLE_CLIENT_TIERS,
+  MULTI_CLIENT_TIERS,
+  TIER_DISPLAY_NAMES,
+  TIER_CLIENT_LIMITS,
+} from './tierUtils';
+
 // Create Supabase client with service role for admin operations
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

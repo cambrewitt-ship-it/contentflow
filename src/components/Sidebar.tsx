@@ -18,6 +18,8 @@ import {
   RotateCcw
 } from "lucide-react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
+import { isSingleClientTier } from "@/lib/tierUtils";
 
 interface Client {
   id: string;
@@ -36,10 +38,49 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { getThemeClasses } = useUIThemeStyles();
   const { user, getAccessToken } = useAuth();
+  
+  // Determine if Home button should be shown based on subscription tier
+  // Single-client tiers (Free, In-House) don't need a Home button
+  // Multi-client tiers (Freelancer, Agency) need Home to navigate between clients
+  const showHomeButton = !isSingleClientTier(subscriptionTier);
+
+  // Fetch subscription tier to determine if Home button should be shown
+  useEffect(() => {
+    async function fetchSubscription() {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .select('subscription_tier')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching subscription for sidebar:', error);
+          // Default to freemium (single-client) if error
+          setSubscriptionTier('freemium');
+        } else if (data) {
+          setSubscriptionTier(data.subscription_tier);
+          console.log('📊 Sidebar: User subscription tier:', data.subscription_tier, 
+            '| Show Home:', !isSingleClientTier(data.subscription_tier));
+        } else {
+          // No subscription found, default to freemium
+          setSubscriptionTier('freemium');
+        }
+      } catch (err) {
+        console.error('Error fetching subscription for sidebar:', err);
+        setSubscriptionTier('freemium');
+      }
+    }
+
+    fetchSubscription();
+  }, [user?.id]);
 
   // Fetch all clients from Supabase - ONLY on mount
   useEffect(() => {
@@ -103,15 +144,19 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
   // Check if we're on the main dashboard
   const isOnMainDashboard = pathname === '/dashboard';
 
-  // Navigation items
-  const navItems = [
-    {
-      name: 'Home',
-      href: '/dashboard',
-      icon: Home,
-      active: isOnMainDashboard
-    }
-  ];
+  // Navigation items - conditionally include Home based on subscription tier
+  // Single-client tiers (Free, In-House) don't need Home since they're redirected to client
+  // Multi-client tiers (Freelancer, Agency) need Home to navigate between clients
+  const navItems = showHomeButton 
+    ? [
+        {
+          name: 'Home',
+          href: '/dashboard',
+          icon: Home,
+          active: isOnMainDashboard
+        }
+      ]
+    : [];
 
   // Refresh clients list (can be called after creating new clients)
   const refreshClients = () => {
@@ -212,42 +257,44 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
         </div>
       </div>
 
-      {/* Navigation */}
-      <div className={getThemeClasses(
-        "p-4 border-b border-gray-200",
-        "p-4 border-b border-white/20"
-      )}>
-        {!collapsed && (
-          <h3 className={getThemeClasses(
-            "text-sm font-medium text-gray-500 mb-3",
-            "text-sm font-medium glass-text-muted mb-3"
-          )}>Navigation</h3>
-        )}
-        <nav className="space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link key={item.name} href={item.href}>
-                <Button
-                  variant={item.active ? "secondary" : "ghost"}
-                  className={getThemeClasses(
-                    `w-full ${collapsed ? 'justify-center px-2' : 'justify-start'} ${
-                      item.active ? "bg-blue-50 text-blue-700 border-blue-200" : "text-gray-700 hover:bg-gray-50"
-                    }`,
-                    `w-full ${collapsed ? 'justify-center px-2' : 'justify-start'} glass-button ${
-                      item.active ? "glass-text-primary" : "glass-text-secondary hover:glass-text-primary"
-                    }`
-                  )}
-                  title={collapsed ? item.name : undefined}
-                >
-                  <Icon className={`w-4 h-4 ${collapsed ? '' : 'mr-2'}`} />
-                  {!collapsed && item.name}
-                </Button>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
+      {/* Navigation - Only show if there are nav items (multi-client tiers) */}
+      {navItems.length > 0 && (
+        <div className={getThemeClasses(
+          "p-4 border-b border-gray-200",
+          "p-4 border-b border-white/20"
+        )}>
+          {!collapsed && (
+            <h3 className={getThemeClasses(
+              "text-sm font-medium text-gray-500 mb-3",
+              "text-sm font-medium glass-text-muted mb-3"
+            )}>Navigation</h3>
+          )}
+          <nav className="space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link key={item.name} href={item.href}>
+                  <Button
+                    variant={item.active ? "secondary" : "ghost"}
+                    className={getThemeClasses(
+                      `w-full ${collapsed ? 'justify-center px-2' : 'justify-start'} ${
+                        item.active ? "bg-blue-50 text-blue-700 border-blue-200" : "text-gray-700 hover:bg-gray-50"
+                      }`,
+                      `w-full ${collapsed ? 'justify-center px-2' : 'justify-start'} glass-button ${
+                        item.active ? "glass-text-primary" : "glass-text-secondary hover:glass-text-primary"
+                      }`
+                    )}
+                    title={collapsed ? item.name : undefined}
+                  >
+                    <Icon className={`w-4 h-4 ${collapsed ? '' : 'mr-2'}`} />
+                    {!collapsed && item.name}
+                  </Button>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      )}
 
       {/* Clients List */}
       <div className="flex-1 p-4 overflow-y-auto">
