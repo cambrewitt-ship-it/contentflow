@@ -1092,6 +1092,8 @@ export default function PortalCalendarPage() {
                   onCaptionChange={handleCaptionChange}
                   onDeleteClientUpload={handleDeleteUploadFromCalendar}
                   deletingUploadIds={deletingUploadIds}
+                  uploading={uploading}
+                  uploadingForDate={pendingColumnUploadDate}
                 />
                               </div>
                             )}

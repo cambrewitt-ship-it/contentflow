@@ -747,7 +747,10 @@ function DroppableDayRow({
               }}
               className="w-full flex items-center justify-center py-4 border-2 border-dashed border-gray-300 rounded hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 group"
             >
-              <Plus className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+              <div className="flex items-center gap-1.5 text-gray-400 group-hover:text-blue-600">
+                <Plus className="w-4 h-4" />
+                <span className="text-sm font-medium">Upload Content</span>
+              </div>
             </button>
           ) : (
             dayRow.posts.map((post) => {

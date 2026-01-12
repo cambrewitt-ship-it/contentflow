@@ -84,6 +84,8 @@ interface PortalColumnViewCalendarProps {
   onCaptionChange: (postKey: string, caption: string) => void;
   onDeleteClientUpload?: (upload: ClientUpload) => void;
   deletingUploadIds?: Set<string>;
+  uploading?: boolean;
+  uploadingForDate?: string | null;
 }
 
 // Lazy loading image component
@@ -559,6 +561,8 @@ function DroppableDayRow({
   onDeleteClientUpload,
   deletingUploadIds,
   isCurrentWeek,
+  uploading,
+  uploadingForDate,
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -585,8 +589,11 @@ function DroppableDayRow({
   onDeleteClientUpload?: (upload: ClientUpload) => void;
   deletingUploadIds?: Set<string>;
   isCurrentWeek?: boolean;
+  uploading?: boolean;
+  uploadingForDate?: string | null;
 }) {
   const router = useRouter();
+  const isUploadingToThisDate = uploading && uploadingForDate === dayRow.dateKey;
   const { setNodeRef } = useDroppable({
     id: dayRow.dateKey,
     data: {
@@ -675,16 +682,26 @@ function DroppableDayRow({
         <button
           type="button"
           onClick={() => {
+            if (isUploadingToThisDate) return;
             if (onAddUploadClick) {
               onAddUploadClick(dayRow.dateKey);
             } else if (clientId) {
               router.push(`/dashboard/client/${clientId}/content-suite?scheduledDate=${dayRow.dateKey}`);
             }
           }}
-          className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-          aria-label="Add upload"
+          disabled={isUploadingToThisDate}
+          className={`inline-flex items-center justify-center w-7 h-7 rounded-full border transition-colors ${
+            isUploadingToThisDate 
+              ? 'border-blue-400 bg-blue-100 cursor-not-allowed' 
+              : 'border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50'
+          }`}
+          aria-label={isUploadingToThisDate ? "Uploading..." : "Add upload"}
         >
-          <Plus className="w-3 h-3" />
+          {isUploadingToThisDate ? (
+            <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Plus className="w-3 h-3" />
+          )}
         </button>
       </div>
 
@@ -699,42 +716,68 @@ function DroppableDayRow({
             <button
               type="button"
               onClick={() => {
+                if (isUploadingToThisDate) return;
                 if (onAddUploadClick) {
                   onAddUploadClick(dayRow.dateKey);
                 } else if (clientId) {
                   router.push(`/dashboard/client/${clientId}/content-suite?scheduledDate=${dayRow.dateKey}`);
                 }
               }}
-              className="w-full flex items-center justify-center py-4 border-2 border-dashed border-gray-300 rounded hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 group"
+              disabled={isUploadingToThisDate}
+              className={`w-full flex items-center justify-center py-4 border-2 border-dashed rounded transition-all duration-200 group ${
+                isUploadingToThisDate 
+                  ? 'border-blue-400 bg-blue-50 cursor-not-allowed' 
+                  : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+              }`}
             >
-              <Plus className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+              {isUploadingToThisDate ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm text-blue-600 font-medium">Uploading...</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-gray-400 group-hover:text-blue-600">
+                  <Plus className="w-4 h-4" />
+                  <span className="text-sm font-medium">Upload Content</span>
+                </div>
+              )}
             </button>
           ) : (
-            dayRow.posts.map((post) => {
-              const postKey = `${post.post_type || 'post'}-${post.id}`;
-              
-              return (
-                <SortablePostCard
-                  key={postKey}
-                  post={post}
-                  postKey={postKey}
-                  handleEditScheduledPost={handleEditScheduledPost}
-                  editingPostId={editingPostId}
-                  setEditingPostId={setEditingPostId}
-                  editingTimePostIds={editingTimePostIds}
-                  formatTimeTo12Hour={formatTimeTo12Hour}
-                  projects={projects}
-                  selectedPosts={selectedPosts}
-                  onPostSelection={onPostSelection}
-                  comments={comments}
-                  onCommentChange={onCommentChange}
-                  editedCaptions={editedCaptions}
-                  onCaptionChange={onCaptionChange}
-                  onDeleteClientUpload={onDeleteClientUpload}
-                  deletingUploadIds={deletingUploadIds}
-                />
-              );
-            })
+            <>
+              {dayRow.posts.map((post) => {
+                const postKey = `${post.post_type || 'post'}-${post.id}`;
+                
+                return (
+                  <SortablePostCard
+                    key={postKey}
+                    post={post}
+                    postKey={postKey}
+                    handleEditScheduledPost={handleEditScheduledPost}
+                    editingPostId={editingPostId}
+                    setEditingPostId={setEditingPostId}
+                    editingTimePostIds={editingTimePostIds}
+                    formatTimeTo12Hour={formatTimeTo12Hour}
+                    projects={projects}
+                    selectedPosts={selectedPosts}
+                    onPostSelection={onPostSelection}
+                    comments={comments}
+                    onCommentChange={onCommentChange}
+                    editedCaptions={editedCaptions}
+                    onCaptionChange={onCaptionChange}
+                    onDeleteClientUpload={onDeleteClientUpload}
+                    deletingUploadIds={deletingUploadIds}
+                  />
+                );
+              })}
+              {isUploadingToThisDate && (
+                <div className="w-full flex items-center justify-center py-3 border-2 border-dashed border-blue-400 bg-blue-50 rounded">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm text-blue-600 font-medium">Uploading...</span>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </SortableContext>
@@ -766,6 +809,8 @@ export function PortalColumnViewCalendar({
   onCaptionChange,
   onDeleteClientUpload,
   deletingUploadIds,
+  uploading,
+  uploadingForDate,
 }: PortalColumnViewCalendarProps) {
   const clientUploadsMap = clientUploads ?? {};
   const VISIBLE_WEEK_COUNT = 5; // Show 5 weeks: 1 partial before, 3 main, 1 partial after
@@ -1142,6 +1187,8 @@ export function PortalColumnViewCalendar({
                         onDeleteClientUpload={onDeleteClientUpload}
                         deletingUploadIds={deletingUploadIds}
                         isCurrentWeek={isCurrent}
+                        uploading={uploading}
+                        uploadingForDate={uploadingForDate}
                       />
                     );
                   })}

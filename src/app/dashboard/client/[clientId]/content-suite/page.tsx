@@ -1590,17 +1590,6 @@ function ContentSuiteContent({
         </div>
       )}
 
-      {/* Pre-loaded Content Banner */}
-      {preloadedContent && !isEditing && (
-        <div className="bg-blue-50 border-b border-blue-200 px-6 py-3">
-          <div className="flex items-center">
-            <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
-            <p className="text-sm text-blue-800">
-              <strong>Content Pre-loaded:</strong> Image and notes from client inbox are ready. Generate captions and add to a project to create your post.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Loading State for Post */}
       {loadingPost && (
