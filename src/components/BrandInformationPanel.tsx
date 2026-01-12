@@ -414,6 +414,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
               >
                 <option value="">-- Select Region --</option>
                 <optgroup label="New Zealand">
+                  <option value="New Zealand - National">New Zealand - National</option>
                   <option value="New Zealand - Wellington">New Zealand - Wellington</option>
                   <option value="New Zealand - Auckland">New Zealand - Auckland</option>
                   <option value="New Zealand - Christchurch">New Zealand - Christchurch</option>
@@ -426,6 +427,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                   <option value="New Zealand - Other">New Zealand - Other</option>
                 </optgroup>
                 <optgroup label="Australia">
+                  <option value="Australia - National">Australia - National</option>
                   <option value="Australia - New South Wales">Australia - New South Wales</option>
                   <option value="Australia - Victoria">Australia - Victoria</option>
                   <option value="Australia - Queensland">Australia - Queensland</option>
@@ -437,6 +439,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                   <option value="Australia - Other">Australia - Other</option>
                 </optgroup>
                 <optgroup label="United States">
+                  <option value="USA - National">USA - National</option>
                   <option value="USA - California">USA - California</option>
                   <option value="USA - New York">USA - New York</option>
                   <option value="USA - Texas">USA - Texas</option>
@@ -450,6 +453,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                   <option value="USA - Other">USA - Other</option>
                 </optgroup>
                 <optgroup label="United Kingdom">
+                  <option value="UK - National">UK - National</option>
                   <option value="UK - England">UK - England</option>
                   <option value="UK - Scotland">UK - Scotland</option>
                   <option value="UK - Wales">UK - Wales</option>
@@ -457,6 +461,7 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
                   <option value="UK - Other">UK - Other</option>
                 </optgroup>
                 <optgroup label="Canada">
+                  <option value="Canada - National">Canada - National</option>
                   <option value="Canada - Ontario">Canada - Ontario</option>
                   <option value="Canada - Quebec">Canada - Quebec</option>
                   <option value="Canada - British Columbia">Canada - British Columbia</option>
