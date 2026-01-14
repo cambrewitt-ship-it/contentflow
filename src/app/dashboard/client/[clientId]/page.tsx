@@ -1035,7 +1035,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         )}
 
         {/* Activity Hub & Month Calendar - Two Column Layout (40/60) */}
-        <div className="mb-8 grid grid-cols-1 lg:grid-cols-[40%_60%] gap-6">
+        <div className="mb-8 grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-6">
           {/* Client Activity Hub - Takes 40% */}
           <div className="flex flex-col">
             <h2 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Client Activity Hub</h2>
@@ -1213,8 +1213,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
 
         {/* Unified Card - Social Media Platforms, Brand Information, and Delete Client */}
-        <div className="mt-8">
-          <Card className="shadow-md hover:shadow-lg transition-all" style={{ borderRadius: '16px' }}>
+        {/* This card spans full width to match the combined Activity Hub + Calendar above */}
+        <Card className="mt-8 shadow-md hover:shadow-lg transition-all" style={{ borderRadius: '16px' }}>
             <CardContent className="p-8 space-y-10">
               {/* Social Media Platforms Section */}
               <div>
@@ -1527,7 +1527,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               </div>
             </CardContent>
           </Card>
-        </div>
       </div>
     </div>
   )
