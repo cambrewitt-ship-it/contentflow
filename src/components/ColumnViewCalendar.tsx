@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download } from 'lucide-react';
+import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download, Copy, Pencil, Check, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
 import { 
@@ -85,12 +85,16 @@ interface ColumnViewCalendarProps {
   formatTimeTo12Hour?: (time24: string) => string;
   projects?: Project[];
   onAddUploadClick?: (dateKey: string) => void;
-  onDeletePost?: (post: Post) => void;
+  onDeletePost?: (post: Post) => void | Promise<void>;
+  onDuplicatePost?: (post: Post) => void | Promise<void>;
   deletingPostIds?: Set<string>;
+  duplicatingPostIds?: Set<string>;
   selectedPosts?: Set<string>;
   onTogglePostSelection?: (postId: string) => void;
   deletingUploadIds?: Set<string>;
-  onDeleteClientUpload?: (upload: ClientUpload) => void;
+  onDeleteClientUpload?: (upload: ClientUpload) => void | Promise<void>;
+  onUpdateCaption?: (post: Post, newCaption: string) => Promise<void>;
+  savingCaptionPostIds?: Set<string>;
 }
 
 const normalizeToWeekStart = (input: Date) => {
@@ -225,10 +229,14 @@ function SortablePostCard({
   formatTimeTo12Hour,
   projects,
   onDeletePost,
+  onDuplicatePost,
   isDeleting,
+  isDuplicating,
   selectedPosts,
   onTogglePostSelection,
   onDeleteClientUpload,
+  onUpdateCaption,
+  isSavingCaption,
 }: {
   post: Post;
   postKey: string;
@@ -238,11 +246,15 @@ function SortablePostCard({
   editingTimePostIds?: Set<string>;
   formatTimeTo12Hour?: (time24: string) => string;
   projects?: Project[];
-  onDeletePost?: (post: Post) => void;
+  onDeletePost?: (post: Post) => void | Promise<void>;
+  onDuplicatePost?: (post: Post) => void | Promise<void>;
   isDeleting: boolean;
+  isDuplicating: boolean;
   selectedPosts?: Set<string>;
   onTogglePostSelection?: (postId: string) => void;
-  onDeleteClientUpload?: (upload: ClientUpload) => void;
+  onDeleteClientUpload?: (upload: ClientUpload) => void | Promise<void>;
+  onUpdateCaption?: (post: Post, newCaption: string) => Promise<void>;
+  isSavingCaption: boolean;
 }) {
   const isClientUpload =
     post.post_type === 'client-upload' ||
@@ -293,6 +305,39 @@ function SortablePostCard({
     post.approval?.client_comments ||
     post.approval_comment ||
     null;
+
+  // Caption editing state
+  const [isEditingCaption, setIsEditingCaption] = useState(false);
+  const [editedCaption, setEditedCaption] = useState(post.caption || '');
+  const captionTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reset edited caption when post changes
+  useEffect(() => {
+    setEditedCaption(post.caption || '');
+  }, [post.caption]);
+
+  // Focus textarea when editing starts
+  useEffect(() => {
+    if (isEditingCaption && captionTextareaRef.current) {
+      captionTextareaRef.current.focus();
+      captionTextareaRef.current.select();
+    }
+  }, [isEditingCaption]);
+
+  const handleSaveCaption = async () => {
+    if (!onUpdateCaption) return;
+    if (editedCaption === post.caption) {
+      setIsEditingCaption(false);
+      return;
+    }
+    await onUpdateCaption(post, editedCaption);
+    setIsEditingCaption(false);
+  };
+
+  const handleCancelCaptionEdit = () => {
+    setEditedCaption(post.caption || '');
+    setIsEditingCaption(false);
+  };
 
   // Helper function to format date
   const formatDate = (dateStr?: string) => {
@@ -456,6 +501,26 @@ function SortablePostCard({
             </button>
           )}
           {getStatusTag()}
+          {onDuplicatePost && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isDuplicating && !isDeleting) {
+                  onDuplicatePost(post);
+                }
+              }}
+              className="text-blue-500 hover:text-blue-600 transition-colors"
+              title="Duplicate post"
+              disabled={isDuplicating || isDeleting}
+            >
+              {isDuplicating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
+            </button>
+          )}
           {onDeletePost && (
             <button
               type="button"
@@ -490,10 +555,75 @@ function SortablePostCard({
         </div>
       )}
 
-      {/* Caption Preview */}
-      <p className="text-xs text-gray-700 whitespace-pre-wrap mb-1 px-2">
-        {post.caption || 'No caption'}
-      </p>
+      {/* Caption Preview / Edit */}
+      <div className="px-2 mb-1">
+        {isEditingCaption ? (
+          <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+            <textarea
+              ref={captionTextareaRef}
+              value={editedCaption}
+              onChange={(e) => setEditedCaption(e.target.value)}
+              className="w-full text-xs text-gray-700 p-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              rows={4}
+              placeholder="Enter caption..."
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  handleCancelCaptionEdit();
+                }
+                // Ctrl/Cmd + Enter to save
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSaveCaption();
+                }
+              }}
+              disabled={isSavingCaption}
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSaveCaption}
+                disabled={isSavingCaption}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isSavingCaption ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Check className="w-3 h-3" />
+                )}
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelCaptionEdit}
+                disabled={isSavingCaption}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <X className="w-3 h-3" />
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="group relative">
+            <p className="text-xs text-gray-700 whitespace-pre-wrap pr-6">
+              {post.caption || 'No caption'}
+            </p>
+            {onUpdateCaption && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditingCaption(true);
+                }}
+                className="absolute top-0 right-0 p-1 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Edit caption"
+              >
+                <Pencil className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Time and Project - Editable */}
       {post.scheduled_time && (
@@ -595,12 +725,16 @@ function DroppableDayRow({
   projects,
   onAddUploadClick,
   onDeletePost,
+  onDuplicatePost,
   deletingPostIds,
+  duplicatingPostIds,
   deletingUploadIds,
   selectedPosts,
   onTogglePostSelection,
   onDeleteClientUpload,
   isCurrentWeek,
+  onUpdateCaption,
+  savingCaptionPostIds,
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -618,13 +752,17 @@ function DroppableDayRow({
   formatTimeTo12Hour?: (time24: string) => string;
   projects?: Project[];
   onAddUploadClick?: (dateKey: string) => void;
-  onDeletePost?: (post: Post) => void;
+  onDeletePost?: (post: Post) => void | Promise<void>;
+  onDuplicatePost?: (post: Post) => void | Promise<void>;
   deletingPostIds?: Set<string>;
+  duplicatingPostIds?: Set<string>;
   deletingUploadIds?: Set<string>;
   selectedPosts?: Set<string>;
   onTogglePostSelection?: (postId: string) => void;
-  onDeleteClientUpload?: (upload: ClientUpload) => void;
+  onDeleteClientUpload?: (upload: ClientUpload) => void | Promise<void>;
   isCurrentWeek?: boolean;
+  onUpdateCaption?: (post: Post, newCaption: string) => Promise<void>;
+  savingCaptionPostIds?: Set<string>;
 }) {
   const router = useRouter();
   const { setNodeRef } = useDroppable({
@@ -762,6 +900,9 @@ function DroppableDayRow({
               const isDeletingPost = deletingPostIds?.has(post.id) || false;
               const isDeletingUpload = deletingUploadIds?.has(post.id) || false;
               const isDeleting = isClientUpload ? isDeletingUpload : isDeletingPost;
+              const isDuplicating = duplicatingPostIds?.has(post.id) || false;
+              
+              const isSavingCaption = savingCaptionPostIds?.has(post.id) || false;
               
               return (
                 <SortablePostCard
@@ -775,10 +916,14 @@ function DroppableDayRow({
                   formatTimeTo12Hour={formatTimeTo12Hour}
                   projects={projects}
                   onDeletePost={onDeletePost}
+                  onDuplicatePost={isClientUpload ? undefined : onDuplicatePost}
                   isDeleting={isDeleting}
+                  isDuplicating={isDuplicating}
                   selectedPosts={selectedPosts}
                   onTogglePostSelection={onTogglePostSelection}
                   onDeleteClientUpload={onDeleteClientUpload}
+                  onUpdateCaption={isClientUpload ? undefined : onUpdateCaption}
+                  isSavingCaption={isSavingCaption}
                 />
               );
             })
@@ -806,11 +951,15 @@ export function ColumnViewCalendar({
   projects,
   onAddUploadClick,
   onDeletePost,
+  onDuplicatePost,
   deletingPostIds,
+  duplicatingPostIds,
   selectedPosts,
   onTogglePostSelection,
   deletingUploadIds,
   onDeleteClientUpload,
+  onUpdateCaption,
+  savingCaptionPostIds,
 }: ColumnViewCalendarProps) {
   const clientUploadsMap = clientUploads ?? {};
   const VISIBLE_WEEK_COUNT = 5; // Show 5 weeks: 1 partial before, 3 main, 1 partial after
@@ -1163,12 +1312,16 @@ export function ColumnViewCalendar({
                         projects={projects}
                         onAddUploadClick={onAddUploadClick}
                         onDeletePost={onDeletePost}
+                        onDuplicatePost={onDuplicatePost}
                         deletingPostIds={deletingPostIds}
+                        duplicatingPostIds={duplicatingPostIds}
                         deletingUploadIds={deletingUploadIds}
                         selectedPosts={selectedPosts}
                         onTogglePostSelection={onTogglePostSelection}
                         onDeleteClientUpload={onDeleteClientUpload}
                         isCurrentWeek={isCurrent}
+                        onUpdateCaption={onUpdateCaption}
+                        savingCaptionPostIds={savingCaptionPostIds}
                       />
                     );
                   })}

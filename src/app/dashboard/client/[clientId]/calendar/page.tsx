@@ -192,13 +192,16 @@ export default function CalendarPage() {
   const [deletingPostIds, setDeletingPostIds] = useState<Set<string>>(new Set());
   const [deletingUploadIds, setDeletingUploadIds] = useState<Set<string>>(new Set());
   const [deletingUnscheduledPostIds, setDeletingUnscheduledPostIds] = useState<Set<string>>(new Set());
+  const [duplicatingPostIds, setDuplicatingPostIds] = useState<Set<string>>(new Set());
   const [schedulingPostIds, setSchedulingPostIds] = useState<Set<string>>(new Set());
   const [editingTimePostIds, setEditingTimePostIds] = useState<Set<string>>(new Set());
+  const [savingCaptionPostIds, setSavingCaptionPostIds] = useState<Set<string>>(new Set());
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
   const [viewMode, setViewMode] = useState<'month' | 'column'>('column');
   const calendarScrollRef = useRef<HTMLDivElement>(null);
+  const clientPortalRef = useRef<HTMLDivElement>(null);
   const [showPlanRestrictionDialog, setShowPlanRestrictionDialog] = useState(false);
   const [planRestrictionMessage, setPlanRestrictionMessage] = useState(
     'Social media posting is not available on the free plan. Please upgrade to post to social media.'
@@ -319,6 +322,11 @@ export default function CalendarPage() {
       console.error('❌ Error copying to clipboard:', err);
       alert('Failed to copy link to clipboard');
     }
+  };
+
+  // Scroll to Client Portal section
+  const handleScrollToClientPortal = () => {
+    clientPortalRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   // Generate approval link for selected posts
@@ -1010,6 +1018,62 @@ export default function CalendarPage() {
     }
   };
 
+  const handleUpdateCaption = async (post: Post, newCaption: string) => {
+    if (newCaption === post.caption) return;
+
+    try {
+      // Add to saving caption state
+      setSavingCaptionPostIds(prev => new Set([...prev, post.id]));
+
+      console.log('Updating post caption:', { postId: post.id, captionLength: newCaption.length });
+
+      const accessToken = requireAccessToken();
+      const response = await fetch('/api/calendar/scheduled', {
+        method: 'PATCH',
+        headers: { 
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          postId: post.id,
+          updates: {
+            caption: newCaption
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update caption');
+      }
+
+      // Update local state
+      setScheduledPosts(prevScheduled => {
+        const updated = { ...prevScheduled };
+        Object.keys(updated).forEach(date => {
+          updated[date] = updated[date].map(p => 
+            p.id === post.id 
+              ? { ...p, caption: newCaption }
+              : p
+          );
+        });
+        return updated;
+      });
+
+      console.log('Caption updated successfully');
+    } catch (error) {
+      console.error('Error updating caption:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Failed to update caption: ${errorMessage}`);
+    } finally {
+      // Remove from saving caption state
+      setSavingCaptionPostIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(post.id);
+        return newSet;
+      });
+    }
+  };
+
   const handleDrop = async (e: React.DragEvent, weekIndex: number, dayIndex: number) => {
     e.preventDefault();
     const postData = e.dataTransfer.getData('post');
@@ -1492,6 +1556,58 @@ export default function CalendarPage() {
       alert(`Failed to delete post: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setDeletingPostIds(prev => {
+        const next = new Set(prev);
+        next.delete(post.id);
+        return next;
+      });
+    }
+  };
+
+  const handleDuplicatePost = async (post: Post) => {
+    setDuplicatingPostIds(prev => {
+      const next = new Set(prev);
+      next.add(post.id);
+      return next;
+    });
+
+    try {
+      const accessToken = requireAccessToken();
+
+      const response = await fetch('/api/posts/duplicate', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ postId: post.id }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || `Failed to duplicate post (${response.status})`);
+      }
+
+      const data = await response.json();
+      
+      // Add the duplicated post to the unscheduled posts list (left sidebar)
+      if (data.post) {
+        setProjectPosts(prev => [...prev, {
+          id: data.post.id,
+          project_id: data.post.project_id,
+          caption: data.post.caption,
+          image_url: data.post.image_url,
+          post_notes: data.post.post_notes || '',
+          scheduled_time: null,
+          status: 'draft',
+        }]);
+      }
+
+      alert('Post duplicated! Check the unscheduled posts section.');
+    } catch (error) {
+      console.error('Error duplicating post:', error);
+      alert(`Failed to duplicate post: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDuplicatingPostIds(prev => {
         const next = new Set(prev);
         next.delete(post.id);
         return next;
@@ -2224,6 +2340,179 @@ export default function CalendarPage() {
 
           {/* Main Content - Calendar */}
           <div className="flex-1">
+        {/* Action Buttons - Above Calendar */}
+        <div className="flex justify-between items-center mb-4 mx-8">
+            {/* Left side - Delete, Export, and Approval Link buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleBulkDelete}
+                disabled={isDeleting || selectedPosts.size === 0}
+                className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+                  isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' : 
+                  selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+                  'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {isDeleting && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                )}
+                {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
+              </button>
+
+              <button
+                onClick={handleExportToPDF}
+                disabled={exportingPDF || selectedPosts.size === 0}
+                className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+                  exportingPDF ? 'opacity-50 cursor-not-allowed bg-blue-500' : 
+                  selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+                  'bg-blue-600 hover:bg-blue-700'
+                }`}
+                title={selectedPosts.size === 0 ? 'Select posts to export' : 'Export selected posts to PDF'}
+              >
+                {exportingPDF ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="w-4 h-4" />
+                    Export to PDF ({selectedPosts.size || 0})
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={handleGenerateApprovalLink}
+                disabled={generatingApprovalLink || selectedPosts.size === 0}
+                className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+                  generatingApprovalLink ? 'opacity-50 cursor-not-allowed bg-purple-500' : 
+                  selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+                  'bg-purple-600 hover:bg-purple-700'
+                }`}
+                title={selectedPosts.size === 0 ? 'Select posts to create approval link' : 'Create approval link for client'}
+              >
+                {generatingApprovalLink ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <LinkIcon className="w-4 h-4" />
+                    Share Approval Link ({selectedPosts.size || 0})
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={handleScrollToClientPortal}
+                className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-teal-600 hover:bg-teal-700"
+                title="Scroll to Client Portal section"
+              >
+                <User className="w-4 h-4" />
+                Client Portal
+              </button>
+            </div>
+            
+            {/* Right side - Schedule buttons or guidance */}
+            <div className="flex items-center gap-2">
+              {/* Debug info */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="text-xs text-gray-500 mr-2">
+                  Accounts: {connectedAccounts.length}
+                </div>
+              )}
+              
+              {(connectedAccounts.length > 0 || selectedPosts.size > 0) && (
+                <span
+                  className={`text-sm py-2 transition-colors ${
+                  selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-400'
+                  }`}
+                >
+                  {selectedPosts.size || 0} selected:
+                </span>
+              )}
+              {connectedAccounts.length > 0 ? (
+                connectedAccounts.map((account) => {
+                  const isScheduling = schedulingPlatform === account.platform;
+                  
+                  const allScheduledPosts = Object.values(scheduledPosts).flat();
+                  const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
+                  
+                  console.log('🔍 Button enable check for', account.platform, ':', {
+                    selectedPostsSize: selectedPosts.size,
+                    postsToScheduleLength: postsToSchedule.length,
+                    allScheduledPostsCount: allScheduledPosts.length,
+                    selectedPostsArray: Array.from(selectedPosts),
+                    postsToSchedule: postsToSchedule.map(p => ({
+                      id: p.id,
+                      caption: p.caption,
+                      captionType: typeof p.caption,
+                      captionLength: p.caption?.length,
+                      trimmedCaption: p.caption?.trim(),
+                      hasCaption: !!p.caption,
+                      captionIsEmpty: !p.caption || p.caption.trim() === '',
+                      fullPost: p
+                    })),
+                    hasEmptyCaptions: postsToSchedule.some(p => !p.caption || p.caption.trim() === ''),
+                    isScheduling,
+                    buttonShouldBeEnabled: !isScheduling && !postsToSchedule.some(p => !p.caption || p.caption.trim() === '')
+                  });
+                  
+                  const hasEmptyCaptions = postsToSchedule.some(post => {
+                    const currentCaption = editingCaptions[post.id] || post.caption || '';
+                    return currentCaption.trim().length === 0;
+                  });
+                  
+                  const isDisabled = isScheduling || hasEmptyCaptions || selectedPosts.size === 0;
+                  const platformBgColor = selectedPosts.size === 0 ? 'bg-gray-400' :
+                    account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
+                    account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
+                    account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
+                    account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
+                    'bg-gray-600 hover:bg-gray-700';
+                  
+                  return (
+                    <button
+                      key={account._id}
+                      onClick={() => handleScheduleToPlatform(account)}
+                      disabled={isDisabled}
+                      className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 transition-all ${
+                        isDisabled ? 'opacity-40 cursor-not-allowed' : ''
+                      } ${platformBgColor}`}
+                      title={
+                        selectedPosts.size === 0 ? 'Select posts to schedule' :
+                        hasEmptyCaptions ? 'Add captions to selected posts before scheduling' : 
+                        `Schedule ${selectedPosts.size} post${selectedPosts.size === 1 ? '' : 's'} to ${account.platform}`
+                      }
+                    >
+                      {isScheduling ? (
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {account.platform === 'facebook' && <FacebookIcon size={16} />}
+                          {account.platform === 'instagram' && <InstagramIcon size={16} />}
+                          {account.platform === 'twitter' && <TwitterIcon size={16} />}
+                          {account.platform === 'linkedin' && <LinkedInIcon size={16} />}
+                          <span>Schedule {selectedPosts.size > 0 ? `(${selectedPosts.size})` : ''}</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })
+              ) : (
+                selectedPosts.size > 0 && (
+                  <Link href={`/dashboard/client/${clientId}`}>
+                    <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm flex items-center gap-2 transition-all">
+                      Connect Social Media to Publish
+                    </button>
+                  </Link>
+                )
+              )}
+            </div>
+          </div>
+
         {/* Calendar */}
         <div
           key={refreshKey}
@@ -2314,12 +2603,16 @@ export default function CalendarPage() {
                   editingTimePostIds={editingTimePostIds}
                   formatTimeTo12Hour={formatTimeTo12Hour}
                   projects={projects}
-                  onDeletePost={handleDeleteScheduledPost}
+                  onDeletePost={handleDeleteScheduledPost as any}
+                  onDuplicatePost={handleDuplicatePost as any}
                   deletingPostIds={deletingPostIds}
+                  duplicatingPostIds={duplicatingPostIds}
                   deletingUploadIds={deletingUploadIds}
                   selectedPosts={selectedPosts}
                   onTogglePostSelection={handleTogglePostSelection}
-                  onDeleteClientUpload={handleDeleteClientUpload}
+                  onDeleteClientUpload={handleDeleteClientUpload as any}
+                  onUpdateCaption={handleUpdateCaption as any}
+                  savingCaptionPostIds={savingCaptionPostIds}
                   onDrop={async (e: React.DragEvent, dateKey: string) => {
                     // Handle native HTML5 drag from unscheduled posts
                     const postData = e.dataTransfer.getData('post');
@@ -2483,172 +2776,8 @@ export default function CalendarPage() {
             )}
         </div>
 
-        {/* Action Buttons - Below Calendar */}
-        <div className="flex justify-between items-center mt-6 mb-4 mx-8">
-            {/* Left side - Delete, Export, and Approval Link buttons */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleBulkDelete}
-                disabled={isDeleting || selectedPosts.size === 0}
-                className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-                  isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' : 
-                  selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
-                  'bg-red-600 hover:bg-red-700'
-                }`}
-              >
-                {isDeleting && (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                )}
-                {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
-              </button>
-
-              <button
-                onClick={handleExportToPDF}
-                disabled={exportingPDF || selectedPosts.size === 0}
-                className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-                  exportingPDF ? 'opacity-50 cursor-not-allowed bg-blue-500' : 
-                  selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
-                  'bg-blue-600 hover:bg-blue-700'
-                }`}
-                title={selectedPosts.size === 0 ? 'Select posts to export' : 'Export selected posts to PDF'}
-              >
-                {exportingPDF ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Exporting...
-                  </>
-                ) : (
-                  <>
-                    <FileDown className="w-4 h-4" />
-                    Export to PDF ({selectedPosts.size || 0})
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={handleGenerateApprovalLink}
-                disabled={generatingApprovalLink || selectedPosts.size === 0}
-                className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-                  generatingApprovalLink ? 'opacity-50 cursor-not-allowed bg-purple-500' : 
-                  selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
-                  'bg-purple-600 hover:bg-purple-700'
-                }`}
-                title={selectedPosts.size === 0 ? 'Select posts to create approval link' : 'Create approval link for client'}
-              >
-                {generatingApprovalLink ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <LinkIcon className="w-4 h-4" />
-                    Share Approval Link ({selectedPosts.size || 0})
-                  </>
-                )}
-              </button>
-            </div>
-            
-            {/* Right side - Schedule buttons or guidance */}
-            <div className="flex items-center gap-2">
-              {/* Debug info */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="text-xs text-gray-500 mr-2">
-                  Accounts: {connectedAccounts.length}
-                </div>
-              )}
-              
-              {(connectedAccounts.length > 0 || selectedPosts.size > 0) && (
-                <span
-                  className={`text-sm py-2 transition-colors ${
-                  selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-400'
-                  }`}
-                >
-                  {selectedPosts.size || 0} selected:
-                </span>
-              )}
-              {connectedAccounts.length > 0 ? (
-                connectedAccounts.map((account) => {
-                  const isScheduling = schedulingPlatform === account.platform;
-                  
-                  const allScheduledPosts = Object.values(scheduledPosts).flat();
-                  const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
-                  
-                  console.log('🔍 Button enable check for', account.platform, ':', {
-                    selectedPostsSize: selectedPosts.size,
-                    postsToScheduleLength: postsToSchedule.length,
-                    allScheduledPostsCount: allScheduledPosts.length,
-                    selectedPostsArray: Array.from(selectedPosts),
-                    postsToSchedule: postsToSchedule.map(p => ({
-                      id: p.id,
-                      caption: p.caption,
-                      captionType: typeof p.caption,
-                      captionLength: p.caption?.length,
-                      trimmedCaption: p.caption?.trim(),
-                      hasCaption: !!p.caption,
-                      captionIsEmpty: !p.caption || p.caption.trim() === '',
-                      fullPost: p
-                    })),
-                    hasEmptyCaptions: postsToSchedule.some(p => !p.caption || p.caption.trim() === ''),
-                    isScheduling,
-                    buttonShouldBeEnabled: !isScheduling && !postsToSchedule.some(p => !p.caption || p.caption.trim() === '')
-                  });
-                  
-                  const hasEmptyCaptions = postsToSchedule.some(post => {
-                    const currentCaption = editingCaptions[post.id] || post.caption || '';
-                    return currentCaption.trim().length === 0;
-                  });
-                  
-                  const isDisabled = isScheduling || hasEmptyCaptions || selectedPosts.size === 0;
-                  const platformBgColor = selectedPosts.size === 0 ? 'bg-gray-400' :
-                    account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
-                    account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
-                    account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
-                    account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
-                    'bg-gray-600 hover:bg-gray-700';
-                  
-                  return (
-                    <button
-                      key={account._id}
-                      onClick={() => handleScheduleToPlatform(account)}
-                      disabled={isDisabled}
-                      className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 transition-all ${
-                        isDisabled ? 'opacity-40 cursor-not-allowed' : ''
-                      } ${platformBgColor}`}
-                      title={
-                        selectedPosts.size === 0 ? 'Select posts to schedule' :
-                        hasEmptyCaptions ? 'Add captions to selected posts before scheduling' : 
-                        `Schedule ${selectedPosts.size} post${selectedPosts.size === 1 ? '' : 's'} to ${account.platform}`
-                      }
-                    >
-                      {isScheduling ? (
-                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          {account.platform === 'facebook' && <FacebookIcon size={16} />}
-                          {account.platform === 'instagram' && <InstagramIcon size={16} />}
-                          {account.platform === 'twitter' && <TwitterIcon size={16} />}
-                          {account.platform === 'linkedin' && <LinkedInIcon size={16} />}
-                          <span>Schedule {selectedPosts.size > 0 ? `(${selectedPosts.size})` : ''}</span>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })
-              ) : (
-                selectedPosts.size > 0 && (
-                  <Link href={`/dashboard/client/${clientId}`}>
-                    <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm flex items-center gap-2 transition-all">
-                      Connect Social Media to Publish
-                    </button>
-                  </Link>
-                )
-              )}
-            </div>
-          </div>
-
           {/* Client Portal Section */}
-          <div className="mt-8 bg-white rounded-lg shadow p-8">
+          <div ref={clientPortalRef} className="mt-8 bg-white rounded-lg shadow p-8">
             <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Client Portal</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">

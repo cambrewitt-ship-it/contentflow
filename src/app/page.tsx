@@ -17,7 +17,7 @@ import {
   YouTubeIcon, 
   ThreadsIcon 
 } from "@/components/social-icons";
-import { Oswald } from "next/font/google";
+import { Oswald, Poppins } from "next/font/google";
 import { isSingleClientTier } from "../lib/tierUtils";
 
 interface UserProfile {
@@ -36,6 +36,11 @@ interface Client {
 }
 
 const oswald = Oswald({
+  subsets: ["latin"],
+  weight: ["700"],
+});
+
+const poppins = Poppins({
   subsets: ["latin"],
   weight: ["700"],
 });
@@ -457,12 +462,22 @@ export default function Home() {
       <section className="relative overflow-hidden bg-background pt-20 sm:pt-32 pb-16 sm:pb-24">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-4xl text-center">
-            <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-6xl">
-              AI-Powered Social Media Management
+            <div className="flex flex-col items-center mb-4">
+              <div className="flex items-center justify-center">
+                <img 
+                  src="/content-manager-logo.png" 
+                  alt="Content Manager" 
+                  className="h-[18rem] sm:h-[30rem] w-auto inline-block align-middle -my-32 sm:-my-56 -ml-4 -mr-4 sm:-ml-7 sm:-mr-6"
+                />
+              </div>
+            </div>
+            <h1 className="text-5xl font-bold tracking-tight text-foreground sm:text-7xl">
+              Your AI pilot for social media managers
+              <br />
+              <span className={`${poppins.className} font-bold bg-gradient-to-r from-sky-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent pr-1`}>
+                work 3x faster
+              </span>
             </h1>
-            <p className="mt-6 text-lg leading-8 text-muted-foreground max-w-3xl mx-auto">
-              Reduce time spent managing social media by 5x
-            </p>
             <div className="mt-10 max-w-2xl mx-auto px-4">
               <div className="flex items-center justify-center gap-3">
                 <input
@@ -493,22 +508,15 @@ export default function Home() {
               <p className="text-center text-sm text-muted-foreground mt-3">
                 Free forever. No credit card required.
               </p>
+              <p className="font-['Poppins'] font-medium text-foreground whitespace-nowrap text-3xl sm:text-5xl mt-8">
+                Plan, Create, Schedule
+              </p>
             </div>
           </div>
           
           {/* Hero Image/Illustration */}
           <div className="mt-12 mx-auto max-w-5xl">
             <div className="flex flex-col items-center mb-6">
-              <div className="flex flex-col items-center">
-                <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-2 text-center">
-                  <span className={`${oswald.className} bg-gradient-to-r from-blue-500 via-blue-400 to-blue-600 bg-clip-text text-transparent tracking-tight`}>
-                    Content Manager
-                  </span>
-                  <span className="font-['Poppins'] font-medium text-foreground">
-                    {" "} - Plan, Create, Schedule
-                  </span>
-                </h2>
-              </div>
               <p className="text-xl sm:text-2xl font-bold text-muted-foreground block text-center">
                 Like ChatGPT + Trello + Social Scheduler
               </p>
@@ -643,7 +651,7 @@ export default function Home() {
             </div>
             <div className="mt-12 text-center text-foreground">
               <h2 className="text-3xl sm:text-5xl font-bold">
-                5x Your Productivity - Reduce Labour Costs
+                3x Your Productivity - Save Labour Costs
               </h2>
               <p className="mt-4 text-xl text-muted-foreground">
                 Automated with AI.
