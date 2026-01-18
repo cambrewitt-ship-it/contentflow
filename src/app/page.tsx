@@ -511,6 +511,18 @@ export default function Home() {
               <p className="font-['Poppins'] font-medium text-foreground whitespace-nowrap text-3xl sm:text-5xl mt-8">
                 Plan, Create, Schedule
               </p>
+              <div className="mt-8 max-w-5xl mx-auto">
+                <video
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full rounded-2xl shadow-2xl"
+                >
+                  <source src="/Content-manager-demo.mp4" type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              </div>
             </div>
           </div>
           
