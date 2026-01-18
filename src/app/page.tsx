@@ -565,12 +565,12 @@ export default function Home() {
                 Tailored to your brand.
               </p>
             </div>
-            <div className="relative">
+            <div className="relative mt-6">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-3xl"></div>
               <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-2 sm:py-3 shadow-2xl">
                 <img 
-                  src="/content-suite-screenshot.png" 
-                  alt="Content Suite Screenshot" 
+                  src="/content-suite-sc.png" 
+                  alt="Content Suite" 
                   className="w-full h-auto rounded-lg max-w-5xl mx-auto"
                 />
               </div>
