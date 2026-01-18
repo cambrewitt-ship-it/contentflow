@@ -472,7 +472,8 @@ export default function Home() {
               </div>
             </div>
             <h1 className="text-5xl font-bold tracking-tight text-foreground sm:text-7xl">
-              Your AI pilot for social media managers
+              Your AI pilot for<br />
+              social media managers
               <br />
               <span className={`${poppins.className} font-bold bg-gradient-to-r from-sky-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent pr-1`}>
                 work 3x faster
@@ -529,7 +530,7 @@ export default function Home() {
           {/* Hero Image/Illustration */}
           <div className="mt-12 mx-auto max-w-5xl">
             <div className="flex flex-col items-center mb-6">
-              <p className="text-xl sm:text-2xl font-bold text-muted-foreground block text-center">
+              <p className="text-2xl sm:text-3xl font-bold text-muted-foreground block text-center">
                 Like ChatGPT + Trello + Social Scheduler
               </p>
             </div>
