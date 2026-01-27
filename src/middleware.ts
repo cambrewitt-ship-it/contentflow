@@ -51,6 +51,9 @@ export async function middleware(req: NextRequest) {
     '/auth/forgot-password',
     '/auth/reset-password',
     '/pricing',
+    '/features',
+    '/contact',
+    '/terms',
   ];
 
   // Define public API routes that don't require authentication
