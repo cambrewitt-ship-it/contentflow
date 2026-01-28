@@ -105,8 +105,12 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public folder
+     * - static assets (served from /public), e.g. images, videos, fonts, etc.
+     *
+     * Important: if media files (like .mp4) are not excluded here, the middleware
+     * can intercept the request and apply auth redirects, causing <video> to
+     * "load forever" on public pages like the landing page.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml|json|pdf|zip|woff|woff2|ttf|eot|otf|mp4|webm|mov|m4v|avi|mpeg|mpg|mp3|wav|ogg)$).*)',
   ],
 };

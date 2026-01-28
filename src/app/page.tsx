@@ -4,7 +4,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabaseClient";
-import { useState, useEffect, Fragment, useMemo } from "react";
+import { useState, useEffect, Fragment, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, X, Check, Plug } from "lucide-react";
@@ -171,6 +171,11 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
+  const [videoLoading, setVideoLoading] = useState(true);
+  const [videoError, setVideoError] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoSrc, setVideoSrc] = useState('/Content-manager-demo.mp4');
+  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Compute the correct dashboard URL based on subscription tier
   // Single-client tiers (Free, In-House) go directly to their client dashboard
@@ -293,6 +298,32 @@ export default function Home() {
 
     fetchSubscriptionAndClients();
   }, [user?.id, getAccessToken]);
+
+  // Ensure video autoplays when ready
+  useEffect(() => {
+    if (videoRef.current && !videoError) {
+      const video = videoRef.current;
+      const tryPlay = () => {
+        video.play().catch((err) => {
+          // Autoplay may be blocked by browser, but video is loaded
+          console.log('Autoplay prevented:', err);
+        });
+      };
+
+      if (video.readyState >= 2) {
+        // Video is ready to play
+        tryPlay();
+      } else {
+        video.addEventListener('canplay', tryPlay, { once: true });
+        video.addEventListener('loadeddata', tryPlay, { once: true });
+      }
+
+      return () => {
+        video.removeEventListener('canplay', tryPlay);
+        video.removeEventListener('loadeddata', tryPlay);
+      };
+    }
+  }, [videoError, videoSrc]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -513,16 +544,96 @@ export default function Home() {
                 Plan, Create, Schedule
               </p>
               <div className="mt-8 max-w-5xl mx-auto">
-                <video
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  className="w-full rounded-2xl shadow-2xl"
-                >
-                  <source src="/Content-manager-demo.mp4" type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
+                {videoError ? (
+                  <div className="w-full aspect-video bg-muted rounded-2xl shadow-2xl flex items-center justify-center">
+                    <p className="text-muted-foreground">Video failed to load. Please refresh the page.</p>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    {videoLoading && (
+                      <div className="absolute inset-0 bg-muted rounded-2xl shadow-2xl flex items-center justify-center z-10">
+                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    )}
+                    <video
+                      ref={videoRef}
+                      src={videoSrc}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      preload="auto"
+                      className="w-full rounded-2xl shadow-2xl"
+                      onLoadedData={() => {
+                        setVideoLoading(false);
+                        // Ensure autoplay
+                        if (videoRef.current) {
+                          videoRef.current.play().catch(() => {
+                            // Autoplay failed, but video is loaded
+                            console.log('Autoplay prevented, but video is ready');
+                          });
+                        }
+                      }}
+                      onError={(e) => {
+                        const video = e.currentTarget;
+                        const networkState = video.networkState;
+                        const error = video.error;
+                        
+                        // Clear any existing timeout
+                        if (errorTimeoutRef.current) {
+                          clearTimeout(errorTimeoutRef.current);
+                        }
+                        
+                        // Only handle error if network state indicates failure
+                        // NetworkState: 0 = EMPTY, 1 = IDLE, 2 = LOADING, 3 = NO_SOURCE
+                        if (networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
+                          // Try lowercase path if uppercase fails
+                          if (videoSrc === '/Content-manager-demo.mp4') {
+                            console.log('Trying lowercase path as fallback');
+                            setVideoSrc('/content-manager-demo.mp4');
+                            // Force reload with new source
+                            setTimeout(() => {
+                              if (videoRef.current) {
+                                videoRef.current.load();
+                              }
+                            }, 100);
+                            return;
+                          }
+                        }
+                        
+                        // Check if video actually has an error (not just loading)
+                        // Error codes: 1=MEDIA_ERR_ABORTED, 2=MEDIA_ERR_NETWORK, 3=MEDIA_ERR_DECODE, 4=MEDIA_ERR_SRC_NOT_SUPPORTED
+                        if (error && error.code !== 0 && error.code !== 1) {
+                          console.error('Video error:', error.code, error.message);
+                          // Both paths failed, show error after a delay (give time for retry)
+                          errorTimeoutRef.current = setTimeout(() => {
+                            setVideoError(true);
+                            setVideoLoading(false);
+                          }, 3000);
+                        }
+                      }}
+                      onLoadStart={() => {
+                        // Video started loading, clear any error timeout
+                        if (errorTimeoutRef.current) {
+                          clearTimeout(errorTimeoutRef.current);
+                          errorTimeoutRef.current = null;
+                        }
+                      }}
+                      onCanPlay={() => {
+                        setVideoLoading(false);
+                        // Ensure autoplay
+                        if (videoRef.current) {
+                          videoRef.current.play().catch(() => {
+                            // Autoplay failed, but video is ready
+                            console.log('Autoplay prevented, but video is ready');
+                          });
+                        }
+                      }}
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  </div>
+                )}
               </div>
             </div>
           </div>
