@@ -50,7 +50,7 @@ export async function GET(
 
     if (!response.ok) {
       logger.error('LATE API error:', response.status);
-      return NextResponse.json({ error: 'Failed to fetch accounts' });
+      return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 });
     }
     
     const data = await response.json();
@@ -58,6 +58,6 @@ export async function GET(
     return NextResponse.json({ accounts: data.accounts || [] });
   } catch (error) {
     logger.error('Error fetching accounts:', error);
-    return NextResponse.json({ error: 'Internal server error' });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -36,10 +36,10 @@ export async function POST(req: Request) {
     };
 
     logger.error('🔄 Transformed payload for LATE API:', JSON.stringify(lateApiPayload, null, 2));
-    logger.error('🌐 Calling LATE API at: https://api.getlate.dev/v1/posts');
+    logger.error('🌐 Calling LATE API at: https://getlate.dev/api/v1/posts');
 
     // Make request to LATE API
-    const lateResp = await fetch("https://api.getlate.dev/v1/posts", {
+    const lateResp = await fetch("https://getlate.dev/api/v1/posts", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${LATE_KEY}`,
