@@ -15,9 +15,10 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, getAccessToken } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const priceId = searchParams?.get('priceId') || '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,8 +35,45 @@ function LoginForm() {
       setLoading(false);
     } else {
       console.log('✅ Login successful in form handler, redirecting...');
-      // Redirect to the original page or dashboard
-      const redirectTo = searchParams?.get('redirectTo') || '/dashboard';
+      
+      // If priceId is present, start checkout automatically
+      if (priceId) {
+        try {
+          const accessToken = getAccessToken();
+          if (!accessToken) {
+            throw new Error('No access token available');
+          }
+
+          const response = await fetch('/api/stripe/checkout', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ priceId }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to create checkout session');
+          }
+
+          // Redirect to Stripe Checkout
+          if (data.url) {
+            window.location.href = data.url;
+            return;
+          }
+        } catch (checkoutError) {
+          console.error('Checkout error:', checkoutError);
+          setError('Login successful, but failed to start checkout. Please try again from the pricing page.');
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // No priceId, redirect normally
+      const redirectTo = searchParams?.get('redirectTo') || searchParams?.get('redirect') || '/dashboard';
       router.push(redirectTo);
     }
   };
@@ -102,7 +140,10 @@ function LoginForm() {
           </form>
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Don&apos;t have an account? </span>
-            <Link href="/auth/signup" className="text-primary hover:underline">
+            <Link 
+              href={priceId ? `/auth/signup?priceId=${encodeURIComponent(priceId)}&redirectTo=${encodeURIComponent(searchParams?.get('redirectTo') || searchParams?.get('redirect') || '/pricing')}` : '/auth/signup'} 
+              className="text-primary hover:underline"
+            >
               Sign up
             </Link>
           </div>

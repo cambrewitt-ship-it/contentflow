@@ -13,6 +13,8 @@ import { Eye, EyeOff } from 'lucide-react';
 function SignupForm() {
   const searchParams = useSearchParams();
   const emailParam = searchParams?.get('email') || '';
+  const priceId = searchParams?.get('priceId') || '';
+  const redirectTo = searchParams?.get('redirectTo') || searchParams?.get('redirect') || '';
   
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -25,7 +27,7 @@ function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const { signUp } = useAuth();
+  const { signUp, getAccessToken } = useAuth();
   const router = useRouter();
 
   // Update email when URL parameter changes
@@ -81,9 +83,47 @@ function SignupForm() {
       }
       
       if (session) {
-        // User is auto-confirmed and logged in, redirect to dashboard
-        setMessage('Account created successfully! Redirecting...');
-        router.push('/dashboard');
+        // User is auto-confirmed and logged in
+        // If priceId is present, start checkout automatically
+        if (priceId) {
+          setMessage('Account created successfully! Starting checkout...');
+          try {
+            const accessToken = getAccessToken();
+            if (!accessToken) {
+              throw new Error('No access token available');
+            }
+
+            const response = await fetch('/api/stripe/checkout', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({ priceId }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(data.error || 'Failed to create checkout session');
+            }
+
+            // Redirect to Stripe Checkout
+            if (data.url) {
+              window.location.href = data.url;
+              return;
+            }
+          } catch (checkoutError) {
+            console.error('Checkout error:', checkoutError);
+            setError('Account created, but failed to start checkout. Please try again from the pricing page.');
+            setLoading(false);
+            return;
+          }
+        } else {
+          // No priceId, redirect normally
+          setMessage('Account created successfully! Redirecting...');
+          router.push(redirectTo || '/dashboard');
+        }
       } else {
         // Email confirmation required
         setMessage('Check your email for a confirmation link!');
@@ -253,7 +293,10 @@ function SignupForm() {
           </form>
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Already have an account? </span>
-            <Link href="/auth/login" className="text-primary hover:underline">
+            <Link 
+              href={priceId ? `/auth/login?priceId=${encodeURIComponent(priceId)}&redirectTo=${encodeURIComponent(redirectTo || '/pricing')}` : '/auth/login'} 
+              className="text-primary hover:underline"
+            >
               Sign in
             </Link>
           </div>

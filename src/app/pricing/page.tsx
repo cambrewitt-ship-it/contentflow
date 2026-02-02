@@ -193,17 +193,21 @@ export default function PricingPage() {
     try {
       setLoadingTier(tierId);
 
-      // Get access token
-      const accessToken = getAccessToken();
-      if (!accessToken) {
-        // Not authenticated, redirect to login
-        router.push('/auth/login?redirect=/pricing');
+      // Handle freemium tier (redirect to signup)
+      if (tierId === 'freemium') {
+        router.push('/auth/signup');
         return;
       }
 
-      // Handle freemium tier (redirect to login)
-      if (tierId === 'freemium') {
-        router.push('/auth/login?redirect=/pricing');
+      // Get access token
+      const accessToken = getAccessToken();
+      if (!accessToken) {
+        // Not authenticated, redirect to signup with priceId to start checkout after signup
+        if (priceId) {
+          router.push(`/auth/signup?priceId=${encodeURIComponent(priceId)}&redirectTo=/pricing`);
+        } else {
+          router.push('/auth/signup?redirectTo=/pricing');
+        }
         return;
       }
 
@@ -225,9 +229,13 @@ export default function PricingPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        // If unauthorized, redirect to login
+        // If unauthorized, redirect to signup/login with priceId
         if (response.status === 401) {
-          router.push('/auth/login?redirect=/pricing');
+          if (priceId) {
+            router.push(`/auth/signup?priceId=${encodeURIComponent(priceId)}&redirectTo=/pricing`);
+          } else {
+            router.push('/auth/signup?redirectTo=/pricing');
+          }
           return;
         }
         throw new Error(data.error || 'Failed to create checkout session');
