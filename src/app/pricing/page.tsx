@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useState, useRef } from 'react';
+import { Fragment, useEffect, useState, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Check, ArrowLeft, X, Menu } from 'lucide-react';
@@ -139,7 +139,7 @@ interface UserProfile {
   role: string;
 }
 
-export default function PricingPage() {
+function PricingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, signOut, getAccessToken } = useAuth();
@@ -756,3 +756,17 @@ export default function PricingPage() {
   );
 }
 
+export default function PricingPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600"></div>
+          <p className="mt-4 text-gray-600">Loading pricing...</p>
+        </div>
+      </div>
+    }>
+      <PricingPageContent />
+    </Suspense>
+  );
+}
