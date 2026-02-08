@@ -32,25 +32,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create freemium subscription
+    // Create trial subscription (14-day trial with starter-level limits)
+    const trialStartDate = new Date();
+    const trialEndDate = new Date(trialStartDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+
     const { data: subscription, error: createError } = await supabase
       .from('subscriptions')
       .insert({
         user_id: userId,
-        stripe_customer_id: `freemium_${userId}`, // Unique identifier for freemium users
+        stripe_customer_id: `trial_${userId}`, // Unique identifier for trial users
         stripe_subscription_id: null,
         stripe_price_id: null,
-        subscription_tier: 'freemium',
+        subscription_tier: 'trial',
         subscription_status: 'active',
         max_clients: 1,
-        max_posts_per_month: 0, // No social media posting
-        max_ai_credits_per_month: 10,
+        max_posts_per_month: 30,
+        max_ai_credits_per_month: 100,
         clients_used: 0,
         posts_used_this_month: 0,
         ai_credits_used_this_month: 0,
         usage_reset_date: new Date().toISOString(),
+        trial_start_date: trialStartDate.toISOString(),
+        trial_end_date: trialEndDate.toISOString(),
         metadata: {
-          created_via: 'freemium_signup',
+          created_via: 'trial_signup',
           created_at: new Date().toISOString(),
         },
       })
@@ -58,9 +63,9 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (createError) {
-      console.error('Error creating freemium subscription:', createError);
+      console.error('Error creating trial subscription:', createError);
       return NextResponse.json(
-        { error: 'Failed to create freemium subscription' },
+        { error: 'Failed to create trial subscription' },
         { status: 500 }
       );
     }
@@ -77,7 +82,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Freemium subscription error:', error);
+    console.error('Trial subscription error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

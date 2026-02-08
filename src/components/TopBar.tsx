@@ -19,7 +19,7 @@ interface TopBarProps {
 export default function TopBar({ className = "" }: TopBarProps) {
   const { user } = useAuth();
   const { getThemeClasses } = useUIThemeStyles();
-  const [subscriptionTier, setSubscriptionTier] = useState<string>('freemium');
+  const [subscriptionTier, setSubscriptionTier] = useState<string>('trial');
   const supabase = createClientComponentClient();
 
   useEffect(() => {

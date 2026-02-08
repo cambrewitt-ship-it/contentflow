@@ -137,7 +137,7 @@ export async function upsertSubscription(subscription: Partial<Subscription>) {
     const insertData: Partial<Subscription> = {
       ...subscription,
       // Set defaults if not provided
-      subscription_tier: subscription.subscription_tier ?? 'freemium',
+      subscription_tier: subscription.subscription_tier ?? 'trial',
       subscription_status: subscription.subscription_status ?? 'active',
       max_clients: subscription.max_clients ?? 1,
       max_posts_per_month: subscription.max_posts_per_month ?? 0,

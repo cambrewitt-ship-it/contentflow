@@ -18,6 +18,11 @@
       "source": "/api/:path*",
       "destination": "/api/:path*"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/check-trial-expiry",
+      "schedule": "0 0 * * *"
+    }
   ]
 }
-

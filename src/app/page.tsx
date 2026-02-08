@@ -187,7 +187,7 @@ export default function Home() {
     price: tier.price,
     description: tier.description,
     highlighted: tier.highlighted,
-    buttonText: 'Start 14 Days Free',
+    buttonText: 'Start 14-Day Free Trial',
   }));
 
   const renderComparisonValue = (value: string) => {
@@ -262,7 +262,7 @@ export default function Home() {
         if (subError && subError.code !== 'PGRST116') {
           console.error('Error fetching subscription:', subError);
         }
-        setSubscriptionTier(subData?.subscription_tier || 'freemium');
+        setSubscriptionTier(subData?.subscription_tier || 'trial');
 
         // Fetch clients for single-client tier routing
         const token = getAccessToken();
@@ -281,7 +281,7 @@ export default function Home() {
         }
       } catch (err) {
         console.error('Error fetching subscription/clients:', err);
-        setSubscriptionTier('freemium');
+        setSubscriptionTier('trial');
       }
     }
 
@@ -375,7 +375,7 @@ export default function Home() {
                   </Link>
                   <Link href="/auth/signup">
                     <Button size="sm">
-                      Start 14 Days Free
+                      Start 14-Day Free Trial
                     </Button>
                   </Link>
                 </div>
@@ -465,7 +465,7 @@ export default function Home() {
                       <div className="px-3">
                         <Link href="/auth/signup" onClick={() => setMobileMenuOpen(false)}>
                           <Button size="sm" className="w-full">
-                            Start 14 Days Free
+                            Start 14-Day Free Trial
                           </Button>
                         </Link>
                       </div>
@@ -508,26 +508,26 @@ export default function Home() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full sm:flex-1 px-4 py-3 text-base rounded-lg border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent shadow-sm"
                 />
-                <Button 
-                  size="lg" 
-                  className="w-full sm:w-auto px-8 py-3 text-base whitespace-nowrap" 
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto px-8 py-3 text-base whitespace-nowrap"
                   onClick={() => {
                     if (user) {
                       // Use computed dashboard URL based on tier
                       router.push(dashboardUrl);
                     } else {
-                      const signupUrl = email 
+                      const signupUrl = email
                         ? `/auth/signup?email=${encodeURIComponent(email)}`
                         : '/auth/signup';
                       router.push(signupUrl);
                     }
                   }}
                 >
-                  Start 14 Days Free
+                  Start 14-Day Free Trial
                 </Button>
               </div>
               <p className="text-center text-sm text-muted-foreground mt-3">
-                14-day free trial. No credit card required.
+                No credit card required. Try everything free for 14 days.
               </p>
               <p className="font-['Poppins'] font-medium text-foreground whitespace-nowrap text-3xl sm:text-5xl mt-8">
                 Plan, Create, Schedule
@@ -852,7 +852,7 @@ export default function Home() {
                       }`}
                     >
                       <Link href="/auth/signup">
-                        Start 14 Days Free
+                        Start 14-Day Free Trial
                       </Link>
                     </Button>
                   </div>
@@ -1005,11 +1005,11 @@ export default function Home() {
                     }
                   }}
                 >
-                  Start 14 Days Free
+                  Start 14-Day Free Trial
                 </Button>
               </div>
               <p className="text-center text-sm text-muted-foreground mt-3">
-                14-day free trial. No credit card required.
+                No credit card required. Try everything free for 14 days.
               </p>
             </div>
           </div>

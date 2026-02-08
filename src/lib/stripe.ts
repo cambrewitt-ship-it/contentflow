@@ -120,6 +120,20 @@ export const SUBSCRIPTION_TIERS = {
       'Dedicated Account Manager',
     ],
   },
+  trial: {
+    name: 'Trial',
+    priceId: null, // No Stripe price ID for trial tier
+    price: 0,
+    maxClients: 1,
+    maxPostsPerMonth: 30,
+    maxAICreditsPerMonth: 100,
+    features: [
+      '1 Business Profile',
+      '30 Posts per month',
+      '100 AI Credits per month',
+      '14-day trial period',
+    ],
+  },
 } as const;
 
 export type SubscriptionTier = keyof typeof SUBSCRIPTION_TIERS;
@@ -178,6 +192,7 @@ export async function createCheckoutSession({
       userId,
     },
     subscription_data: {
+      trial_period_days: 14,
       metadata: {
         userId,
       },

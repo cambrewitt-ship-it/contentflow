@@ -23,6 +23,7 @@ export interface Subscription {
   ai_credits_used_this_month: number;
   max_clients: number;
   clients_used: number;
+  trial_end_date?: string;
 }
 
 export interface SubscriptionCheckResult {
@@ -47,10 +48,10 @@ export async function checkSocialMediaPostingPermission(
     }
 
     const token = authHeader.split(' ')[1];
-    
+
     // Get the authenticated user using the token
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
+
     if (authError || !user) {
       return {
         allowed: false,
@@ -69,10 +70,10 @@ export async function checkSocialMediaPostingPermission(
 
     if (error) {
       if (error.code === 'PGRST116') {
-        // No subscription found - user is on freemium by default
+        // No subscription found - user has no plan
         return {
           allowed: false,
-          error: 'Social media posting is not available on the free plan. Please upgrade to post to social media.'
+          error: 'Social media posting requires a subscription. Please sign up for a plan.'
         };
       }
       console.error('Error fetching subscription:', error);
@@ -82,7 +83,7 @@ export async function checkSocialMediaPostingPermission(
       };
     }
 
-    // Check if user is on freemium tier
+    // Check if user is on freemium tier (legacy users)
     if (subscription.subscription_tier === 'freemium') {
       return {
         allowed: false,
@@ -91,19 +92,17 @@ export async function checkSocialMediaPostingPermission(
       };
     }
 
-    // Check if trial has expired (for no-CC trials managed by our system)
-    if (subscription.subscription_tier === 'trial' && subscription.subscription_status === 'trialing') {
-      const trialEndDate = subscription.current_period_end
-        ? new Date(subscription.current_period_end)
-        : null;
-
-      if (trialEndDate && trialEndDate < new Date()) {
+    // Check if user is on trial tier
+    if (subscription.subscription_tier === 'trial') {
+      // Check if trial has expired
+      if (subscription.trial_end_date && new Date(subscription.trial_end_date) < new Date()) {
         return {
           allowed: false,
           subscription,
-          error: 'Your trial has expired. Please upgrade to continue posting to social media.'
+          error: 'Your 14-day trial has expired. Please upgrade to a paid plan to continue posting to social media.'
         };
       }
+      // Trial is still active — allow posting (falls through to post limit check below)
     }
 
     // Check if subscription is active
@@ -153,10 +152,10 @@ export async function checkAICreditsPermission(
     }
 
     const token = authHeader.split(' ')[1];
-    
+
     // Get the authenticated user using the token
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
+
     if (authError || !user) {
       return {
         allowed: false,
@@ -172,7 +171,7 @@ export async function checkAICreditsPermission(
       .select('ai_credits_purchased')
       .eq('id', userId)
       .single();
-    
+
     const purchasedCredits = userProfile?.ai_credits_purchased ?? 0;
 
     // Get user's subscription
@@ -234,20 +233,20 @@ export async function checkAICreditsPermission(
         userId
       };
     }
-    
+
     // Calculate total available credits: purchased + monthly remaining
     const monthlyMax = subscription.max_ai_credits_per_month;
     let monthlyRemaining = 0;
-    
+
     if (monthlyMax === -1) {
       // Unlimited credits - always allow
       monthlyRemaining = 999999; // Large number for calculation
     } else {
       monthlyRemaining = Math.max(0, monthlyMax - subscription.ai_credits_used_this_month);
     }
-    
+
     const totalAvailableCredits = purchasedCredits + monthlyRemaining;
-    
+
     if (totalAvailableCredits < creditsNeeded) {
       return {
         allowed: false,
@@ -286,10 +285,10 @@ export async function checkClientLimitPermission(
     }
 
     const token = authHeader.split(' ')[1];
-    
+
     // Get the authenticated user using the token
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
+
     if (authError || !user) {
       return {
         allowed: false,
@@ -368,7 +367,7 @@ export async function withAICreditCheck(
 // Track AI credit usage
 // Prioritizes purchased credits first, then monthly credits
 export async function trackAICreditUsage(
-  userId: string, 
+  userId: string,
   creditsUsed: number = 1,
   actionType: string = 'generate_captions',
   clientId?: string,
@@ -394,7 +393,7 @@ export async function trackAICreditUsage(
     if (purchasedCredits > 0) {
       // Decrement purchased credits
       const newPurchasedCredits = Math.max(0, purchasedCredits - creditsUsed);
-      
+
       const { error: purchaseError } = await supabaseAdmin
         .from('user_profiles')
         .update({

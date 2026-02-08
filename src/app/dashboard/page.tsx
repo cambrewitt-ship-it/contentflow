@@ -119,18 +119,18 @@ export default function Dashboard() {
 
         if (error && error.code !== 'PGRST116') {
           console.error('Error fetching subscription:', error);
-          // Set to freemium if not found
-          setSubscription({ id: '', user_id: user.id, subscription_tier: 'freemium', subscription_status: 'active' });
+          // Set to trial if not found
+          setSubscription({ id: '', user_id: user.id, subscription_tier: 'trial', subscription_status: 'active' });
         } else if (data) {
           setSubscription(data);
         } else {
-          // No subscription found, default to freemium
-          setSubscription({ id: '', user_id: user.id, subscription_tier: 'freemium', subscription_status: 'active' });
+          // No subscription found, default to trial
+          setSubscription({ id: '', user_id: user.id, subscription_tier: 'trial', subscription_status: 'active' });
         }
       } catch (err) {
         console.error('Error fetching subscription:', err);
-        // Default to freemium on error
-        setSubscription({ id: '', user_id: user.id, subscription_tier: 'freemium', subscription_status: 'active' });
+        // Default to trial on error
+        setSubscription({ id: '', user_id: user.id, subscription_tier: 'trial', subscription_status: 'active' });
       }
     }
 
@@ -317,18 +317,21 @@ export default function Dashboard() {
 
   // Get plan label
   const getPlanLabel = () => {
-    if (!subscription) return 'FREE';
-    const tier = subscription.subscription_tier || 'freemium';
+    if (!subscription) return 'TRIAL';
+    const tier = subscription.subscription_tier || 'trial';
     if (tier === 'freemium') return 'FREE';
+    if (tier === 'trial') return 'TRIAL';
     return SUBSCRIPTION_TIER_DISPLAY[tier] ?? tier.toUpperCase();
   };
 
   // Get plan badge color
   const getPlanBadgeColor = () => {
-    const tier = subscription?.subscription_tier || 'freemium';
+    const tier = subscription?.subscription_tier || 'trial';
     switch (tier) {
       case 'freemium':
         return 'bg-gray-100 text-gray-800 border-gray-300';
+      case 'trial':
+        return 'bg-orange-100 text-orange-800 border-orange-300';
       case 'starter':
         return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'professional':

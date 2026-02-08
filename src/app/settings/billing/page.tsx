@@ -28,6 +28,7 @@ interface Subscription {
   clients_used: number;
   posts_used_this_month: number;
   ai_credits_used_this_month: number;
+  trial_end_date?: string | null;
 }
 
 interface BillingRecord {
@@ -167,9 +168,10 @@ export default function BillingSettingsPage() {
           const data = await response.json();
 
           if (response.ok && data.subscription && !isCleanedUp) {
-            // Check if subscription is now active (not freemium)
-            if (data.subscription.subscription_tier !== 'freemium' && 
-                (data.subscription.subscription_status === 'active' || 
+            // Check if subscription is now active (not freemium/trial)
+            if (data.subscription.subscription_tier !== 'freemium' &&
+                data.subscription.subscription_tier !== 'trial' &&
+                (data.subscription.subscription_status === 'active' ||
                  data.subscription.subscription_status === 'trialing')) {
               setSubscription(data.subscription);
               setBillingHistory(data.billingHistory || []);
@@ -313,7 +315,7 @@ export default function BillingSettingsPage() {
 
   const getPlanLabel = () => {
     if (!subscription) return 'FREE';
-    const tier = subscription.subscription_tier || 'freemium';
+    const tier = subscription.subscription_tier || 'trial';
     if (tier === 'freemium') return 'FREE';
     if (tier === 'trial') return 'TRIAL';
     return tierNames[tier] ?? tier.toUpperCase();
@@ -413,15 +415,15 @@ export default function BillingSettingsPage() {
           )}
         </div>
 
-        {/* Show trial expiration date */}
-        {subscription.subscription_tier === 'trial' && subscription.current_period_end && formatDate(subscription.current_period_end) && (
+        {/* Show trial end date for trial users */}
+        {subscription.subscription_tier === 'trial' && subscription.trial_end_date && formatDate(subscription.trial_end_date) && (
           <div className="border-t pt-4">
             <div className="flex items-center text-gray-600 mb-2">
               <Calendar className="h-4 w-4 mr-2" />
-              <span>Trial expires on {formatDate(subscription.current_period_end)}</span>
+              <span>Trial ends on {formatDate(subscription.trial_end_date)}</span>
             </div>
-            <p className="text-sm text-blue-600 mt-2">
-              Upgrade to a paid plan before your trial ends to keep full access to all features.
+            <p className="text-sm text-yellow-600 mt-2">
+              Upgrade to a paid plan before your trial expires to keep posting to social media.
             </p>
           </div>
         )}

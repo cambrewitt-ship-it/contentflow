@@ -25,10 +25,10 @@ const tiers = [
       'Content calendar — Plan and organize posts visually',
       '30 Posts per month — Schedule and automate social content',
       'Email Support',
-      '100 AI Credits per month — 10x more generation power',
+      '100 AI Credits per month',
     ],
     bestFor: 'Freelancers, solopreneurs, and individuals managing one brand.',
-    buttonText: 'Start 14 Days Free',
+    buttonText: 'Start 14-Day Free Trial',
     highlighted: false,
   },
   {
@@ -46,7 +46,7 @@ const tiers = [
       '500 AI Credits per month',
     ],
     bestFor: 'Growing agencies, consultants, and multi-client managers.',
-    buttonText: 'Start 14 Days Free',
+    buttonText: 'Start 14-Day Free Trial',
     highlighted: true,
   },
   {
@@ -66,7 +66,7 @@ const tiers = [
       '2,000 AI Credits per month',
     ],
     bestFor: 'Established agencies managing 10+ business profiles with high-volume content needs.',
-    buttonText: 'Start 14 Days Free',
+    buttonText: 'Start 14-Day Free Trial',
     highlighted: false,
   },
 ];
@@ -259,7 +259,7 @@ function PricingPageContent() {
     description: tier.description,
     highlighted: tier.highlighted,
     priceId: tier.priceId,
-    buttonText: (tier as any).buttonText || 'Start 14 Days Free',
+    buttonText: (tier as any).buttonText || 'Start 14-Day Free Trial',
   }));
 
   const renderComparisonValue = (value: string) => {
@@ -337,7 +337,7 @@ function PricingPageContent() {
                     </Button>
                   </Link>
                   <Link href="/auth/signup">
-                    <Button size="sm">Start 14 Days Free</Button>
+                    <Button size="sm">Start 14-Day Free Trial</Button>
                   </Link>
                 </div>
               )}
@@ -426,7 +426,7 @@ function PricingPageContent() {
                       <div className="px-3">
                         <Link href="/auth/signup" onClick={() => setMobileMenuOpen(false)}>
                           <Button size="sm" className="w-full">
-                            Start 14 Days Free
+                            Start 14-Day Free Trial
                           </Button>
                         </Link>
                       </div>

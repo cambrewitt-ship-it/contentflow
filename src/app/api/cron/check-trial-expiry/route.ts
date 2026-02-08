@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+
 // Create Supabase client with service role for admin operations
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,11 +17,8 @@ const supabaseAdmin = createClient(
   }
 );
 
-// Force dynamic rendering
-export const dynamic = 'force-dynamic';
-
 /**
- * Cron job to check for expired trials and downgrade them to freemium.
+ * Cron job to check for expired trials and mark them as expired.
  * This handles no-CC trials that aren't managed by Stripe.
  *
  * Set up in Vercel Cron Jobs or similar to run daily.
@@ -48,14 +48,12 @@ export async function GET(req: NextRequest) {
     const now = new Date().toISOString();
 
     // Find expired trials (no-CC trials that we manage ourselves)
-    // These have trial_ prefix in stripe_customer_id and no real stripe_subscription_id
     const { data: expiredTrials, error: fetchError } = await supabaseAdmin
       .from('subscriptions')
       .select('*')
       .eq('subscription_tier', 'trial')
-      .eq('subscription_status', 'trialing')
-      .lt('current_period_end', now)
-      .like('stripe_customer_id', 'trial_%'); // Only our no-CC trials
+      .eq('subscription_status', 'active')
+      .lt('trial_end_date', now);
 
     if (fetchError) {
       logger.error('Error fetching expired trials:', fetchError);
@@ -80,31 +78,30 @@ export async function GET(req: NextRequest) {
     // Process each expired trial
     for (const trial of expiredTrials) {
       try {
-        // Downgrade to freemium tier
+        // Mark the trial as expired and downgrade limits
         const { error: updateError } = await supabaseAdmin
           .from('subscriptions')
           .update({
-            subscription_tier: 'freemium',
-            subscription_status: 'active',
-            max_clients: 1,
+            subscription_status: 'expired',
             max_posts_per_month: 0,
             max_ai_credits_per_month: 10,
             metadata: {
               ...trial.metadata,
+              trial_expired: true,
               trial_expired_at: now,
               downgraded_from: 'trial',
-              previous_trial_end: trial.current_period_end,
+              previous_trial_end: trial.trial_end_date,
             },
             updated_at: now,
           })
           .eq('id', trial.id);
 
         if (updateError) {
-          logger.error(`Error downgrading trial for user ${trial.user_id}:`, updateError);
+          logger.error(`Error expiring trial for user ${trial.user_id}:`, updateError);
           errors.push(`User ${trial.user_id}: ${updateError.message}`);
           errorCount++;
         } else {
-          logger.info(`Successfully downgraded trial for user ${trial.user_id}`);
+          logger.info(`Trial expired for user ${trial.user_id}`);
           successCount++;
 
           // TODO: Send "trial expired" email notification

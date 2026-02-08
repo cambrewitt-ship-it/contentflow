@@ -36,10 +36,10 @@ export async function POST(req: NextRequest) {
 
     if (subscription && subscription.stripe_customer_id) {
       // Check if the customer ID is a placeholder (starts with "freemium_" or "trial_")
-      // Freemium and trial users have placeholder IDs that don't exist in Stripe
+      // Free/trial users have placeholder IDs that don't exist in Stripe
       if (subscription.stripe_customer_id.startsWith('freemium_') ||
           subscription.stripe_customer_id.startsWith('trial_')) {
-        // Create a new real Stripe customer for freemium/trial users upgrading
+        // Create a new real Stripe customer for trial/freemium users upgrading
         const customer = await createStripeCustomer(user.email!, user.id);
         customerId = customer.id;
         // Update the subscription record with the real Stripe customer ID
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     // Get base URL from request headers to support multiple domains
     const origin = req.headers.get('origin');
     const host = req.headers.get('host') || 'localhost:3000';
-    
+
     let baseUrl: string;
     if (origin) {
       // Use origin header if available (includes protocol)
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       const protocol = req.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
       baseUrl = `${protocol}://${host}`;
     }
-    
+
     const session = await createCheckoutSession({
       customerId,
       priceId,

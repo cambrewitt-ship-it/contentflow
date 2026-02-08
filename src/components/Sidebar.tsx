@@ -63,15 +63,15 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
 
         if (error && error.code !== 'PGRST116') {
           console.error('Error fetching subscription for sidebar:', error);
-          // Default to freemium (single-client) if error
-          setSubscriptionTier('freemium');
+          // Default to trial (single-client) if error
+          setSubscriptionTier('trial');
         } else if (data) {
           setSubscriptionTier(data.subscription_tier);
           console.log('📊 Sidebar: User subscription tier:', data.subscription_tier, 
             '| Show Home:', !isSingleClientTier(data.subscription_tier));
         } else {
-          // No subscription found, default to freemium
-          setSubscriptionTier('freemium');
+          // No subscription found, default to trial
+          setSubscriptionTier('trial');
         }
       } catch (err) {
         console.error('Error fetching subscription for sidebar:', err);
