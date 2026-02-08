@@ -1,8 +1,8 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Check, ArrowLeft, X, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -11,43 +11,24 @@ import { supabase } from '@/lib/supabaseClient';
 
 const tiers = [
   {
-    name: 'Free',
-    id: 'freemium',
-    price: 0,
-    description: 'Available to everyone',
-    priceId: null,
-    longDescription: 'Free forever. Try the platform, explore AI-powered content tools, and manage your first business profile.',
-    features: [
-      '1 Business profile — Store brand info, voice, and tone',
-      'AI copy generation — Upload images, get social & email copy instantly',
-      'AI content ideas — Seasonal and profile-specific suggestions',
-      'Content calendar — Plan and organize posts visually',
-      '10 AI Credits per month',
-    ],
-    limitations: [
-      'No social media scheduling',
-      'Limited AI generation capacity',
-    ],
-    bestFor: 'Students, casual users, or anyone curious about AI-assisted social media management.',
-    buttonText: 'Get Started Free',
-    highlighted: false,
-  },
-  {
     name: 'In-House',
     id: 'starter',
     price: 50,
     description: 'For marketing managers',
     priceId: process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID!,
-    longDescription: 'Everything in Free, plus higher capacity and the ability to schedule posts.',
+    longDescription: 'Perfect for marketing managers. Includes higher capacity and the ability to schedule posts.',
     trialText: '14-day free trial',
     features: [
-      'Everything in Free',
+      '1 Business profile — Store brand info, voice, and tone',
+      'AI copy generation — Upload images, get social & email copy instantly',
+      'AI content ideas — Seasonal and profile-specific suggestions',
+      'Content calendar — Plan and organize posts visually',
       '30 Posts per month — Schedule and automate social content',
       'Email Support',
       '100 AI Credits per month — 10x more generation power',
     ],
     bestFor: 'Freelancers, solopreneurs, and individuals managing one brand.',
-    buttonText: 'Get Started',
+    buttonText: 'Start 14 Days Free',
     highlighted: false,
   },
   {
@@ -65,7 +46,7 @@ const tiers = [
       '500 AI Credits per month',
     ],
     bestFor: 'Growing agencies, consultants, and multi-client managers.',
-    buttonText: 'Get Started',
+    buttonText: 'Start 14 Days Free',
     highlighted: true,
   },
   {
@@ -85,7 +66,7 @@ const tiers = [
       '2,000 AI Credits per month',
     ],
     bestFor: 'Established agencies managing 10+ business profiles with high-volume content needs.',
-    buttonText: 'Get Started',
+    buttonText: 'Start 14 Days Free',
     highlighted: false,
   },
 ];
@@ -96,23 +77,23 @@ const comparisonSections = [
     rows: [
       {
         label: 'Client Profiles',
-        values: ['1', '1', '5', 'Unlimited'],
+        values: ['1', '5', 'Unlimited'],
       },
       {
         label: 'AI Copy Generation',
-        values: ['check', 'check', 'check', 'check'],
+        values: ['check', 'check', 'check'],
       },
       {
         label: 'AI Content Ideas',
-        values: ['check', 'check', 'check', 'check'],
+        values: ['check', 'check', 'check'],
       },
       {
         label: 'Content Calendar',
-        values: ['check', 'check', 'check', 'check'],
+        values: ['check', 'check', 'check'],
       },
       {
         label: 'AI Credits per Month',
-        values: ['10', '100', '500', '2,000'],
+        values: ['100', '500', '2,000'],
       },
     ],
   },
@@ -121,11 +102,11 @@ const comparisonSections = [
     rows: [
       {
         label: 'Social Media Scheduling',
-        values: ['cross', 'check', 'check', 'check'],
+        values: ['check', 'check', 'check'],
       },
       {
         label: 'Scheduled Posts per Month',
-        values: ['dash', '30', '150', 'Unlimited'],
+        values: ['30', '150', 'Unlimited'],
       },
     ],
   },
@@ -134,15 +115,15 @@ const comparisonSections = [
     rows: [
       {
         label: 'Email Support',
-        values: ['cross', 'check', 'check', 'check'],
+        values: ['check', 'check', 'check'],
       },
       {
         label: 'White-Label Branding',
-        values: ['cross', 'cross', 'cross', 'check'],
+        values: ['cross', 'cross', 'check'],
       },
       {
         label: 'Dedicated Account Manager',
-        values: ['cross', 'cross', 'cross', 'check'],
+        values: ['cross', 'cross', 'check'],
       },
     ],
   },
@@ -160,10 +141,12 @@ interface UserProfile {
 
 export default function PricingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, signOut, getAccessToken } = useAuth();
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const processedPriceIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -189,13 +172,16 @@ export default function PricingPage() {
     fetchProfile();
   }, [user?.id]);
 
-  const handleSubscribe = async (priceId: string | null, tierId: string) => {
+  const handleSubscribe = async (priceId: string | null | undefined, tierId: string) => {
     try {
       setLoadingTier(tierId);
 
-      // Handle freemium tier (redirect to signup)
-      if (tierId === 'freemium') {
-        router.push('/auth/signup');
+
+      // Validate priceId for paid tiers
+      if (!priceId || (typeof priceId === 'string' && priceId.trim() === '')) {
+        console.error('Price ID is missing for tier:', tierId, 'priceId:', priceId);
+        alert('This plan is not properly configured. Please contact support or try again later.');
+        setLoadingTier(null);
         return;
       }
 
@@ -203,17 +189,8 @@ export default function PricingPage() {
       const accessToken = getAccessToken();
       if (!accessToken) {
         // Not authenticated, redirect to signup with priceId to start checkout after signup
-        if (priceId) {
-          router.push(`/auth/signup?priceId=${encodeURIComponent(priceId)}&redirectTo=/pricing`);
-        } else {
-          router.push('/auth/signup?redirectTo=/pricing');
-        }
+        router.push(`/auth/signup?priceId=${encodeURIComponent(priceId)}&redirectTo=/pricing`);
         return;
-      }
-
-      // Handle paid tiers
-      if (!priceId) {
-        throw new Error('Price ID is required for paid tiers');
       }
 
       // Call checkout API
@@ -252,6 +229,29 @@ export default function PricingPage() {
     }
   };
 
+  // Check if user is returning from signup/login with a priceId in URL
+  useEffect(() => {
+    const priceId = searchParams?.get('priceId');
+    const accessToken = getAccessToken();
+    
+    // If user is authenticated and has priceId in URL, start checkout automatically
+    // Use ref to ensure we only process each priceId once
+    if (priceId && accessToken && user && !loadingTier && processedPriceIdRef.current !== priceId) {
+      processedPriceIdRef.current = priceId;
+      
+      // Remove priceId from URL immediately to avoid re-triggering
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('priceId');
+      window.history.replaceState({}, '', newUrl.toString());
+      
+      // Start checkout
+      handleSubscribe(priceId, 'auto');
+    }
+    // Note: We intentionally don't include handleSubscribe in deps to avoid re-triggers
+    // The function is stable enough for this use case
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, searchParams]);
+
   const planColumns = tiers.map((tier) => ({
     id: tier.id,
     name: tier.name,
@@ -259,7 +259,7 @@ export default function PricingPage() {
     description: tier.description,
     highlighted: tier.highlighted,
     priceId: tier.priceId,
-    buttonText: (tier as any).buttonText || (tier.price === 0 ? 'Get Started Free' : 'Start Free Trial'),
+    buttonText: (tier as any).buttonText || 'Start 14 Days Free',
   }));
 
   const renderComparisonValue = (value: string) => {
@@ -337,7 +337,7 @@ export default function PricingPage() {
                     </Button>
                   </Link>
                   <Link href="/auth/signup">
-                    <Button size="sm">Get Started FREE</Button>
+                    <Button size="sm">Start 14 Days Free</Button>
                   </Link>
                 </div>
               )}
@@ -426,7 +426,7 @@ export default function PricingPage() {
                       <div className="px-3">
                         <Link href="/auth/signup" onClick={() => setMobileMenuOpen(false)}>
                           <Button size="sm" className="w-full">
-                            Get Started FREE
+                            Start 14 Days Free
                           </Button>
                         </Link>
                       </div>
@@ -453,12 +453,12 @@ export default function PricingPage() {
           </div>
 
           <div className="mb-12 text-center">
-            <h1 className="mb-6 text-5xl font-black text-gray-900 sm:text-6xl">Start Free &amp; Scale</h1>
+            <h1 className="mb-6 text-5xl font-black text-gray-900 sm:text-6xl">Start Your 14-Day Free Trial</h1>
             <h2 className="mb-4 text-3xl font-bold text-gray-900">Choose Your Plan</h2>
-            <p className="text-xl text-gray-600">Start Free. Cancel anytime.</p>
+            <p className="text-xl text-gray-600">14-day free trial. Cancel anytime.</p>
           </div>
 
-          <div className="mx-auto grid max-w-7xl grid-cols-1 items-stretch gap-8 md:grid-cols-4">
+          <div className="mx-auto grid max-w-7xl grid-cols-1 items-stretch gap-8 md:grid-cols-3">
             {tiers.map((tier) => (
               <Card
                 key={tier.id}
@@ -483,7 +483,7 @@ export default function PricingPage() {
                   <div className="mb-2 -mt-8 flex min-h-[120px] flex-col justify-start">
                     <div className="flex items-baseline">
                       <span className="text-5xl font-extrabold text-gray-900">
-                        {tier.price === 0 ? '$0' : `$${tier.price}`}
+                        ${tier.price}
                       </span>
                       <span className="ml-2 text-gray-600">/month</span>
                     </div>
@@ -492,8 +492,6 @@ export default function PricingPage() {
                   <div className="mb-2 min-h-[40px]">
                     {(tier as any).trialText ? (
                       <p className="text-sm font-medium text-blue-600 -mt-[50px]">{(tier as any).trialText}</p>
-                    ) : tier.price === 0 ? (
-                      <p className="text-sm font-medium text-blue-600 -mt-[50px]">No credit card needed</p>
                     ) : (
                       <div className="invisible">Placeholder</div>
                     )}
@@ -531,32 +529,22 @@ export default function PricingPage() {
                   </>
                 )}
 
-                {(tier as any).limitations && tier.id === 'freemium' ? (
-                  <div className="mb-6">
-                    <h4 className="mb-2 text-sm font-semibold text-gray-900">Limitations:</h4>
-                    <ul className="space-y-2">
-                      {(tier as any).limitations.map((limitation: string, index: number) => (
-                        <li key={index} className="flex items-start">
-                          <span className="mr-2 text-red-500">•</span>
-                          <span className="text-sm text-gray-600">{limitation}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : (
-                  <div className="mb-6"></div>
-                )}
+                <div className="mb-6"></div>
 
                 <div className="flex-grow"></div>
 
                 <Button
-                  onClick={() => handleSubscribe(tier.priceId, tier.id)}
-                  disabled={loadingTier !== null}
+                  onClick={() => {
+                    if (!tier.priceId && tier.price > 0) {
+                      alert('This plan is not properly configured. Please contact support.');
+                      return;
+                    }
+                    handleSubscribe(tier.priceId, tier.id);
+                  }}
+                  disabled={loadingTier !== null || (!tier.priceId && tier.price > 0)}
                   className={`w-full py-3 ${
                     tier.highlighted
                       ? 'bg-blue-600 hover:bg-blue-700'
-                      : tier.price === 0
-                      ? 'bg-green-600 hover:bg-green-700'
                       : 'bg-gray-800 hover:bg-gray-900'
                   }`}
                 >
@@ -582,10 +570,8 @@ export default function PricingPage() {
                     </span>
                   ) : (tier as any).buttonText ? (
                     (tier as any).buttonText
-                  ) : tier.price === 0 ? (
-                    'Get Started Free'
                   ) : (
-                    'Subscribe Now'
+                    'Start 14 Days Free'
                   )}
                 </Button>
               </Card>
@@ -623,7 +609,7 @@ export default function PricingPage() {
                             )}
                             <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
                             <p className="text-3xl font-extrabold text-gray-900">
-                              {plan.price === 0 ? '$0' : `$${plan.price}`}
+                              ${plan.price}
                               <span className="text-base font-medium text-gray-500">/month</span>
                             </p>
                           </div>
@@ -672,13 +658,17 @@ export default function PricingPage() {
                           }`}
                         >
                           <Button
-                            onClick={() => handleSubscribe(plan.priceId, plan.id)}
-                            disabled={loadingTier !== null}
+                            onClick={() => {
+                              if (!plan.priceId && plan.price > 0) {
+                                alert('This plan is not properly configured. Please contact support.');
+                                return;
+                              }
+                              handleSubscribe(plan.priceId, plan.id);
+                            }}
+                            disabled={loadingTier !== null || (!plan.priceId && plan.price > 0)}
                             className={`w-full py-3 ${
                               plan.highlighted
                                 ? 'bg-blue-600 hover:bg-blue-700'
-                                : plan.price === 0
-                                ? 'bg-green-600 hover:bg-green-700'
                                 : 'bg-gray-800 hover:bg-gray-900'
                             }`}
                           >
@@ -715,7 +705,7 @@ export default function PricingPage() {
             </div>
 
             <div className="mt-8 text-center text-sm text-gray-500">
-              <p>Start Free. Cancel anytime.</p>
+              <p>14-day free trial. Cancel anytime.</p>
               <p className="mt-2">
                 Questions?{' '}
                 <a href="mailto:support@example.com" className="text-blue-600 hover:underline">

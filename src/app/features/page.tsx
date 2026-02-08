@@ -129,7 +129,7 @@ export default function FeaturesPage() {
                     </Button>
                   </Link>
                   <Link href="/auth/signup">
-                    <Button size="sm">Get Started FREE</Button>
+                    <Button size="sm">Start 14 Days Free</Button>
                   </Link>
                 </div>
               )}
@@ -218,7 +218,7 @@ export default function FeaturesPage() {
                       <div className="px-3">
                         <Link href="/auth/signup" onClick={() => setMobileMenuOpen(false)}>
                           <Button size="sm" className="w-full">
-                            Get Started FREE
+                            Start 14 Days Free
                           </Button>
                         </Link>
                       </div>
@@ -446,11 +446,11 @@ export default function FeaturesPage() {
                         }
                       }}
                     >
-                      Get Started FREE
+                      Start 14 Days Free
                     </Button>
                   </div>
                   <p className="text-center text-sm text-muted-foreground mt-3">
-                    Free forever. No credit card required.
+                    14-day free trial. No credit card required.
                   </p>
                 </div>
               </div>

@@ -32,10 +32,11 @@ interface UserProfile {
   role: string;
 }
 
-type SubscriptionTier = 'freemium' | 'starter' | 'professional' | 'agency' | 'enterprise';
+type SubscriptionTier = 'freemium' | 'trial' | 'starter' | 'professional' | 'agency' | 'enterprise';
 
 const SUBSCRIPTION_TIER_DISPLAY: Record<SubscriptionTier, string> = {
   freemium: 'Free',
+  trial: 'Trial',
   starter: 'In-House',
   professional: 'Freelancer',
   agency: 'Agency',

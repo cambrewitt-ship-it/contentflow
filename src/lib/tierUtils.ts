@@ -10,7 +10,7 @@
 // SUBSCRIPTION TIER TYPES
 // =============================================
 
-export type SubscriptionTier = 'freemium' | 'starter' | 'professional' | 'agency';
+export type SubscriptionTier = 'freemium' | 'trial' | 'starter' | 'professional' | 'agency';
 
 // =============================================
 // TIER-BASED NAVIGATION HELPERS
@@ -28,7 +28,7 @@ export type SubscriptionTier = 'freemium' | 'starter' | 'professional' | 'agency
  * - agency (Agency): unlimited clients
  */
 export const SINGLE_CLIENT_TIERS: SubscriptionTier[] = ['freemium', 'starter'];
-export const MULTI_CLIENT_TIERS: SubscriptionTier[] = ['professional', 'agency'];
+export const MULTI_CLIENT_TIERS: SubscriptionTier[] = ['trial', 'professional', 'agency'];
 
 /**
  * Check if a subscription tier is a single-client tier.
@@ -60,6 +60,7 @@ export function isMultiClientTier(tier: SubscriptionTier | string | null | undef
  */
 export const TIER_DISPLAY_NAMES: Record<SubscriptionTier, string> = {
   freemium: 'Free',
+  trial: 'Trial',
   starter: 'In-House',
   professional: 'Freelancer',
   agency: 'Agency',
@@ -71,6 +72,7 @@ export const TIER_DISPLAY_NAMES: Record<SubscriptionTier, string> = {
  */
 export const TIER_CLIENT_LIMITS: Record<SubscriptionTier, number> = {
   freemium: 1,
+  trial: 5,
   starter: 1,
   professional: 5,
   agency: -1, // unlimited

@@ -91,6 +91,21 @@ export async function checkSocialMediaPostingPermission(
       };
     }
 
+    // Check if trial has expired (for no-CC trials managed by our system)
+    if (subscription.subscription_tier === 'trial' && subscription.subscription_status === 'trialing') {
+      const trialEndDate = subscription.current_period_end
+        ? new Date(subscription.current_period_end)
+        : null;
+
+      if (trialEndDate && trialEndDate < new Date()) {
+        return {
+          allowed: false,
+          subscription,
+          error: 'Your trial has expired. Please upgrade to continue posting to social media.'
+        };
+      }
+    }
+
     // Check if subscription is active
     if (subscription.subscription_status !== 'active' && subscription.subscription_status !== 'trialing') {
       return {

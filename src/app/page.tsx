@@ -47,27 +47,16 @@ const poppins = Poppins({
 
 const pricingTiers = [
   {
-    name: 'Free',
-    id: 'freemium',
-    price: 0,
-    description: 'Available to everyone',
-    features: [
-      '1 Business profile',
-      'AI copy generation',
-      'AI content ideas',
-      'Content calendar',
-      '10 AI Credits per month',
-    ],
-    highlighted: false,
-  },
-  {
     name: 'In-House',
     id: 'starter',
     price: 50,
     description: 'For marketing managers',
     trialText: '14-day free trial',
     features: [
-      'Everything in Free',
+      '1 Business profile',
+      'AI copy generation',
+      'AI content ideas',
+      'Content calendar',
       '30 Posts per month',
       'Email Support',
       '100 AI Credits per month',
@@ -111,23 +100,23 @@ const comparisonSections = [
     rows: [
       {
         label: 'Client Profiles',
-        values: ['1', '1', '5', 'Unlimited'],
+        values: ['1', '5', 'Unlimited'],
       },
       {
         label: 'AI Copy Generation',
-        values: ['check', 'check', 'check', 'check'],
+        values: ['check', 'check', 'check'],
       },
       {
         label: 'AI Content Ideas',
-        values: ['check', 'check', 'check', 'check'],
+        values: ['check', 'check', 'check'],
       },
       {
         label: 'Content Calendar',
-        values: ['check', 'check', 'check', 'check'],
+        values: ['check', 'check', 'check'],
       },
       {
         label: 'AI Credits per Month',
-        values: ['10', '100', '500', '2,000'],
+        values: ['100', '500', '2,000'],
       },
     ],
   },
@@ -136,11 +125,11 @@ const comparisonSections = [
     rows: [
       {
         label: 'Social Media Scheduling',
-        values: ['cross', 'check', 'check', 'check'],
+        values: ['check', 'check', 'check'],
       },
       {
         label: 'Scheduled Posts per Month',
-        values: ['dash', '30', '150', 'Unlimited'],
+        values: ['30', '150', 'Unlimited'],
       },
     ],
   },
@@ -149,15 +138,15 @@ const comparisonSections = [
     rows: [
       {
         label: 'Email Support',
-        values: ['cross', 'check', 'check', 'check'],
+        values: ['check', 'check', 'check'],
       },
       {
         label: 'White-Label Branding',
-        values: ['cross', 'cross', 'cross', 'check'],
+        values: ['cross', 'cross', 'check'],
       },
       {
         label: 'Dedicated Account Manager',
-        values: ['cross', 'cross', 'cross', 'check'],
+        values: ['cross', 'cross', 'check'],
       },
     ],
   },
@@ -198,7 +187,7 @@ export default function Home() {
     price: tier.price,
     description: tier.description,
     highlighted: tier.highlighted,
-    buttonText: tier.price === 0 ? 'Get Started Free' : 'Start Free Trial',
+    buttonText: 'Start 14 Days Free',
   }));
 
   const renderComparisonValue = (value: string) => {
@@ -386,7 +375,7 @@ export default function Home() {
                   </Link>
                   <Link href="/auth/signup">
                     <Button size="sm">
-                      Get Started FREE
+                      Start 14 Days Free
                     </Button>
                   </Link>
                 </div>
@@ -476,7 +465,7 @@ export default function Home() {
                       <div className="px-3">
                         <Link href="/auth/signup" onClick={() => setMobileMenuOpen(false)}>
                           <Button size="sm" className="w-full">
-                            Get Started FREE
+                            Start 14 Days Free
                           </Button>
                         </Link>
                       </div>
@@ -534,11 +523,11 @@ export default function Home() {
                     }
                   }}
                 >
-                  Get Started FREE
+                  Start 14 Days Free
                 </Button>
               </div>
               <p className="text-center text-sm text-muted-foreground mt-3">
-                Free forever. No credit card required.
+                14-day free trial. No credit card required.
               </p>
               <p className="font-['Poppins'] font-medium text-foreground whitespace-nowrap text-3xl sm:text-5xl mt-8">
                 Plan, Create, Schedule
@@ -800,15 +789,15 @@ export default function Home() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              Start Free - Scale as you like
+              Start Your 14-Day Free Trial
             </h2>
             <p className="mt-6 text-lg leading-8 text-muted-foreground">
-              Start with a 14-day free trial. Cancel anytime.
+              14-day free trial. Cancel anytime.
             </p>
           </div>
           
           <div className="mt-16 mx-auto max-w-7xl">
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
               {pricingTiers.map((tier) => (
                 <Card
                   key={tier.id}
@@ -832,15 +821,12 @@ export default function Home() {
                     <div className="mt-4">
                       <div className="flex items-baseline justify-center">
                         <span className="text-4xl font-extrabold text-foreground">
-                          {tier.price === 0 ? '$0' : `$${tier.price}`}
+                          ${tier.price}
                         </span>
                         <span className="text-muted-foreground ml-2">/month</span>
                       </div>
                       {tier.trialText && (
                         <p className="text-blue-600 text-sm font-medium mt-2">{tier.trialText}</p>
-                      )}
-                      {tier.price === 0 && !tier.trialText && (
-                        <p className="text-blue-600 text-sm font-medium mt-2">No credit card needed</p>
                       )}
                     </div>
                   </CardHeader>
@@ -862,13 +848,11 @@ export default function Home() {
                       className={`w-full ${
                         tier.highlighted
                           ? 'bg-blue-600 hover:bg-blue-700'
-                          : tier.price === 0
-                          ? 'bg-green-600 hover:bg-green-700'
                           : 'bg-gray-800 hover:bg-gray-900'
                       }`}
                     >
                       <Link href="/auth/signup">
-                        {tier.price === 0 ? 'Get Started Free' : 'Start Free Trial'}
+                        Start 14 Days Free
                       </Link>
                     </Button>
                   </div>
@@ -909,7 +893,7 @@ export default function Home() {
                             )}
                             <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
                             <p className="text-3xl font-extrabold text-gray-900">
-                              {plan.price === 0 ? '$0' : `$${plan.price}`}
+                              ${plan.price}
                               <span className="text-base font-medium text-gray-500">/month</span>
                             </p>
                           </div>
@@ -962,8 +946,6 @@ export default function Home() {
                             className={`w-full py-3 ${
                               plan.highlighted
                                 ? 'bg-blue-600 hover:bg-blue-700'
-                                : plan.price === 0
-                                ? 'bg-green-600 hover:bg-green-700'
                                 : 'bg-gray-800 hover:bg-gray-900'
                             }`}
                           >
@@ -980,7 +962,7 @@ export default function Home() {
             </div>
 
             <div className="mt-8 text-center text-sm text-gray-500">
-              <p>Start Free. Cancel anytime.</p>
+              <p>14-day free trial. Cancel anytime.</p>
               <p className="mt-2">
                 Questions?{' '}
                 <Link href="/contact" className="text-blue-600 hover:underline">
@@ -1023,11 +1005,11 @@ export default function Home() {
                     }
                   }}
                 >
-                  Get Started FREE
+                  Start 14 Days Free
                 </Button>
               </div>
               <p className="text-center text-sm text-muted-foreground mt-3">
-                Free forever. No credit card required.
+                14-day free trial. No credit card required.
               </p>
             </div>
           </div>

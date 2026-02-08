@@ -75,6 +75,12 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      case 'customer.subscription.trial_will_end': {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleTrialWillEnd(subscription);
+        break;
+      }
+
       default:
         // Unhandled event type
         break;
@@ -292,4 +298,21 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   }
 
   // TODO: Send email notification to user about failed payment
+}
+
+async function handleTrialWillEnd(subscription: Stripe.Subscription) {
+  const customerId = subscription.customer as string;
+
+  const dbSubscription = await getSubscriptionByCustomerId(customerId);
+
+  if (!dbSubscription) {
+    logger.error('Subscription not found for trial_will_end event');
+    return;
+  }
+
+  // Log the event for monitoring
+  logger.info(`Trial ending soon for user ${dbSubscription.user_id}, subscription ${subscription.id}`);
+
+  // TODO: Send email reminder to user about trial ending
+  // This could integrate with an email service like SendGrid, Resend, etc.
 }

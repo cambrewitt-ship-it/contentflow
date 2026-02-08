@@ -35,10 +35,11 @@ export async function POST(req: NextRequest) {
     let customerId: string;
 
     if (subscription && subscription.stripe_customer_id) {
-      // Check if the customer ID is a freemium placeholder (starts with "freemium_")
-      // Freemium users have placeholder IDs that don't exist in Stripe
-      if (subscription.stripe_customer_id.startsWith('freemium_')) {
-        // Create a new real Stripe customer for freemium users upgrading
+      // Check if the customer ID is a placeholder (starts with "freemium_" or "trial_")
+      // Freemium and trial users have placeholder IDs that don't exist in Stripe
+      if (subscription.stripe_customer_id.startsWith('freemium_') ||
+          subscription.stripe_customer_id.startsWith('trial_')) {
+        // Create a new real Stripe customer for freemium/trial users upgrading
         const customer = await createStripeCustomer(user.email!, user.id);
         customerId = customer.id;
         // Update the subscription record with the real Stripe customer ID

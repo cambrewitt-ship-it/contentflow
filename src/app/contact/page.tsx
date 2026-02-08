@@ -122,7 +122,7 @@ export default function ContactPage() {
                     </Button>
                   </Link>
                   <Link href="/auth/signup">
-                    <Button size="sm">Get Started FREE</Button>
+                    <Button size="sm">Start 14 Days Free</Button>
                   </Link>
                 </div>
               )}
@@ -213,7 +213,7 @@ export default function ContactPage() {
                       <div className="px-3">
                         <Link href="/auth/signup" onClick={() => setMobileMenuOpen(false)}>
                           <Button size="sm" className="w-full">
-                            Get Started FREE
+                            Start 14 Days Free
                           </Button>
                         </Link>
                       </div>

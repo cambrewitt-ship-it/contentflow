@@ -56,6 +56,22 @@ export const SUBSCRIPTION_TIERS = {
       'Community Support',
     ],
   },
+  trial: {
+    name: 'Trial',
+    priceId: null, // No Stripe price ID for trial
+    price: 0,
+    maxClients: 5,
+    maxPostsPerMonth: 150,
+    maxAICreditsPerMonth: 500,
+    features: [
+      '5 Business Profiles',
+      '150 Posts per month',
+      '500 AI Credits per month',
+      'Advanced Analytics',
+      'Full feature access',
+      '14-day free trial',
+    ],
+  },
   starter: {
     name: 'In-House',
     priceId: process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID!,

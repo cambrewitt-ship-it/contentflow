@@ -44,6 +44,7 @@ interface BillingRecord {
 
 const tierNames: Record<string, string> = {
   freemium: 'Free',
+  trial: 'Trial',
   starter: 'In-House',
   professional: 'Freelancer',
   agency: 'Agency',
@@ -51,6 +52,7 @@ const tierNames: Record<string, string> = {
 
 const tierPrices: Record<string, number> = {
   freemium: 0,
+  trial: 0,
   starter: 50,
   professional: 89,
   agency: 199,
@@ -313,7 +315,19 @@ export default function BillingSettingsPage() {
     if (!subscription) return 'FREE';
     const tier = subscription.subscription_tier || 'freemium';
     if (tier === 'freemium') return 'FREE';
+    if (tier === 'trial') return 'TRIAL';
     return tierNames[tier] ?? tier.toUpperCase();
+  };
+
+  const getTrialDaysRemaining = () => {
+    if (!subscription || subscription.subscription_tier !== 'trial') return null;
+    if (!subscription.current_period_end) return null;
+
+    const endDate = new Date(subscription.current_period_end);
+    const now = new Date();
+    const daysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    return Math.max(0, daysRemaining);
   };
 
   if (loading) {
@@ -369,6 +383,15 @@ export default function BillingSettingsPage() {
             <p className="text-3xl font-bold text-blue-600">
               {subscription.subscription_tier === 'freemium' ? (
                 <span>FREE</span>
+              ) : subscription.subscription_tier === 'trial' ? (
+                <span>
+                  TRIAL
+                  {getTrialDaysRemaining() !== null && (
+                    <span className="text-lg text-gray-600 font-normal ml-2">
+                      ({getTrialDaysRemaining()} days remaining)
+                    </span>
+                  )}
+                </span>
               ) : (
                 <>
                   ${tierPrices[subscription.subscription_tier]}
@@ -377,7 +400,7 @@ export default function BillingSettingsPage() {
               )}
             </p>
           </div>
-          {subscription.subscription_tier !== 'freemium' && (
+          {subscription.subscription_tier !== 'freemium' && subscription.subscription_tier !== 'trial' && (
             <Button
               onClick={handleManageBilling}
               disabled={actionLoading}
@@ -390,8 +413,21 @@ export default function BillingSettingsPage() {
           )}
         </div>
 
+        {/* Show trial expiration date */}
+        {subscription.subscription_tier === 'trial' && subscription.current_period_end && formatDate(subscription.current_period_end) && (
+          <div className="border-t pt-4">
+            <div className="flex items-center text-gray-600 mb-2">
+              <Calendar className="h-4 w-4 mr-2" />
+              <span>Trial expires on {formatDate(subscription.current_period_end)}</span>
+            </div>
+            <p className="text-sm text-blue-600 mt-2">
+              Upgrade to a paid plan before your trial ends to keep full access to all features.
+            </p>
+          </div>
+        )}
+
         {/* Only show renewal date for paid subscriptions */}
-        {subscription.subscription_tier !== 'freemium' && subscription.current_period_end && formatDate(subscription.current_period_end) && (
+        {subscription.subscription_tier !== 'freemium' && subscription.subscription_tier !== 'trial' && subscription.current_period_end && formatDate(subscription.current_period_end) && (
           <div className="border-t pt-4">
             <div className="flex items-center text-gray-600 mb-2">
               <Calendar className="h-4 w-4 mr-2" />
