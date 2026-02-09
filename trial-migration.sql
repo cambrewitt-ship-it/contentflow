@@ -79,7 +79,11 @@ ORDER BY subscription_tier;
 -- STEP 5: Update trigger to assign 'trial' instead of 'freemium'
 -- ============================================================
 CREATE OR REPLACE FUNCTION assign_freemium_tier_to_new_users()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
 BEGIN
   -- Check if user already has a subscription
   IF NOT EXISTS (
@@ -120,8 +124,12 @@ BEGIN
   END IF;
 
   RETURN NEW;
+EXCEPTION
+  WHEN others THEN
+    RAISE WARNING 'Failed to create trial subscription for user %: %', NEW.id, SQLERRM;
+    RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Recreate the trigger (in case it doesn't exist yet)
 DROP TRIGGER IF EXISTS assign_freemium_tier_trigger ON auth.users;

@@ -5,7 +5,11 @@
 
 -- Update function to assign trial tier instead of freemium
 CREATE OR REPLACE FUNCTION assign_freemium_tier_to_new_users()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
 BEGIN
   -- Check if user already has a subscription
   IF NOT EXISTS (
@@ -17,10 +21,6 @@ BEGIN
       stripe_customer_id,
       subscription_tier,
       subscription_status,
-      trial_start_date,
-      trial_end_date,
-      current_period_start,
-      current_period_end,
       max_clients,
       max_posts_per_month,
       max_ai_credits_per_month,
@@ -28,38 +28,34 @@ BEGIN
       posts_used_this_month,
       ai_credits_used_this_month,
       usage_reset_date,
-      migrated_from_freemium,
-      legacy_user,
+      trial_start_date,
+      trial_end_date,
       metadata
     ) VALUES (
       NEW.id,
-      'trial_' || NEW.id,  -- Changed from 'freemium_' to 'trial_'
+      'trial_' || NEW.id,
       'trial',
-      'trialing',
+      'active',
+      1,              -- 1 client max
+      30,             -- 30 posts per month (starter-level)
+      100,            -- 100 AI credits per month (starter-level)
+      0,
+      0,
+      0,
+      NOW(),
       NOW(),
       NOW() + INTERVAL '14 days',
-      NOW(),
-      NOW() + INTERVAL '14 days',
-      5,               -- Professional tier limits
-      150,
-      500,
-      0,
-      0,
-      0,
-      NOW(),
-      FALSE,           -- Not migrated, new user
-      FALSE,           -- Not legacy user
-      jsonb_build_object(
-        'created_via', 'trial_signup',
-        'created_at', NOW()::text,
-        'trial_type', '14_day_no_cc'
-      )
+      jsonb_build_object('created_via', 'trial_signup', 'created_at', NOW()::text)
     );
   END IF;
 
   RETURN NEW;
+EXCEPTION
+  WHEN others THEN
+    RAISE WARNING 'Failed to create trial subscription for user %: %', NEW.id, SQLERRM;
+    RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Optionally rename trigger for clarity (the function name stays the same for safety)
 -- The trigger already exists, so we just update the function it calls
