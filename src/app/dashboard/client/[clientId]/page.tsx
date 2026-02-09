@@ -46,12 +46,14 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const [clientUploads, setClientUploads] = useState<{[key: string]: Upload[]}>({})
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
+  const [unreadCount, setUnreadCount] = useState<number>(0)
   
   // Refs to prevent duplicate requests
   const fetchAccountsRef = useRef(false)
   const fetchClientRef = useRef(false)
   const fetchBrandDataRef = useRef(false)
   const oauthHandledRef = useRef<string | null>(null)
+  const markedAsViewedRef = useRef(false)
 
   interface ConnectedAccount {
     _id: string;
@@ -291,6 +293,54 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       fetchActivityLogs()
     }
   }, [client, fetchScheduledPosts, fetchActivityLogs])
+
+  // Fetch unread count and mark as viewed when dashboard loads
+  useEffect(() => {
+    if (!clientId || markedAsViewedRef.current) return
+    
+    async function handleActivityViewing() {
+      const accessToken = getAccessToken()
+      if (!accessToken) return
+      
+      try {
+        // First, fetch the current unread count
+        const unreadResponse = await fetch('/api/clients/unread-counts', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        if (unreadResponse.ok) {
+          const unreadData = await unreadResponse.json()
+          const count = unreadData.unreadCounts?.[clientId] || 0
+          setUnreadCount(count)
+          console.log('📊 Unread count for this client:', count)
+        }
+        
+        // Then mark all activities as viewed
+        const markViewedResponse = await fetch(`/api/clients/${clientId}/mark-viewed`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        if (markViewedResponse.ok) {
+          console.log('✅ Activities marked as viewed for client:', clientId)
+          // After marking as viewed, set unread count to 0
+          setTimeout(() => setUnreadCount(0), 1000) // Delay to show the badge briefly
+        }
+        
+        markedAsViewedRef.current = true
+      } catch (err) {
+        console.error('Error handling activity viewing:', err)
+      }
+    }
+    
+    handleActivityViewing()
+  }, [clientId, getAccessToken])
 
   // Check for OAuth callback messages in URL
   useEffect(() => {
@@ -1038,7 +1088,14 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         <div className="mb-8 grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-6">
           {/* Client Activity Hub - Takes 40% */}
           <div className="flex flex-col">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Client Activity Hub</h2>
+            <div className="flex items-center gap-3 mb-6">
+              <h2 className="text-2xl font-bold text-gray-800" style={{ fontSize: '24px' }}>Client Activity Hub</h2>
+              {unreadCount > 0 && (
+                <div className="bg-red-500 text-white text-sm font-bold rounded-full px-3 py-1 shadow-lg">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </div>
+              )}
+            </div>
             
             {activityLoading ? (
               <Card className="shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px', height: '879px' }}>

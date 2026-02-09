@@ -87,7 +87,7 @@ export default function TopBar({ className = "" }: TopBarProps) {
             size="sm"
             className="flex items-center space-x-2"
           >
-            <span>See Plans</span>
+            <span>Upgrade</span>
           </Button>
         </Link>
       </div>

@@ -61,6 +61,7 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
   const [displayTimezone, setDisplayTimezone] = useState<string>('Pacific/Auckland');
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   
   // Track if we're redirecting single-client tier users to their client dashboard
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -187,6 +188,42 @@ export default function Dashboard() {
       fetchClients();
     }
   }, [user?.id, getAccessToken]); // ✅ Only depend on user ID, not entire user object
+
+  // Fetch unread notification counts for all clients
+  useEffect(() => {
+    async function fetchUnreadCounts() {
+      if (!user) return;
+      
+      const token = getAccessToken();
+      if (!token) return;
+      
+      try {
+        console.log('📊 Fetching unread notification counts...');
+        
+        const response = await fetch('/api/clients/unread-counts', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Unread counts fetched:', data.unreadCounts);
+          setUnreadCounts(data.unreadCounts || {});
+        } else {
+          console.error('❌ Failed to fetch unread counts:', response.statusText);
+        }
+      } catch (err) {
+        console.error('❌ Error fetching unread counts:', err);
+      }
+    }
+
+    // Fetch unread counts after clients are loaded
+    if (clients.length > 0) {
+      fetchUnreadCounts();
+    }
+  }, [clients, user, getAccessToken]);
 
   // Update time and date every minute - using first client's timezone
   useEffect(() => {
@@ -412,19 +449,27 @@ export default function Dashboard() {
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${
-                          client.logo_url 
-                            ? '' 
-                            : 'bg-blue-100 text-blue-700'
-                        } overflow-hidden`}>
-                          {client.logo_url ? (
-                            <img 
-                              src={client.logo_url} 
-                              alt={`${client.name} logo`}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span>{client.name.charAt(0).toUpperCase()}</span>
+                        <div className="relative">
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${
+                            client.logo_url 
+                              ? '' 
+                              : 'bg-blue-100 text-blue-700'
+                          } overflow-hidden`}>
+                            {client.logo_url ? (
+                              <img 
+                                src={client.logo_url} 
+                                alt={`${client.name} logo`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span>{client.name.charAt(0).toUpperCase()}</span>
+                            )}
+                          </div>
+                          {/* Unread notification badge */}
+                          {unreadCounts[client.id] > 0 && (
+                            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-lg border-2 border-white">
+                              {unreadCounts[client.id] > 99 ? '99+' : unreadCounts[client.id]}
+                            </div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
