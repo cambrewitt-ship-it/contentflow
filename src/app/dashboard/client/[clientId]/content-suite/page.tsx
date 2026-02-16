@@ -878,6 +878,19 @@ function ContentSuiteContent({
   // State for scheduling
   const [isScheduling, setIsScheduling] = useState(false)
 
+  // State for Settings modal
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [rulesLoading, setRulesLoading] = useState(false)
+  const [savingRules, setSavingRules] = useState(false)
+  const [rulesError, setRulesError] = useState<string | null>(null)
+  const [rulesSuccess, setRulesSuccess] = useState<string | null>(null)
+  const [rulesForm, setRulesForm] = useState({
+    captionDos: '',
+    captionDonts: '',
+    brandVoiceExamples: '',
+  })
+  const [initialRules, setInitialRules] = useState<typeof rulesForm | null>(null)
+
   // Handler for scheduling posts via modal
   const handleScheduleFromModal = async (date: string, time: string, platform: Platform) => {
     if (!uploadedImages || uploadedImages.length === 0) {
@@ -1241,6 +1254,149 @@ function ContentSuiteContent({
       setRemixingCaption(null)
     }
   }
+
+  // Load AI caption rules from API
+  const loadCaptionRules = useCallback(async () => {
+    setRulesError(null)
+    setRulesSuccess(null)
+
+    if (!clientId) {
+      setRulesError('Client not found. Please refresh and try again.')
+      return
+    }
+
+    const token = getAccessToken()
+    if (!token) {
+      setRulesError('Authentication required. Please log in again.')
+      return
+    }
+
+    setRulesLoading(true)
+    try {
+      const response = await fetch(`/api/clients/${clientId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        let message = 'Failed to load AI caption rules.'
+        try {
+          const data = await response.json()
+          if (typeof data?.error === 'string') {
+            message = data.error
+          }
+        } catch (_) {}
+        throw new Error(message)
+      }
+
+      const data = await response.json()
+      const client = data?.client ?? {}
+
+      const nextRules = {
+        captionDos: client.caption_dos || '',
+        captionDonts: client.caption_donts || '',
+        brandVoiceExamples: client.brand_voice_examples || '',
+      }
+
+      setRulesForm(nextRules)
+      setInitialRules(nextRules)
+    } catch (error) {
+      setRulesError(error instanceof Error ? error.message : 'Failed to load AI caption rules.')
+    } finally {
+      setRulesLoading(false)
+    }
+  }, [clientId, getAccessToken])
+
+  // Save AI caption rules to database
+  const handleSaveCaptionRules = useCallback(async () => {
+    setRulesError(null)
+    setRulesSuccess(null)
+
+    if (!clientId) {
+      setRulesError('Client not found. Please refresh and try again.')
+      return
+    }
+
+    const token = getAccessToken()
+    if (!token) {
+      setRulesError('Authentication required. Please log in again.')
+      return
+    }
+
+    setSavingRules(true)
+    try {
+      const response = await fetch(`/api/clients/${clientId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          caption_dos: rulesForm.captionDos,
+          caption_donts: rulesForm.captionDonts,
+          brand_voice_examples: rulesForm.brandVoiceExamples,
+        }),
+      })
+
+      if (!response.ok) {
+        let message = 'Failed to update AI caption rules.'
+        try {
+          const data = await response.json()
+          if (typeof data?.error === 'string') {
+            message = data.error
+          }
+        } catch (_) {}
+        throw new Error(message)
+      }
+
+      const data = await response.json()
+      const updatedClient = data?.client ?? {}
+      const nextRules = {
+        captionDos: updatedClient.caption_dos || rulesForm.captionDos,
+        captionDonts: updatedClient.caption_donts || rulesForm.captionDonts,
+        brandVoiceExamples: updatedClient.brand_voice_examples || rulesForm.brandVoiceExamples,
+      }
+
+      setRulesForm(nextRules)
+      setInitialRules(nextRules)
+      setRulesSuccess('AI caption rules updated successfully.')
+    } catch (error) {
+      setRulesError(error instanceof Error ? error.message : 'Failed to update AI caption rules.')
+    } finally {
+      setSavingRules(false)
+    }
+  }, [clientId, getAccessToken, rulesForm])
+
+  // Update a field in the rules form
+  const updateRulesField = useCallback((field: keyof typeof rulesForm, value: string) => {
+    setRulesForm(prev => ({
+      ...prev,
+      [field]: value,
+    }))
+  }, [])
+
+  // Check if rules have changed
+  const hasRuleChanges =
+    initialRules === null ||
+    initialRules.captionDos !== rulesForm.captionDos ||
+    initialRules.captionDonts !== rulesForm.captionDonts ||
+    initialRules.brandVoiceExamples !== rulesForm.brandVoiceExamples
+
+  // Load caption rules when modal opens
+  useEffect(() => {
+    if (showSettingsModal) {
+      loadCaptionRules()
+    }
+  }, [showSettingsModal, loadCaptionRules])
+
+  // Clear error/success messages when modal closes
+  useEffect(() => {
+    if (!showSettingsModal) {
+      setRulesError(null)
+      setRulesSuccess(null)
+    }
+  }, [showSettingsModal])
 
   // Helper functions for Content Focus and Copy Tone
   const getContentFocusDisplayText = (focus: ContentFocus): string => {
@@ -1705,8 +1861,17 @@ function ContentSuiteContent({
             <div className="col-span-2 flex">
               {/* Consolidated Card - All Left Side Elements */}
               <Card className="flex flex-col overflow-hidden w-full h-full min-h-[600px]">
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="card-title-26">Content Creation</CardTitle>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setShowSettingsModal(true)}
+                    aria-label="Edit AI caption rules"
+                    className="text-gray-500 hover:text-gray-800"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Settings
+                  </Button>
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col overflow-y-auto">
                   {/* Top Section - Natural Height */}
@@ -2281,6 +2446,112 @@ function ContentSuiteContent({
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
               Upgrade Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Caption Rules Settings Modal */}
+      <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
+        <DialogContent className="max-w-2xl bg-white">
+          <DialogHeader>
+            <DialogTitle>AI Caption Rules</DialogTitle>
+            <DialogDescription>
+              Update the guardrails the AI uses when generating captions for this client. Changes apply across the entire dashboard.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {rulesError && (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {rulesError}
+              </div>
+            )}
+            {rulesSuccess && (
+              <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                {rulesSuccess}
+              </div>
+            )}
+
+            {rulesLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      ✅ Do&apos;s
+                    </label>
+                    <Textarea
+                      value={rulesForm.captionDos}
+                      onChange={(e) => updateRulesField('captionDos', e.target.value)}
+                      placeholder="Always include the main offer, Mention the location, Use emojis that match our tone..."
+                      rows={5}
+                      className="border-green-300 focus-visible:border-green-500 focus-visible:ring-green-500"
+                    />
+                    <p className="mt-1 text-xs text-green-600">
+                      Tell the AI what must always be included in captions.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      ❌ Don&apos;ts
+                    </label>
+                    <Textarea
+                      value={rulesForm.captionDonts}
+                      onChange={(e) => updateRulesField('captionDonts', e.target.value)}
+                      placeholder="Don&apos;t mention competitors, Avoid slang, Never promise discounts unless provided..."
+                      rows={5}
+                      className="border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500"
+                    />
+                    <p className="mt-1 text-xs text-red-600">
+                      List anything the AI must avoid or exclude.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    🎤 Brand Voice Examples
+                  </label>
+                  <Textarea
+                    value={rulesForm.brandVoiceExamples}
+                    onChange={(e) => updateRulesField('brandVoiceExamples', e.target.value)}
+                    placeholder="Paste 5-10 of your strongest captions, social posts, or marketing copy so AI can imitate the exact tone."
+                    rows={6}
+                    className="border-blue-300 focus-visible:border-blue-500 focus-visible:ring-blue-500"
+                  />
+                  <p className="mt-2 text-xs text-blue-600">
+                    Provide high-quality examples that show vocabulary, sentence structure, and personality. The AI mirrors this voice.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowSettingsModal(false)}
+              disabled={savingRules}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveCaptionRules}
+              disabled={savingRules || rulesLoading || !hasRuleChanges}
+              className="bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-200"
+            >
+              {savingRules ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
