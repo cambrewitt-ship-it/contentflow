@@ -529,9 +529,11 @@ export default function Home() {
               <p className="text-center text-sm text-muted-foreground mt-3">
                 No credit card required. Try everything free for 14 days.
               </p>
-              <p className="font-['Poppins'] font-medium text-foreground whitespace-nowrap text-3xl sm:text-5xl mt-8">
-                Plan, Create, Schedule
-              </p>
+              <div className="flex justify-center mt-8">
+                <p className="text-3xl sm:text-5xl font-bold text-foreground whitespace-nowrap">
+                  Like ChatGPT for Social Media
+                </p>
+              </div>
               <div className="mt-8 max-w-5xl mx-auto">
                 {videoError ? (
                   <div className="w-full aspect-video bg-muted rounded-2xl shadow-2xl flex items-center justify-center">
@@ -624,16 +626,16 @@ export default function Home() {
                   </div>
                 )}
               </div>
+              <div className="flex justify-center mt-8">
+                <p className="font-['Poppins'] font-medium text-gray-600 whitespace-nowrap text-2xl sm:text-4xl">
+                  Brand Voice AI + Content Calendar + Social Media Scheduler
+                </p>
+              </div>
             </div>
           </div>
           
           {/* Hero Image/Illustration */}
           <div className="mt-12 mx-auto max-w-5xl">
-            <div className="flex flex-col items-center mb-6">
-              <p className="text-2xl sm:text-3xl font-bold text-muted-foreground block text-center">
-                Like ChatGPT + Trello + Social Scheduler
-              </p>
-            </div>
             <div className="relative mt-6">
               <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
               <div className="relative bg-card border border-border rounded-3xl p-4 sm:p-6 shadow-2xl">
@@ -1019,43 +1021,92 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-border/40 bg-muted/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center space-x-2">
-              <h3 className="text-lg font-bold text-foreground">Content Manager</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {/* Left Section - Content Manager */}
+            <div className="flex flex-col items-center md:items-start">
+              <h3 className="text-lg font-bold text-foreground mb-4">Content Manager</h3>
+              <div className="flex flex-col space-y-2">
+                <a href="https://www.oneonethree.co.nz/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Privacy
+                </a>
+                <a href="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Terms
+                </a>
+                <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Contact Us
+                </Link>
+              </div>
             </div>
-            <div className="flex items-center space-x-6 mt-4 md:mt-0">
-              <a href="https://www.oneonethree.co.nz/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Privacy
-              </a>
-              <a href="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Terms
-              </a>
-              <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Support
-              </Link>
-            </div>
-          </div>
-          <div className="mt-8 pt-8 border-t border-border/40">
-            <div className="flex flex-col md:flex-row items-center md:justify-between gap-4">
-              <p className="text-sm text-muted-foreground text-center md:text-left">
-              © 2024 Content Manager. All rights reserved.
-            </p>
-              <div className="flex flex-col items-center gap-2">
-                <img
-                  src="/oot-product-silver-1.png"
-                  alt="OOT Digital Product"
-                  className="h-16 w-auto object-contain rounded-[4px]"
-                />
-                <a 
-                  href="https://www.oneonethree.co.nz" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-base text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  www.oneonethree.co.nz
+
+            {/* Middle Section - OneOneThree Digital */}
+            <div className="flex flex-col items-center md:items-start">
+              <h3 className="text-lg font-bold text-foreground mb-4">OneOneThree Digital</h3>
+              <div className="flex flex-col space-y-2">
+                <a href="https://www.oneonethree.co.nz/home" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Home
+                </a>
+                <a href="https://www.oneonethree.co.nz/about" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  About Us
+                </a>
+                <a href="https://www.oneonethree.co.nz/our-services" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Services
+                </a>
+                <a href="https://www.oneonethree.co.nz/products" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Other Products
                 </a>
               </div>
             </div>
+
+            {/* Socials Section */}
+            <div className="flex flex-col items-center md:items-start">
+              <h3 className="text-lg font-bold text-foreground mb-4">Socials</h3>
+              <div className="flex flex-col space-y-3">
+                <a 
+                  href="https://www.facebook.com/profile.php?id=61574924115662" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <FacebookIcon size={20} />
+                  <span>Facebook</span>
+                </a>
+                <a 
+                  href="https://nz.linkedin.com/company/oneonethreedigital" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <LinkedInIcon size={20} />
+                  <span>LinkedIn</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Right Section - Logo */}
+            <div className="flex flex-col items-center md:items-end justify-center gap-2">
+              <img
+                src="/oot-product-silver-1.png"
+                alt="OOT Digital Product"
+                className="h-16 w-auto object-contain rounded-[4px]"
+              />
+              <p className="text-sm text-muted-foreground text-center md:text-right">
+                See more at{" "}
+                <a
+                  href="https://www.oneonethree.co.nz"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:text-primary/80 underline transition-colors"
+                >
+                  oneonethree.co.nz
+                </a>
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 pt-8 border-t border-border/40">
+            <p className="text-sm text-muted-foreground text-center">
+              © 2025 OneOneThree Digital. All rights reserved.
+            </p>
           </div>
         </div>
       </footer>
