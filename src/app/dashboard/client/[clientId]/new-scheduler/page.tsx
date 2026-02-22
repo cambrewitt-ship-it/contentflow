@@ -42,7 +42,7 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
       console.log('Fetching posts for client:', clientId);
       const accessToken = getAccessToken();
       
-      const response = await fetch(`/api/posts/${clientId}`, {
+      const response = await fetch(`/api/clients/${clientId}/posts`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
@@ -119,7 +119,7 @@ export default function NewScheduler({ params }: { params: Promise<{ clientId: s
     try {
       console.log('🗑️ Attempting to delete post:', postId);
       
-      const response = await fetch(`/api/posts/${clientId}`, {
+      const response = await fetch(`/api/clients/${clientId}/posts`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

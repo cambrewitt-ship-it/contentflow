@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download, Copy, Pencil, Check, X } from 'lucide-react';
+import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download, Copy, Pencil, Check, X, Tag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
+import { TagDropdownModal } from '@/components/TagDropdownModal';
+import { supabase } from '@/lib/supabaseClient';
 import { 
   FacebookIcon, 
   InstagramIcon, 
@@ -237,6 +239,7 @@ function SortablePostCard({
   onDeleteClientUpload,
   onUpdateCaption,
   isSavingCaption,
+  clientId,
 }: {
   post: Post;
   postKey: string;
@@ -255,6 +258,7 @@ function SortablePostCard({
   onDeleteClientUpload?: (upload: ClientUpload) => void | Promise<void>;
   onUpdateCaption?: (post: Post, newCaption: string) => Promise<void>;
   isSavingCaption: boolean;
+  clientId?: string;
 }) {
   const isClientUpload =
     post.post_type === 'client-upload' ||
@@ -311,10 +315,120 @@ function SortablePostCard({
   const [editedCaption, setEditedCaption] = useState(post.caption || '');
   const captionTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Tags state
+  const [postTags, setPostTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
+  const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+  const [tagButtonRef, setTagButtonRef] = useState<HTMLButtonElement | null>(null);
+
   // Reset edited caption when post changes
   useEffect(() => {
     setEditedCaption(post.caption || '');
   }, [post.caption]);
+
+  // Fetch post tags
+  useEffect(() => {
+    if (post.id && !isClientUpload) {
+      fetchPostTags();
+    }
+  }, [post.id, isClientUpload]);
+
+  const fetchPostTags = async () => {
+    if (!post.id) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      const response = await fetch(`/api/posts/${post.id}/tags`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPostTags(data.tags || []);
+      }
+    } catch (error) {
+      console.error('Error fetching post tags:', error);
+    }
+  };
+
+  const handleTagToggle = async (tagId: string) => {
+    if (!post.id) return;
+    
+    const isCurrentlySelected = postTags.some(t => t.id === tagId);
+    
+    // Optimistically update UI
+    if (isCurrentlySelected) {
+      setPostTags(prev => prev.filter(t => t.id !== tagId));
+    } else {
+      // We need to get the tag details - for now, just add a placeholder
+      // The actual tag details will come from the response
+    }
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.error('No access token available');
+        // Revert optimistic update
+        if (!isCurrentlySelected) {
+          setPostTags(prev => prev.filter(t => t.id !== tagId));
+        } else {
+          // Would need tag details to revert - refetch instead
+          await fetchPostTags();
+        }
+        return;
+      }
+
+      let response: Response;
+      
+      if (isCurrentlySelected) {
+        // Remove tag
+        response = await fetch(`/api/posts/${post.id}/tags/${tagId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        });
+      } else {
+        // Add tag
+        response = await fetch(`/api/posts/${post.id}/tags`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ tag_id: tagId }),
+        });
+      }
+
+      if (!response.ok) {
+        // Revert optimistic update on error
+        await fetchPostTags();
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Error toggling tag:', errorData);
+        console.error('Response status:', response.status);
+        alert(errorData.error || 'Failed to update tag');
+        return;
+      }
+
+      // If adding tag, get the tag details from response and update state
+      if (!isCurrentlySelected) {
+        const data = await response.json();
+        if (data.tag) {
+          setPostTags(prev => [...prev, data.tag]);
+        } else {
+          // Fallback: refetch if response doesn't include tag
+          await fetchPostTags();
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling tag:', error);
+      // Revert optimistic update on error
+      await fetchPostTags();
+      alert('Failed to update tag. Please try again.');
+    }
+  };
 
   // Focus textarea when editing starts
   useEffect(() => {
@@ -702,6 +816,56 @@ function SortablePostCard({
           </div>
         </div>
       )}
+
+      {/* Tags Section */}
+      <div className="relative mt-2 mx-2 mb-2">
+        <div className="flex items-center justify-between gap-2">
+          {/* Tags Display */}
+          <div className="flex-1 flex flex-wrap gap-1 min-h-[24px]">
+            {postTags.map((tag) => (
+              <span
+                key={tag.id}
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full text-white"
+                style={{ backgroundColor: tag.color }}
+              >
+                {tag.name}
+              </span>
+            ))}
+          </div>
+          
+          {/* Add Tag Button */}
+          {clientId && !isClientUpload && (
+            <button
+              ref={setTagButtonRef}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsTagModalOpen(true);
+              }}
+              className="flex-shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              title="Add tag"
+            >
+              <Tag className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Tag Dropdown Modal */}
+      {clientId && isTagModalOpen && (
+        <TagDropdownModal
+          isOpen={isTagModalOpen}
+          onClose={() => setIsTagModalOpen(false)}
+          clientId={clientId}
+          postId={post.id}
+          selectedTagIds={postTags.map(t => t.id)}
+          onTagToggle={handleTagToggle}
+          position={tagButtonRef ? {
+            top: tagButtonRef.getBoundingClientRect().bottom + window.scrollY,
+            left: tagButtonRef.getBoundingClientRect().left + window.scrollX,
+          } : undefined}
+        />
+      )}
     </div>
   );
 }
@@ -924,6 +1088,7 @@ function DroppableDayRow({
                   onDeleteClientUpload={onDeleteClientUpload}
                   onUpdateCaption={isClientUpload ? undefined : onUpdateCaption}
                   isSavingCaption={isSavingCaption}
+                  clientId={clientId}
                 />
               );
             })

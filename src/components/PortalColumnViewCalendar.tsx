@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, ChangeEvent } from 'react';
-import { Calendar, Plus, ArrowLeft, ArrowRight, CheckCircle, AlertTriangle, XCircle, Minus, Download, Trash2 } from 'lucide-react';
+import { Calendar, Plus, ArrowLeft, ArrowRight, CheckCircle, AlertTriangle, XCircle, Minus, Download, Trash2, Tag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
+import { TagDropdownModal } from '@/components/TagDropdownModal';
 import {
   DndContext,
   DragEndEvent,
@@ -165,6 +166,7 @@ function SortablePostCard({
   onCaptionChange,
   onDeleteClientUpload,
   deletingUploadIds,
+  clientId,
 }: {
   post: Post;
   postKey: string;
@@ -182,6 +184,7 @@ function SortablePostCard({
   onCaptionChange: (postKey: string, caption: string) => void;
   onDeleteClientUpload?: (upload: ClientUpload) => void;
   deletingUploadIds?: Set<string>;
+  clientId?: string;
 }) {
   const isClientUpload =
     post.post_type === 'client-upload' ||
@@ -233,6 +236,54 @@ function SortablePostCard({
     : post.caption || '';
   const hasCaptionChanged = captionValue !== (post.caption || '');
   const isDeletingUpload = isClientUpload ? deletingUploadIds?.has(post.id) ?? false : false;
+
+  // Tags state
+  const [postTags, setPostTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
+  const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+  const [tagButtonRef, setTagButtonRef] = useState<HTMLButtonElement | null>(null);
+
+  // Fetch post tags
+  useEffect(() => {
+    if (post.id && !isClientUpload) {
+      fetchPostTags();
+    }
+  }, [post.id, isClientUpload]);
+
+  const fetchPostTags = async () => {
+    if (!post.id) return;
+    try {
+      // For portal, we might not have a session, so skip tag fetching
+      // Tags functionality may not be available in portal view
+      return;
+    } catch (error) {
+      console.error('Error fetching post tags:', error);
+    }
+  };
+
+      if (response.ok) {
+        const data = await response.json();
+        setPostTags(data.tags || []);
+      }
+    } catch (error) {
+      console.error('Error fetching post tags:', error);
+    }
+  };
+
+  const handleTagToggle = async (tagId: string) => {
+    // Tags functionality may not be available in portal view
+    // This is a placeholder for future implementation
+    console.log('Tag toggle not available in portal view');
+  };
+
+        if (response.ok) {
+          const data = await response.json();
+          setPostTags([...postTags, data.tag]);
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling tag:', error);
+    }
+  };
 
   const getCardStyling = () => {
     if (selectedStatus === 'approved') {
@@ -530,6 +581,56 @@ function SortablePostCard({
         </div>
 
       </div>
+
+      {/* Tags Section */}
+      <div className="relative mt-2 mx-2 mb-2">
+        <div className="flex items-center justify-between gap-2">
+          {/* Tags Display */}
+          <div className="flex-1 flex flex-wrap gap-1 min-h-[24px]">
+            {postTags.map((tag) => (
+              <span
+                key={tag.id}
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full text-white"
+                style={{ backgroundColor: tag.color }}
+              >
+                {tag.name}
+              </span>
+            ))}
+          </div>
+          
+          {/* Add Tag Button */}
+          {clientId && !isClientUpload && (
+            <button
+              ref={setTagButtonRef}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsTagModalOpen(true);
+              }}
+              className="flex-shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              title="Add tag"
+            >
+              <Tag className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Tag Dropdown Modal */}
+      {clientId && isTagModalOpen && (
+        <TagDropdownModal
+          isOpen={isTagModalOpen}
+          onClose={() => setIsTagModalOpen(false)}
+          clientId={clientId}
+          postId={post.id}
+          selectedTagIds={postTags.map(t => t.id)}
+          onTagToggle={handleTagToggle}
+          position={tagButtonRef ? {
+            top: tagButtonRef.getBoundingClientRect().bottom + window.scrollY,
+            left: tagButtonRef.getBoundingClientRect().left + window.scrollX,
+          } : undefined}
+        />
+      )}
     </div>
   );
 }
@@ -766,6 +867,7 @@ function DroppableDayRow({
                     onCaptionChange={onCaptionChange}
                     onDeleteClientUpload={onDeleteClientUpload}
                     deletingUploadIds={deletingUploadIds}
+                    clientId={clientId}
                   />
                 );
               })}

@@ -74,7 +74,7 @@ async function testProjectAuth(config: TestConfig): Promise<void> {
 async function testClientPostsAuth(config: TestConfig): Promise<void> {
   console.log("Testing: User cannot access other user's posts...");
 
-  const url = `${config.baseUrl}/api/posts/${config.unauthorizedClientId}`;
+  const url = `${config.baseUrl}/api/clients/${config.unauthorizedClientId}/posts`;
   const response = await fetch(url, {
     method: 'GET',
     headers: {
