@@ -45,6 +45,12 @@ interface ClientUpload {
   [key: string]: any;
 }
 
+interface PostTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
 interface Post {
   id: string;
   post_type?: string;
@@ -54,6 +60,7 @@ interface Post {
   scheduled_time?: string | null;
   platform?: string;
   project_id?: string | null | undefined;
+  tags?: PostTag[];
   [key: string]: any; // Allow additional properties
 }
 
@@ -315,8 +322,8 @@ function SortablePostCard({
   const [editedCaption, setEditedCaption] = useState(post.caption || '');
   const captionTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Tags state
-  const [postTags, setPostTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
+  // Tags state — initialise from post data if available to avoid a round-trip fetch
+  const [postTags, setPostTags] = useState<Array<{ id: string; name: string; color: string }>>(post.tags ?? []);
   const [isTagModalOpen, setIsTagModalOpen] = useState(false);
   const [tagButtonRef, setTagButtonRef] = useState<HTMLButtonElement | null>(null);
 
@@ -325,9 +332,9 @@ function SortablePostCard({
     setEditedCaption(post.caption || '');
   }, [post.caption]);
 
-  // Fetch post tags
+  // Fetch post tags only when not already provided via post data
   useEffect(() => {
-    if (post.id && !isClientUpload) {
+    if (post.id && !isClientUpload && !post.tags) {
       fetchPostTags();
     }
   }, [post.id, isClientUpload]);
@@ -729,7 +736,7 @@ function SortablePostCard({
                   e.stopPropagation();
                   setIsEditingCaption(true);
                 }}
-                className="absolute top-0 right-0 p-1 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-0 right-0 p-1 text-gray-400 hover:text-blue-600 transition-opacity"
                 title="Edit caption"
               >
                 <Pencil className="w-3 h-3" />

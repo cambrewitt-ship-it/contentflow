@@ -146,41 +146,61 @@ export function TagDropdownModal({
 
   if (!isOpen) return null;
 
-  // Calculate modal position - try to keep it on screen
+  // Calculate modal position anchored to the tag button
   const getModalStyle = () => {
-    if (!position) return {};
-    
     const modalWidth = 320; // w-80 = 320px
     const modalHeight = 384; // max-h-96 = 384px
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    
-    let top = position.top - modalHeight;
+
+    if (!position) {
+      return {
+        position: 'fixed' as const,
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        zIndex: 51,
+      };
+    }
+
+    // Default: open above the button, aligned to its left edge
+    let top = position.top - modalHeight - 8;
     let left = position.left;
-    
-    // Adjust if modal would go off-screen
-    if (top < 0) {
-      top = position.top + 30; // Show below button instead
+
+    // If it would go off the top, show below instead
+    if (top < 8) {
+      top = position.top + 8;
     }
-    if (left + modalWidth > viewportWidth) {
-      left = viewportWidth - modalWidth - 10;
+    // If it would go off the right, shift left
+    if (left + modalWidth > viewportWidth - 8) {
+      left = viewportWidth - modalWidth - 8;
     }
-    if (left < 0) {
-      left = 10;
+    if (left < 8) {
+      left = 8;
     }
-    
+    // If it would go off the bottom, shift up
+    if (top + modalHeight > viewportHeight - 8) {
+      top = viewportHeight - modalHeight - 8;
+    }
+
     return {
       position: 'fixed' as const,
       top: `${top}px`,
       left: `${left}px`,
-      zIndex: 50,
+      zIndex: 51,
     };
   };
-  
+
   const modalStyle = getModalStyle();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+    <>
+      {/* Backdrop: white with low opacity so the main screen shows through */}
+      <div
+        className="fixed inset-0 z-50"
+        style={{ backgroundColor: 'rgba(255, 255, 255, 0.25)' }}
+        onClick={onClose}
+      />
       <div
         ref={modalRef}
         className="bg-white rounded-lg shadow-xl border border-gray-200 w-80 max-h-96 overflow-hidden flex flex-col"
@@ -296,6 +316,6 @@ export function TagDropdownModal({
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }

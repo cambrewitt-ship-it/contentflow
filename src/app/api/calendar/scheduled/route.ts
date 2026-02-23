@@ -168,13 +168,13 @@ export async function GET(request: Request) {
     // Optimized query - only select fields needed for approval board
     const baseFields = 'id, project_id, caption, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, late_status, late_post_id, platforms_scheduled, created_at, updated_at, last_edited_at, edit_count, needs_reapproval, original_caption';
     const selectFields = shouldIncludeImageData ? `${baseFields}, image_url` : baseFields;
-    
+
     // Build query based on filter type
     let query = adminSupabase
       .from('calendar_scheduled_posts')
       .select(selectFields)
       .eq('client_id', clientId);
-    
+
     // Apply project filter
     if (shouldFilterUntagged) {
       query = query.is('project_id', null);
@@ -182,47 +182,73 @@ export async function GET(request: Request) {
       query = query.eq('project_id', projectId);
     }
     // If neither filterUntagged nor projectId, return all posts for client
-    
+
     const { data, error } = await query
       .order('scheduled_date', { ascending: true })
       .limit(limit);
-    
+
     const queryDuration = Date.now() - startTime;
-    
+
     if (error) {
       logger.error('❌ Database error:', error);
-      return NextResponse.json({ 
-        error: 'Failed to fetch scheduled posts', 
-        details: error.message 
+      return NextResponse.json({
+        error: 'Failed to fetch scheduled posts',
+        details: error.message
       }, { status: 500 });
     }
 
     // Debug: Log approval status and captions of posts (only first few)
     if (data && data.length > 0) {
-
       data.slice(0, 3).forEach((post: Record<string, unknown>) => {
-        logger.debug('Post preview', { 
-          postId: post.id?.substring(0, 8) + '...', 
-          status: post.approval_status || 'NO STATUS', 
-          captionLength: post.caption?.length || 0 
+        logger.debug('Post preview', {
+          postId: post.id?.substring(0, 8) + '...',
+          status: post.approval_status || 'NO STATUS',
+          captionLength: post.caption?.length || 0
         });
       });
     }
-    
+
+    // Fetch tags for all posts in one query (post_tags FK is to posts.id, not calendar_scheduled_posts.id)
+    const postIds = (data || []).map((p: Record<string, unknown>) => p.id as string);
+    const tagsByPostId: Record<string, Array<{ id: string; name: string; color: string }>> = {};
+
+    if (postIds.length > 0) {
+      const { data: postTagsData, error: tagsError } = await adminSupabase
+        .from('post_tags')
+        .select('post_id, tags(id, name, color)')
+        .in('post_id', postIds);
+
+      if (tagsError) {
+        logger.error('⚠️ Error fetching post tags:', tagsError);
+        // Non-fatal: posts will render without tags
+      } else {
+        for (const row of (postTagsData || []) as Array<{ post_id: string; tags: { id: string; name: string; color: string } }>) {
+          if (!tagsByPostId[row.post_id]) tagsByPostId[row.post_id] = [];
+          if (row.tags) tagsByPostId[row.post_id].push(row.tags);
+        }
+      }
+    }
+
+    // Attach tags to each post
+    const posts = (data || []).map((post: Record<string, unknown>) => ({
+      ...post,
+      tags: tagsByPostId[post.id as string] ?? [],
+    }));
+
     // Fetch client uploads (content from portal) - also using admin client
     const { data: uploadsData, error: uploadsError } = await adminSupabase
       .from('client_uploads')
       .select('id, client_id, project_id, file_name, file_type, file_size, file_url, status, notes, created_at, updated_at')
       .eq('client_id', clientId)
       .order('created_at', { ascending: false });
-    
+
     if (uploadsError) {
       logger.error('⚠️ Error fetching client uploads:', uploadsError);
       // Don't fail the whole request, just log the error
     }
 
-    return NextResponse.json({ 
-      posts: data || [],
+    return NextResponse.json({
+      posts,
       uploads: uploadsData || [],
       performance: {
         queryDuration,

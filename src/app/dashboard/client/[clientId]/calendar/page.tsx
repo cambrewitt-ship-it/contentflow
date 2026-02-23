@@ -638,25 +638,21 @@ export default function CalendarPage() {
       }
       
       try {
-        // Fetch client timezone and name (single query)
-        console.log('📍 Fetching client timezone and name...');
-        const { data, error } = await supabase
-          .from('clients')
-          .select('timezone, name')
-          .eq('id', clientId)
-          .single();
-        
-        if (!error && data) {
-          if (data.timezone) {
-            setClientTimezone(data.timezone);
-            console.log('📍 Client timezone loaded:', data.timezone);
+        // Fetch client timezone and name via API route (avoids wrong Supabase project issue)
+        const accessToken = requireAccessToken();
+        const clientRes = await fetch(`/api/clients/${clientId}`, {
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+        });
+        if (clientRes.ok) {
+          const { client: clientData } = await clientRes.json();
+          if (clientData?.timezone) {
+            setClientTimezone(clientData.timezone);
           }
-          if (data.name) {
-            setClientName(data.name);
-            console.log('📍 Client name loaded:', data.name);
+          if (clientData?.name) {
+            setClientName(clientData.name);
           }
         } else {
-          console.error('❌ Error fetching client data:', error);
+          console.error('❌ Error fetching client data:', clientRes.status);
         }
       } catch (err) {
         console.error('💥 Failed to fetch client data:', err);
