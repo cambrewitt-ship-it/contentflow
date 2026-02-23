@@ -260,29 +260,10 @@ function SortablePostCard({
     }
   };
 
-      if (response.ok) {
-        const data = await response.json();
-        setPostTags(data.tags || []);
-      }
-    } catch (error) {
-      console.error('Error fetching post tags:', error);
-    }
-  };
-
   const handleTagToggle = async (tagId: string) => {
     // Tags functionality may not be available in portal view
     // This is a placeholder for future implementation
     console.log('Tag toggle not available in portal view');
-  };
-
-        if (response.ok) {
-          const data = await response.json();
-          setPostTags([...postTags, data.tag]);
-        }
-      }
-    } catch (error) {
-      console.error('Error toggling tag:', error);
-    }
   };
 
   const getCardStyling = () => {
