@@ -5,6 +5,7 @@ import { createClientSchema } from '../../../../lib/validators';
 import { withClientLimitCheck, trackClientCreation } from '../../../../lib/subscriptionMiddleware';
 import logger from '@/lib/logger';
 import { requireAuth } from '@/lib/authHelpers';
+import { markOnboardingStep } from '@/lib/onboardingHelpers';
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
@@ -221,6 +222,9 @@ export async function POST(req: NextRequest) {
 
     // Track client creation for subscription usage
     await trackClientCreation(userId);
+
+    // Mark onboarding: creating a business profile is the first checklist step
+    await markOnboardingStep(supabase, user.id, 'checklist_business_profile');
 
     return NextResponse.json({
       success: true,

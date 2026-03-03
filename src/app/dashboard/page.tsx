@@ -8,6 +8,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { isSingleClientTier } from "../../lib/tierUtils";
+import OnboardingChecklist from "../../components/OnboardingChecklist";
 
 interface Client {
   id: string;
@@ -411,6 +412,11 @@ export default function Dashboard() {
           </div>
         </div>
 
+
+        {/* Onboarding Checklist */}
+        <div className="max-w-xl mx-auto">
+          <OnboardingChecklist />
+        </div>
 
         {/* Clients Section */}
         <div className="mb-8">

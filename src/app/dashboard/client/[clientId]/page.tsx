@@ -9,6 +9,7 @@ import Link from 'next/link'
 import BrandInformationPanel from '@/components/BrandInformationPanel'
 import { CompactMonthCalendar } from '@/components/CompactMonthCalendar'
 import { useAuth } from '@/contexts/AuthContext'
+import OnboardingChecklist from '@/components/OnboardingChecklist'
 import { Client, BrandDocument, WebsiteScrape, OAuthMessage } from '@/types/api'
 import { 
   FacebookIcon, 
@@ -917,6 +918,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto">
+        {/* Onboarding Checklist */}
+        <OnboardingChecklist clientId={clientId} />
+
         {/* Header */}
         <div className="mb-8">
           

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import logger from '@/lib/logger';
 import { createSupabaseWithToken, createSupabaseAdmin } from '@/lib/supabaseServer';
 import { uuidSchema } from '@/lib/validators';
+import { markOnboardingStep } from '@/lib/onboardingHelpers';
 
 const booleanStringSchema = z
   .union([z.literal('true'), z.literal('false')])
@@ -386,7 +387,11 @@ export async function POST(request: Request) {
     }
     
     logger.debug('Scheduled post created', { success: true });
-    
+
+    // Mark onboarding: creating a scheduled post covers both "Create a Post"
+    // and "Add a Post to Calendar" (fire-and-forget)
+    markOnboardingStep(supabase, user.id, 'checklist_create_post', 'checklist_add_to_calendar');
+
     return NextResponse.json({ success: true, post: scheduled });
     
   } catch (error) {

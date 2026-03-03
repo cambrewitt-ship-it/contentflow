@@ -1,19 +1,30 @@
 "use client";
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/contexts/AuthContext";
+
+// Module-level cache: set to true once we confirm the user has ≥1 client.
+// Resets on hard page refresh (by design — keeps the gate accurate).
+let profileCheckCache: boolean | null = null;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading } = useAuth();
-  
+  const { user, loading, getAccessToken } = useAuth();
+
+  const isOnNewClientPage = pathname === '/dashboard/clients/new';
+
+  // While checking the business-profile gate we show a loading state
+  const [profileGateLoading, setProfileGateLoading] = useState(
+    !isOnNewClientPage && profileCheckCache !== true
+  );
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!loading && !user && pathname?.startsWith('/dashboard')) {
@@ -22,13 +33,63 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, loading, router, pathname]);
 
-  // Show loading state while checking authentication OR if not authenticated
-  if (loading || !user) {
+  // Business-profile gate: block access to dashboard routes until the user
+  // has created at least one client (business profile).
+  useEffect(() => {
+    if (loading || !user) return;
+
+    // The creation page itself is always accessible — no gate needed
+    if (isOnNewClientPage) {
+      setProfileGateLoading(false);
+      return;
+    }
+
+    // Already confirmed in this session
+    if (profileCheckCache === true) {
+      setProfileGateLoading(false);
+      return;
+    }
+
+    const token = getAccessToken();
+    if (!token) {
+      setProfileGateLoading(false);
+      return;
+    }
+
+    setProfileGateLoading(true);
+
+    fetch('/api/clients', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        const hasClients = (data.clients?.length ?? 0) > 0;
+        if (hasClients) {
+          profileCheckCache = true;
+          setProfileGateLoading(false);
+        } else {
+          // No business profile yet — redirect to creation page
+          router.replace('/dashboard/clients/new');
+        }
+      })
+      .catch(() => {
+        // On network error don't block the user indefinitely
+        setProfileGateLoading(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, isOnNewClientPage, loading]);
+
+  // Show loading while authenticating or running the profile gate check
+  if (loading || !user || profileGateLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>{loading ? 'Loading...' : 'Redirecting to login...'}</p>
+          <p>
+            {loading
+              ? 'Loading...'
+              : profileGateLoading
+              ? 'Setting up your workspace...'
+              : 'Redirecting to login...'}
+          </p>
         </div>
       </div>
     );

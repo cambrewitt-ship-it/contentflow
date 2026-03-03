@@ -3,6 +3,7 @@ import { z } from 'zod';
 import logger from '@/lib/logger';
 import { createSupabaseWithToken, createSupabaseAdmin } from '@/lib/supabaseServer';
 import { uuidSchema } from '@/lib/validators';
+import { markOnboardingStep } from '@/lib/onboardingHelpers';
 
 const booleanStringSchema = z
   .union([z.literal('true'), z.literal('false')])
@@ -245,10 +246,13 @@ export async function POST(request: Request) {
       });
     
     if (error) throw error;
-    
+
+    // Mark onboarding: first post created (fire-and-forget)
+    markOnboardingStep(supabase, user.id, 'checklist_create_post');
+
     // Return the data we already know without fetching from DB
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       post: {
         id: postId,
         client_id: postData.client_id,

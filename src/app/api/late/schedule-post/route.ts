@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 import { checkSocialMediaPostingPermission } from '@/lib/subscriptionMiddleware';
 import { requireClientOwnership } from '@/lib/authHelpers';
+import { markOnboardingStep } from '@/lib/onboardingHelpers';
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     const auth = await requireClientOwnership(request, clientId);
     if (auth.error) return auth.error;
-    const { supabase } = auth;
+    const { supabase, user } = auth;
 
     // Validate caption content - reject empty captions
     if (!caption || caption.trim() === '') {
@@ -220,9 +221,12 @@ export async function POST(request: NextRequest) {
       logger.error('Schedule save error:', scheduleError);
     }
     
+    // Mark onboarding: post successfully published to social media (fire-and-forget)
+    markOnboardingStep(supabase, user.id, 'checklist_publish_post');
+
     // At the END of the function, make sure to return:
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       latePostId: latePostId,
       late_post_id: latePostId,
       id: latePostId

@@ -120,9 +120,9 @@ function SignupForm() {
             return;
           }
         } else {
-          // No priceId, redirect normally
+          // No priceId — send new users directly to create their first business profile
           setMessage('Account created successfully! Redirecting...');
-          router.push(redirectTo || '/dashboard');
+          router.push('/dashboard/clients/new');
         }
       } else {
         // Email confirmation required
