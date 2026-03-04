@@ -9,6 +9,7 @@ interface ChecklistState {
   checklist_business_profile: boolean;
   checklist_create_post: boolean;
   checklist_add_to_calendar: boolean;
+  checklist_connect_social: boolean;
   checklist_publish_post: boolean;
 }
 
@@ -55,6 +56,7 @@ export default function OnboardingChecklist({ clientId, onLoad }: OnboardingChec
     checklist.checklist_business_profile &&
     checklist.checklist_create_post &&
     checklist.checklist_add_to_calendar &&
+    checklist.checklist_connect_social &&
     checklist.checklist_publish_post;
 
   if (allComplete) return null;
@@ -87,6 +89,15 @@ export default function OnboardingChecklist({ clientId, onLoad }: OnboardingChec
       description: 'Schedule a post on a specific date in the Calendar.',
       href: calendarHref,
       done: checklist.checklist_add_to_calendar,
+    },
+    {
+      key: 'checklist_connect_social' as const,
+      label: 'Connect your Social Media',
+      description: 'Link at least one social media account from your client dashboard.',
+      href: clientId
+        ? `/dashboard/client/${clientId}#social-media-platforms`
+        : '/dashboard',
+      done: checklist.checklist_connect_social,
     },
     {
       key: 'checklist_publish_post' as const,

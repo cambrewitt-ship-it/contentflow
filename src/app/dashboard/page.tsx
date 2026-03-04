@@ -61,6 +61,8 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDate, setCurrentDate] = useState<string>('');
+  // Default to Pacific/Auckland internally, but we'll only show the time
+  // once the first business profile has been created and we know its timezone.
   const [displayTimezone, setDisplayTimezone] = useState<string>('Pacific/Auckland');
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   
@@ -170,12 +172,19 @@ export default function Dashboard() {
         
         const data = await response.json();
         console.log('✅ User clients fetched successfully:', data.clients);
+
+        // Ensure clients are ordered from oldest to newest by creation date
+        const orderedClients: Client[] = (data.clients || []).slice().sort((a, b) => {
+          const aTime = new Date(a.created_at).getTime();
+          const bTime = new Date(b.created_at).getTime();
+          return aTime - bTime;
+        });
+
+        setClients(orderedClients);
         
-        setClients(data.clients || []);
-        
-        // Set timezone from first client (or keep default)
-        if (data.clients && data.clients.length > 0 && data.clients[0].timezone) {
-          setDisplayTimezone(data.clients[0].timezone);
+        // Set timezone from the oldest client (first created business profile)
+        if (orderedClients.length > 0 && orderedClients[0].timezone) {
+          setDisplayTimezone(orderedClients[0].timezone);
         }
       } catch (err) {
         console.error('❌ Error fetching clients:', err);
@@ -228,6 +237,9 @@ export default function Dashboard() {
 
   // Update time and date every minute - using first client's timezone
   useEffect(() => {
+    // Don't attempt to format time/date until at least one business profile exists
+    if (clients.length === 0) return;
+
     const updateTimeAndDate = () => {
       const now = new Date();
       
@@ -270,7 +282,7 @@ export default function Dashboard() {
     const interval = setInterval(updateTimeAndDate, 60000);
     
     return () => clearInterval(interval);
-  }, [displayTimezone]);
+  }, [displayTimezone, clients.length]);
 
   // =============================================
   // TIER-BASED REDIRECT LOGIC
@@ -389,15 +401,17 @@ export default function Dashboard() {
         {/* Header */}
         <div className="mb-8 mt-[50px]">
           <div className="max-w-xl mx-auto">
-            {/* Time and Date */}
-            <div className="mb-4 text-center">
-              <p className="text-4xl font-bold font-mono text-foreground">
-                {currentTime}
-              </p>
-              <p className="text-lg text-muted-foreground mt-2">
-                {currentDate}
-              </p>
-            </div>
+            {/* Time and Date - only show after at least one business profile exists */}
+            {clients.length > 0 && (
+              <div className="mb-4 text-center">
+                <p className="text-4xl font-bold font-mono text-foreground">
+                  {currentTime}
+                </p>
+                <p className="text-lg text-muted-foreground mt-2">
+                  {currentDate}
+                </p>
+              </div>
+            )}
 
             {/* Welcome back text in the middle */}
             <div className="text-center">

@@ -1278,7 +1278,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         <Card className="mt-8 shadow-md hover:shadow-lg transition-all" style={{ borderRadius: '16px' }}>
             <CardContent className="p-8 space-y-10">
               {/* Social Media Platforms Section */}
-              <div>
+              <div id="social-media-platforms">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-2xl font-bold text-gray-800" style={{ fontSize: '24px' }}>Social Media Platforms</h3>
                   {/* Powered by LATE */}

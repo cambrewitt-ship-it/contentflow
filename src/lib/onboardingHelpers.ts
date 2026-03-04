@@ -4,6 +4,7 @@ export type OnboardingChecklistField =
   | 'checklist_business_profile'
   | 'checklist_create_post'
   | 'checklist_add_to_calendar'
+  | 'checklist_connect_social'
   | 'checklist_publish_post';
 
 /**

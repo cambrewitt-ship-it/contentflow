@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
+import { markOnboardingStep } from '@/lib/onboardingHelpers';
 // Get the correct app URL - prefer environment variable, but fallback to detecting from request
 function getAppUrl(req: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -126,7 +127,7 @@ export async function GET(req: NextRequest) {
       const unauthorizedRedirectUrl = `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=Unauthorized`;
       return NextResponse.redirect(unauthorizedRedirectUrl);
     }
-    const { supabase } = auth;
+    const { supabase, user } = auth;
 
     // Check environment variables
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_SUPABASE_SERVICE_ROLE) {
@@ -209,6 +210,9 @@ export async function GET(req: NextRequest) {
       }
 
     }
+
+    // Mark onboarding: first social account connected (fire-and-forget)
+    markOnboardingStep(supabase, user.id, 'checklist_connect_social');
 
     // Redirect back to client dashboard with success message
     if (clientId) {
