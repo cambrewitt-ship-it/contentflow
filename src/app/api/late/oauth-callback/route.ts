@@ -7,39 +7,20 @@ import { markOnboardingStep } from '@/lib/onboardingHelpers';
 function getAppUrl(req: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
   const host = req.headers.get('host');
-  
-  // PRIORITY 1: Check for localhost FIRST (before checking env URL)
-  // This prevents production URL from overriding localhost development
+
+  // PRIORITY 1: localhost (dev only)
   if (host && host.includes('localhost')) {
-    const protocol = req.headers.get('x-forwarded-proto') || 'http';
-    const detectedUrl = `${protocol}://${host}`;
-    return detectedUrl;
-  }
-  
-  // PRIORITY 2: Check if host is vercel
-  if (host && (host.includes('vercel.app') || host.includes('contentflow'))) {
-    const protocol = req.headers.get('x-forwarded-proto') || 'https';
-    const detectedUrl = `${protocol}://${host}`;
-    return detectedUrl;
+    return `http://${host}`;
   }
 
-  // PRIORITY 3: Check environment URL (for ngrok or other special cases)
-  if (envUrl && envUrl.includes('ngrok')) {
-    // Try to detect the real URL from the request
-    if (host && !host.includes('ngrok')) {
-      const protocol = req.headers.get('x-forwarded-proto') || 'https';
-      const detectedUrl = `${protocol}://${host}`;
-      return detectedUrl;
-    }
-  }
-  
-  // PRIORITY 4: Use environment URL if it exists and it's not ngrok
+  // PRIORITY 2: Use explicit env URL in production (covers custom domains)
   if (envUrl && !envUrl.includes('ngrok')) {
     return envUrl;
   }
-  
-  // Fallback
-  return envUrl || 'http://localhost:3000';
+
+  // Fallback: derive from request host
+  const protocol = req.headers.get('x-forwarded-proto') || 'https';
+  return `${protocol}://${host}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -70,6 +51,7 @@ export async function GET(req: NextRequest) {
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
     let clientId = searchParams.get('clientId');
+    const source = searchParams.get('source');
     
     // Clean up clientId if it has additional data appended (common issue with some OAuth flows)
     if (clientId && clientId.includes('-ct_')) {
@@ -139,84 +121,39 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(errorRedirectUrl);
     }
 
-    // Check if a connection already exists for this client and platform
-    const { data: existingConnection, error: checkError } = await supabase
+    // Upsert the connection in a single round trip (insert or update on conflict)
+    const now = new Date().toISOString();
+    const { error: upsertError } = await supabase
       .from('social_connections')
-      .select('id, platform_user_id, username, connected_at, status')
-      .eq('client_id', clientId)
-      .eq('platform', platform)
-      .single();
+      .upsert({
+        client_id: clientId,
+        platform: platform,
+        platform_user_id: profileId,
+        username: username || 'Unknown',
+        profile_id: profileId,
+        connected_at: now,
+        status: 'connected',
+        last_sync: now
+      }, { onConflict: 'client_id,platform' });
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      logger.error('❌ Error checking existing connection:', checkError);
-      const errorRedirectUrl = clientId 
-        ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Database query failed`
-        : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Database query failed`;
-      
+    if (upsertError) {
+      logger.error('❌ Error upserting connection:', upsertError);
+      const errorRedirectUrl = clientId
+        ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Failed to save connection`
+        : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Failed to save connection`;
+
       return NextResponse.redirect(errorRedirectUrl);
-    }
-
-    if (existingConnection) {
-      // Update existing connection
-
-      const { error: updateError } = await supabase
-        .from('social_connections')
-        .update({
-          platform_user_id: profileId,
-          username: username || existingConnection.username,
-          profile_id: profileId,
-          connected_at: new Date().toISOString(),
-          status: 'connected',
-          last_sync: new Date().toISOString()
-        })
-        .eq('id', existingConnection.id)
-        .select()
-        .single();
-
-      if (updateError) {
-        logger.error('❌ Error updating connection:', updateError);
-        const errorRedirectUrl = clientId 
-          ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Failed to update connection`
-          : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Failed to update connection`;
-        
-        return NextResponse.redirect(errorRedirectUrl);
-      }
-
-    } else {
-      // Create new connection
-
-      const { error: insertError } = await supabase
-        .from('social_connections')
-        .insert({
-          client_id: clientId,
-          platform: platform,
-          platform_user_id: profileId,
-          username: username || 'Unknown',
-          profile_id: profileId,
-          connected_at: new Date().toISOString(),
-          status: 'connected',
-          last_sync: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        logger.error('❌ Error creating connection:', insertError);
-        const errorRedirectUrl = clientId 
-          ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Failed to create connection`
-          : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Failed to create connection`;
-        
-        return NextResponse.redirect(errorRedirectUrl);
-      }
-
     }
 
     // Mark onboarding: first social account connected (fire-and-forget)
     markOnboardingStep(supabase, user.id, 'checklist_connect_social');
 
-    // Redirect back to client dashboard with success message
+    // Redirect back to client dashboard (or onboarding step) with success message
     if (clientId) {
-      const successRedirectUrl = `${appUrl}/dashboard/client/${clientId}?connected=${platform}${username ? `&username=${encodeURIComponent(username)}` : ''}`;
+      const basePath = source === 'onboarding'
+        ? `${appUrl}/dashboard/client/${clientId}/connect-platforms`
+        : `${appUrl}/dashboard/client/${clientId}`;
+      const successRedirectUrl = `${basePath}?connected=${platform}&status=success${username ? `&username=${encodeURIComponent(username)}` : ''}`;
 
       return NextResponse.redirect(successRedirectUrl);
     } else {

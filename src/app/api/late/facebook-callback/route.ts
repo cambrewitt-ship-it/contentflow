@@ -5,39 +5,20 @@ import logger from '@/lib/logger';
 function getAppUrl(req: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL;
   const host = req.headers.get('host');
-  
-  // PRIORITY 1: Check for localhost FIRST (before checking env URL)
-  // This prevents production URL from overriding localhost development
+
+  // PRIORITY 1: localhost (dev only)
   if (host && host.includes('localhost')) {
-    const protocol = req.headers.get('x-forwarded-proto') || 'http';
-    const detectedUrl = `${protocol}://${host}`;
-    return detectedUrl;
-  }
-  
-  // PRIORITY 2: Check if host is vercel
-  if (host && (host.includes('vercel.app') || host.includes('contentflow'))) {
-    const protocol = req.headers.get('x-forwarded-proto') || 'https';
-    const detectedUrl = `${protocol}://${host}`;
-    return detectedUrl;
+    return `http://${host}`;
   }
 
-  // PRIORITY 3: Check environment URL (for ngrok or other special cases)
-  if (envUrl && envUrl.includes('ngrok')) {
-    // Try to detect the real URL from the request
-    if (host && !host.includes('ngrok')) {
-      const protocol = req.headers.get('x-forwarded-proto') || 'https';
-      const detectedUrl = `${protocol}://${host}`;
-      return detectedUrl;
-    }
-  }
-  
-  // PRIORITY 4: Use environment URL if it exists and it's not ngrok
+  // PRIORITY 2: Use explicit env URL in production (covers custom domains)
   if (envUrl && !envUrl.includes('ngrok')) {
     return envUrl;
   }
-  
-  // Fallback
-  return envUrl || 'http://localhost:3000';
+
+  // Fallback: derive from request host
+  const protocol = req.headers.get('x-forwarded-proto') || 'https';
+  return `${protocol}://${host}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -70,6 +51,7 @@ export async function GET(req: NextRequest) {
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
     let clientId = searchParams.get('clientId');
+    const source = searchParams.get('source');
     const connected = searchParams.get('connected');
     const profileId = searchParams.get('profileId');
     const username = searchParams.get('username');
@@ -110,7 +92,10 @@ export async function GET(req: NextRequest) {
     const isSuccess = connected === 'true' || connected === '1' || connected === 'facebook' || profileId;
     
     if (isSuccess) {
-      const successRedirectUrl = `${appUrl}/dashboard/client/${clientId}?connected=facebook&status=success&profileId=${profileId || ''}&username=${encodeURIComponent(username || '')}`;
+      const basePath = source === 'onboarding'
+        ? `${appUrl}/dashboard/client/${clientId}/connect-platforms`
+        : `${appUrl}/dashboard/client/${clientId}`;
+      const successRedirectUrl = `${basePath}?connected=facebook&status=success&profileId=${profileId || ''}&username=${encodeURIComponent(username || '')}`;
       logger.debug('Facebook OAuth success - redirecting with success', { profileId, username });
       return NextResponse.redirect(successRedirectUrl);
     }

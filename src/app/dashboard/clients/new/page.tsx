@@ -7,15 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-  Loader2, 
+import {
+  Loader2,
   Plus,
-  ArrowLeft, 
-  Globe, 
-  CheckCircle, 
+  ArrowLeft,
+  Globe,
+  CheckCircle,
   AlertCircle,
   Upload,
-  X
+  X,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -71,6 +71,7 @@ export default function NewClientPageV2() {
   const [logoError, setLogoError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
+
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
@@ -208,52 +209,19 @@ export default function NewClientPageV2() {
       console.log('✅ New client created:', clientId);
       console.log('🎯 LATE profile created:', lateProfileCreated, lateProfileId);
 
-      let finalMessageType: 'success' | 'error' = 'success';
-      let finalMessageText = lateProfileCreated
-        ? 'Business profile created successfully! Social media profile is ready with LATE integration.'
-        : 'Business profile created successfully! Note: Social media profile setup encountered an issue but profile was saved.';
-
       if (logoFileData) {
         try {
           await uploadLogoForCreatedClient(clientId);
-          finalMessageText += ' Logo uploaded successfully.';
         } catch (logoError) {
           console.error('❌ Logo upload failed after client creation:', logoError);
-          // Don't change finalMessageType to error - client was created successfully
-          finalMessageText += ` Note: Logo upload failed (${logoError instanceof Error ? logoError.message : 'Unknown error'}). You can upload it later from the client settings.`;
         }
       }
 
-      setMessage({
-        type: finalMessageType,
-        text: finalMessageText
-      });
+      // Trigger sidebar refresh
+      window.dispatchEvent(new CustomEvent('clientCreated', { detail: { clientId } }));
 
-      // Clear the form after successful creation
-      setFormData({
-        name: "",
-        company_description: "",
-        website_url: "",
-        brand_tone: "",
-        target_audience: "",
-        value_proposition: "",
-        caption_dos: "",
-        caption_donts: "",
-        brand_voice_examples: "",
-        region: "",
-        timezone: "Pacific/Auckland",
-        brand_color: "#4ade80"
-      });
-      
-      // Always redirect after successful client creation, regardless of logo upload status
-      // Redirect after a short delay to show the success message
-      setTimeout(() => {
-        // Trigger sidebar refresh by dispatching a custom event
-        window.dispatchEvent(new CustomEvent('clientCreated', { detail: { clientId } }));
-        
-        // Redirect to the client's dashboard
-        router.push(`/dashboard/client/${clientId}`);
-      }, 2000);
+      // Redirect to connect-platforms onboarding step
+      router.push(`/dashboard/client/${clientId}/connect-platforms`);
       
     } catch (error) {
       console.error("❌ Unexpected error creating client:", error);

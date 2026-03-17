@@ -402,9 +402,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           setConnectedAccounts([]);
           return;
         }
-        // Don't throw error for other status codes - just log and continue
-        console.warn(`⚠️ Failed to fetch accounts: ${response.status} - continuing without accounts`);
-        setConnectedAccounts([]);
+        // Don't throw error for other status codes - keep existing state
+        console.warn(`⚠️ Failed to fetch accounts: ${response.status} - keeping existing state`);
         return;
       }
       const data = await response.json();
@@ -459,8 +458,33 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         return;
       }
       const data = await response.json();
-      setConnectedAccounts(data.accounts || []);
-      console.log('✅ Accounts refreshed after OAuth - count:', data.accounts?.length || 0);
+      const accounts = data.accounts || [];
+      setConnectedAccounts(accounts);
+      console.log('✅ Accounts refreshed after OAuth - count:', accounts.length);
+
+      // If LATE hasn't propagated the connection yet, retry once after 3s
+      if (accounts.length === 0) {
+        fetchAccountsRef.current = false;
+        setTimeout(async () => {
+          if (fetchAccountsRef.current) return;
+          try {
+            fetchAccountsRef.current = true;
+            const retryResponse = await fetch(`/api/late/get-accounts/${clientId}`, {
+              headers: { Authorization: `Bearer ${getAccessToken()}`, 'Content-Type': 'application/json' }
+            });
+            if (retryResponse.ok) {
+              const retryData = await retryResponse.json();
+              if ((retryData.accounts || []).length > 0) {
+                setConnectedAccounts(retryData.accounts);
+                console.log('✅ Accounts loaded on retry - count:', retryData.accounts.length);
+              }
+            }
+          } catch { /* silent */ } finally {
+            fetchAccountsRef.current = false;
+          }
+        }, 3000);
+        return;
+      }
     } catch (error) {
       console.error('Error refreshing accounts after OAuth:', error);
       // Keep existing connected accounts state on error
@@ -514,11 +538,17 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         type: 'success',
         message: 'Connection Successful'
       })
-      
+
       // Clear message after delay
       clearOAuthMessage()
-      
-      // Refresh connected accounts to show the new connection
+
+      // Optimistic update — show as connected immediately
+      setConnectedAccounts(prev => {
+        if (prev.some(a => a.platform === 'facebook')) return prev
+        return [...prev, { _id: `facebook-${Date.now()}`, platform: 'facebook', name: username || 'Facebook' }]
+      })
+
+      // Confirm with live data from LATE
       setTimeout(() => {
         refreshAccountsAfterOAuth()
       }, 1000) // Small delay to ensure the connection is processed
@@ -572,15 +602,21 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         type: 'success',
         message: 'Connection Successful'
       })
-      
+
       // Clear message after delay
       clearOAuthMessage()
-      
-      // Refresh connected accounts
+
+      // Optimistic update — show as connected immediately
+      setConnectedAccounts(prev => {
+        if (prev.some(a => a.platform === connected)) return prev
+        return [...prev, { _id: `${connected}-${Date.now()}`, platform: connected, name: username || connected }]
+      })
+
+      // Confirm with live data from LATE
       setTimeout(() => {
         refreshAccountsAfterOAuth()
       }, 1000)
-      
+
       // Clean up URL parameters
       setTimeout(() => {
         const url = new URL(window.location.href)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
-import { requireClientOwnership } from '@/lib/authHelpers';
+import { requireAuth } from '@/lib/authHelpers';
 
 const lateApiKey = process.env.LATE_API_KEY!;
 
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
   try {
     // Parse request body
     const body = await req.json();
-    const { platform, clientId } = body;
+    const { platform, clientId, source } = body;
 
     // Validate required fields
     if (!platform || !clientId) {
@@ -107,14 +107,14 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    const auth = await requireClientOwnership(req, clientId);
+    const auth = await requireAuth(req);
     if (auth.error) return auth.error;
-    const { supabase } = auth;
+    const { supabase, user } = auth;
 
     // Validate platform
     const validPlatforms = ['instagram', 'twitter', 'linkedin', 'youtube', 'tiktok', 'threads'];
     if (!validPlatforms.includes(platform)) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Invalid platform',
         details: `Platform must be one of: ${validPlatforms.join(', ')}`
       }, { status: 400 });
@@ -122,33 +122,37 @@ export async function POST(req: NextRequest) {
 
     // Check environment variables
     if (!lateApiKey) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Configuration error',
         details: 'LATE_API_KEY environment variable is not set'
       }, { status: 500 });
     }
 
-    // Fetch client data to get late_profile_id
+    // Single query: fetch client data + user_id for ownership check in one round trip
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('id, name, late_profile_id, company_description, value_proposition, target_audience, brand_tone, website_url')
+      .select('id, name, user_id, late_profile_id, company_description, value_proposition, target_audience, brand_tone, website_url')
       .eq('id', clientId)
       .single();
 
     if (clientError) {
       logger.error('❌ Supabase client query error:', clientError);
-      
+
       if (clientError.code === 'PGRST116') {
-        return NextResponse.json({ 
+        return NextResponse.json({
           error: 'Client not found',
           details: `No client found with ID: ${clientId}`
         }, { status: 404 });
       }
-      
-      return NextResponse.json({ 
-        error: 'Database query failed', 
-        details: clientError.message 
+
+      return NextResponse.json({
+        error: 'Database query failed',
+        details: clientError.message
       }, { status: 500 });
+    }
+
+    if (client.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     if (!client.late_profile_id) {
@@ -187,49 +191,26 @@ export async function POST(req: NextRequest) {
     const getAppUrl = (req: NextRequest): string => {
       const envUrl = process.env.NEXT_PUBLIC_APP_URL;
       const host = req.headers.get('host');
-      const protocol =
-        host && host.includes('localhost')
-          ? 'http'
-          : req.headers.get('x-forwarded-proto') || 'https';
-      
-      logger.debug('URL detection', {
-        hasEnvUrl: !!envUrl,
-        isLocalhost: host?.includes('localhost'),
-        isVercel: host?.includes('vercel.app'),
-        nodeEnv: process.env.NODE_ENV
-      });
 
-      // PRIORITY 1: Check for localhost FIRST (before checking env URL)
-      // This prevents production URL from overriding localhost development
+      // PRIORITY 1: localhost (dev only)
       if (host && host.includes('localhost')) {
-        const localhostUrl = `${protocol}://${host}`;
-        logger.debug('Using localhost URL', { localhostUrl });
-        return localhostUrl;
-      }
-      
-      // PRIORITY 2: Check if host is vercel
-      if (host && (host.includes('vercel.app') || host.includes('contentflow'))) {
-        const vercelUrl = `${protocol}://${host}`;
-        logger.debug('Using Vercel host URL', { vercelUrl });
-        return vercelUrl;
+        return `http://${host}`;
       }
 
-      // PRIORITY 3: Use environment URL if it exists and it's not ngrok
+      // PRIORITY 2: Use explicit env URL in production (covers custom domains)
       if (envUrl && !envUrl.includes('ngrok')) {
-        logger.debug('Using environment URL', { envUrl });
         return envUrl;
       }
-      
-      // Fallback based on environment
-      const fallbackUrl = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:3000' 
-        : 'https://content-manager.io';
-      logger.debug('Using fallback URL', { fallbackUrl });
-      return fallbackUrl;
+
+      // Fallback: derive from request host
+      const protocol = req.headers.get('x-forwarded-proto') || 'https';
+      return `${protocol}://${host}`;
     };
     
     const correctAppUrl = getAppUrl(req);
-    const callbackUrl = `${correctAppUrl}/api/late/oauth-callback?clientId=${clientId}`;
+    const callbackUrl = source === 'onboarding'
+      ? `${correctAppUrl}/api/late/oauth-callback?clientId=${clientId}&source=onboarding`
+      : `${correctAppUrl}/api/late/oauth-callback?clientId=${clientId}`;
 
     logger.debug('OAuth callback URL prepared', {
       callbackUrl: callbackUrl
