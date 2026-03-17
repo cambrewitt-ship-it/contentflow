@@ -40,6 +40,8 @@ interface Project {
 
 interface SocialPreviewColumnProps {
   clientId: string
+  clientName?: string
+  clientLogo?: string
   handleSendToScheduler: (
     selectedCaption: string,
     uploadedImages: { preview: string; id: string; file?: File; blobUrl?: string }[]
@@ -63,6 +65,8 @@ interface SocialPreviewColumnProps {
 
 export function SocialPreviewColumn({
   clientId,
+  clientName,
+  clientLogo,
   handleSendToScheduler,
   isSendingToScheduler,
   isEditing = false,
@@ -480,18 +484,37 @@ export function SocialPreviewColumn({
     }
   }
 
+  // Client avatar for social previews - shows logo or initials
+  const renderClientAvatar = (size: 'sm' | 'md') => {
+    const sizeClass = size === 'sm' ? 'w-8 h-8' : 'w-10 h-10'
+    const textClass = size === 'sm' ? 'text-xs' : 'text-sm'
+    if (clientLogo) {
+      return (
+        <div className={`${sizeClass} rounded-full overflow-hidden flex-shrink-0`}>
+          <img src={clientLogo} alt={clientName || 'Client'} className="w-full h-full object-cover" />
+        </div>
+      )
+    }
+    const initials = clientName ? clientName.charAt(0).toUpperCase() : '?'
+    return (
+      <div className={`${sizeClass} rounded-full bg-gray-500 flex items-center justify-center flex-shrink-0`}>
+        <span className={`text-white font-semibold ${textClass}`}>{initials}</span>
+      </div>
+    )
+  }
+
+  const previewDisplayName = clientName || currentAccountData?.name
+
   // Platform-specific preview components
   const renderFacebookPreview = () => (
     <div className="bg-white max-w-sm mx-auto overflow-hidden" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       {/* Facebook Header */}
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center">
-          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center overflow-hidden">
-            <FacebookIcon size={20} className="text-white" />
-          </div>
+          {renderClientAvatar('md')}
           <div className="ml-3">
             <div className="font-semibold text-gray-900 text-sm">
-              Your Facebook
+              {previewDisplayName || 'Your Page'}
             </div>
             <div className="flex items-center text-xs text-gray-500">
               <span role="img" aria-label="globe">🌐</span>
@@ -594,12 +617,10 @@ export function SocialPreviewColumn({
       {/* Instagram Header */}
       <div className="flex items-center justify-between px-3 py-3">
         <div className="flex items-center">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center overflow-hidden">
-            <InstagramIcon size={16} className="text-white" />
-          </div>
+          {renderClientAvatar('sm')}
           <div className="ml-3">
             <div className="font-semibold text-gray-900 text-sm">
-              {currentAccountData?.name || 'your_instagram'}
+              {previewDisplayName || 'your_account'}
             </div>
           </div>
         </div>
@@ -664,7 +685,7 @@ export function SocialPreviewColumn({
         {/* Instagram Caption */}
         <div className="text-sm">
           <span className="font-semibold text-gray-900 mr-2">
-            {currentAccountData?.name || 'your_instagram'}
+            {previewDisplayName || 'your_account'}
           </span>
           <span className="text-gray-900 whitespace-pre-wrap break-words overflow-hidden">
             {displayCaption}
@@ -678,12 +699,10 @@ export function SocialPreviewColumn({
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden max-w-sm mx-auto">
       {/* Twitter Header */}
       <div className="flex items-center p-3 border-b border-gray-100">
-        <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center overflow-hidden">
-          <TwitterIcon size={20} className="text-white" />
-        </div>
+        {renderClientAvatar('md')}
         <div className="ml-3 flex-1">
           <div className="font-semibold text-gray-900 text-sm">
-            {currentAccountData?.name || 'Your Twitter'}
+            {previewDisplayName || 'Your Account'}
           </div>
           <div className="text-xs text-gray-500">@{currentAccountData?.username || 'yourhandle'}</div>
         </div>

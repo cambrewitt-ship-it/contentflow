@@ -2344,6 +2344,8 @@ function ContentSuiteContent({
             <div className="col-span-1 flex h-full">
               <SocialPreviewColumn
                 clientId={clientId}
+                clientName={client?.name}
+                clientLogo={client?.logo_url}
                 handleSendToScheduler={handleSendToScheduler}
                 isSendingToScheduler={isSendingToScheduler || updatingPost}
                 isEditing={isEditing}

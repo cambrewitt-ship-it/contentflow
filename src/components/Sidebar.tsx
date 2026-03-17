@@ -7,15 +7,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Users, 
-  Home, 
+import {
+  Users,
+  Home,
   Loader2,
   AlertCircle,
   ChevronLeft,
   ChevronRight,
   Plus,
-  RotateCcw
+  RotateCcw,
+  Clock,
+  CreditCard
 } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
@@ -39,6 +41,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
+  const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { getThemeClasses } = useUIThemeStyles();
@@ -57,20 +60,26 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
       try {
         const { data, error } = await supabase
           .from('subscriptions')
-          .select('subscription_tier')
+          .select('subscription_tier, current_period_end')
           .eq('user_id', user.id)
           .single();
 
         if (error && error.code !== 'PGRST116') {
           console.error('Error fetching subscription for sidebar:', error);
-          // Default to trial (single-client) if error
           setSubscriptionTier('trial');
         } else if (data) {
           setSubscriptionTier(data.subscription_tier);
-          console.log('📊 Sidebar: User subscription tier:', data.subscription_tier, 
+          console.log('📊 Sidebar: User subscription tier:', data.subscription_tier,
             '| Show Home:', !isSingleClientTier(data.subscription_tier));
+
+          // Calculate trial days remaining
+          if (data.subscription_tier === 'trial' && data.current_period_end) {
+            const end = new Date(data.current_period_end);
+            const now = new Date();
+            const days = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            setTrialDaysRemaining(Math.max(0, days));
+          }
         } else {
-          // No subscription found, default to trial
           setSubscriptionTier('trial');
         }
       } catch (err) {
@@ -424,9 +433,49 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
       {/* Footer */}
       {!collapsed && (
         <div className={getThemeClasses(
-          "p-4 border-t border-gray-200",
-          "p-4 border-t border-white/20"
+          "p-4 border-t border-gray-200 space-y-3",
+          "p-4 border-t border-white/20 space-y-3"
         )}>
+          {/* Trial Days Remaining */}
+          {subscriptionTier === 'trial' && trialDaysRemaining !== null && trialDaysRemaining > 0 && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                <p className="text-xs font-semibold text-orange-700">
+                  {trialDaysRemaining} day{trialDaysRemaining !== 1 ? 's' : ''} remaining
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  const priceId = process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID;
+                  if (!priceId) return;
+                  const token = getAccessToken();
+                  if (!token) {
+                    window.location.href = '/pricing';
+                    return;
+                  }
+                  try {
+                    const res = await fetch('/api/stripe/checkout', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({ priceId }),
+                    });
+                    const data = await res.json();
+                    if (data.url) window.location.href = data.url;
+                  } catch {
+                    window.location.href = '/pricing';
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium py-1.5 px-3 rounded-md transition-colors"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                Add billing details
+              </button>
+            </div>
+          )}
           <div className="text-center">
             <p className={getThemeClasses(
               "text-xs text-gray-400",

@@ -1,11 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Clock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import { useAuth } from "@/contexts/AuthContext";
+import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
 
 // Module-level cache: set to true once we confirm the user has ≥1 client.
 // Resets on hard page refresh (by design — keeps the gate accurate).
@@ -17,6 +19,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, getAccessToken } = useAuth();
+  const [trialExpired, setTrialExpired] = useState(false);
+  const [trialCheckDone, setTrialCheckDone] = useState(false);
 
   const isOnNewClientPage = pathname === '/dashboard/clients/new';
 
@@ -32,6 +36,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.push('/auth/login');
     }
   }, [user, loading, router, pathname]);
+
+  // Trial expiry gate: if the trial has ended, block all dashboard access
+  useEffect(() => {
+    if (loading || !user) return;
+
+    async function checkTrialExpiry() {
+      try {
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .select('subscription_tier, subscription_status, current_period_end')
+          .eq('user_id', user!.id)
+          .single();
+
+        if (!error && data?.subscription_tier === 'trial') {
+          // Expired if status is explicitly 'expired'
+          const statusExpired = data.subscription_status === 'expired';
+          // OR if the period end date has passed
+          const dateExpired = !!data.current_period_end && new Date(data.current_period_end) < new Date();
+          setTrialExpired(statusExpired || dateExpired);
+        }
+      } catch {
+        // On unexpected error, don't block the user
+      } finally {
+        setTrialCheckDone(true);
+      }
+    }
+
+    checkTrialExpiry();
+  }, [user?.id, loading]);
 
   // Business-profile gate: block access to dashboard routes until the user
   // has created at least one client (business profile).
@@ -78,7 +111,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [user?.id, isOnNewClientPage, loading]);
 
   // Show loading while authenticating or running the profile gate check
-  if (loading || !user || profileGateLoading) {
+  if (loading || !user || profileGateLoading || !trialCheckDone) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -89,6 +122,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               : profileGateLoading
               ? 'Setting up your workspace...'
               : 'Redirecting to login...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Trial expired — lock out the entire dashboard
+  if (trialExpired) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Clock className="h-10 w-10 text-orange-500" />
+          </div>
+          <h1 className="text-3xl font-bold text-foreground mb-3">Your Trial Has Ended</h1>
+          <p className="text-muted-foreground mb-8">
+            Your 14-day free trial has expired. Choose a plan to continue using Content Manager and keep your business profiles, content, and calendar.
+          </p>
+          <Link href="/pricing">
+            <Button size="lg" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+              View Pricing Plans
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
+          <p className="text-xs text-muted-foreground mt-4">
+            Need help?{' '}
+            <Link href="/contact" className="text-blue-600 hover:underline">Contact us</Link>
           </p>
         </div>
       </div>

@@ -18,7 +18,7 @@ const tiers = [
     description: 'For marketing managers',
     priceId: process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID!,
     longDescription: 'Perfect for marketing managers. Includes higher capacity and the ability to schedule posts.',
-    trialText: '14-day free trial',
+    trialText: '',
     features: [
       '1 Business profile — Store brand info, voice, and tone',
       'AI copy generation — Upload images, get social & email copy instantly',
@@ -29,7 +29,7 @@ const tiers = [
       '100 AI Credits per month',
     ],
     bestFor: 'Freelancers, solopreneurs, and individuals managing one brand.',
-    buttonText: 'Start 14-Day Free Trial',
+    buttonText: 'Get Started',
     highlighted: false,
   },
   {
@@ -39,7 +39,7 @@ const tiers = [
     description: 'For freelancers and agencies',
     priceId: process.env.NEXT_PUBLIC_STRIPE_PROFESSIONAL_PRICE_ID!,
     longDescription: 'Everything in In-House, plus capacity for multiple clients, advanced analytics, and custom branding.',
-    trialText: '14-day free trial',
+    trialText: '',
     features: [
       'Everything in In-House',
       '5 Business profiles — Manage multiple brands',
@@ -47,7 +47,7 @@ const tiers = [
       '500 AI Credits per month',
     ],
     bestFor: 'Growing agencies, consultants, and multi-client managers.',
-    buttonText: 'Start 14-Day Free Trial',
+    buttonText: 'Get Started',
     highlighted: true,
   },
   {
@@ -57,7 +57,7 @@ const tiers = [
     description: 'For larger marketing agencies',
     priceId: process.env.NEXT_PUBLIC_STRIPE_AGENCY_PRICE_ID!,
     longDescription: 'Everything in Freelancer, plus unlimited business profiles, unlimited posts, and dedicated support.',
-    trialText: '14-day free trial',
+    trialText: '',
     features: [
       'Everything in Freelancer',
       'Unlimited Business profiles',
@@ -67,7 +67,7 @@ const tiers = [
       '2,000 AI Credits per month',
     ],
     bestFor: 'Established agencies managing 10+ business profiles with high-volume content needs.',
-    buttonText: 'Start 14-Day Free Trial',
+    buttonText: 'Get Started',
     highlighted: false,
   },
 ];
@@ -260,7 +260,7 @@ function PricingPageContent() {
     description: tier.description,
     highlighted: tier.highlighted,
     priceId: tier.priceId,
-    buttonText: (tier as any).buttonText || 'Start 14-Day Free Trial',
+    buttonText: (tier as any).buttonText || 'Get Started',
   }));
 
   const renderComparisonValue = (value: string) => {
@@ -338,7 +338,7 @@ function PricingPageContent() {
                     </Button>
                   </Link>
                   <Link href="/auth/signup">
-                    <Button size="sm">Start 14-Day Free Trial</Button>
+                    <Button size="sm">Get Started</Button>
                   </Link>
                 </div>
               )}
@@ -427,7 +427,7 @@ function PricingPageContent() {
                       <div className="px-3">
                         <Link href="/auth/signup" onClick={() => setMobileMenuOpen(false)}>
                           <Button size="sm" className="w-full">
-                            Start 14-Day Free Trial
+                            Get Started
                           </Button>
                         </Link>
                       </div>
@@ -454,9 +454,8 @@ function PricingPageContent() {
           </div>
 
           <div className="mb-12 text-center">
-            <h1 className="mb-6 text-5xl font-black text-gray-900 sm:text-6xl">Start Your 14-Day Free Trial</h1>
-            <h2 className="mb-4 text-3xl font-bold text-gray-900">Choose Your Plan</h2>
-            <p className="text-xl text-gray-600">14-day free trial. Cancel anytime.</p>
+            <h1 className="mb-6 text-5xl font-black text-gray-900 sm:text-6xl">Choose Your Plan</h1>
+            <p className="text-xl text-gray-600">Cancel anytime.</p>
           </div>
 
           <div className="mx-auto grid max-w-7xl grid-cols-1 items-stretch gap-8 md:grid-cols-3">
@@ -572,7 +571,7 @@ function PricingPageContent() {
                   ) : (tier as any).buttonText ? (
                     (tier as any).buttonText
                   ) : (
-                    'Start 14 Days Free'
+                    'Get Started'
                   )}
                 </Button>
               </Card>
@@ -706,7 +705,7 @@ function PricingPageContent() {
             </div>
 
             <div className="mt-8 text-center text-sm text-gray-500">
-              <p>14-day free trial. Cancel anytime.</p>
+              <p>Cancel anytime.</p>
               <p className="mt-2">
                 Questions?{' '}
                 <Link href="/contact" className="text-blue-600 hover:underline">
