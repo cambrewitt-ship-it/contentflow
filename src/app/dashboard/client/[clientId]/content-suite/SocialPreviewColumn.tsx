@@ -1078,11 +1078,17 @@ export function SocialPreviewColumn({
                       {selectedPreviewPlatform === 'facebook' && (
                         <div className="flex items-center justify-between px-4 py-3">
                           <div className="flex items-center">
-                            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center overflow-hidden">
-                              <FacebookIcon size={20} className="text-white" />
-                            </div>
+                            {clientLogo ? (
+                              <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                                <img src={clientLogo} alt={clientName || 'Client'} className="w-full h-full object-cover" />
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                <FacebookIcon size={20} className="text-white" />
+                              </div>
+                            )}
                             <div className="ml-3">
-                              <div className="font-semibold text-gray-900 text-sm">Your Facebook</div>
+                              <div className="font-semibold text-gray-900 text-sm">{clientName || 'Your Facebook'}</div>
                               <div className="flex items-center text-xs text-gray-500">
                                 <span role="img" aria-label="globe">🌐</span>
                                 <span className="ml-1">Just now</span>
@@ -1096,11 +1102,17 @@ export function SocialPreviewColumn({
                       {selectedPreviewPlatform === 'instagram' && (
                         <div className="flex items-center justify-between px-3 py-3">
                           <div className="flex items-center">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center overflow-hidden">
-                              <InstagramIcon size={16} className="text-white" />
-                            </div>
+                            {clientLogo ? (
+                              <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                                <img src={clientLogo} alt={clientName || 'Client'} className="w-full h-full object-cover" />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                <InstagramIcon size={16} className="text-white" />
+                              </div>
+                            )}
                             <div className="ml-3">
-                              <div className="font-semibold text-gray-900 text-sm">your_instagram</div>
+                              <div className="font-semibold text-gray-900 text-sm">{clientName || 'your_instagram'}</div>
                             </div>
                           </div>
                           <div className="text-gray-400 text-lg">⋯</div>
@@ -1109,11 +1121,17 @@ export function SocialPreviewColumn({
 
                       {selectedPreviewPlatform === 'twitter' && (
                         <div className="flex items-center p-3 border-b border-gray-100">
-                          <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center overflow-hidden">
-                            <TwitterIcon size={20} className="text-white" />
-                          </div>
+                          {clientLogo ? (
+                            <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0">
+                              <img src={clientLogo} alt={clientName || 'Client'} className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-blue-400 flex items-center justify-center overflow-hidden flex-shrink-0">
+                              <TwitterIcon size={20} className="text-white" />
+                            </div>
+                          )}
                           <div className="ml-3 flex-1">
-                            <div className="font-semibold text-gray-900 text-sm">Your Twitter</div>
+                            <div className="font-semibold text-gray-900 text-sm">{clientName || 'Your Twitter'}</div>
                             <div className="text-xs text-gray-500">@yourhandle</div>
                           </div>
                           <div className="text-gray-400">⋯</div>

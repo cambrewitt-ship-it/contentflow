@@ -91,6 +91,12 @@ export default function ContactPage() {
               >
                 Contact
               </Link>
+              <Link
+                href="/blog"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Blog
+              </Link>
               {user ? (
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-muted-foreground">
@@ -166,6 +172,13 @@ export default function ContactPage() {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Contact
+                </Link>
+                <Link
+                  href="/blog"
+                  className="block px-3 py-2 text-base font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Blog
                 </Link>
 
                 <div className="pt-4 pb-3 border-t border-border/40">

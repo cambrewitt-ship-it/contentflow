@@ -54,6 +54,8 @@ export async function middleware(req: NextRequest) {
     '/features',
     '/contact',
     '/terms',
+    '/blog',
+    '/social-preview',
   ];
 
   // Define public API routes that don't require authentication
@@ -68,6 +70,7 @@ export async function middleware(req: NextRequest) {
   const publicDynamicPrefixes = [
     '/portal/',     // Client portal pages
     '/approval/',   // Approval pages with tokens
+    '/blog/',       // Blog article pages
   ];
 
   const pathname = req.nextUrl.pathname;

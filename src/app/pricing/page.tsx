@@ -306,6 +306,12 @@ function PricingPageContent() {
               <Link href="/contact" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
                 Contact
               </Link>
+              <Link href="/blog" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+                Blog
+              </Link>
+              <Link href="/social-preview" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+                Free Preview Tool
+              </Link>
               {user ? (
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-muted-foreground">
@@ -379,6 +385,20 @@ function PricingPageContent() {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Contact
+                </Link>
+                <Link
+                  href="/blog"
+                  className="block rounded-md px-3 py-2 text-base font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Blog
+                </Link>
+                <Link
+                  href="/social-preview"
+                  className="block rounded-md px-3 py-2 text-base font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Free Preview Tool
                 </Link>
 
                 <div className="border-t border-border/40 pb-3 pt-4">
@@ -487,6 +507,7 @@ function PricingPageContent() {
                       </span>
                       <span className="ml-2 text-gray-600">/month</span>
                     </div>
+                    <p className="text-xs text-gray-400 mt-1">Cancel anytime.</p>
                   </div>
 
                   <div className="mb-2 min-h-[40px]">

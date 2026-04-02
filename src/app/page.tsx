@@ -187,7 +187,7 @@ export default function Home() {
     price: tier.price,
     description: tier.description,
     highlighted: tier.highlighted,
-    buttonText: 'Start 14-Day Free Trial',
+    buttonText: 'Get Started',
   }));
 
   const renderComparisonValue = (value: string) => {
@@ -346,6 +346,12 @@ export default function Home() {
               <Link href="/contact" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                 Contact
               </Link>
+              <Link href="/blog" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                Blog
+              </Link>
+              <Link href="/social-preview" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                Free Preview Tool
+              </Link>
               {user ? (
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-muted-foreground">
@@ -414,14 +420,28 @@ export default function Home() {
                 >
                   Pricing
                 </a>
-                <Link 
-                  href="/contact" 
+                <Link
+                  href="/contact"
                   className="block px-3 py-2 text-base font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Contact
                 </Link>
-                
+                <Link
+                  href="/blog"
+                  className="block px-3 py-2 text-base font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Blog
+                </Link>
+                <Link
+                  href="/social-preview"
+                  className="block px-3 py-2 text-base font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Free Preview Tool
+                </Link>
+
                 {/* Auth Section */}
                 <div className="pt-4 pb-3 border-t border-border/40">
                   {user ? (
@@ -492,12 +512,7 @@ export default function Home() {
               </div>
             </div>
             <h1 className="text-5xl font-bold tracking-tight text-foreground sm:text-7xl">
-              Your AI pilot for<br />
-              social media managers
-              <br />
-              <span className={`${poppins.className} font-bold bg-gradient-to-r from-sky-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent pr-1`}>
-                work 3x faster
-              </span>
+              Helping marketing agencies manage social media 3x faster
             </h1>
             <div className="mt-10 max-w-2xl mx-auto px-4">
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -529,6 +544,27 @@ export default function Home() {
               <p className="text-center text-sm text-muted-foreground mt-3">
                 No credit card required. Try everything free for 14 days.
               </p>
+
+              {/* Social Proof Bar */}
+              <div className="mt-6 rounded-xl border border-white/20 bg-white/80 backdrop-blur-md shadow-lg px-6 py-5 -mx-8 sm:-mx-24 md:-mx-40">
+                <div className="flex flex-col sm:flex-row items-center justify-center text-center gap-6 sm:gap-10">
+                  <div className="flex flex-col items-center">
+                    <span className="text-3xl font-extrabold text-foreground">50+</span>
+                    <span className="text-sm text-muted-foreground mt-0.5">users</span>
+                  </div>
+                  <span className="hidden sm:block text-muted-foreground/30 text-xl">|</span>
+                  <div className="flex flex-col items-center">
+                    <span className="text-3xl font-extrabold text-foreground">1,000+</span>
+                    <span className="text-sm text-muted-foreground mt-0.5">posts created, approved &amp; scheduled</span>
+                  </div>
+                  <span className="hidden sm:block text-muted-foreground/30 text-xl">|</span>
+                  <div className="flex flex-col items-center">
+                    <span className="text-3xl font-extrabold text-foreground">300+</span>
+                    <span className="text-sm text-muted-foreground mt-0.5">hours saved</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex justify-center mt-8">
                 <p className="text-3xl sm:text-5xl font-bold text-foreground whitespace-nowrap">
                   Like ChatGPT for Social Media
@@ -631,6 +667,9 @@ export default function Home() {
                   Brand Voice AI + Content Calendar + Social Media Scheduler
                 </p>
               </div>
+              <p className="mt-4 text-xl leading-8 text-muted-foreground max-w-2xl mx-auto text-center">
+                Generate on-brand content for all your clients, schedule across every platform, and get approvals done — all in one place.
+              </p>
             </div>
           </div>
           
@@ -646,8 +685,8 @@ export default function Home() {
                         <Plug className="h-6 w-6 sm:h-7 sm:w-7" />
                       </div>
                       <h3 className="text-3xl sm:text-4xl font-semibold text-foreground leading-tight text-center lg:text-left">
-                        Plug in Your Brand
-                        <span className="block">Info and Voice</span>
+                        AI That Sounds Like Your Brand,
+                        <span className="block">Not a Robot</span>
                       </h3>
                     </div>
                   </div>
@@ -679,7 +718,7 @@ export default function Home() {
             </div>
             <div className="mt-8 text-center text-foreground">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                Get Content Ideas for your context
+                Never Stare at a Blank Content Calendar Again
               </h2>
               <p className="mt-4 text-xl leading-8 text-muted-foreground">
                 Kill writers block
@@ -748,7 +787,7 @@ export default function Home() {
             </div>
             <div className="mt-12 text-center text-foreground">
               <h2 className="text-4xl sm:text-5xl font-bold">
-                Shared Client Workspace
+                Live & Shared Content Workspace
               </h2>
               <p className="mt-4 text-xl text-muted-foreground">
                 Streamline content calendars and approvals with our client portal
@@ -766,7 +805,7 @@ export default function Home() {
             </div>
             <div className="mt-12 text-center text-foreground">
               <h2 className="text-3xl sm:text-5xl font-bold">
-                3x Your Productivity - Save Labour Costs
+                Handle More Clients Without Hiring More Staff
               </h2>
               <p className="mt-4 text-xl text-muted-foreground">
                 Automated with AI.
@@ -830,6 +869,7 @@ export default function Home() {
                       {tier.trialText && (
                         <p className="text-blue-600 text-sm font-medium mt-2">{tier.trialText}</p>
                       )}
+                      <p className="text-xs text-muted-foreground mt-1">Cancel anytime.</p>
                     </div>
                   </CardHeader>
 
@@ -854,7 +894,7 @@ export default function Home() {
                       }`}
                     >
                       <Link href="/auth/signup">
-                        Start 14-Day Free Trial
+                        Get Started
                       </Link>
                     </Button>
                   </div>

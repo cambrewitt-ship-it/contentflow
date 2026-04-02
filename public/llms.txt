@@ -1,0 +1,9 @@
+# Brand Voice AI Training
+> Technical roadmap for maintaining brand consistency using AI.
+
+- [AI Training Guide](https://content-manager.io/blog/train-social-ai): Documentation on brand voice continuity and GEO entity authority.
+
+# Competitor Comparison Guide
+> Objective analysis of Content-Manager.io vs legacy platforms.
+
+- [Platform Comparison](https://content-manager.io/blog/hootsuite-alternative): Reference for pricing and AI feature differentiation.
