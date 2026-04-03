@@ -22,9 +22,45 @@ const notoSans = Noto_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Content Manager - AI-Powered Social Media Management",
-  description: "Upload content, generate captions with AI, and schedule posts across all platforms. Built specifically for marketing agencies managing multiple clients.",
-  keywords: "social media management, AI captions, marketing agencies, content scheduling",
+  title: {
+    default: "Content Manager — AI Social Media Management for Marketing Agencies",
+    template: "%s | Content Manager",
+  },
+  description: "Content Manager helps marketing agencies generate on-brand content with AI, schedule across every platform, and streamline client approvals — all in one place. Start free.",
+  keywords: "social media management software, AI social media tool, marketing agency software, content scheduling, social media scheduler, AI content generation, brand voice AI, social media management for agencies",
+  metadataBase: new URL("https://content-manager.io"),
+  openGraph: {
+    type: "website",
+    siteName: "Content Manager",
+    title: "Content Manager — AI Social Media Management for Marketing Agencies",
+    description: "Generate on-brand content with AI, schedule across every platform, and manage client approvals — all in one place.",
+    url: "https://content-manager.io",
+    images: [
+      {
+        url: "/cm-logo.png",
+        width: 1200,
+        height: 630,
+        alt: "Content Manager — AI Social Media Management",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Content Manager — AI Social Media Management for Marketing Agencies",
+    description: "Generate on-brand content with AI, schedule across every platform, and manage client approvals — all in one place.",
+    images: ["/cm-logo.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 export default function RootLayout({

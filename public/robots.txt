@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Block auth and dashboard routes from indexing
+Disallow: /auth/
+Disallow: /dashboard/
+Disallow: /api/
+
+Sitemap: https://content-manager.io/sitemap.xml
