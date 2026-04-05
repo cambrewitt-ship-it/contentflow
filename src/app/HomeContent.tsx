@@ -94,6 +94,14 @@ const pricingTiers = [
   },
 ];
 
+const CURRENCIES = [
+  { code: 'USD', symbol: '$', flag: '🇺🇸', prices: [29, 51, 113] },
+  { code: 'NZD', symbol: '$', flag: '🇳🇿', prices: [50, 89, 199] },
+  { code: 'AUD', symbol: '$', flag: '🇦🇺', prices: [42, 74, 165] },
+  { code: 'EUR', symbol: '€', flag: '🇪🇺', prices: [25, 44, 98] },
+  { code: 'GBP', symbol: '£', flag: '🇬🇧', prices: [22, 39, 86] },
+];
+
 const comparisonSections = [
   {
     title: 'Core Features',
@@ -165,6 +173,7 @@ export default function HomeContent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoSrc, setVideoSrc] = useState('/Content-manager-demo.mp4');
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [selectedCurrency, setSelectedCurrency] = useState('USD');
 
   // Compute the correct dashboard URL based on subscription tier
   // Single-client tiers (Free, In-House) go directly to their client dashboard
@@ -181,10 +190,12 @@ export default function HomeContent() {
     return '/dashboard';
   }, [user, subscriptionTier, clients]);
 
-  const planColumns = pricingTiers.map((tier) => ({
+  const currency = CURRENCIES.find(c => c.code === selectedCurrency) ?? CURRENCIES[0];
+
+  const planColumns = pricingTiers.map((tier, idx) => ({
     id: tier.id,
     name: tier.name,
-    price: tier.price,
+    price: currency.prices[idx],
     description: tier.description,
     highlighted: tier.highlighted,
     buttonText: 'Get Started',
@@ -511,9 +522,14 @@ export default function HomeContent() {
                 />
               </div>
             </div>
-            <h1 className="text-5xl font-bold tracking-tight text-foreground sm:text-7xl">
-              Helping marketing agencies manage social media 3x faster
+            <h1 className="text-5xl tracking-tight sm:text-7xl" style={{ fontWeight: 900, WebkitTextStroke: '1px black' }}>
+              <span className="block text-black" style={{ lineHeight: '1', marginBottom: '-0.15em' }}>Manage <span className="text-blue-600 italic" style={{ WebkitTextStroke: '1px #2563eb' }}>weeks</span> of</span>
+              <span className="block text-black" style={{ lineHeight: '1', marginBottom: '-0.15em' }}>social media content</span>
+              <span className="block text-black" style={{ lineHeight: '1' }}>in <span className="text-blue-600 italic" style={{ WebkitTextStroke: '1px #2563eb' }}>10 minutes</span><span className="text-blue-600 not-italic" style={{ WebkitTextStroke: '1px #2563eb' }}>.</span></span>
             </h1>
+            <p className="mt-4 text-2xl font-normal text-gray-500">
+              AI social media software for marketing managers &amp; agencies
+            </p>
             <div className="mt-10 max-w-2xl mx-auto px-4">
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <input
@@ -541,8 +557,8 @@ export default function HomeContent() {
                   Start 14-Day Free Trial
                 </Button>
               </div>
-              <p className="text-center text-sm text-muted-foreground mt-3">
-                No credit card required. Try everything free for 14 days.
+              <p className="text-center text-xl font-black text-muted-foreground mt-3">
+                No credit card required.
               </p>
 
               {/* Social Proof Bar */}
@@ -716,24 +732,6 @@ export default function HomeContent() {
                 />
               </div>
             </div>
-            <div className="mt-8 text-center text-foreground">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                Never Stare at a Blank Content Calendar Again
-              </h2>
-              <p className="mt-4 text-xl leading-8 text-muted-foreground">
-                Kill writers block
-              </p>
-            </div>
-            <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
-              <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
-                <img
-                  src="/ideas-generator.png"
-                  alt="Content Ideas Screenshot"
-                  className="w-full h-auto rounded-lg max-w-4xl mx-auto"
-                />
-              </div>
-            </div>
             <div className="mt-12">
               <div className="mx-auto max-w-4xl text-center">
                 <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl mb-12">
@@ -785,6 +783,24 @@ export default function HomeContent() {
                 </div>
               </div>
             </div>
+            <div className="mt-8 text-center text-foreground">
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                Never Stare at a Blank Content Calendar Again
+              </h2>
+              <p className="mt-4 text-xl leading-8 text-muted-foreground">
+                Kill writers block
+              </p>
+            </div>
+            <div className="relative mt-6">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
+              <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
+                <img
+                  src="/ideas-generator.png"
+                  alt="Content Ideas Screenshot"
+                  className="w-full h-auto rounded-lg max-w-4xl mx-auto"
+                />
+              </div>
+            </div>
             <div className="mt-12 text-center text-foreground">
               <h2 className="text-4xl sm:text-5xl font-bold">
                 Live & Shared Content Workspace
@@ -830,16 +846,37 @@ export default function HomeContent() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              Start Your 14-Day Free Trial
+              Simple, Transparent Pricing
             </h2>
             <p className="mt-6 text-lg leading-8 text-muted-foreground">
-              14-day free trial. Cancel anytime.
+              Cancel anytime.
             </p>
           </div>
 
-          <div className="mt-16 mx-auto max-w-7xl">
+          <div className="mt-8 flex justify-center">
+            <div className="relative">
+              <select
+                value={selectedCurrency}
+                onChange={(e) => setSelectedCurrency(e.target.value)}
+                className="appearance-none bg-white border border-gray-200 rounded-lg pl-4 pr-10 py-2 text-sm font-medium text-gray-700 shadow-sm cursor-pointer hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.flag} {c.code}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 mx-auto max-w-7xl">
             <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-              {pricingTiers.map((tier) => (
+              {pricingTiers.map((tier, tierIndex) => (
                 <Card
                   key={tier.id}
                   className={`relative flex flex-col h-full ${
@@ -862,13 +899,10 @@ export default function HomeContent() {
                     <div className="mt-4">
                       <div className="flex items-baseline justify-center">
                         <span className="text-4xl font-extrabold text-foreground">
-                          ${tier.price}
+                          {currency.symbol}{currency.prices[tierIndex]}
                         </span>
-                        <span className="text-muted-foreground ml-2">/month</span>
+                        <span className="text-muted-foreground ml-2"> {selectedCurrency}/month</span>
                       </div>
-                      {tier.trialText && (
-                        <p className="text-blue-600 text-sm font-medium mt-2">{tier.trialText}</p>
-                      )}
                       <p className="text-xs text-muted-foreground mt-1">Cancel anytime.</p>
                     </div>
                   </CardHeader>
@@ -935,8 +969,8 @@ export default function HomeContent() {
                             )}
                             <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
                             <p className="text-3xl font-extrabold text-gray-900">
-                              ${plan.price}
-                              <span className="text-base font-medium text-gray-500">/month</span>
+                              {currency.symbol}{plan.price}
+                              <span className="text-base font-medium text-gray-500"> {selectedCurrency}/month</span>
                             </p>
                           </div>
                         </th>
@@ -1004,7 +1038,7 @@ export default function HomeContent() {
             </div>
 
             <div className="mt-8 text-center text-sm text-gray-500">
-              <p>14-day free trial. Cancel anytime.</p>
+              <p>Cancel anytime.</p>
               <p className="mt-2">
                 Questions?{' '}
                 <Link href="/contact" className="text-blue-600 hover:underline">
@@ -1050,8 +1084,8 @@ export default function HomeContent() {
                   Start 14-Day Free Trial
                 </Button>
               </div>
-              <p className="text-center text-sm text-muted-foreground mt-3">
-                No credit card required. Try everything free for 14 days.
+              <p className="text-center text-xl font-black text-muted-foreground mt-3">
+                No credit card required.
               </p>
             </div>
           </div>

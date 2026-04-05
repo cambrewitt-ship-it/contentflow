@@ -72,6 +72,14 @@ const tiers = [
   },
 ];
 
+const CURRENCIES = [
+  { code: 'USD', symbol: '$', flag: '🇺🇸', prices: [29, 51, 113] },
+  { code: 'NZD', symbol: '$', flag: '🇳🇿', prices: [50, 89, 199] },
+  { code: 'AUD', symbol: '$', flag: '🇦🇺', prices: [42, 74, 165] },
+  { code: 'EUR', symbol: '€', flag: '🇪🇺', prices: [25, 44, 98] },
+  { code: 'GBP', symbol: '£', flag: '🇬🇧', prices: [22, 39, 86] },
+];
+
 const comparisonSections = [
   {
     title: 'Core Features',
@@ -147,6 +155,7 @@ function PricingPageContent() {
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState('USD');
   const processedPriceIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -253,10 +262,12 @@ function PricingPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, searchParams]);
 
-  const planColumns = tiers.map((tier) => ({
+  const currency = CURRENCIES.find(c => c.code === selectedCurrency) ?? CURRENCIES[0];
+
+  const planColumns = tiers.map((tier, idx) => ({
     id: tier.id,
     name: tier.name,
-    price: tier.price,
+    price: currency.prices[idx],
     description: tier.description,
     highlighted: tier.highlighted,
     priceId: tier.priceId,
@@ -476,6 +487,26 @@ function PricingPageContent() {
           <div className="mb-12 text-center">
             <h1 className="mb-6 text-5xl font-black text-gray-900 sm:text-6xl">Choose Your Plan</h1>
             <p className="text-xl text-gray-600">Cancel anytime.</p>
+            <div className="mt-6 flex justify-center">
+              <div className="relative">
+                <select
+                  value={selectedCurrency}
+                  onChange={(e) => setSelectedCurrency(e.target.value)}
+                  className="appearance-none bg-white border border-gray-200 rounded-lg pl-4 pr-10 py-2 text-sm font-medium text-gray-700 shadow-sm cursor-pointer hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.flag} {c.code}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="mx-auto grid max-w-7xl grid-cols-1 items-stretch gap-8 md:grid-cols-3">
@@ -503,9 +534,9 @@ function PricingPageContent() {
                   <div className="mb-2 -mt-8 flex min-h-[120px] flex-col justify-start">
                     <div className="flex items-baseline">
                       <span className="text-5xl font-extrabold text-gray-900">
-                        ${tier.price}
+                        {currency.symbol}{currency.prices[tiers.indexOf(tier)]}
                       </span>
-                      <span className="ml-2 text-gray-600">/month</span>
+                      <span className="ml-2 text-gray-600"> {selectedCurrency}/month</span>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">Cancel anytime.</p>
                   </div>
@@ -630,8 +661,8 @@ function PricingPageContent() {
                             )}
                             <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
                             <p className="text-3xl font-extrabold text-gray-900">
-                              ${plan.price}
-                              <span className="text-base font-medium text-gray-500">/month</span>
+                              {currency.symbol}{plan.price}
+                              <span className="text-base font-medium text-gray-500"> {selectedCurrency}/month</span>
                             </p>
                           </div>
                         </th>
