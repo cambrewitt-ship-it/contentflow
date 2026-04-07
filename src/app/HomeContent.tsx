@@ -561,23 +561,19 @@ export default function HomeContent() {
                 No credit card required.
               </p>
 
-              {/* Social Proof Bar */}
-              <div className="mt-6 rounded-xl border border-white/20 bg-white/80 backdrop-blur-md shadow-lg px-6 py-5 -mx-8 sm:-mx-24 md:-mx-40">
-                <div className="flex flex-col sm:flex-row items-center justify-center text-center gap-6 sm:gap-10">
-                  <div className="flex flex-col items-center">
-                    <span className="text-3xl font-extrabold text-foreground">50+</span>
-                    <span className="text-sm text-muted-foreground mt-0.5">users</span>
-                  </div>
-                  <span className="hidden sm:block text-muted-foreground/30 text-xl">|</span>
-                  <div className="flex flex-col items-center">
-                    <span className="text-3xl font-extrabold text-foreground">1,000+</span>
-                    <span className="text-sm text-muted-foreground mt-0.5">posts created, approved &amp; scheduled</span>
-                  </div>
-                  <span className="hidden sm:block text-muted-foreground/30 text-xl">|</span>
-                  <div className="flex flex-col items-center">
-                    <span className="text-3xl font-extrabold text-foreground">300+</span>
-                    <span className="text-sm text-muted-foreground mt-0.5">hours saved</span>
-                  </div>
+              {/* Social Proof Cards */}
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 -mx-8 sm:-mx-24 md:-mx-40">
+                <div className="rounded-xl border border-white/20 bg-white/80 backdrop-blur-md shadow-lg px-6 py-5 flex flex-col items-center text-center">
+                  <span className="text-3xl font-extrabold text-foreground">50+</span>
+                  <span className="text-sm text-muted-foreground mt-0.5">users</span>
+                </div>
+                <div className="rounded-xl border border-white/20 bg-white/80 backdrop-blur-md shadow-lg px-6 py-5 flex flex-col items-center text-center">
+                  <span className="text-3xl font-extrabold text-foreground">1,000+</span>
+                  <span className="text-sm text-muted-foreground mt-0.5">posts created, approved &amp; scheduled</span>
+                </div>
+                <div className="rounded-xl border border-white/20 bg-white/80 backdrop-blur-md shadow-lg px-6 py-5 flex flex-col items-center text-center">
+                  <span className="text-3xl font-extrabold text-foreground">300+</span>
+                  <span className="text-sm text-muted-foreground mt-0.5">hours saved</span>
                 </div>
               </div>
 

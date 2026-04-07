@@ -7,6 +7,7 @@ import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import { ColumnViewCalendar } from '@/components/ColumnViewCalendar';
+import { CalendarEventModal, type CalendarEvent } from '@/components/CalendarEventModal';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
@@ -201,13 +202,18 @@ export default function CalendarPage() {
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
   const [viewMode, setViewMode] = useState<'month' | 'column'>('column');
   const calendarScrollRef = useRef<HTMLDivElement>(null);
+
+  // Calendar events / notes
+  const [calendarEvents, setCalendarEvents] = useState<{[dateKey: string]: CalendarEvent[]}>({});
+  const [eventModalDate, setEventModalDate] = useState<string | null>(null);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const clientPortalRef = useRef<HTMLDivElement>(null);
   const [showPlanRestrictionDialog, setShowPlanRestrictionDialog] = useState(false);
   const [planRestrictionMessage, setPlanRestrictionMessage] = useState(
     'Social media posting is not available on the free plan. Please upgrade to post to social media.'
   );
   
-  // Client Portal states
+  // Content Portal states
   const [portalToken, setPortalToken] = useState<string | null>(null);
   const [portalUrl, setPortalUrl] = useState<string | null>(null);
   const [generatingPortalLink, setGeneratingPortalLink] = useState(false);
@@ -264,6 +270,63 @@ export default function CalendarPage() {
       setError(error instanceof Error ? error.message : 'Failed to load connected accounts');
     }
   }, [clientId, requireAccessToken]); // Removed state dependencies to prevent recreation
+
+  const fetchCalendarEvents = useCallback(async () => {
+    try {
+      const accessToken = requireAccessToken();
+      const res = await fetch(`/api/calendar/events?clientId=${clientId}`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const grouped: {[dateKey: string]: CalendarEvent[]} = {};
+      for (const evt of (data.events ?? [])) {
+        if (!grouped[evt.date]) grouped[evt.date] = [];
+        grouped[evt.date].push(evt);
+      }
+      setCalendarEvents(grouped);
+    } catch { /* silent */ }
+  }, [clientId, requireAccessToken]);
+
+  const handleEventSave = (event: CalendarEvent) => {
+    setCalendarEvents(prev => {
+      const updated = { ...prev };
+      // Remove from all dates first (handles date changes)
+      for (const key of Object.keys(updated)) {
+        updated[key] = updated[key].filter(e => e.id !== event.id);
+        if (updated[key].length === 0) delete updated[key];
+      }
+      // Add to correct date
+      if (!updated[event.date]) updated[event.date] = [];
+      updated[event.date] = [...updated[event.date], event];
+      return updated;
+    });
+    setEventModalDate(null);
+    setEditingEvent(null);
+  };
+
+  const handleEventDelete = (eventId: string) => {
+    setCalendarEvents(prev => {
+      const updated = { ...prev };
+      for (const key of Object.keys(updated)) {
+        updated[key] = updated[key].filter(e => e.id !== eventId);
+        if (updated[key].length === 0) delete updated[key];
+      }
+      return updated;
+    });
+    setEventModalDate(null);
+    setEditingEvent(null);
+  };
+
+  const handleOpenEventModal = (dateKey: string) => {
+    setEditingEvent(null);
+    setEventModalDate(dateKey);
+  };
+
+  const handleEditEvent = (event: CalendarEvent) => {
+    setEditingEvent(event);
+    setEventModalDate(event.date);
+  };
 
   // Generate portal link
   const handleGeneratePortalLink = async () => {
@@ -324,7 +387,7 @@ export default function CalendarPage() {
     }
   };
 
-  // Scroll to Client Portal section
+  // Scroll to Content Portal section
   const handleScrollToClientPortal = () => {
     clientPortalRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -665,7 +728,8 @@ export default function CalendarPage() {
           fetchProjects(),
           fetchConnectedAccounts(),
           fetchUnscheduledPosts(true),
-          fetchScheduledPosts(0, true)
+          fetchScheduledPosts(0, true),
+          fetchCalendarEvents(),
         ]);
         
         console.log('✅ Calendar initialized with all data loaded');
@@ -2404,10 +2468,10 @@ export default function CalendarPage() {
               <button
                 onClick={handleScrollToClientPortal}
                 className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-teal-600 hover:bg-teal-700"
-                title="Scroll to Client Portal section"
+                title="Scroll to Content Portal section"
               >
                 <User className="w-4 h-4" />
-                Client Portal
+                Content Portal
               </button>
             </div>
             
@@ -2547,8 +2611,11 @@ export default function CalendarPage() {
               <MonthViewCalendar
                   posts={Object.values(scheduledPosts).flat()}
                   uploads={clientUploads}
+                  events={calendarEvents}
                   loading={isLoadingScheduledPosts}
                   onDateClick={handleDateClick}
+                  onEventAdd={handleOpenEventModal}
+                  onEventClick={handleEditEvent}
                   onDragOver={handleDragOver}
                   onDragEnter={handleDragEnter}
                   onDragLeave={handleDragLeave}
@@ -2590,6 +2657,7 @@ export default function CalendarPage() {
                   weeks={getWeeksToDisplay()}
                   scheduledPosts={scheduledPosts as any}
                   clientUploads={clientUploads}
+                  events={calendarEvents}
                   loading={isLoadingScheduledPosts}
                   formatWeekCommencing={formatWeekCommencing}
                   clientId={clientId}
@@ -2609,6 +2677,8 @@ export default function CalendarPage() {
                   onDeleteClientUpload={handleDeleteClientUpload as any}
                   onUpdateCaption={handleUpdateCaption as any}
                   savingCaptionPostIds={savingCaptionPostIds}
+                  onEventAdd={handleOpenEventModal}
+                  onEventClick={handleEditEvent}
                   onDrop={async (e: React.DragEvent, dateKey: string) => {
                     // Handle native HTML5 drag from unscheduled posts
                     const postData = e.dataTransfer.getData('post');
@@ -2772,9 +2842,9 @@ export default function CalendarPage() {
             )}
         </div>
 
-          {/* Client Portal Section */}
+          {/* Content Portal Section */}
           <div ref={clientPortalRef} className="mt-8 bg-white rounded-lg shadow p-8">
-            <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Client Portal</h3>
+            <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Content Portal</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -2876,6 +2946,18 @@ export default function CalendarPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Calendar Event Modal */}
+      {eventModalDate && (
+        <CalendarEventModal
+          date={eventModalDate}
+          event={editingEvent}
+          clientId={clientId}
+          onSave={handleEventSave}
+          onDelete={handleEventDelete}
+          onClose={() => { setEventModalDate(null); setEditingEvent(null); }}
+        />
+      )}
 
       {/* PDF Export Modal */}
       <PDFExportModal

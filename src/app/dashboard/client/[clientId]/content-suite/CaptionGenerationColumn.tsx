@@ -481,15 +481,15 @@ export function CaptionGenerationColumn() {
       </Card>
 
       <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
-        <DialogContent className="max-w-2xl bg-white">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl bg-white max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>AI Caption Rules</DialogTitle>
             <DialogDescription>
               Update the guardrails the AI uses when generating captions for this client. Changes apply across the entire dashboard.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6">
+          <div className="space-y-6 overflow-y-auto flex-1 pr-1">
             {rulesError && (
               <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 {rulesError}

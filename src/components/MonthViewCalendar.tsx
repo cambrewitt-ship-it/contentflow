@@ -1,8 +1,9 @@
 'use client'
 
-import { ChevronLeft, ChevronRight, Calendar, Upload } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, Upload, Plus, FileText, CalendarDays } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { SafeImage } from './SafeImage'
+import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal'
 
 interface Post {
   id: string;
@@ -29,8 +30,11 @@ interface Upload {
 interface MonthViewCalendarProps {
   posts: Post[];
   uploads?: {[key: string]: Upload[]};
+  events?: {[key: string]: CalendarEvent[]};
   loading?: boolean;
   onDateClick?: (date: Date) => void;
+  onEventAdd?: (dateKey: string) => void;
+  onEventClick?: (event: CalendarEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
   onDragEnter?: (e: React.DragEvent, dateKey: string) => void;
   onDragLeave?: (e: React.DragEvent, dateKey: string) => void;
@@ -38,11 +42,14 @@ interface MonthViewCalendarProps {
   dragOverDate?: string | null;
 }
 
-export function MonthViewCalendar({ 
-  posts, 
-  uploads = {}, 
-  loading = false, 
+export function MonthViewCalendar({
+  posts,
+  uploads = {},
+  events = {},
+  loading = false,
   onDateClick,
+  onEventAdd,
+  onEventClick,
   onDragOver,
   onDragEnter,
   onDragLeave,
@@ -116,9 +123,16 @@ export function MonthViewCalendar({
   // Get uploads for a specific day
   const getUploadsForDay = (day: number | null) => {
     if (!day) return []
-    
+
     const dateStr = `${calendarData.year}-${String(calendarData.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     return uploads[dateStr] || []
+  }
+
+  // Get events/notes for a specific day
+  const getEventsForDay = (day: number | null): CalendarEvent[] => {
+    if (!day) return []
+    const dateStr = `${calendarData.year}-${String(calendarData.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    return events[dateStr] || []
   }
 
   // Get status color for a post
@@ -328,7 +342,7 @@ export function MonthViewCalendar({
             <div
               key={index}
               className={`
-                relative min-h-[120px] p-3 transition-all
+                group relative min-h-[120px] p-3 transition-all
                 ${day ? 'hover:bg-blue-50 hover:border-blue-400 cursor-pointer' : 'bg-gray-50'}
                 ${today ? 'bg-gray-100' : ''}
                 ${inCurrentWeek && day ? 'bg-blue-50/30 ring-2 ring-blue-300 ring-inset' : ''}
@@ -370,7 +384,7 @@ export function MonthViewCalendar({
                 <>
                   {/* Day Number */}
                   <div className={`
-                    text-lg font-medium mb-2 flex items-center gap-2
+                    text-lg font-medium mb-2 flex items-center justify-between gap-2
                     ${today ? 'text-blue-600' : isWeekendColumn ? 'text-gray-500' : 'text-gray-900'}
                   `}>
                     {today ? (
@@ -452,7 +466,54 @@ export function MonthViewCalendar({
                       return null
                     })()}
                   </div>
-                  
+
+                  {/* Events & Notes */}
+                  {(() => {
+                    const dayEvents = getEventsForDay(day)
+                    if (dayEvents.length === 0 && !onEventAdd) return null
+                    return (
+                      <div className="mb-2 space-y-1">
+                        {dayEvents.map(evt => {
+                          const cls = EVENT_COLOR_CLASSES[evt.color] ?? EVENT_COLOR_CLASSES['purple']
+                          return (
+                            <button
+                              key={evt.id}
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation()
+                                onEventClick?.(evt)
+                              }}
+                              className={`w-full text-left px-2 py-0.5 rounded text-xs font-medium truncate border ${cls.bg} ${cls.text} ${cls.border} hover:opacity-80 transition-opacity`}
+                              title={evt.notes ?? evt.title}
+                            >
+                              <span className="inline-flex items-center gap-1">
+                                {evt.type === 'note'
+                                  ? <FileText className="w-2.5 h-2.5 flex-shrink-0" />
+                                  : <CalendarDays className="w-2.5 h-2.5 flex-shrink-0" />
+                                }
+                                <span className="truncate">{evt.title}</span>
+                              </span>
+                            </button>
+                          )
+                        })}
+                        {onEventAdd && dateKey && (
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation()
+                              onEventAdd(dateKey)
+                            }}
+                            className="w-full flex items-center gap-1 px-1.5 py-0.5 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-all"
+                            title="Add event or note"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Add</span>
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })()}
+
                   {/* Event Indicators - Full Spec Photos */}
                   {(dayPosts.length > 0 || dayUploads.length > 0) && (
                     <div className="space-y-2">

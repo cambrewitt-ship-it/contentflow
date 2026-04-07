@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download, Copy, Pencil, Check, X, Tag } from 'lucide-react';
+import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download, Copy, Pencil, Check, X, Tag, FileText, CalendarDays } from 'lucide-react';
+import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
 import { TagDropdownModal } from '@/components/TagDropdownModal';
@@ -81,6 +82,7 @@ interface ColumnViewCalendarProps {
   weeks: Date[];
   scheduledPosts: {[key: string]: Post[]};
   clientUploads?: {[key: string]: ClientUpload[]};
+  events?: {[key: string]: CalendarEvent[]};
   loading?: boolean;
   onPostMove?: (postKey: string, newDate: string) => void;
   onDateClick?: (date: Date) => void;
@@ -104,6 +106,8 @@ interface ColumnViewCalendarProps {
   onDeleteClientUpload?: (upload: ClientUpload) => void | Promise<void>;
   onUpdateCaption?: (post: Post, newCaption: string) => Promise<void>;
   savingCaptionPostIds?: Set<string>;
+  onEventAdd?: (dateKey: string) => void;
+  onEventClick?: (event: CalendarEvent) => void;
 }
 
 const normalizeToWeekStart = (input: Date) => {
@@ -906,6 +910,9 @@ function DroppableDayRow({
   isCurrentWeek,
   onUpdateCaption,
   savingCaptionPostIds,
+  dayEvents = [],
+  onEventAdd,
+  onEventClick,
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -934,6 +941,9 @@ function DroppableDayRow({
   isCurrentWeek?: boolean;
   onUpdateCaption?: (post: Post, newCaption: string) => Promise<void>;
   savingCaptionPostIds?: Set<string>;
+  dayEvents?: CalendarEvent[];
+  onEventAdd?: (dateKey: string) => void;
+  onEventClick?: (event: CalendarEvent) => void;
 }) {
   const router = useRouter();
   const { setNodeRef } = useDroppable({
@@ -1008,33 +1018,57 @@ function DroppableDayRow({
       }`}
     >
       {/* Day Header */}
-      <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-semibold uppercase ${
-            isTodayDay ? 'text-blue-700' : 'text-gray-700'
-          }`}>
-            {dayRow.dayName}
-          </span>
-          <span className={`text-xs ${
-            isTodayDay ? 'text-blue-600 font-bold' : 'text-gray-600'
-          }`}>
-            {getDayNumber(dayRow.dayDate)}
-          </span>
+      <div className="mb-2 pb-1 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-semibold uppercase ${
+              isTodayDay ? 'text-blue-700' : 'text-gray-700'
+            }`}>
+              {dayRow.dayName}
+            </span>
+            <span className={`text-xs ${
+              isTodayDay ? 'text-blue-600 font-bold' : 'text-gray-600'
+            }`}>
+              {getDayNumber(dayRow.dayDate)}
+            </span>
+          </div>
+          {onEventAdd && (
+            <button
+              type="button"
+              onClick={() => onEventAdd(dayRow.dateKey)}
+              className="px-2 py-0.5 text-xs font-medium text-purple-600 border border-purple-300 rounded hover:bg-purple-50 transition-colors"
+              title="Mark event or note"
+            >
+              Note
+</button>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (onAddUploadClick) {
-              onAddUploadClick(dayRow.dateKey);
-            } else if (clientId) {
-              router.push(`/dashboard/client/${clientId}/content-suite?scheduledDate=${dayRow.dateKey}`);
-            }
-          }}
-          className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-          aria-label="Add upload"
-        >
-          <Plus className="w-3 h-3" />
-        </button>
+
+        {/* Events & Notes for this day */}
+        {dayEvents.length > 0 && (
+          <div className="mt-1.5 space-y-1">
+            {dayEvents.map(evt => {
+              const cls = EVENT_COLOR_CLASSES[evt.color] ?? EVENT_COLOR_CLASSES['purple'];
+              return (
+                <button
+                  key={evt.id}
+                  type="button"
+                  onClick={() => onEventClick?.(evt)}
+                  className={`w-full text-left px-2 py-0.5 rounded text-xs font-medium truncate border ${cls.bg} ${cls.text} ${cls.border} hover:opacity-80 transition-opacity`}
+                  title={evt.notes ?? evt.title}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {evt.type === 'note'
+                      ? <FileText className="w-2.5 h-2.5 flex-shrink-0" />
+                      : <CalendarDays className="w-2.5 h-2.5 flex-shrink-0" />
+                    }
+                    <span className="truncate">{evt.title}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Posts in Day Row */}
@@ -1110,6 +1144,7 @@ export function ColumnViewCalendar({
   weeks,
   scheduledPosts,
   clientUploads = {},
+  events = {},
   loading = false,
   onPostMove,
   formatWeekCommencing,
@@ -1132,6 +1167,8 @@ export function ColumnViewCalendar({
   onDeleteClientUpload,
   onUpdateCaption,
   savingCaptionPostIds,
+  onEventAdd,
+  onEventClick,
 }: ColumnViewCalendarProps) {
   const clientUploadsMap = clientUploads ?? {};
   const VISIBLE_WEEK_COUNT = 5; // Show 5 weeks: 1 partial before, 3 main, 1 partial after
@@ -1494,6 +1531,9 @@ export function ColumnViewCalendar({
                         isCurrentWeek={isCurrent}
                         onUpdateCaption={onUpdateCaption}
                         savingCaptionPostIds={savingCaptionPostIds}
+                        dayEvents={events[dayRow.dateKey] ?? []}
+                        onEventAdd={onEventAdd}
+                        onEventClick={onEventClick}
                       />
                     );
                   })}

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import { PortalColumnViewCalendar } from '@/components/PortalColumnViewCalendar';
+import { type CalendarEvent } from '@/components/CalendarEventModal';
 import logger from '@/lib/logger';
 
 // Lazy loading image component
@@ -100,6 +101,7 @@ export default function PortalCalendarPage() {
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week
   const [scheduledPosts, setScheduledPosts] = useState<{[key: string]: Post[]}>({});
   const [uploads, setUploads] = useState<{[key: string]: Upload[]}>({});
+  const [calendarEvents, setCalendarEvents] = useState<{[key: string]: CalendarEvent[]}>({});
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingScheduledPosts, setIsLoadingScheduledPosts] = useState(false);
@@ -246,6 +248,7 @@ export default function PortalCalendarPage() {
       
       // The API already returns posts grouped by date, so we can use it directly
       setScheduledPosts(postsByDate);
+      setCalendarEvents(data.events || {});
       setLastFetchTime(Date.now());
       setIsLoadingScheduledPosts(false);
       setRefreshKey(prev => prev + 1);
@@ -1079,6 +1082,7 @@ export default function PortalCalendarPage() {
                   weeks={getWeeksToDisplay(3)}
                   scheduledPosts={scheduledPosts}
                   clientUploads={uploads}
+                  events={calendarEvents}
                   loading={isLoadingScheduledPosts}
                   onPostMove={handleColumnPostMove}
                   formatWeekCommencing={formatWeekCommencing}
@@ -1100,9 +1104,10 @@ export default function PortalCalendarPage() {
 
             {viewMode === 'month' && (
               <div className="bg-white rounded-lg shadow">
-                <MonthViewCalendar 
-                  posts={Object.values(scheduledPosts).flat()} 
+                <MonthViewCalendar
+                  posts={Object.values(scheduledPosts).flat()}
                   uploads={uploads}
+                  events={calendarEvents}
                   loading={isLoadingScheduledPosts}
                   onDateClick={handleDateClick}
                 />

@@ -5,11 +5,12 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PortalProvider, usePortal } from "../../../contexts/PortalContext";
-import { 
-  LogOut, 
+import {
+  LogOut,
   AlertCircle,
-  Loader2 
+  Loader2
 } from "lucide-react";
+import Link from "next/link";
 
 
 function PortalLayoutContent({ children, token }: { children: React.ReactNode; token: string }) {
@@ -85,11 +86,13 @@ function PortalLayoutContent({ children, token }: { children: React.ReactNode; t
           {/* Logo Section */}
           <div className="p-6 border-b border-border flex-shrink-0">
             <div className="flex items-center justify-center">
-              <img 
-                src="/cm-logo.png" 
-                alt="CM Logo" 
-                className="h-12 w-auto"
-              />
+              <Link href="/">
+                <img
+                  src="/cm-logo.png"
+                  alt="CM Logo"
+                  className="h-12 w-auto cursor-pointer"
+                />
+              </Link>
             </div>
           </div>
 
@@ -105,7 +108,7 @@ function PortalLayoutContent({ children, token }: { children: React.ReactNode; t
                 <h2 className="text-lg font-semibold text-card-foreground">
                   {client.name}
                 </h2>
-                <p className="text-sm text-muted-foreground">Client Portal</p>
+                <p className="text-sm text-muted-foreground">Content Portal</p>
               </div>
             </div>
           </div>

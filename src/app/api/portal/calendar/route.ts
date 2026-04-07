@@ -95,9 +95,23 @@ export async function GET(request: NextRequest) {
       return acc;
     }, {} as Record<string, any[]>);
 
+    // Fetch calendar events for this client
+    const { data: calendarEvents } = await supabase
+      .from('calendar_events')
+      .select('*')
+      .eq('client_id', client.id)
+      .order('date', { ascending: true });
+
+    const eventsByDate = (calendarEvents ?? []).reduce((acc: Record<string, any[]>, evt: any) => {
+      if (!acc[evt.date]) acc[evt.date] = [];
+      acc[evt.date].push(evt);
+      return acc;
+    }, {} as Record<string, any[]>);
+
     return NextResponse.json({
       client,
       posts: postsByDate,
+      events: eventsByDate,
       totalPosts: scheduledPosts.length,
       timezone: clientTimezone
     });

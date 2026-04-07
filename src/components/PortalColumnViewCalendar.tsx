@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, ChangeEvent } from 'react';
-import { Calendar, Plus, ArrowLeft, ArrowRight, CheckCircle, AlertTriangle, XCircle, Minus, Download, Trash2, Tag } from 'lucide-react';
+import { Calendar, Plus, ArrowLeft, ArrowRight, CheckCircle, AlertTriangle, XCircle, Minus, Download, Trash2, Tag, FileText, CalendarDays } from 'lucide-react';
+import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
 import { TagDropdownModal } from '@/components/TagDropdownModal';
@@ -64,6 +65,7 @@ interface PortalColumnViewCalendarProps {
   weeks: Date[];
   scheduledPosts: {[key: string]: Post[]};
   clientUploads?: {[key: string]: ClientUpload[]};
+  events?: {[key: string]: CalendarEvent[]};
   loading?: boolean;
   onPostMove?: (postKey: string, newDate: string) => void;
   onDateClick?: (date: Date) => void;
@@ -645,6 +647,7 @@ function DroppableDayRow({
   isCurrentWeek,
   uploading,
   uploadingForDate,
+  dayEvents = [],
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -673,6 +676,7 @@ function DroppableDayRow({
   isCurrentWeek?: boolean;
   uploading?: boolean;
   uploadingForDate?: string | null;
+  dayEvents?: CalendarEvent[];
 }) {
   const router = useRouter();
   const isUploadingToThisDate = uploading && uploadingForDate === dayRow.dateKey;
@@ -748,20 +752,21 @@ function DroppableDayRow({
       }`}
     >
       {/* Day Header */}
-      <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-semibold uppercase ${
-            isTodayDay ? 'text-blue-700' : 'text-gray-700'
-          }`}>
-            {dayRow.dayName}
-          </span>
-          <span className={`text-xs ${
-            isTodayDay ? 'text-blue-600 font-bold' : 'text-gray-600'
-          }`}>
-            {getDayNumber(dayRow.dayDate)}
-          </span>
-        </div>
-        <button
+      <div className="mb-2 pb-1 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-semibold uppercase ${
+              isTodayDay ? 'text-blue-700' : 'text-gray-700'
+            }`}>
+              {dayRow.dayName}
+            </span>
+            <span className={`text-xs ${
+              isTodayDay ? 'text-blue-600 font-bold' : 'text-gray-600'
+            }`}>
+              {getDayNumber(dayRow.dayDate)}
+            </span>
+          </div>
+          <button
           type="button"
           onClick={() => {
             if (isUploadingToThisDate) return;
@@ -785,6 +790,31 @@ function DroppableDayRow({
             <Plus className="w-3 h-3" />
           )}
         </button>
+        </div>
+
+        {/* Events & Notes (read-only) */}
+        {dayEvents.length > 0 && (
+          <div className="mt-1.5 space-y-1">
+            {dayEvents.map(evt => {
+              const cls = EVENT_COLOR_CLASSES[evt.color] ?? EVENT_COLOR_CLASSES['purple'];
+              return (
+                <div
+                  key={evt.id}
+                  className={`w-full px-2 py-0.5 rounded text-xs font-medium border ${cls.bg} ${cls.text} ${cls.border}`}
+                  title={evt.notes ?? evt.title}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {evt.type === 'note'
+                      ? <FileText className="w-2.5 h-2.5 flex-shrink-0" />
+                      : <CalendarDays className="w-2.5 h-2.5 flex-shrink-0" />
+                    }
+                    <span className="truncate">{evt.title}</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Posts in Day Row */}
@@ -872,6 +902,7 @@ export function PortalColumnViewCalendar({
   weeks,
   scheduledPosts,
   clientUploads = {},
+  events = {},
   loading = false,
   onPostMove,
   formatWeekCommencing,
@@ -1272,6 +1303,7 @@ export function PortalColumnViewCalendar({
                         isCurrentWeek={isCurrent}
                         uploading={uploading}
                         uploadingForDate={uploadingForDate}
+                        dayEvents={events[dayRow.dateKey] ?? []}
                       />
                     );
                   })}
