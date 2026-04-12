@@ -10,6 +10,7 @@ import BrandInformationPanel from '@/components/BrandInformationPanel'
 import { CompactMonthCalendar } from '@/components/CompactMonthCalendar'
 import { useAuth } from '@/contexts/AuthContext'
 import OnboardingChecklist from '@/components/OnboardingChecklist'
+import ClientViewToggle from '@/components/ClientViewToggle'
 import { Client, BrandDocument, WebsiteScrape, OAuthMessage } from '@/types/api'
 import { 
   FacebookIcon, 
@@ -952,8 +953,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-background">
+      <ClientViewToggle clientId={clientId} activeView="dashboard" />
+      <div className="px-8 pb-8 max-w-7xl mx-auto">
         {/* Onboarding Checklist */}
         <OnboardingChecklist clientId={clientId} />
 
@@ -1078,18 +1080,18 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             {/* Action Buttons Container - Takes ~45% of width, right edge aligns with Content Calendar */}
             <div className="flex-[0.9] flex gap-6">
               {/* Create Content Button */}
-              <Button 
-                onClick={() => window.location.href = `/dashboard/client/${clientId}/content-suite`}
+              <Button
+                onClick={() => router.push(`/dashboard/client/${clientId}/content-suite`)}
                 className="bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white flex-1 h-full font-bold shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
                 style={{ borderRadius: '16px' }}
               >
                 <Plus className="w-96 h-96 mb-3 stroke-[2.5]" />
                 <span className="text-xl font-bold">Create Content</span>
               </Button>
-              
+
               {/* Calendar Button */}
-              <Button 
-                onClick={() => window.location.href = `/dashboard/client/${clientId}/calendar`}
+              <Button
+                onClick={() => router.push(`/dashboard/client/${clientId}/calendar`)}
                 className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 hover:from-blue-600 hover:via-blue-700 hover:to-blue-800 text-white flex-1 h-full font-bold shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
                 style={{ borderRadius: '16px' }}
               >

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Plus, ArrowLeft, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle, FileDown } from 'lucide-react';
+import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle, FileDown } from 'lucide-react';
+import ClientViewToggle from '@/components/ClientViewToggle';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
@@ -2172,6 +2173,8 @@ export default function CalendarPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* View Toggle */}
+      <ClientViewToggle clientId={clientId} activeView="calendar" />
       <div className="p-6 pb-8">
       {/* Error Display */}
       {error && (
@@ -2200,81 +2203,31 @@ export default function CalendarPage() {
       )}
 
 
-      {/* Merged Header - Single Navigation Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 mb-4 rounded-lg shadow">
-        <div className="flex items-center justify-between">
-          {/* Left Section - Back Button + Title */}
-          <div className="flex items-center space-x-4">
-            <Link
-              href={`/dashboard/client/${clientId}`}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Link>
-            <div className="border-l border-gray-300 pl-4">
-              <h1 className="text-2xl font-bold text-gray-700">
-                Content Calendar
-              </h1>
-            </div>
-          </div>
-          
-          {/* Right Section - Dropdown + Create Button + User Profile */}
-          <div className="flex items-center space-x-4">
-            {/* Project Filter Dropdown */}
-            <select
-              value={selectedProjectFilter}
-              onChange={(e) => setSelectedProjectFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-            >
-              <option value="all">All Projects</option>
-              <option value="untagged">Untagged</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-            
-            {/* Create Content Button */}
-            <Link
-              href={`/dashboard/client/${clientId}/content-suite`}
-              className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white rounded-md shadow-sm hover:shadow-md transition-all duration-300"
-            >
-              <Plus className="w-5 h-5 mr-2 stroke-[2.5]" />
-              Create Content
-            </Link>
-            
-            {/* User Profile Info */}
-            <div className="flex items-center space-x-3 border-l border-gray-300 pl-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <User className="w-4 h-4 text-blue-700" />
-                </div>
-                <div className="hidden sm:block">
-                  <p className="text-sm font-medium text-gray-900">
-                    {user?.email?.split('@')[0] || 'User'}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {user?.email || ''}
-                  </p>
-                </div>
-              </div>
-              
-              {/* Settings Button */}
-              <Link href="/settings">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  title="Profile Settings"
-                >
-                  <Settings className="w-4 h-4" />
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
+      {/* Action Bar - Project filter + Create Content */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3 mb-4 rounded-lg shadow flex items-center justify-end gap-3">
+        {/* Project Filter Dropdown */}
+        <select
+          value={selectedProjectFilter}
+          onChange={(e) => setSelectedProjectFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+        >
+          <option value="all">All Projects</option>
+          <option value="untagged">Untagged</option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+
+        {/* Create Content Button */}
+        <Link
+          href={`/dashboard/client/${clientId}/content-suite`}
+          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white rounded-md shadow-sm hover:shadow-md transition-all duration-300"
+        >
+          <Plus className="w-5 h-5 mr-2 stroke-[2.5]" />
+          Create Content
+        </Link>
       </div>
 
         {/* Main Layout: Sidebar + Calendar Content */}
@@ -2846,8 +2799,8 @@ export default function CalendarPage() {
           <div ref={clientPortalRef} className="mt-8 bg-white rounded-lg shadow p-8">
             <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Content Portal</h3>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="min-w-0">
                   <h4 className="text-lg font-semibold text-gray-700">Portal Link</h4>
                   <p className="text-sm text-gray-600">
                     Generate a secure link for the client to access their portal
@@ -2856,7 +2809,7 @@ export default function CalendarPage() {
                 <Button
                   onClick={handleGeneratePortalLink}
                   disabled={generatingPortalLink}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
                 >
                   {generatingPortalLink ? (
                     <>
@@ -2874,12 +2827,12 @@ export default function CalendarPage() {
 
               {portalUrl && (
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center gap-4">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-700 mb-1">Portal URL:</p>
                       <p className="text-sm text-gray-600 break-all">{portalUrl}</p>
                     </div>
-                    <div className="flex items-center space-x-2 ml-4">
+                    <div className="flex items-center space-x-2 shrink-0">
                       <Button
                         onClick={handleCopyPortalLink}
                         variant="outline"

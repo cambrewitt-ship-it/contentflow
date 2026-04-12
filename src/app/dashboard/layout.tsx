@@ -155,8 +155,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
   
-  // Hide TopBar for pages that have their own merged headers
-  const hideTopBar = pathname?.includes('/calendar') || pathname?.includes('/content-suite');
+  const hideTopBar = false;
 
   return (
     <div className="h-screen bg-background overflow-hidden">

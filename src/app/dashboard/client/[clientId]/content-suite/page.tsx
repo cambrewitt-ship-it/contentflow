@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { ArrowLeft, Loader2, Plus, Calendar, Edit3, X, User, Settings, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Send } from 'lucide-react'
+import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Send, Settings } from 'lucide-react'
 import Link from 'next/link'
+import ClientViewToggle from '@/components/ClientViewToggle'
 import { SocialPreviewColumn } from './SocialPreviewColumn'
 import { ContentIdeasColumn } from './ContentIdeasColumn'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -1360,6 +1361,12 @@ function ContentSuiteContent({
 
       setRulesForm(nextRules)
       setInitialRules(nextRules)
+      setClient(prev => prev ? {
+        ...prev,
+        caption_dos: nextRules.captionDos,
+        caption_donts: nextRules.captionDonts,
+        brand_voice_examples: nextRules.brandVoiceExamples,
+      } : prev)
       setRulesSuccess('AI caption rules updated successfully.')
     } catch (error) {
       setRulesError(error instanceof Error ? error.message : 'Failed to update AI caption rules.')
@@ -1644,83 +1651,26 @@ function ContentSuiteContent({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Merged Header - Single Navigation Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          {/* Left Section - Back Button + Title */}
-          <div className="flex items-center space-x-4">
-            <Link
-              href={`/dashboard/client/${clientId}`}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Link>
-            <div className="border-l border-gray-300 pl-4">
-              <h1 className="text-2xl font-bold text-gray-700">
-                {isEditing ? 'Edit Post' : 'Content Suite'}
-              </h1>
-              {isEditing && (
-                <p className="text-sm text-gray-500">
-                  Edit your scheduled post content
-                </p>
-              )}
-            </div>
+      {/* View Toggle */}
+      <ClientViewToggle clientId={clientId} activeView="content-suite" />
+
+      {/* Action bar */}
+      {isEditing && (
+        <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-700">Edit Post</h1>
+            <p className="text-sm text-gray-500">Edit your scheduled post content</p>
           </div>
-          
-          {/* Right Section - Action Buttons + User Profile */}
-          <div className="flex items-center space-x-4">
-            {/* Action Button */}
-            {isEditing ? (
-              <Button
-                onClick={handleCancelEdit}
-                variant="outline"
-                className="text-gray-700"
-              >
-                <X className="w-4 h-4 mr-2" />
-                Cancel Edit
-              </Button>
-            ) : (
-              <Link
-                href={`/dashboard/client/${clientId}/calendar`}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-sm hover:shadow-md transition-all duration-300"
-              >
-                <Calendar className="w-4 h-4 mr-2" />
-                View Calendar
-              </Link>
-            )}
-            
-            {/* User Profile Info */}
-            <div className="flex items-center space-x-3 border-l border-gray-300 pl-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <User className="w-4 h-4 text-blue-700" />
-                </div>
-                <div className="hidden sm:block">
-                  <p className="text-sm font-medium text-gray-900">
-                    {user?.email?.split('@')[0] || 'User'}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {user?.email || ''}
-                  </p>
-                </div>
-              </div>
-              
-              {/* Settings Button */}
-              <Link href="/settings">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  title="Profile Settings"
-                >
-                  <Settings className="w-4 h-4" />
-                </Button>
-              </Link>
-            </div>
-          </div>
+          <Button
+            onClick={handleCancelEdit}
+            variant="outline"
+            className="text-gray-700"
+          >
+            <X className="w-4 h-4 mr-2" />
+            Cancel Edit
+          </Button>
         </div>
-      </div>
+      )}
 
       {/* Edit Banner */}
       {isEditing && (
@@ -1863,15 +1813,31 @@ function ContentSuiteContent({
               <Card className="flex flex-col overflow-hidden w-full h-full min-h-[600px]">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="card-title-26">Content Creation</CardTitle>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setShowSettingsModal(true)}
-                    aria-label="Edit AI caption rules"
-                    className="text-gray-500 hover:text-gray-800"
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Settings
-                  </Button>
+                  <div className="flex flex-col items-end gap-1">
+                    {!client?.brand_voice_examples && !client?.caption_dos && !client?.caption_donts && (
+                      <button
+                        onClick={() => setShowSettingsModal(true)}
+                        className="flex items-center gap-1 text-xs text-orange-600 font-medium bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5 hover:bg-orange-100 transition-colors"
+                      >
+                        <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                        Configure Your Brand Voice
+                      </button>
+                    )}
+                    <div className="relative">
+                      <Button
+                        variant="ghost"
+                        onClick={() => setShowSettingsModal(true)}
+                        aria-label="Edit AI caption rules"
+                        className="text-gray-500 hover:text-gray-800"
+                      >
+                        <Settings className="w-4 h-4 mr-2" />
+                        Settings
+                      </Button>
+                      {!client?.brand_voice_examples && !client?.caption_dos && !client?.caption_donts && (
+                        <span className="absolute top-1 left-1 w-2 h-2 rounded-full bg-red-500 pointer-events-none" />
+                      )}
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col overflow-y-auto">
                   {/* Top Section - Natural Height */}

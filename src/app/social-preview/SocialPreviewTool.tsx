@@ -163,16 +163,16 @@ export default function SocialPreviewTool() {
 
   // Facebook Advert CTA bar
   const FbAdCTA = () => (
-    <div className="border-t border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between">
-      <div className="flex-1 min-w-0 pr-3">
+    <div className="border-t border-gray-200 bg-[#f0f2f5] px-3 py-2.5 flex items-center justify-between gap-3">
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] text-gray-500 uppercase tracking-wide leading-tight">yourwebsite.com</p>
         {headline ? (
-          <p className="text-sm font-semibold text-gray-900 truncate">{headline}</p>
+          <p className="text-[13px] font-semibold text-gray-900 leading-snug mt-0.5">{headline}</p>
         ) : (
-          <p className="text-sm font-semibold text-gray-400 italic truncate">Your Headline</p>
+          <p className="text-[13px] font-semibold text-gray-400 italic leading-snug mt-0.5">Your Headline</p>
         )}
-        <p className="text-xs text-gray-500">yourwebsite.com</p>
       </div>
-      <button className="flex-shrink-0 bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+      <button className="flex-shrink-0 bg-[#e4e6eb] hover:bg-[#d8dadf] text-[#050505] text-[13px] font-semibold px-3 py-1.5 rounded-[6px] transition-colors whitespace-nowrap">
         {ctaText}
       </button>
     </div>
@@ -189,56 +189,124 @@ export default function SocialPreviewTool() {
   )
 
   // ── Facebook preview ──────────────────────────────────────────────────────────
+  const FbGlobe = () => (
+    <svg viewBox="0 0 16 16" fill="none" stroke="#65676b" strokeWidth="1.2" strokeLinecap="round" className="w-3.5 h-3.5 flex-shrink-0">
+      <circle cx="8" cy="8" r="6.5"/>
+      <ellipse cx="8" cy="8" rx="2.8" ry="6.5"/>
+      <line x1="1.5" y1="8" x2="14.5" y2="8"/>
+      <path d="M2.2 5h11.6M2.2 11h11.6" strokeWidth="1"/>
+    </svg>
+  )
+
   const renderFacebookPreview = () => (
-    <div className="bg-white max-w-sm mx-auto overflow-hidden shadow-sm" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center">
+    <div className="bg-white max-w-sm mx-auto overflow-hidden shadow-sm" style={{ fontFamily: 'Roboto, "Helvetica Neue", Arial, sans-serif' }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5">
+        <div className="flex items-center gap-2.5">
           {renderAvatar('md', 'facebook')}
-          <div className="ml-3">
-            <div className="font-semibold text-gray-900 text-sm">{displayName}</div>
-            <div className="flex items-center text-xs text-gray-500">
+          <div>
+            <div className="font-semibold text-[#050505] text-[15px] leading-tight">{displayName}</div>
+            <div className="flex items-center gap-1 text-[13px] text-[#65676b] leading-tight">
               {isAdvert ? (
-                <span className="text-gray-500 font-medium">Sponsored · <span role="img" aria-label="globe">🌐</span></span>
+                <>
+                  <span>Sponsored</span>
+                  <span>·</span>
+                  <FbGlobe />
+                </>
               ) : (
-                <><span role="img" aria-label="globe">🌐</span><span className="ml-1">Just now</span></>
+                <>
+                  <span>Just now</span>
+                  <span>·</span>
+                  <FbGlobe />
+                </>
               )}
             </div>
           </div>
         </div>
-        <div className="text-gray-400 text-lg">⋯</div>
+        {/* Three dots */}
+        <div className="flex items-center gap-2">
+          <button className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#65676b" className="w-5 h-5">
+              <circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/>
+            </svg>
+          </button>
+        </div>
       </div>
+
+      {/* Caption */}
       {caption && (
         <div className="px-4 pb-3">
-          <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap break-words">{caption}</p>
+          <p className="text-[#050505] text-[15px] leading-[1.34] whitespace-pre-wrap break-words">{caption}</p>
         </div>
       )}
+
+      {/* Image */}
       {postImage ? (
         <div className="flex items-center justify-center bg-gray-50" style={{ maxHeight: '360px' }}>
           <img src={postImage} alt="Post" className="w-full object-contain" style={{ maxHeight: '360px' }} />
         </div>
       ) : (
-        <div className="mx-0 mb-0 h-44 bg-gray-100 flex items-center justify-center border-y-2 border-dashed border-gray-200">
+        <div className="h-44 bg-gray-100 flex items-center justify-center border-y-2 border-dashed border-gray-200">
           <div className="text-center text-gray-400"><ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-40" /><p className="text-xs">Image preview</p></div>
         </div>
       )}
+
+      {/* Ad CTA */}
       {isAdvert && <FbAdCTA />}
-      <div className="px-4 py-2 border-t border-gray-100">
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <div className="flex items-center">
+
+      {/* Reactions row */}
+      <div className="px-4 py-2 border-t border-[#ced0d4]">
+        <div className="flex items-center justify-between text-[13px] text-[#65676b]">
+          <div className="flex items-center gap-1.5">
+            {/* Reaction bubbles */}
             <div className="flex -space-x-1">
-              <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M7.493 18.75c-.425 0-.82-.236-.975-.632A7.48 7.48 0 016 15.375c0-1.75.599-3.358 1.602-4.634.151-.192.373-.309.6-.397.473-.183.89-.514 1.212-.924a9.042 9.042 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75 2.25 2.25 0 012.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558-.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H14.23c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23h-.777zM2.331 10.977a11.969 11.969 0 00-.831 4.398 12 12 0 00.52 3.507c.26.85 1.084 1.368 1.973 1.368H4.9c.445 0 .72-.498.523-.898a8.963 8.963 0 01-.924-3.977c0-1.708.476-3.305 1.302-4.666.245-.403-.028-.959-.5-.959H4.25c-.832 0-1.612.453-1.918 1.227z" /></svg>
-              <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" /></svg>
+              <div className="w-[18px] h-[18px] rounded-full bg-[#1877f2] flex items-center justify-center ring-1 ring-white">
+                <svg viewBox="0 0 16 16" fill="white" className="w-2.5 h-2.5">
+                  <path d="M8 1.5a.5.5 0 01.5.5v1.793l.354-.353a.5.5 0 01.707.707L8 5.707 6.439 4.147a.5.5 0 01.707-.707l.354.353V2a.5.5 0 01.5-.5zM4.864 6.5H3a1.5 1.5 0 000 3h.086l.82 3.276A1 1 0 004.877 14H11a1 1 0 001-1v-2.81l1.243-2.486A1 1 0 0013 7.5h-1.864A2.5 2.5 0 008.5 5h-1a2.5 2.5 0 00-2.636 1.5z"/>
+                </svg>
+              </div>
+              <div className="w-[18px] h-[18px] rounded-full bg-[#f33e58] flex items-center justify-center ring-1 ring-white">
+                <svg viewBox="0 0 16 16" fill="white" className="w-2.5 h-2.5">
+                  <path fillRule="evenodd" d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314z"/>
+                </svg>
+              </div>
             </div>
-            <span className="ml-2">436</span>
+            <span>436</span>
           </div>
-          <div className="flex items-center space-x-4"><span>54 Comments</span><span>8 Shares</span></div>
+          <div className="flex items-center gap-3">
+            <span>54 Comments</span>
+            <span>8 Shares</span>
+          </div>
         </div>
       </div>
-      <div className="px-2 py-2 border-t border-gray-100">
-        <div className="flex items-center justify-around">
-          {['Like', 'Comment', 'Share'].map((a) => (
-            <button key={a} className="flex-1 py-2 px-3 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors">{a}</button>
-          ))}
+
+      {/* Action buttons */}
+      <div className="px-2 py-1 border-t border-[#ced0d4]">
+        <div className="flex">
+          {/* Like */}
+          <button className="flex-1 flex items-center justify-center gap-1.5 py-2 hover:bg-[#f2f2f2] rounded-lg transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#65676b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
+              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
+              <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+            </svg>
+            <span className="text-[#65676b] text-[13px] font-semibold">Like</span>
+          </button>
+          {/* Comment */}
+          <button className="flex-1 flex items-center justify-center gap-1.5 py-2 hover:bg-[#f2f2f2] rounded-lg transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#65676b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span className="text-[#65676b] text-[13px] font-semibold">Comment</span>
+          </button>
+          {/* Share */}
+          <button className="flex-1 flex items-center justify-center gap-1.5 py-2 hover:bg-[#f2f2f2] rounded-lg transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#65676b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+              <polyline points="16 6 12 2 8 6"/>
+              <line x1="12" y1="2" x2="12" y2="15"/>
+            </svg>
+            <span className="text-[#65676b] text-[13px] font-semibold">Share</span>
+          </button>
         </div>
       </div>
     </div>
