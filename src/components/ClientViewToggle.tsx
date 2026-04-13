@@ -16,7 +16,7 @@ export default function ClientViewToggle({ clientId, activeView }: ClientViewTog
   const views: { id: View; label: string; icon: React.ReactNode; href: string }[] = [
     {
       id: 'dashboard',
-      label: 'Client Dashboard',
+      label: 'Brand Dashboard',
       icon: <LayoutDashboard className="w-4 h-4" />,
       href: `/dashboard/client/${clientId}`,
     },

@@ -2,13 +2,17 @@
 
 import { useState, useEffect, useRef, useCallback, ChangeEvent, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns, Inbox, Upload, Image as ImageIcon, Film, Trash2, Sparkles, File } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import { PortalColumnViewCalendar } from '@/components/PortalColumnViewCalendar';
+import { PortalContentInbox } from '@/components/PortalContentInbox';
+import { PortalKanbanBoard, type KanbanItem } from '@/components/PortalKanbanBoard';
+import { PortalItemModal, type ModalItem } from '@/components/PortalItemModal';
 import { type CalendarEvent } from '@/components/CalendarEventModal';
+import { usePortal } from '@/contexts/PortalContext';
 import logger from '@/lib/logger';
 
 // Lazy loading image component
@@ -97,6 +101,10 @@ interface Upload {
 export default function PortalCalendarPage() {
   const params = useParams();
   const token = params?.token as string;
+  const { party } = usePortal();
+
+  // Modal state
+  const [modalItem, setModalItem] = useState<ModalItem | null>(null);
   
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week
   const [scheduledPosts, setScheduledPosts] = useState<{[key: string]: Post[]}>({});
@@ -139,7 +147,21 @@ export default function PortalCalendarPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
   // View mode state
-  const [viewMode, setViewMode] = useState<'column' | 'month'>('column');
+  const [viewMode, setViewMode] = useState<'column' | 'month' | 'kanban' | 'inbox'>('column');
+  const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0);
+  const [queueRefreshKey, setQueueRefreshKey] = useState(0);
+  const [monthDragOverDate, setMonthDragOverDate] = useState<string | null>(null);
+
+  // Inbox-specific states
+  const [inboxUploading, setInboxUploading] = useState(false);
+  const [inboxDragOver, setInboxDragOver] = useState(false);
+  const [inboxNotes, setInboxNotes] = useState('');
+  const [inboxCaptionPrompt, setInboxCaptionPrompt] = useState('');
+  const [inboxTargetDate, setInboxTargetDate] = useState('');
+  const [inboxUploads, setInboxUploads] = useState<Upload[]>([]);
+  const [isLoadingInbox, setIsLoadingInbox] = useState(false);
+  const [inboxError, setInboxError] = useState<string | null>(null);
+  const inboxFileInputRef = useRef<HTMLInputElement | null>(null);
   
   // Client timezone for calendar display
   const [clientTimezone, setClientTimezone] = useState<string>('Pacific/Auckland');
@@ -444,7 +466,7 @@ export default function PortalCalendarPage() {
   // Get file icon
   const getFileIcon = (fileType: string) => {
     if (fileType.startsWith('image/')) {
-      return <Image className="h-8 w-8 text-blue-600" />;
+      return <ImageIcon className="h-8 w-8 text-blue-600" />;
     }
     return <File className="h-8 w-8 text-gray-600" />;
   };
@@ -510,6 +532,113 @@ export default function PortalCalendarPage() {
 
     void handleDeleteUpload(upload.id, uploadDateKey);
   };
+
+  // Inbox: fetch all uploads as a flat list
+  const fetchInboxUploads = useCallback(async () => {
+    if (!token) return;
+    setIsLoadingInbox(true);
+    setInboxError(null);
+    try {
+      const response = await fetch(`/api/portal/upload?token=${encodeURIComponent(token)}`);
+      if (!response.ok) throw new Error('Failed to fetch uploads');
+      const data = await response.json();
+      setInboxUploads(data.uploads || []);
+    } catch (err) {
+      logger.error('Error fetching inbox uploads:', err);
+      setInboxError('Failed to load uploads');
+    } finally {
+      setIsLoadingInbox(false);
+    }
+  }, [token]);
+
+  // Inbox: handle file upload(s) with notes + caption prompt attached
+  const handleInboxUpload = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+    setInboxUploading(true);
+    try {
+      for (const file of fileArray) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        // Combine notes + caption prompt into the notes field
+        const combinedNotes = [
+          inboxNotes.trim() ? `Notes: ${inboxNotes.trim()}` : '',
+          inboxCaptionPrompt.trim() ? `Caption Brief: ${inboxCaptionPrompt.trim()}` : '',
+        ].filter(Boolean).join('\n\n') || null;
+
+        const response = await fetch('/api/portal/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            fileUrl: base64,
+            notes: combinedNotes,
+            targetDate: inboxTargetDate || null,
+          }),
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || `Failed to upload ${file.name}`);
+        }
+      }
+      // Clear form, refresh list
+      setInboxNotes('');
+      setInboxCaptionPrompt('');
+      setInboxTargetDate('');
+      await fetchInboxUploads();
+    } catch (err) {
+      logger.error('Inbox upload error:', err);
+      alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setInboxUploading(false);
+    }
+  };
+
+  const handleInboxDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setInboxDragOver(true);
+  };
+
+  const handleInboxDragLeave = () => setInboxDragOver(false);
+
+  const handleInboxDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setInboxDragOver(false);
+    await handleInboxUpload(e.dataTransfer.files);
+  };
+
+  // Inbox: delete an upload
+  const handleInboxDelete = async (uploadId: string) => {
+    if (!confirm('Delete this upload? This cannot be undone.')) return;
+    try {
+      const response = await fetch('/api/portal/upload', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, uploadId }),
+      });
+      if (!response.ok) throw new Error('Failed to delete');
+      setInboxUploads(prev => prev.filter(u => u.id !== uploadId));
+    } catch (err) {
+      logger.error('Error deleting inbox upload:', err);
+      alert('Failed to delete upload.');
+    }
+  };
+
+  // Fetch inbox uploads when switching to inbox view
+  useEffect(() => {
+    if (viewMode === 'inbox' && token) {
+      fetchInboxUploads();
+    }
+  }, [viewMode, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDeletePost = async (postId: string, postDate: string) => {
     if (!confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
@@ -885,21 +1014,23 @@ export default function PortalCalendarPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-card-foreground">Content Calendar</h2>
+          <h2 className="text-2xl font-semibold text-card-foreground">
+            {viewMode === 'inbox' ? 'Content Inbox' : viewMode === 'kanban' ? 'Content Pipeline' : 'Content Calendar'}
+          </h2>
           <p className="text-muted-foreground">
             View your scheduled posts, upload content, and manage your content calendar
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Button 
+        <div className="flex items-center gap-2">
+          <Button
             onClick={() => {
               if (!isLoadingScheduledPosts && !isLoadingUploads) {
                 fetchScheduledPosts(0, true);
                 fetchUploads();
               }
-            }} 
+            }}
             disabled={isLoadingScheduledPosts || isLoadingUploads}
-            variant="outline" 
+            variant="outline"
             size="sm"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${(isLoadingScheduledPosts || isLoadingUploads) ? 'animate-spin' : ''}`} />
@@ -987,93 +1118,255 @@ export default function PortalCalendarPage() {
         </div>
       )}
 
-      {/* Approval Status Summary */}
-      {Object.keys(scheduledPosts).length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <h3 className="text-lg font-semibold mb-4">Approval Status Summary</h3>
-          <div className="grid grid-cols-4 gap-4">
-            {(() => {
-              const allPosts = Object.values(scheduledPosts).flat();
-              const approved = allPosts.filter(p => p.approval_status === 'approved').length;
-              const rejected = allPosts.filter(p => p.approval_status === 'rejected').length;
-              const needsAttention = allPosts.filter(p => p.approval_status === 'needs_attention').length;
-              const pending = allPosts.filter(p => p.approval_status === 'pending' || !p.approval_status).length;
-              
-              return (
-                <>
-                  <div className="bg-green-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
-                    <div className="flex items-center mb-2">
-                      <Check className="w-4 h-4 text-green-600 mr-2" />
-                      <span className="text-sm font-medium text-green-800">Approved</span>
-                    </div>
-                    <div className="text-lg font-bold text-green-900">{approved}</div>
-                  </div>
-                  <div className="bg-red-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
-                    <div className="flex items-center mb-2">
-                      <X className="w-4 h-4 text-red-600 mr-2" />
-                      <span className="text-sm font-medium text-red-800">Rejected</span>
-                    </div>
-                    <div className="text-lg font-bold text-red-900">{rejected}</div>
-                  </div>
-                  <div className="bg-orange-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
-                    <div className="flex items-center mb-2">
-                      <AlertTriangle className="w-4 h-4 text-orange-600 mr-2" />
-                      <span className="text-sm font-medium text-orange-800">Needs Attention</span>
-                    </div>
-                    <div className="text-lg font-bold text-orange-900">{needsAttention}</div>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
-                    <div className="flex items-center mb-2">
-                      <Minus className="w-4 h-4 text-gray-600 mr-2" />
-                      <span className="text-sm font-medium text-gray-800">Pending</span>
-                    </div>
-                    <div className="text-lg font-bold text-gray-900">{pending}</div>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
+
+      {/* Content Inbox View */}
+      {viewMode === 'inbox' && (
+        <div className="space-y-6">
+          {/* Upload Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">Upload Media</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {/* Drag & Drop Zone */}
+              <div
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer flex flex-col items-center justify-center gap-2 ${
+                  inboxDragOver
+                    ? 'border-primary bg-primary/5'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+                onDragOver={handleInboxDragOver}
+                onDragLeave={handleInboxDragLeave}
+                onDrop={handleInboxDrop}
+                onClick={() => inboxFileInputRef.current?.click()}
+              >
+                {inboxUploading ? (
+                  <>
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Uploading...</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-5xl font-light text-gray-400 leading-none">+</div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Drag & drop files here, or click to browse
+                    </p>
+                    <p className="text-xs text-gray-400">Images, videos, PDFs up to 50MB</p>
+                  </>
+                )}
+                <input
+                  ref={inboxFileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,video/*,.pdf"
+                  className="hidden"
+                  onChange={e => {
+                    if (e.target.files?.length) handleInboxUpload(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+
+              {/* Target Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Target Date <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="date"
+                  value={inboxTargetDate}
+                  onChange={e => setInboxTargetDate(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <Textarea
+                  value={inboxNotes}
+                  onChange={e => setInboxNotes(e.target.value)}
+                  placeholder="Add context, references, or instructions for this content..."
+                  className="min-h-[90px] resize-none border-2 border-gray-200 focus:border-primary"
+                />
+              </div>
+
+              {/* AI Caption Prompt */}
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  Caption Brief
+                </label>
+                <Textarea
+                  value={inboxCaptionPrompt}
+                  onChange={e => setInboxCaptionPrompt(e.target.value)}
+                  placeholder="Describe what you want the caption to communicate — key messages, tone, call-to-action, hashtags, etc. The team will use this to generate the copy."
+                  className="min-h-[90px] resize-none border-2 border-blue-300 focus:border-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  This brief will be passed to the content team as AI generation context.
+                </p>
+              </div>
+
+              <Button
+                onClick={() => inboxFileInputRef.current?.click()}
+                disabled={inboxUploading}
+                className="w-full"
+              >
+                {inboxUploading ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
+                ) : (
+                  <><Upload className="w-4 h-4 mr-2" /> Upload Files</>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Uploaded Files */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-lg font-semibold">Uploaded Files</CardTitle>
+              {isLoadingInbox && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            </CardHeader>
+            <CardContent>
+              {inboxError && (
+                <p className="text-sm text-destructive mb-4">{inboxError}</p>
+              )}
+              {!isLoadingInbox && inboxUploads.length === 0 && (
+                <div className="text-center py-10 text-muted-foreground">
+                  <Inbox className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No uploads yet. Use the form above to send files to the team.</p>
+                </div>
+              )}
+              {inboxUploads.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {inboxUploads.map(upload => {
+                    const isImage = upload.file_type?.startsWith('image/');
+                    const isVideo = upload.file_type?.startsWith('video/');
+                    return (
+                      <div key={upload.id} className="border rounded-lg overflow-hidden bg-gray-50 flex flex-col">
+                        {/* Thumbnail */}
+                        <div className="aspect-video bg-gray-200 flex items-center justify-center relative overflow-hidden">
+                          {isImage ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={upload.file_url}
+                              alt={upload.file_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : isVideo ? (
+                            <div className="flex flex-col items-center gap-2 text-gray-500">
+                              <Film className="h-8 w-8" />
+                              <span className="text-xs">Video</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-2 text-gray-500">
+                              <File className="h-8 w-8" />
+                              <span className="text-xs">{upload.file_type?.split('/')[1]?.toUpperCase() ?? 'File'}</span>
+                            </div>
+                          )}
+                          {/* Status badge */}
+                          <span className={`absolute top-2 right-2 px-2 py-0.5 text-xs rounded-full font-medium ${
+                            upload.status === 'completed' || upload.status === 'published' ? 'bg-green-100 text-green-800' :
+                            upload.status === 'in_use' ? 'bg-blue-100 text-blue-800' :
+                            upload.status === 'unassigned' ? 'bg-gray-100 text-gray-700' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {upload.status === 'unassigned' ? 'Received' :
+                             upload.status === 'in_use' ? 'In Use' :
+                             upload.status === 'published' ? 'Published' :
+                             upload.status === 'completed' ? 'Done' :
+                             upload.status ?? 'Pending'}
+                          </span>
+                        </div>
+                        {/* Info */}
+                        <div className="p-3 flex flex-col gap-1 flex-1">
+                          <p className="text-sm font-medium text-gray-800 truncate" title={upload.file_name}>
+                            {upload.file_name}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {new Date(upload.created_at).toLocaleDateString('en-GB', {
+                              day: 'numeric', month: 'short', year: 'numeric'
+                            })}
+                            {' · '}
+                            {upload.file_size ? `${(upload.file_size / (1024 * 1024)).toFixed(1)} MB` : ''}
+                          </p>
+                          {upload.notes && (
+                            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{upload.notes}</p>
+                          )}
+                        </div>
+                        {/* Actions */}
+                        <div className="px-3 pb-3">
+                          <button
+                            onClick={() => handleInboxDelete(upload.id)}
+                            className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3 h-3" /> Delete
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 
+      {/* Content Inbox — above the calendar */}
+      {viewMode !== 'inbox' && (
+        <PortalContentInbox
+          token={token}
+          viewMode={viewMode === 'inbox' ? 'column' : viewMode as 'column' | 'month' | 'kanban'}
+          onViewModeChange={(mode) => setViewMode(mode)}
+          refreshTrigger={queueRefreshKey}
+          onCalendarSuccess={() => {
+            fetchUploads();
+            fetchScheduledPosts(0, true);
+            setKanbanRefreshKey(k => k + 1);
+          }}
+          onQueueItemClick={(upload) =>
+            setModalItem({ type: 'upload', data: upload })
+          }
+          statusSummary={(() => {
+            const allPosts = Object.values(scheduledPosts).flat();
+            return {
+              approved: allPosts.filter(p => p.approval_status === 'approved').length,
+              rejected: allPosts.filter(p => p.approval_status === 'rejected').length,
+              needsAttention: allPosts.filter(p => p.approval_status === 'needs_attention').length,
+              pending: allPosts.filter(p => p.approval_status === 'pending' || !p.approval_status).length,
+            };
+          })()}
+        />
+      )}
+
+      {/* Kanban Board */}
+      {viewMode === 'kanban' && (
+        <PortalKanbanBoard
+          token={token}
+          refreshTrigger={kanbanRefreshKey}
+          onStatusChange={() => setQueueRefreshKey(k => k + 1)}
+          onItemClick={(item: KanbanItem) =>
+            setModalItem({
+              type: 'upload',
+              data: {
+                id: item.id,
+                file_name: item.file_name,
+                file_type: item.file_type,
+                file_url: item.file_url,
+                notes: item.notes,
+                created_at: item.created_at,
+                target_date: null,
+              },
+            })
+          }
+        />
+      )}
+
       {/* Calendar */}
+      {(viewMode === 'column' || viewMode === 'month') && (
       <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-4">
-          <div className="flex items-center justify-center mb-4 gap-4 flex-wrap">
-            <div>
-              <h2 className="text-lg font-semibold">
-                Content Calendar - {viewMode === 'column' ? 'Column' : 'Month'} View
-              </h2>
-            </div>
-            <div className="flex items-center justify-center">
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode('column')}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                    viewMode === 'column' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Columns className="w-4 h-4" />
-                  Column
-                </button>
-                <button
-                  onClick={() => setViewMode('month')}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                    viewMode === 'month' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Calendar className="w-4 h-4" />
-                  Month
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        
         <div className="p-4 space-y-4">
           <div className="">
             {viewMode === 'column' && (
@@ -1098,9 +1391,58 @@ export default function PortalCalendarPage() {
                   deletingUploadIds={deletingUploadIds}
                   uploading={uploading}
                   uploadingForDate={pendingColumnUploadDate}
+                  onPostClick={(post) => {
+                    const isUpload =
+                      post.post_type === 'client-upload' ||
+                      post.post_type === 'client_upload' ||
+                      (post as any).isClientUpload;
+                    if (isUpload) {
+                      const uploadData = (post as any).client_upload || (post as any).upload || post;
+                      setModalItem({
+                        type: 'upload',
+                        data: {
+                          id: post.id,
+                          file_name: uploadData.file_name || post.caption || 'Upload',
+                          file_type: uploadData.file_type || 'image/jpeg',
+                          file_url: uploadData.file_url || post.image_url || '',
+                          notes: uploadData.notes || null,
+                          created_at: uploadData.created_at || new Date().toISOString(),
+                          target_date: uploadData.target_date ?? null,
+                        },
+                      });
+                    } else {
+                      setModalItem({
+                        type: 'post',
+                        data: {
+                          id: post.id,
+                          caption: post.caption,
+                          image_url: post.image_url,
+                          scheduled_date: post.scheduled_date,
+                          scheduled_time: post.scheduled_time ?? null,
+                          approval_status: post.approval_status,
+                          approval_steps: post.approval_steps,
+                          platforms_scheduled: post.platforms_scheduled,
+                        },
+                      });
+                    }
+                  }}
+                  onQueueItemDrop={async (uploadId, dateKey) => {
+                    try {
+                      await fetch('/api/portal/upload', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token, uploadId, targetDate: dateKey }),
+                      });
+                      fetchUploads();
+                      setKanbanRefreshKey(k => k + 1);
+                      setQueueRefreshKey(k => k + 1);
+                    } catch {
+                      // silent fail — user can retry
+                    }
+                  }}
                 />
-                              </div>
-                            )}
+              </div>
+            )}
 
             {viewMode === 'month' && (
               <div className="bg-white rounded-lg shadow">
@@ -1110,13 +1452,43 @@ export default function PortalCalendarPage() {
                   events={calendarEvents}
                   loading={isLoadingScheduledPosts}
                   onDateClick={handleDateClick}
+                  dragOverDate={monthDragOverDate}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDragEnter={(e, dateKey) => {
+                    e.preventDefault();
+                    setMonthDragOverDate(dateKey);
+                  }}
+                  onDragLeave={(_e, _dateKey) => {
+                    setMonthDragOverDate(null);
+                  }}
+                  onDrop={async (e, date) => {
+                    setMonthDragOverDate(null);
+                    const queueData = e.dataTransfer.getData('text/portal-upload');
+                    if (!queueData) return;
+                    try {
+                      const upload = JSON.parse(queueData);
+                      const dateKey = date.toLocaleDateString('en-CA');
+                      await fetch('/api/portal/upload', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token, uploadId: upload.id, targetDate: dateKey }),
+                      });
+                      fetchUploads();
+                      setQueueRefreshKey(k => k + 1);
+                    } catch {
+                      // silent fail
+                    }
+                  }}
                 />
               </div>
             )}
           </div>
         </div>
-
       </div>
+      )}
 
       <input
         ref={columnUploadInputRef}
@@ -1135,6 +1507,23 @@ export default function PortalCalendarPage() {
             <span className="text-green-800 font-medium">{successMessage}</span>
           </div>
         </div>
+      )}
+
+      {/* Trello-style item modal */}
+      {modalItem && (
+        <PortalItemModal
+          item={modalItem}
+          portalToken={token}
+          party={party}
+          onClose={() => setModalItem(null)}
+          onActioned={() => {
+            setModalItem(null);
+            fetchScheduledPosts(0, true);
+            fetchUploads();
+            setKanbanRefreshKey(k => k + 1);
+            setQueueRefreshKey(k => k + 1);
+          }}
+        />
       )}
     </div>
   );

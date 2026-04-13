@@ -71,6 +71,7 @@ interface PortalColumnViewCalendarProps {
   onDateClick?: (date: Date) => void;
   formatWeekCommencing: (weekStart: Date) => string;
   onDrop?: (e: React.DragEvent, dateKey: string) => void;
+  onQueueItemDrop?: (uploadId: string, dateKey: string) => void;
   clientId?: string;
   handleEditScheduledPost?: (post: any, newTime: string) => Promise<void>;
   editingPostId?: string | null;
@@ -89,6 +90,7 @@ interface PortalColumnViewCalendarProps {
   deletingUploadIds?: Set<string>;
   uploading?: boolean;
   uploadingForDate?: string | null;
+  onPostClick?: (post: Post) => void;
 }
 
 // Lazy loading image component
@@ -187,6 +189,7 @@ function SortablePostCard({
   onDeleteClientUpload?: (upload: ClientUpload) => void;
   deletingUploadIds?: Set<string>;
   clientId?: string;
+  onPostClick?: (post: Post) => void;
 }) {
   const isClientUpload =
     post.post_type === 'client-upload' ||
@@ -302,6 +305,33 @@ function SortablePostCard({
     return date.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' });
   };
 
+  // Render per-party approval chips when a pipeline exists
+  const renderPipelineChips = () => {
+    const steps: Array<{ id: string; step_order: number; status: string; party: { name: string; color: string | null } | null }> = post.approval_steps || [];
+    if (steps.length === 0) return null;
+    return (
+      <div className="flex flex-wrap gap-1 mt-1">
+        {steps.map(step => (
+          <span
+            key={step.id}
+            className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+              step.status === 'approved'
+                ? 'bg-green-100 text-green-700'
+                : step.status === 'rejected'
+                ? 'bg-red-100 text-red-700'
+                : step.status === 'changes_requested'
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-muted text-muted-foreground'
+            }`}
+          >
+            {step.status === 'approved' ? '✓ ' : step.status === 'rejected' ? '✗ ' : '· '}
+            {step.party?.name ?? `Step ${step.step_order}`}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   const renderApprovalStatusBadge = () => {
     const status = post.approval_status || 'pending';
     const baseClasses = "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium";
@@ -369,7 +399,8 @@ function SortablePostCard({
       <div
         ref={setNodeRef}
         style={style}
-        className={`rounded-lg border-2 border-blue-300 bg-blue-50 p-3 mb-2 transition-all duration-200 ${
+        onClick={() => onPostClick?.(post)}
+        className={`rounded-lg border-2 border-blue-300 bg-blue-50 p-3 mb-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
           isDragging ? 'opacity-50' : ''
         } ${isDeletingUpload ? 'opacity-60 pointer-events-none' : ''}`}
       >
@@ -435,8 +466,9 @@ function SortablePostCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`rounded-lg border-2 p-3 mb-2 transition-all duration-200 cursor-grab active:cursor-grabbing hover:shadow-md ${getCardStyling()} ${
-        isDragging ? 'opacity-50 scale-105' : ''
+      onClick={() => onPostClick?.(post)}
+      className={`rounded-lg border-2 p-3 mb-2 transition-all duration-200 cursor-pointer hover:shadow-md ${getCardStyling()} ${
+        isDragging ? 'opacity-50 scale-105 cursor-grabbing' : ''
       } ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''}`}
     >
       {/* Header with Date and Status */}
@@ -452,6 +484,7 @@ function SortablePostCard({
           )}
         </div>
         {renderApprovalStatusBadge()}
+        {renderPipelineChips()}
       </div>
 
       {/* Post Image */}
@@ -501,7 +534,7 @@ function SortablePostCard({
       )}
 
       {/* Approval Actions */}
-      <div className="mt-2 space-y-3">
+      <div className="mt-2 space-y-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex gap-1">
           <button
             type="button"
@@ -648,6 +681,8 @@ function DroppableDayRow({
   uploading,
   uploadingForDate,
   dayEvents = [],
+  onPostClick,
+  onQueueItemDrop,
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -677,6 +712,8 @@ function DroppableDayRow({
   uploading?: boolean;
   uploadingForDate?: string | null;
   dayEvents?: CalendarEvent[];
+  onPostClick?: (post: Post) => void;
+  onQueueItemDrop?: (uploadId: string, dateKey: string) => void;
 }) {
   const router = useRouter();
   const isUploadingToThisDate = uploading && uploadingForDate === dayRow.dateKey;
@@ -693,6 +730,7 @@ function DroppableDayRow({
   const handleNativeDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
     setIsNativeDragOver(true);
     if (onNativeDragOver) {
       onNativeDragOver(e);
@@ -729,6 +767,21 @@ function DroppableDayRow({
     e.preventDefault();
     e.stopPropagation();
     setIsNativeDragOver(false);
+
+    // Check for queue upload drag first
+    const queueData = e.dataTransfer.getData("text/portal-upload");
+    if (queueData) {
+      try {
+        const upload = JSON.parse(queueData);
+        if (upload?.id && onQueueItemDrop) {
+          onQueueItemDrop(upload.id, dayRow.dateKey);
+          return;
+        }
+      } catch {
+        // fall through to regular drop
+      }
+    }
+
     if (onNativeDrop) {
       onNativeDrop(e, dayRow.dateKey);
     }
@@ -879,6 +932,7 @@ function DroppableDayRow({
                     onDeleteClientUpload={onDeleteClientUpload}
                     deletingUploadIds={deletingUploadIds}
                     clientId={clientId}
+                    onPostClick={onPostClick}
                   />
                 );
               })}
@@ -907,6 +961,7 @@ export function PortalColumnViewCalendar({
   onPostMove,
   formatWeekCommencing,
   onDrop,
+  onQueueItemDrop,
   clientId,
   handleEditScheduledPost,
   editingPostId,
@@ -925,6 +980,7 @@ export function PortalColumnViewCalendar({
   deletingUploadIds,
   uploading,
   uploadingForDate,
+  onPostClick,
 }: PortalColumnViewCalendarProps) {
   const clientUploadsMap = clientUploads ?? {};
   const VISIBLE_WEEK_COUNT = 5; // Show 5 weeks: 1 partial before, 3 main, 1 partial after
@@ -1304,6 +1360,8 @@ export function PortalColumnViewCalendar({
                         uploading={uploading}
                         uploadingForDate={uploadingForDate}
                         dayEvents={events[dayRow.dateKey] ?? []}
+                        onPostClick={onPostClick}
+                        onQueueItemDrop={onQueueItemDrop}
                       />
                     );
                   })}

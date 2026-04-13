@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,18 +7,19 @@ import { PortalProvider, usePortal } from "../../../contexts/PortalContext";
 import {
   LogOut,
   AlertCircle,
-  Loader2
+  Loader2,
+  Calendar,
 } from "lucide-react";
 import Link from "next/link";
 
 
 function PortalLayoutContent({ children, token }: { children: React.ReactNode; token: string }) {
-  const { client, isLoading, error, logout } = usePortal();
+  const { client, party, isLoading, error, logout } = usePortal();
   const pathname = usePathname();
   const router = useRouter();
 
   const tabs: Array<{ id: string; label: string; icon: any; path: string }> = [
-    // All navigation tabs have been removed as their corresponding pages were deleted
+    { id: 'calendar', label: 'Calendar', icon: Calendar, path: '' },
   ];
 
   const handleLogout = () => {
@@ -111,6 +111,18 @@ function PortalLayoutContent({ children, token }: { children: React.ReactNode; t
                 <p className="text-sm text-muted-foreground">Content Portal</p>
               </div>
             </div>
+            {/* Party identity badge */}
+            {party && (
+              <div className="mt-3 flex items-center gap-2">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: party.color ?? '#6366f1' }}
+                />
+                <span className="text-xs text-muted-foreground">
+                  Viewing as <span className="font-medium text-foreground">{party.name}</span>
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Navigation */}
@@ -118,21 +130,22 @@ function PortalLayoutContent({ children, token }: { children: React.ReactNode; t
             <nav className="space-y-2">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
-                const isActive = pathname?.includes(tab.path) ?? false;
-                
+                const tabFullPath = `/portal/${token}${tab.path}`;
+                // Root tab: exact match; others: suffix match
+                const isActive = tab.path === ''
+                  ? pathname === tabFullPath
+                  : pathname?.startsWith(tabFullPath) ?? false;
+
                 return (
                   <Button
                     key={tab.id}
                     variant={isActive ? "default" : "ghost"}
                     className={`w-full justify-start flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
-                      isActive 
-                        ? "bg-primary text-primary-foreground shadow-sm" 
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-sm"
                         : "hover:bg-accent hover:text-accent-foreground"
                     }`}
-                    onClick={() => {
-                      const newPath = `/portal/${token}${tab.path}`;
-                      router.push(newPath);
-                    }}
+                    onClick={() => router.push(tabFullPath)}
                   >
                     <Icon className="h-5 w-5" />
                     <span>{tab.label}</span>
@@ -159,10 +172,22 @@ function PortalLayoutContent({ children, token }: { children: React.ReactNode; t
         <div className="flex flex-col min-h-0 overflow-hidden">
           {/* Header - Always visible */}
           <header className="bg-card border-b border-border shadow-sm flex-shrink-0">
-            <div className="px-6 py-4">
+            <div className="px-6 py-4 flex items-center justify-between">
               <h1 className="text-2xl font-semibold text-card-foreground">
-                {tabs.find(tab => pathname?.includes(tab.path))?.label || 'Content Portal'}
+                {tabs.find(tab =>
+                  tab.path === ''
+                    ? pathname === `/portal/${token}`
+                    : pathname?.startsWith(`/portal/${token}${tab.path}`)
+                )?.label || 'Content Portal'}
               </h1>
+              {party && (
+                <div
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium text-white"
+                  style={{ backgroundColor: party.color ?? '#6366f1' }}
+                >
+                  <span>{party.name}</span>
+                </div>
+              )}
             </div>
           </header>
 

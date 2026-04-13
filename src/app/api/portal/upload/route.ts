@@ -94,22 +94,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get client info from portal token
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('portal_token', token)
-      .single();
+    // Resolve token — supports both legacy client tokens and party tokens
+    const { resolvePortalToken } = await import('@/lib/portalAuth');
+    const resolved = await resolvePortalToken(token);
 
-    if (clientError || !client) {
+    if (!resolved) {
       return NextResponse.json(
         { error: 'Invalid portal token' },
         { status: 401 }
       );
     }
 
-    // Get client uploads (content inbox)
-    const { data: uploads, error: uploadsError } = await supabase
+    // Get client uploads — try with new columns first, fall back to basic query if they don't exist yet
+    let uploads: any[] | null = null;
+    let uploadsError: any = null;
+
+    ({ data: uploads, error: uploadsError } = await supabase
       .from('client_uploads')
       .select(`
         id,
@@ -121,11 +121,28 @@ export async function GET(request: NextRequest) {
         file_url,
         status,
         notes,
+        target_date,
         created_at,
-        updated_at
+        updated_at,
+        uploaded_by_party:uploaded_by_party_id (
+          id,
+          name,
+          role,
+          color
+        )
       `)
-      .eq('client_id', client.id)
-      .order('created_at', { ascending: false });
+      .eq('client_id', resolved.clientId)
+      .order('created_at', { ascending: false }));
+
+    // If new columns don't exist yet, fall back to basic query
+    if (uploadsError) {
+      logger.debug('Falling back to basic uploads query (new columns may not exist yet)');
+      ({ data: uploads, error: uploadsError } = await supabase
+        .from('client_uploads')
+        .select('id, client_id, project_id, file_name, file_type, file_size, file_url, status, notes, created_at, updated_at')
+        .eq('client_id', resolved.clientId)
+        .order('created_at', { ascending: false }));
+    }
 
     if (uploadsError) {
       logger.error('Error fetching uploads:', uploadsError);
@@ -136,7 +153,6 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      client,
       uploads: uploads || []
     });
   } catch (error) {
@@ -174,43 +190,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get client info from portal token
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('portal_token', token)
-      .single();
+    // Resolve token — supports both legacy client tokens and party tokens
+    const { resolvePortalToken } = await import('@/lib/portalAuth');
+    const resolved = await resolvePortalToken(token);
 
-    if (clientError || !client) {
+    if (!resolved) {
       return NextResponse.json(
         { error: 'Invalid portal token' },
         { status: 401 }
       );
     }
 
-    // Create upload record with target date
-    const uploadData: any = {
-      client_id: client.id,
-      project_id: null, // Will be set when content is processed
+    // Build upload record — try with new columns first, fall back if they don't exist yet
+    const baseUploadData: any = {
+      client_id: resolved.clientId,
+      project_id: null,
       file_name: fileName,
       file_type: fileType || 'unknown',
       file_size: fileSize || 0,
       file_url: fileUrl,
       status: 'pending',
-      notes: notes || null
+      notes: notes || null,
     };
 
-    // If targetDate is provided, set the created_at to that date
     if (targetDate) {
       const targetDateTime = new Date(targetDate + 'T00:00:00.000Z');
-      uploadData.created_at = targetDateTime.toISOString();
+      baseUploadData.created_at = targetDateTime.toISOString();
     }
 
-    const { data: upload, error: uploadError } = await supabase
+    const uploadDataWithNewCols = {
+      ...baseUploadData,
+      status: 'unassigned',
+      uploaded_by_party_id: resolved.party?.id ?? null,
+      target_date: targetDate ?? null,
+    };
+
+    let upload: any = null;
+    let uploadError: any = null;
+
+    ({ data: upload, error: uploadError } = await supabase
       .from('client_uploads')
-      .insert(uploadData)
+      .insert(uploadDataWithNewCols)
       .select()
-      .single();
+      .single());
+
+    // If new columns don't exist yet, fall back to basic insert
+    if (uploadError) {
+      logger.debug('Falling back to basic upload insert (new columns may not exist yet)');
+      ({ data: upload, error: uploadError } = await supabase
+        .from('client_uploads')
+        .insert(baseUploadData)
+        .select()
+        .single());
+    }
 
     if (uploadError) {
       logger.error('Error creating upload:', uploadError);
@@ -235,7 +267,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { token, uploadId, notes, newDate } = await request.json();
+    const { token, uploadId, notes, newDate, status, targetDate } = await request.json();
 
     if (!token || !uploadId) {
       return NextResponse.json(
@@ -244,29 +276,17 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Get client info from portal token
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .select('id, portal_enabled')
-      .eq('portal_token', token)
-      .single();
+    // Use resolvePortalToken to support both client and party tokens
+    const { resolvePortalToken } = await import('@/lib/portalAuth');
+    const resolved = await resolvePortalToken(token);
 
-    if (clientError || !client) {
+    if (!resolved) {
       return NextResponse.json(
         { error: 'Invalid portal token' },
         { status: 401 }
       );
     }
 
-    // Check if portal is enabled
-    if (!client.portal_enabled) {
-      return NextResponse.json(
-        { error: 'Portal access is disabled' },
-        { status: 401 }
-      );
-    }
-
-    // Update upload notes and/or date
     const updateData: any = {
       updated_at: new Date().toISOString()
     };
@@ -274,25 +294,37 @@ export async function PATCH(request: NextRequest) {
     if (notes !== undefined) {
       updateData.notes = notes || null;
     }
-    
+
     if (newDate) {
-      // Convert the date string to a proper date for the created_at field
-      const targetDate = new Date(newDate + 'T00:00:00.000Z');
-      updateData.created_at = targetDate.toISOString();
+      const newDateTime = new Date(newDate + 'T00:00:00.000Z');
+      updateData.created_at = newDateTime.toISOString();
+    }
+
+    if (status !== undefined) {
+      updateData.status = status;
+    }
+
+    // targetDate: schedule a queue item onto the calendar
+    if (targetDate !== undefined) {
+      updateData.target_date = targetDate || null;
+      if (targetDate) {
+        const targetDateTime = new Date(targetDate + 'T00:00:00.000Z');
+        updateData.created_at = targetDateTime.toISOString();
+      }
     }
 
     const { data: upload, error: updateError } = await supabase
       .from('client_uploads')
       .update(updateData)
       .eq('id', uploadId)
-      .eq('client_id', client.id) // Ensure client can only update their own uploads
+      .eq('client_id', resolved.clientId)
       .select()
       .single();
 
     if (updateError) {
-      logger.error('Error updating upload notes:', updateError);
+      logger.error('Error updating upload:', updateError);
       return NextResponse.json(
-        { error: 'Failed to update notes' },
+        { error: 'Failed to update upload' },
         { status: 500 }
       );
     }
@@ -309,7 +341,7 @@ export async function PATCH(request: NextRequest) {
       upload
     });
   } catch (error) {
-    logger.error('Portal upload notes update error:', error);
+    logger.error('Portal upload update error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

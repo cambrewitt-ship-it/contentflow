@@ -15,7 +15,7 @@ const rateLimits = {
   authenticated: { requests: 1000, windowMs: 15 * 60 * 1000 }, // 1000 per 15 min - Increased for normal app usage
   public: { requests: 10, windowMs: 15 * 60 * 1000 }, // 10 per 15 min
   portal: { requests: 20, windowMs: 60 * 60 * 1000 }, // 20 per hour
-  portalAuth: { requests: 5, windowMs: 60 * 60 * 1000 }, // 5 per hour
+  portalAuth: { requests: 120, windowMs: 60 * 60 * 1000 }, // 120 per hour (2/min — nav, refresh, strict-mode)
   auth: { requests: 20, windowMs: 15 * 60 * 1000 }, // 20 per 15 min
   webhook: { requests: 1000, windowMs: 60 * 60 * 1000 }, // 1000 per hour - High limit for Stripe webhooks
 };
