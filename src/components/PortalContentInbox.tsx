@@ -68,9 +68,12 @@ interface Props {
   viewMode?: PortalViewMode;
   onViewModeChange?: (mode: PortalViewMode) => void;
   refreshTrigger?: number;
+  externalQueueItems?: QueueItem[];
+  isExternalQueueLoading?: boolean;
+  hideQueueStrip?: boolean;
 }
 
-export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick, statusSummary, viewMode, onViewModeChange, refreshTrigger }: Props) {
+export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick, statusSummary, viewMode, onViewModeChange, refreshTrigger, externalQueueItems, isExternalQueueLoading, hideQueueStrip }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queueScrollRef = useRef<HTMLDivElement>(null);
 
@@ -89,7 +92,7 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchQueue = useCallback(async () => {
-    if (!token) return;
+    if (!token || externalQueueItems !== undefined) return;
     setIsLoadingQueue(true);
     try {
       const res = await fetch(`/api/portal/upload?token=${encodeURIComponent(token)}`);
@@ -100,9 +103,12 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
     } finally {
       setIsLoadingQueue(false);
     }
-  }, [token]);
+  }, [token, externalQueueItems]);
 
   useEffect(() => { fetchQueue(); }, [fetchQueue, refreshTrigger]);
+
+  const displayQueueItems = externalQueueItems ?? queueItems;
+  const displayIsLoadingQueue = externalQueueItems !== undefined ? (isExternalQueueLoading ?? false) : isLoadingQueue;
 
   const addFiles = useCallback((newFiles: FileList | File[]) => {
     const mapped: UploadedFile[] = Array.from(newFiles).map((f) => ({
@@ -185,7 +191,11 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
       resetForm();
       setSuccessMsg("Added to queue!");
       setTimeout(() => setSuccessMsg(null), 4000);
-      fetchQueue();
+      if (externalQueueItems !== undefined) {
+        onCalendarSuccess?.();
+      } else {
+        fetchQueue();
+      }
       setTimeout(() => {
         queueScrollRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }, 300);
@@ -205,7 +215,11 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
         body: JSON.stringify({ token, uploadId: id }),
       });
       if (!res.ok) throw new Error("Failed to delete");
-      setQueueItems((prev) => prev.filter((q) => q.id !== id));
+      if (externalQueueItems !== undefined) {
+        onCalendarSuccess?.(); // trigger parent refresh
+      } else {
+        setQueueItems((prev) => prev.filter((q) => q.id !== id));
+      }
     } finally {
       setDeletingId(null);
     }
@@ -456,23 +470,40 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
       </div>
 
       {/* ── QUEUE STRIP ── */}
-      {(queueItems.length > 0 || isLoadingQueue) && (
+      {!hideQueueStrip && (displayQueueItems.length > 0 || displayIsLoadingQueue) && (
         <div ref={queueScrollRef} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <ListOrdered className="w-4 h-4 text-gray-400" />
               <span className="text-sm font-semibold text-gray-700">Queue</span>
-              {queueItems.length > 0 && (
+              {displayQueueItems.length > 0 && (
                 <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-medium">
-                  {queueItems.length}
+                  {displayQueueItems.length}
                 </span>
               )}
             </div>
-            {isLoadingQueue && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-300" />}
+            {displayIsLoadingQueue && displayQueueItems.length > 0 && (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-300" />
+            )}
           </div>
 
           <div className="flex gap-3 overflow-x-auto pb-1">
-            {queueItems.map((item) => {
+            {displayIsLoadingQueue && displayQueueItems.length === 0 ? (
+              // Skeleton cards while loading
+              <>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex-shrink-0 w-52 rounded-xl border border-gray-100 bg-gray-50 overflow-hidden flex flex-col animate-pulse">
+                    <div className="h-28 bg-gray-200" />
+                    <div className="p-2.5 flex flex-col gap-2">
+                      <div className="h-3 bg-gray-200 rounded w-3/4" />
+                      <div className="h-3 bg-gray-200 rounded w-1/2" />
+                      <div className="h-2.5 bg-gray-100 rounded w-1/3 mt-1" />
+                    </div>
+                  </div>
+                ))}
+              </>
+            ) : null}
+            {displayQueueItems.map((item) => {
               const isImage = item.file_type?.startsWith("image/");
               const isVideo = item.file_type?.startsWith("video/");
               const notePreview = item.notes?.substring(0, 60);

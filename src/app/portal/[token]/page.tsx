@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, ChangeEvent, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns, Inbox, Upload, Image as ImageIcon, Film, Trash2, Sparkles, File } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns, Inbox, Upload, Image as ImageIcon, Film, Trash2, Sparkles, File, ListOrdered } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -94,8 +94,173 @@ interface Upload {
   file_url: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   notes: string | null;
+  target_date?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+const COLOR_OPTIONS = [
+  { value: 'purple', label: 'Purple', bg: 'bg-purple-500' },
+  { value: 'blue',   label: 'Blue',   bg: 'bg-blue-500' },
+  { value: 'green',  label: 'Green',  bg: 'bg-green-500' },
+  { value: 'red',    label: 'Red',    bg: 'bg-red-500' },
+  { value: 'orange', label: 'Orange', bg: 'bg-orange-500' },
+  { value: 'yellow', label: 'Yellow', bg: 'bg-yellow-400' },
+];
+
+function PortalCalendarEventModal({
+  date,
+  event,
+  token,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  date: string;
+  event?: import('@/components/CalendarEventModal').CalendarEvent | null;
+  token: string;
+  onSave: (event: import('@/components/CalendarEventModal').CalendarEvent) => void;
+  onDelete: (eventId: string) => void;
+  onClose: () => void;
+}) {
+  const isEditing = !!event;
+  const [title, setTitle] = useState(event?.title ?? '');
+  const [notes, setNotes] = useState(event?.notes ?? '');
+  const [type, setType] = useState<'event' | 'note'>(event?.type ?? 'note');
+  const [color, setColor] = useState(event?.color ?? 'purple');
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const displayDate = new Date(date + 'T12:00:00').toLocaleDateString('en-NZ', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  });
+
+  const handleSave = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    try {
+      const method = isEditing ? 'PATCH' : 'POST';
+      const body = isEditing
+        ? { token, id: event!.id, title: title.trim(), notes: notes || null, type, color }
+        : { token, date, title: title.trim(), notes: notes || null, type, color };
+
+      const res = await fetch('/api/portal/events', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      const data = await res.json();
+      onSave(data.event);
+    } catch {
+      alert('Failed to save. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!event || !confirm('Delete this note?')) return;
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/portal/events', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, id: event.id }),
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+      onDelete(event.id);
+    } catch {
+      alert('Failed to delete. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">
+              {isEditing ? 'Edit' : 'Add'} to Calendar
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">{displayDate}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setType('event')}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === 'event' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
+              Event
+            </button>
+            <button type="button" onClick={() => setType('note')}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === 'note' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
+              Note
+            </button>
+          </div>
+
+          <input
+            type="text"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder={type === 'event' ? 'Event title...' : 'Note...'}
+            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+            autoFocus
+            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSave()}
+          />
+
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            placeholder="Add notes (optional)..."
+            rows={3}
+            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+          />
+
+          {type === 'event' && (
+            <div>
+              <p className="text-xs text-gray-500 mb-2">Color</p>
+              <div className="flex gap-2">
+                {COLOR_OPTIONS.map(opt => (
+                  <button key={opt.value} type="button" onClick={() => setColor(opt.value)}
+                    className={`w-7 h-7 rounded-full ${opt.bg} transition-transform ${color === opt.value ? 'ring-2 ring-offset-2 ring-gray-900 scale-110' : 'hover:scale-105'}`}
+                    title={opt.label}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between px-5 pb-5">
+          <div>
+            {isEditing && (
+              <button type="button" onClick={handleDelete} disabled={deleting}
+                className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-700 transition-colors disabled:opacity-50">
+                <Trash2 className="w-3.5 h-3.5" />
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+              Cancel
+            </button>
+            <button type="button" onClick={handleSave} disabled={saving || !title.trim()}
+              className="px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40">
+              {saving ? 'Saving...' : isEditing ? 'Save' : 'Add'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function PortalCalendarPage() {
@@ -109,6 +274,7 @@ export default function PortalCalendarPage() {
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week
   const [scheduledPosts, setScheduledPosts] = useState<{[key: string]: Post[]}>({});
   const [uploads, setUploads] = useState<{[key: string]: Upload[]}>({});
+  const [allUploads, setAllUploads] = useState<Upload[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<{[key: string]: CalendarEvent[]}>({});
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +290,13 @@ export default function PortalCalendarPage() {
   const columnUploadInputRef = useRef<HTMLInputElement | null>(null);
   const [pendingColumnUploadDate, setPendingColumnUploadDate] = useState<string | null>(null);
   
+  // Ref to track currently dragged queue item — avoids DataTransfer.getData() issues
+  const draggingQueueItemRef = useRef<Upload | null>(null);
+
+  // Loading state for queue-item-to-calendar drag
+  const [movingUploadId, setMovingUploadId] = useState<string | null>(null);
+  const [movingToDate, setMovingToDate] = useState<string | null>(null);
+
   // Drag and drop state for column view
   const [movingItems, setMovingItems] = useState<{[key: string]: boolean}>({});
   
@@ -151,6 +324,9 @@ export default function PortalCalendarPage() {
   const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0);
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
   const [monthDragOverDate, setMonthDragOverDate] = useState<string | null>(null);
+
+  // Calendar event modal state (for Note feature)
+  const [portalEventModal, setPortalEventModal] = useState<{date: string; event?: CalendarEvent | null} | null>(null);
 
   // Inbox-specific states
   const [inboxUploading, setInboxUploading] = useState(false);
@@ -309,10 +485,12 @@ export default function PortalCalendarPage() {
       const data = await response.json();
       const uploadsList = data.uploads || [];
       
-      // Group uploads by date
+      // Group uploads by target_date (when scheduled) or created_at (for unscheduled)
       const uploadsByDate: {[key: string]: Upload[]} = {};
       uploadsList.forEach((upload: Upload) => {
-        const uploadDate = new Date(upload.created_at).toLocaleDateString('en-CA');
+        // Use target_date if set (item has been scheduled to a calendar date)
+        // Fall back to created_at for items not yet placed on the calendar
+        const uploadDate = upload.target_date || new Date(upload.created_at).toLocaleDateString('en-CA');
         if (!uploadsByDate[uploadDate]) {
           uploadsByDate[uploadDate] = [];
         }
@@ -320,6 +498,7 @@ export default function PortalCalendarPage() {
       });
       
       setUploads(uploadsByDate);
+      setAllUploads(uploadsList);
     } catch (err) {
       logger.error('Error fetching uploads:', err);
     } finally {
@@ -707,6 +886,35 @@ export default function PortalCalendarPage() {
       ...prev,
       [postKey]: caption
     }));
+  };
+
+  // Portal calendar event (note) handlers
+  const handlePortalEventSave = (event: CalendarEvent) => {
+    setCalendarEvents(prev => {
+      const updated = { ...prev };
+      const dateKey = event.date;
+      const existing = updated[dateKey] ?? [];
+      const idx = existing.findIndex(e => e.id === event.id);
+      if (idx >= 0) {
+        updated[dateKey] = existing.map(e => e.id === event.id ? event : e);
+      } else {
+        updated[dateKey] = [...existing, event];
+      }
+      return updated;
+    });
+    setPortalEventModal(null);
+  };
+
+  const handlePortalEventDelete = (eventId: string) => {
+    setCalendarEvents(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(date => {
+        updated[date] = updated[date].filter(e => e.id !== eventId);
+        if (updated[date].length === 0) delete updated[date];
+      });
+      return updated;
+    });
+    setPortalEventModal(null);
   };
 
   const handleSubmitApprovals = async () => {
@@ -1314,13 +1522,16 @@ export default function PortalCalendarPage() {
         </div>
       )}
 
-      {/* Content Inbox — above the calendar */}
+      {/* Content Inbox — above the calendar (queue strip hidden in column view, shown as sidebar instead) */}
       {viewMode !== 'inbox' && (
         <PortalContentInbox
           token={token}
           viewMode={viewMode === 'inbox' ? 'column' : viewMode as 'column' | 'month' | 'kanban'}
           onViewModeChange={(mode) => setViewMode(mode)}
           refreshTrigger={queueRefreshKey}
+          externalQueueItems={allUploads.filter(u => !u.target_date)}
+          isExternalQueueLoading={isLoadingUploads}
+          hideQueueStrip={viewMode === 'column'}
           onCalendarSuccess={() => {
             fetchUploads();
             fetchScheduledPosts(0, true);
@@ -1364,130 +1575,257 @@ export default function PortalCalendarPage() {
         />
       )}
 
-      {/* Calendar */}
-      {(viewMode === 'column' || viewMode === 'month') && (
-      <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-4 space-y-4">
-          <div className="">
-            {viewMode === 'column' && (
-              <div className="bg-white rounded-lg shadow p-4">
-                <PortalColumnViewCalendar
-                  weeks={getWeeksToDisplay(3)}
-                  scheduledPosts={scheduledPosts}
-                  clientUploads={uploads}
-                  events={calendarEvents}
-                  loading={isLoadingScheduledPosts}
-                  onPostMove={handleColumnPostMove}
-                  formatWeekCommencing={formatWeekCommencing}
-                  formatTimeTo12Hour={formatTimeTo12Hour}
-                  onAddUploadClick={handleColumnAddUpload}
-                  selectedPosts={selectedPosts}
-                  onPostSelection={handlePostSelection}
-                  comments={comments}
-                  onCommentChange={handleCommentChange}
-                  editedCaptions={editedCaptions}
-                  onCaptionChange={handleCaptionChange}
-                  onDeleteClientUpload={handleDeleteUploadFromCalendar}
-                  deletingUploadIds={deletingUploadIds}
-                  uploading={uploading}
-                  uploadingForDate={pendingColumnUploadDate}
-                  onPostClick={(post) => {
-                    const isUpload =
-                      post.post_type === 'client-upload' ||
-                      post.post_type === 'client_upload' ||
-                      (post as any).isClientUpload;
-                    if (isUpload) {
-                      const uploadData = (post as any).client_upload || (post as any).upload || post;
-                      setModalItem({
-                        type: 'upload',
-                        data: {
-                          id: post.id,
-                          file_name: uploadData.file_name || post.caption || 'Upload',
-                          file_type: uploadData.file_type || 'image/jpeg',
-                          file_url: uploadData.file_url || post.image_url || '',
-                          notes: uploadData.notes || null,
-                          created_at: uploadData.created_at || new Date().toISOString(),
-                          target_date: uploadData.target_date ?? null,
-                        },
-                      });
-                    } else {
-                      setModalItem({
-                        type: 'post',
-                        data: {
-                          id: post.id,
-                          caption: post.caption,
-                          image_url: post.image_url,
-                          scheduled_date: post.scheduled_date,
-                          scheduled_time: post.scheduled_time ?? null,
-                          approval_status: post.approval_status,
-                          approval_steps: post.approval_steps,
-                          platforms_scheduled: post.platforms_scheduled,
-                        },
-                      });
-                    }
-                  }}
-                  onQueueItemDrop={async (uploadId, dateKey) => {
-                    try {
-                      await fetch('/api/portal/upload', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token, uploadId, targetDate: dateKey }),
-                      });
-                      fetchUploads();
-                      setKanbanRefreshKey(k => k + 1);
-                      setQueueRefreshKey(k => k + 1);
-                    } catch {
-                      // silent fail — user can retry
-                    }
-                  }}
-                />
-              </div>
-            )}
+      {/* Calendar — Column View (sidebar + calendar, no overflow-hidden so sticky works) */}
+      {viewMode === 'column' && (
+        <div key={refreshKey} className="flex gap-4 items-start">
 
-            {viewMode === 'month' && (
-              <div className="bg-white rounded-lg shadow">
-                <MonthViewCalendar
-                  posts={Object.values(scheduledPosts).flat()}
-                  uploads={uploads}
-                  events={calendarEvents}
-                  loading={isLoadingScheduledPosts}
-                  onDateClick={handleDateClick}
-                  dragOverDate={monthDragOverDate}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                  }}
-                  onDragEnter={(e, dateKey) => {
-                    e.preventDefault();
-                    setMonthDragOverDate(dateKey);
-                  }}
-                  onDragLeave={(_e, _dateKey) => {
-                    setMonthDragOverDate(null);
-                  }}
-                  onDrop={async (e, date) => {
-                    setMonthDragOverDate(null);
-                    const queueData = e.dataTransfer.getData('text/portal-upload');
-                    if (!queueData) return;
-                    try {
-                      const upload = JSON.parse(queueData);
-                      const dateKey = date.toLocaleDateString('en-CA');
-                      await fetch('/api/portal/upload', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token, uploadId: upload.id, targetDate: dateKey }),
-                      });
-                      fetchUploads();
-                      setQueueRefreshKey(k => k + 1);
-                    } catch {
-                      // silent fail
-                    }
-                  }}
-                />
+          {/* ── Queue Sidebar — sticky, never scrolls past top of content area ── */}
+          {(() => {
+            const queueItems = allUploads.filter(u => !u.target_date);
+            return (
+              <div
+                className="bg-white rounded-lg shadow flex flex-col flex-shrink-0 w-44 sticky top-0"
+                style={{ height: 'calc(100vh - 112px)' }}
+              >
+                {/* Sidebar header */}
+                <div className="flex items-center justify-between px-3 py-3 border-b border-gray-100">
+                  <div className="flex items-center gap-1.5">
+                    <ListOrdered className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm font-semibold text-gray-700">Queue</span>
+                    {queueItems.length > 0 && (
+                      <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5 font-medium leading-none">
+                        {queueItems.length}
+                      </span>
+                    )}
+                  </div>
+                  {isLoadingUploads && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-300" />}
+                </div>
+
+                {/* Sidebar content */}
+                <div className="flex-1 overflow-y-auto p-2">
+                  {isLoadingUploads && queueItems.length === 0 ? (
+                    <div className="flex flex-col gap-2">
+                      {[0, 1, 2].map(i => (
+                        <div key={i} className="rounded-lg border border-gray-100 bg-gray-50 overflow-hidden animate-pulse">
+                          <div className="h-28 bg-gray-200" />
+                          <div className="p-2 space-y-1.5">
+                            <div className="h-2.5 bg-gray-200 rounded w-3/4" />
+                            <div className="h-2 bg-gray-100 rounded w-1/2" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : queueItems.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-6 px-2">No items in queue</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {queueItems.map(item => {
+                        const isImage = item.file_type?.startsWith('image/');
+                        const isVideo = item.file_type?.startsWith('video/');
+                        const isMoving = movingUploadId === item.id;
+                        return (
+                          <div
+                            key={item.id}
+                            draggable={!isMoving}
+                            onDragStart={(e) => {
+                              e.dataTransfer.effectAllowed = 'move';
+                              e.dataTransfer.setData('text/portal-upload', JSON.stringify(item));
+                              draggingQueueItemRef.current = item;
+                            }}
+                            onDragEnd={() => {
+                              draggingQueueItemRef.current = null;
+                            }}
+                            onClick={() => !isMoving && setModalItem({ type: 'upload', data: item })}
+                            className={`relative rounded-lg border border-gray-100 bg-gray-50 overflow-hidden transition-all ${isMoving ? 'opacity-50 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing hover:shadow-md hover:border-gray-200'}`}
+                          >
+                            {isMoving && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-10">
+                                <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                              </div>
+                            )}
+                            <div className="h-28 bg-gray-200 flex items-center justify-center overflow-hidden">
+                              {isImage ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={item.file_url} alt={item.file_name} draggable={false} className="w-full h-full object-cover" />
+                              ) : isVideo ? (
+                                <div className="flex flex-col items-center gap-1 text-gray-400">
+                                  <Film className="w-6 h-6" />
+                                  <span className="text-xs">Video</span>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center gap-1 text-gray-400">
+                                  <FileText className="w-6 h-6" />
+                                  <span className="text-xs">{item.file_type?.split('/')[1]?.toUpperCase() ?? 'File'}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-2">
+                              <p className="text-xs font-medium text-gray-700 truncate" title={item.file_name}>
+                                {item.file_name}
+                              </p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                {new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+            );
+          })()}
+
+          {/* ── Column Calendar ── */}
+          <div className="flex-1 min-w-0 bg-white rounded-lg shadow p-4">
+            <PortalColumnViewCalendar
+              weeks={getWeeksToDisplay(3)}
+              scheduledPosts={scheduledPosts}
+              clientUploads={uploads}
+              events={calendarEvents}
+              loading={isLoadingScheduledPosts}
+              onPostMove={handleColumnPostMove}
+              formatWeekCommencing={formatWeekCommencing}
+              formatTimeTo12Hour={formatTimeTo12Hour}
+              onAddUploadClick={handleColumnAddUpload}
+              selectedPosts={selectedPosts}
+              onPostSelection={handlePostSelection}
+              comments={comments}
+              onCommentChange={handleCommentChange}
+              editedCaptions={editedCaptions}
+              onCaptionChange={handleCaptionChange}
+              onDeleteClientUpload={handleDeleteUploadFromCalendar}
+              deletingUploadIds={deletingUploadIds}
+              uploading={uploading}
+              uploadingForDate={pendingColumnUploadDate}
+              onPostClick={(post) => {
+                const isUpload =
+                  post.post_type === 'client-upload' ||
+                  post.post_type === 'client_upload' ||
+                  (post as any).isClientUpload;
+                if (isUpload) {
+                  const uploadData = (post as any).client_upload || (post as any).upload || post;
+                  setModalItem({
+                    type: 'upload',
+                    data: {
+                      id: post.id,
+                      file_name: uploadData.file_name || post.caption || 'Upload',
+                      file_type: uploadData.file_type || 'image/jpeg',
+                      file_url: uploadData.file_url || post.image_url || '',
+                      notes: uploadData.notes || null,
+                      created_at: uploadData.created_at || new Date().toISOString(),
+                      target_date: uploadData.target_date ?? null,
+                    },
+                  });
+                } else {
+                  setModalItem({
+                    type: 'post',
+                    data: {
+                      id: post.id,
+                      caption: post.caption,
+                      image_url: post.image_url,
+                      scheduled_date: post.scheduled_date,
+                      scheduled_time: post.scheduled_time ?? null,
+                      approval_status: post.approval_status,
+                      approval_steps: post.approval_steps,
+                      platforms_scheduled: post.platforms_scheduled,
+                    },
+                  });
+                }
+              }}
+              movingToDate={movingToDate}
+              onEventAdd={(dateKey) => setPortalEventModal({ date: dateKey })}
+              onEventClick={(event) => setPortalEventModal({ date: event.date, event })}
+              onQueueItemDrop={async (uploadId, dateKey) => {
+                try {
+                  await fetch('/api/portal/upload', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, uploadId, targetDate: dateKey }),
+                  });
+                  fetchUploads();
+                  setKanbanRefreshKey(k => k + 1);
+                  setQueueRefreshKey(k => k + 1);
+                } catch {
+                  // silent fail
+                }
+              }}
+              onDrop={async (e, dateKey) => {
+                // Use ref first (most reliable), fall back to DataTransfer
+                const upload = draggingQueueItemRef.current
+                  ?? (() => {
+                    try {
+                      const raw = e.dataTransfer.getData('text/portal-upload');
+                      return raw ? JSON.parse(raw) : null;
+                    } catch { return null; }
+                  })();
+                draggingQueueItemRef.current = null;
+                if (!upload?.id) return;
+                setMovingUploadId(upload.id);
+                setMovingToDate(dateKey);
+                try {
+                  await fetch('/api/portal/upload', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, uploadId: upload.id, targetDate: dateKey }),
+                  });
+                  await fetchUploads();
+                  setKanbanRefreshKey(k => k + 1);
+                  setQueueRefreshKey(k => k + 1);
+                } catch {
+                  // silent fail — user can retry
+                } finally {
+                  setMovingUploadId(null);
+                  setMovingToDate(null);
+                }
+              }}
+            />
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Calendar — Month View */}
+      {viewMode === 'month' && (
+        <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
+          <MonthViewCalendar
+            posts={Object.values(scheduledPosts).flat()}
+            uploads={uploads}
+            events={calendarEvents}
+            loading={isLoadingScheduledPosts}
+            onDateClick={handleDateClick}
+            dragOverDate={monthDragOverDate}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+            }}
+            onDragEnter={(e, dateKey) => {
+              e.preventDefault();
+              setMonthDragOverDate(dateKey);
+            }}
+            onDragLeave={(_e, _dateKey) => {
+              setMonthDragOverDate(null);
+            }}
+            onDrop={async (e, date) => {
+              setMonthDragOverDate(null);
+              const queueData = e.dataTransfer.getData('text/portal-upload');
+              if (!queueData) return;
+              try {
+                const upload = JSON.parse(queueData);
+                const dateKey = date.toLocaleDateString('en-CA');
+                await fetch('/api/portal/upload', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token, uploadId: upload.id, targetDate: dateKey }),
+                });
+                fetchUploads();
+                setQueueRefreshKey(k => k + 1);
+              } catch {
+                // silent fail
+              }
+            }}
+          />
+        </div>
       )}
 
       <input
@@ -1523,6 +1861,18 @@ export default function PortalCalendarPage() {
             setKanbanRefreshKey(k => k + 1);
             setQueueRefreshKey(k => k + 1);
           }}
+        />
+      )}
+
+      {/* Portal calendar event / note modal */}
+      {portalEventModal && (
+        <PortalCalendarEventModal
+          date={portalEventModal.date}
+          event={portalEventModal.event}
+          token={token}
+          onSave={handlePortalEventSave}
+          onDelete={handlePortalEventDelete}
+          onClose={() => setPortalEventModal(null)}
         />
       )}
     </div>

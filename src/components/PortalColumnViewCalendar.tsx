@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, ChangeEvent } from 'react';
-import { Calendar, Plus, ArrowLeft, ArrowRight, CheckCircle, AlertTriangle, XCircle, Minus, Download, Trash2, Tag, FileText, CalendarDays } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo, ChangeEvent } from 'react';
+import { Calendar, ArrowLeft, ArrowRight, CheckCircle, AlertTriangle, XCircle, Minus, Download, Trash2, Tag, FileText, CalendarDays, Loader2 } from 'lucide-react';
 import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
@@ -91,6 +91,9 @@ interface PortalColumnViewCalendarProps {
   uploading?: boolean;
   uploadingForDate?: string | null;
   onPostClick?: (post: Post) => void;
+  onEventAdd?: (dateKey: string) => void;
+  onEventClick?: (event: CalendarEvent) => void;
+  movingToDate?: string | null;
 }
 
 // Lazy loading image component
@@ -406,7 +409,7 @@ function SortablePostCard({
       >
         <div className="flex items-center justify-between mb-2 pb-1 border-b border-blue-200">
           <div>
-            <span className="text-xs font-semibold uppercase text-blue-700">Client Upload</span>
+            <span className="text-xs font-semibold uppercase text-blue-700">Portal Upload</span>
             {(displayDate || displayTime) && (
               <div className="text-[11px] text-blue-600">
                 {displayDate}
@@ -523,6 +526,16 @@ function SortablePostCard({
           <p className="text-xs text-blue-600 mt-1 font-medium">✏️ Caption edited</p>
         )}
       </div>
+
+      {/* Post Notes (read-only, from agency) */}
+      {post.post_notes && (
+        <div className="mt-1 mb-2 mx-0 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
+          <div className="flex items-start gap-1.5">
+            <FileText className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">{post.post_notes}</p>
+          </div>
+        </div>
+      )}
 
       {/* Platform */}
       {post.platform && (
@@ -683,6 +696,9 @@ function DroppableDayRow({
   dayEvents = [],
   onPostClick,
   onQueueItemDrop,
+  onEventAdd,
+  onEventClick,
+  movingToDate,
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -714,9 +730,13 @@ function DroppableDayRow({
   dayEvents?: CalendarEvent[];
   onPostClick?: (post: Post) => void;
   onQueueItemDrop?: (uploadId: string, dateKey: string) => void;
+  onEventAdd?: (dateKey: string) => void;
+  onEventClick?: (event: CalendarEvent) => void;
+  movingToDate?: string | null;
 }) {
   const router = useRouter();
   const isUploadingToThisDate = uploading && uploadingForDate === dayRow.dateKey;
+  const isMovingToThisDate = movingToDate === dayRow.dateKey;
   const { setNodeRef } = useDroppable({
     id: dayRow.dateKey,
     data: {
@@ -768,35 +788,39 @@ function DroppableDayRow({
     e.stopPropagation();
     setIsNativeDragOver(false);
 
-    // Check for queue upload drag first
+    // Prefer page-level onDrop handler (mirrors main app pattern, avoids DataTransfer.getData issues)
+    if (onNativeDrop) {
+      onNativeDrop(e, dayRow.dateKey);
+      return;
+    }
+
+    // Fallback: internal queue upload handling
     const queueData = e.dataTransfer.getData("text/portal-upload");
     if (queueData) {
       try {
         const upload = JSON.parse(queueData);
         if (upload?.id && onQueueItemDrop) {
           onQueueItemDrop(upload.id, dayRow.dateKey);
-          return;
         }
       } catch {
-        // fall through to regular drop
+        // ignore
       }
-    }
-
-    if (onNativeDrop) {
-      onNativeDrop(e, dayRow.dateKey);
     }
   };
 
   return (
     <div
       ref={setNodeRef}
+      data-date-key={dayRow.dateKey}
       onDrop={handleNativeDrop}
       onDragOver={handleNativeDragOver}
       onDragEnter={handleNativeDragEnter}
       onDragLeave={handleNativeDragLeave}
-      className={`rounded-lg border-2 p-3 min-h-[120px] transition-all duration-200 ${
+      className={`relative rounded-lg border-2 p-3 min-h-[120px] transition-all duration-200 ${
         isDragOver || isNativeDragOver
-          ? 'border-blue-400 bg-blue-100 ring-2 ring-blue-300' 
+          ? 'border-blue-400 bg-blue-100 ring-2 ring-blue-300'
+          : isMovingToThisDate
+          ? 'border-blue-300 bg-blue-50'
           : isTodayDay
           ? 'border-blue-300 bg-blue-50'
           : isCurrentWeek
@@ -804,6 +828,14 @@ function DroppableDayRow({
           : 'border-gray-200 bg-white'
       }`}
     >
+      {isMovingToThisDate && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-lg z-10">
+          <div className="flex flex-col items-center gap-1.5">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+            <span className="text-xs text-blue-600 font-medium">Loading…</span>
+          </div>
+        </div>
+      )}
       {/* Day Header */}
       <div className="mb-2 pb-1 border-b border-gray-200">
         <div className="flex items-center justify-between">
@@ -819,41 +851,31 @@ function DroppableDayRow({
               {getDayNumber(dayRow.dayDate)}
             </span>
           </div>
-          <button
-          type="button"
-          onClick={() => {
-            if (isUploadingToThisDate) return;
-            if (onAddUploadClick) {
-              onAddUploadClick(dayRow.dateKey);
-            } else if (clientId) {
-              router.push(`/dashboard/client/${clientId}/content-suite?scheduledDate=${dayRow.dateKey}`);
-            }
-          }}
-          disabled={isUploadingToThisDate}
-          className={`inline-flex items-center justify-center w-7 h-7 rounded-full border transition-colors ${
-            isUploadingToThisDate 
-              ? 'border-blue-400 bg-blue-100 cursor-not-allowed' 
-              : 'border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50'
-          }`}
-          aria-label={isUploadingToThisDate ? "Uploading..." : "Add upload"}
-        >
-          {isUploadingToThisDate ? (
-            <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <Plus className="w-3 h-3" />
-          )}
-        </button>
+          <div className="flex items-center gap-1">
+            {onEventAdd && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onEventAdd(dayRow.dateKey); }}
+                className="px-2 py-0.5 text-xs font-medium text-purple-600 border border-purple-300 rounded hover:bg-purple-50 transition-colors"
+                title="Add note or event"
+              >
+                Note
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Events & Notes (read-only) */}
+        {/* Events & Notes */}
         {dayEvents.length > 0 && (
           <div className="mt-1.5 space-y-1">
             {dayEvents.map(evt => {
               const cls = EVENT_COLOR_CLASSES[evt.color] ?? EVENT_COLOR_CLASSES['purple'];
               return (
-                <div
+                <button
                   key={evt.id}
-                  className={`w-full px-2 py-0.5 rounded text-xs font-medium border ${cls.bg} ${cls.text} ${cls.border}`}
+                  type="button"
+                  onClick={() => onEventClick?.(evt)}
+                  className={`w-full text-left px-2 py-0.5 rounded text-xs font-medium border ${cls.bg} ${cls.text} ${cls.border} ${onEventClick ? 'hover:opacity-80 cursor-pointer transition-opacity' : 'cursor-default'}`}
                   title={evt.notes ?? evt.title}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -863,7 +885,7 @@ function DroppableDayRow({
                     }
                     <span className="truncate">{evt.title}</span>
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -876,37 +898,20 @@ function DroppableDayRow({
         items={dayRow.posts.map((post) => `${post.post_type || 'post'}-${post.id}`)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="space-y-2 min-h-[60px]">
+        <div className="space-y-2 min-h-[60px]" onDragOver={(e) => e.preventDefault()}>
           {dayRow.posts.length === 0 ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (isUploadingToThisDate) return;
-                if (onAddUploadClick) {
-                  onAddUploadClick(dayRow.dateKey);
-                } else if (clientId) {
-                  router.push(`/dashboard/client/${clientId}/content-suite?scheduledDate=${dayRow.dateKey}`);
-                }
-              }}
-              disabled={isUploadingToThisDate}
-              className={`w-full flex items-center justify-center py-4 border-2 border-dashed rounded transition-all duration-200 group ${
-                isUploadingToThisDate 
-                  ? 'border-blue-400 bg-blue-50 cursor-not-allowed' 
-                  : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
-              }`}
-            >
-              {isUploadingToThisDate ? (
+            <div className={`w-full min-h-[60px] rounded border-2 border-dashed transition-all duration-200 ${
+              isUploadingToThisDate
+                ? 'border-blue-400 bg-blue-50 flex items-center justify-center py-4'
+                : 'border-gray-200'
+            }`}>
+              {isUploadingToThisDate && (
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                   <span className="text-sm text-blue-600 font-medium">Uploading...</span>
                 </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-gray-400 group-hover:text-blue-600">
-                  <Plus className="w-4 h-4" />
-                  <span className="text-sm font-medium">Upload Content</span>
-                </div>
               )}
-            </button>
+            </div>
           ) : (
             <>
               {dayRow.posts.map((post) => {
@@ -981,6 +986,9 @@ export function PortalColumnViewCalendar({
   uploading,
   uploadingForDate,
   onPostClick,
+  onEventAdd,
+  onEventClick,
+  movingToDate,
 }: PortalColumnViewCalendarProps) {
   const clientUploadsMap = clientUploads ?? {};
   const VISIBLE_WEEK_COUNT = 5; // Show 5 weeks: 1 partial before, 3 main, 1 partial after
@@ -1071,7 +1079,7 @@ export function PortalColumnViewCalendar({
           return {
             id: upload.id,
             post_type: 'client-upload',
-            caption: upload.notes || 'Client Upload',
+            caption: upload.notes || 'Portal Upload',
             image_url: isImage ? upload.file_url : undefined,
             scheduled_date: dateKey,
             client_upload: upload,
@@ -1276,6 +1284,40 @@ export function PortalColumnViewCalendar({
     });
   };
 
+  // Native drop handler — bypasses React's event delegation (more reliable inside DndContext)
+  const calendarContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const container = calendarContainerRef.current;
+    if (!container || !onDrop) return;
+
+    const nativeDragOver = (e: DragEvent) => {
+      const target = (e.target as HTMLElement).closest('[data-date-key]');
+      if (target) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      }
+    };
+
+    const nativeDrop = (e: DragEvent) => {
+      const target = (e.target as HTMLElement).closest('[data-date-key]') as HTMLElement | null;
+      if (!target) return;
+      const dateKey = target.dataset.dateKey;
+      if (!dateKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onDrop(e as unknown as React.DragEvent<HTMLElement>, dateKey);
+    };
+
+    container.addEventListener('dragover', nativeDragOver);
+    container.addEventListener('drop', nativeDrop);
+    return () => {
+      container.removeEventListener('dragover', nativeDragOver);
+      container.removeEventListener('drop', nativeDrop);
+    };
+  }, [onDrop]);
+
   return (
     <DndContext
       sensors={sensors}
@@ -1284,7 +1326,7 @@ export function PortalColumnViewCalendar({
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
     >
-      <div className="relative">
+      <div className="relative" ref={calendarContainerRef}>
         <button
           type="button"
           onClick={() => handleNavigate('left')}
@@ -1362,6 +1404,9 @@ export function PortalColumnViewCalendar({
                         dayEvents={events[dayRow.dateKey] ?? []}
                         onPostClick={onPostClick}
                         onQueueItemDrop={onQueueItemDrop}
+                        onEventAdd={onEventAdd}
+                        onEventClick={onEventClick}
+                        movingToDate={movingToDate}
                       />
                     );
                   })}

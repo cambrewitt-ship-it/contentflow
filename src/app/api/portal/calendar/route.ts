@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
         id,
         caption,
         image_url,
+        post_notes,
         scheduled_date,
         scheduled_time,
         late_status,
@@ -115,13 +116,33 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Attach steps to posts and group by date
+    // Batch-fetch post tags
+    let tagsByPostId: Record<string, any[]> = {};
+    if (postIds.length > 0) {
+      try {
+        const { data: allPostTags } = await supabase
+          .from('post_tags')
+          .select('post_id, tags(id, name, color)')
+          .in('post_id', postIds);
+
+        for (const pt of allPostTags ?? []) {
+          if (!tagsByPostId[pt.post_id]) tagsByPostId[pt.post_id] = [];
+          const tag = (pt as any).tags;
+          if (tag) tagsByPostId[pt.post_id].push({ id: tag.id, name: tag.name, color: tag.color });
+        }
+      } catch {
+        logger.debug('post_tags table not available yet, skipping tags fetch');
+      }
+    }
+
+    // Attach steps and tags to posts and group by date
     const postsByDate = posts.reduce((acc: Record<string, any[]>, post: any) => {
       const date = post.scheduled_date;
       if (!acc[date]) acc[date] = [];
       acc[date].push({
         ...post,
         approval_steps: stepsByPostId[post.id] ?? [],
+        tags: tagsByPostId[post.id] ?? [],
       });
       return acc;
     }, {} as Record<string, any[]>);

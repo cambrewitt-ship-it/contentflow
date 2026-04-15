@@ -516,7 +516,7 @@ function SortablePostCard({
       >
         <div className="flex items-center justify-between mb-2 pb-1 border-b border-blue-200">
           <div>
-            <div className="text-xs font-semibold text-blue-700 uppercase">Client Upload</div>
+            <div className="text-xs font-semibold text-blue-700 uppercase">Portal Upload</div>
             {(displayDate || displayTime) && (
               <div className="text-[11px] text-blue-600">
                 {displayDate}
