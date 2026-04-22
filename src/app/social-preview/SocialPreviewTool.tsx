@@ -165,14 +165,14 @@ export default function SocialPreviewTool() {
   const FbAdCTA = () => (
     <div className="border-t border-gray-200 bg-[#f0f2f5] px-3 py-2.5 flex items-center justify-between gap-3">
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] text-gray-500 uppercase tracking-wide leading-tight">yourwebsite.com</p>
+        <p style={{ fontSize: '11px', color: '#65676B', lineHeight: '1.3333' }} className="uppercase tracking-wide leading-tight">yourwebsite.com</p>
         {headline ? (
-          <p className="text-[13px] font-semibold text-gray-900 leading-snug mt-0.5">{headline}</p>
+          <p style={{ fontSize: '13px', fontWeight: 600, color: '#050505', lineHeight: '1.3333' }} className="mt-0.5">{headline}</p>
         ) : (
-          <p className="text-[13px] font-semibold text-gray-400 italic leading-snug mt-0.5">Your Headline</p>
+          <p style={{ fontSize: '13px', fontWeight: 600, color: '#65676B', lineHeight: '1.3333' }} className="italic mt-0.5">Your Headline</p>
         )}
       </div>
-      <button className="flex-shrink-0 bg-[#e4e6eb] hover:bg-[#d8dadf] text-[#050505] text-[13px] font-semibold px-3 py-1.5 rounded-[6px] transition-colors whitespace-nowrap">
+      <button style={{ color: '#050505', fontSize: '13px', fontWeight: 600 }} className="flex-shrink-0 bg-[#e4e6eb] hover:bg-[#d8dadf] px-3 py-1.5 rounded-[6px] transition-colors whitespace-nowrap">
         {ctaText}
       </button>
     </div>
@@ -199,14 +199,14 @@ export default function SocialPreviewTool() {
   )
 
   const renderFacebookPreview = () => (
-    <div className="bg-white max-w-sm mx-auto overflow-hidden shadow-sm" style={{ fontFamily: 'Roboto, "Helvetica Neue", Arial, sans-serif' }}>
+    <div className="bg-white max-w-sm mx-auto overflow-hidden shadow-sm" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', fontSize: '15px', lineHeight: '1.3333', color: '#050505' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5">
         <div className="flex items-center gap-2.5">
           {renderAvatar('md', 'facebook')}
           <div>
-            <div className="font-semibold text-[#050505] text-[15px] leading-tight">{displayName}</div>
-            <div className="flex items-center gap-1 text-[13px] text-[#65676b] leading-tight">
+            <div style={{ fontWeight: 600, color: '#050505', fontSize: '15px', lineHeight: '1.3333' }}>{displayName}</div>
+            <div className="flex items-center gap-1 leading-tight" style={{ fontSize: '13px', color: '#65676B' }}>
               {isAdvert ? (
                 <>
                   <span>Sponsored</span>
@@ -236,7 +236,7 @@ export default function SocialPreviewTool() {
       {/* Caption */}
       {caption && (
         <div className="px-4 pb-3">
-          <p className="text-[#050505] text-[15px] leading-[1.34] whitespace-pre-wrap break-words">{caption}</p>
+          <p style={{ color: '#050505', fontSize: '15px', lineHeight: '1.3333' }} className="whitespace-pre-wrap break-words">{caption}</p>
         </div>
       )}
 
@@ -256,7 +256,7 @@ export default function SocialPreviewTool() {
 
       {/* Reactions row */}
       <div className="px-4 py-2 border-t border-[#ced0d4]">
-        <div className="flex items-center justify-between text-[13px] text-[#65676b]">
+        <div className="flex items-center justify-between" style={{ fontSize: '13px', color: '#65676B' }}>
           <div className="flex items-center gap-1.5">
             {/* Reaction bubbles */}
             <div className="flex -space-x-1">
@@ -285,27 +285,27 @@ export default function SocialPreviewTool() {
         <div className="flex">
           {/* Like */}
           <button className="flex-1 flex items-center justify-center gap-1.5 py-2 hover:bg-[#f2f2f2] rounded-lg transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#65676b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#65676B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
               <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
               <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
             </svg>
-            <span className="text-[#65676b] text-[13px] font-semibold">Like</span>
+            <span style={{ color: '#65676B', fontSize: '13px', fontWeight: 600 }}>Like</span>
           </button>
           {/* Comment */}
           <button className="flex-1 flex items-center justify-center gap-1.5 py-2 hover:bg-[#f2f2f2] rounded-lg transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#65676b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#65676B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
-            <span className="text-[#65676b] text-[13px] font-semibold">Comment</span>
+            <span style={{ color: '#65676B', fontSize: '13px', fontWeight: 600 }}>Comment</span>
           </button>
           {/* Share */}
           <button className="flex-1 flex items-center justify-center gap-1.5 py-2 hover:bg-[#f2f2f2] rounded-lg transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#65676b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#65676B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
               <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
               <polyline points="16 6 12 2 8 6"/>
               <line x1="12" y1="2" x2="12" y2="15"/>
             </svg>
-            <span className="text-[#65676b] text-[13px] font-semibold">Share</span>
+            <span style={{ color: '#65676B', fontSize: '13px', fontWeight: 600 }}>Share</span>
           </button>
         </div>
       </div>
@@ -314,7 +314,7 @@ export default function SocialPreviewTool() {
 
   // ── Instagram preview ─────────────────────────────────────────────────────────
   const renderInstagramPreview = () => (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden max-w-sm mx-auto">
+    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden max-w-sm mx-auto" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', fontSize: '15px', lineHeight: '1.3333', color: '#050505' }}>
       <div className="flex items-center justify-between px-3 py-2.5">
         <div className="flex items-center">
           {renderAvatar('sm', 'instagram')}

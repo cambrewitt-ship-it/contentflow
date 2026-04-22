@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Poppins, Noto_Sans } from "next/font/google";
+import { Poppins, Noto_Sans, Montserrat } from "next/font/google";
 import "./globals.css";
 import "../styles/glassmorphism.css";
 import { UIThemeProvider } from "../contexts/UIThemeContext";
@@ -16,9 +16,15 @@ const poppins = Poppins({
   variable: "--font-poppins"
 });
 
-const notoSans = Noto_Sans({ 
+const notoSans = Noto_Sans({
   subsets: ["latin"],
   weight: ["400", "700"]
+});
+
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-montserrat",
 });
 
 export const metadata: Metadata = {
@@ -73,7 +79,7 @@ export default function RootLayout({
   
   return (
     <html lang="en">
-      <body className={`${poppins.className} antialiased`}>
+      <body className={`${poppins.className} ${montserrat.variable} antialiased`}>
         <GoogleTagManager gtmId={gtmId} />
         <GoogleTagManagerNoScript gtmId={gtmId} />
         <AuthProvider>

@@ -490,9 +490,10 @@ export async function POST(request: NextRequest) {
       // On first post of a page, adjust vertical centering based on estimated height
       if (currentColumn === 0) {
         const centeredY = calculateCenteredY(pageStartHeaderY, estimatedPostHeight);
-        // Adjust rowStartY to center the content, but move up slightly (reduce by 15mm)
-        rowStartY = centeredY - 15;
-        yPosition = centeredY - 15;
+        // Clamp so content never starts above (or too close to) the header separator
+        const minY = pageStartHeaderY + 5;
+        rowStartY = Math.max(minY, centeredY - 15);
+        yPosition = rowStartY;
       }
 
       // Track current date (no longer displaying date header on left)
