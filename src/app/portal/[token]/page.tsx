@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, ChangeEvent, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns, Inbox, Upload, Image as ImageIcon, Film, Trash2, Sparkles, File, ListOrdered } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns, Inbox, Upload, Image as ImageIcon, Film, Trash2, Sparkles, File, ListOrdered, FileDown, Link as LinkIcon, Copy, CheckCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,7 @@ import { PortalContentInbox } from '@/components/PortalContentInbox';
 import { PortalKanbanBoard, type KanbanItem } from '@/components/PortalKanbanBoard';
 import { PortalItemModal, type ModalItem } from '@/components/PortalItemModal';
 import { type CalendarEvent } from '@/components/CalendarEventModal';
+import { PDFExportModal } from '@/components/PDFExportModal';
 import { usePortal } from '@/contexts/PortalContext';
 import logger from '@/lib/logger';
 
@@ -94,6 +95,7 @@ interface Upload {
   file_url: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   notes: string | null;
+  review_notes: string | null;
   target_date?: string | null;
   created_at: string;
   updated_at: string;
@@ -318,6 +320,17 @@ export default function PortalCalendarPage() {
   const [editedCaptions, setEditedCaptions] = useState<{[key: string]: string}>({});
   const [isSubmittingApprovals, setIsSubmittingApprovals] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Calendar selection (for PDF / OTL / Delete toolbar)
+  const [calendarSelectedPostIds, setCalendarSelectedPostIds] = useState<Set<string>>(new Set());
+  const [showPDFExportModal, setShowPDFExportModal] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const [generatingApprovalLink, setGeneratingApprovalLink] = useState(false);
+  const [approvalLinkUrl, setApprovalLinkUrl] = useState<string | null>(null);
+  const [showApprovalLinkDialog, setShowApprovalLinkDialog] = useState(false);
+  const [approvalLinkCopied, setApprovalLinkCopied] = useState(false);
+  const [isDeletingSelected, setIsDeletingSelected] = useState(false);
+  const [pendingDeleteConfirm, setPendingDeleteConfirm] = useState(false);
   
   // View mode state
   const [viewMode, setViewMode] = useState<'column' | 'month' | 'kanban' | 'inbox'>('column');
@@ -858,6 +871,114 @@ export default function PortalCalendarPage() {
       alert('Failed to delete post. Please try again.');
     } finally {
       setDeletingItems(prev => ({ ...prev, [itemKey]: false }));
+    }
+  };
+
+  // Calendar selection toolbar handlers
+  const handleToggleCalendarPostSelection = (postId: string) => {
+    setCalendarSelectedPostIds(prev => {
+      const next = new Set(prev);
+      if (next.has(postId)) next.delete(postId);
+      else next.add(postId);
+      return next;
+    });
+  };
+
+  const handleCalendarExportToPDF = () => {
+    if (calendarSelectedPostIds.size === 0) return;
+    setShowPDFExportModal(true);
+  };
+
+  const performCalendarPDFExport = async (pdfTitle: string, pdfFileName: string) => {
+    setShowPDFExportModal(false);
+    setExportingPDF(true);
+    try {
+      const response = await fetch('/api/portal/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, postIds: Array.from(calendarSelectedPostIds), pdfTitle, pdfFileName }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: 'Failed to export PDF' }));
+        throw new Error(err.error || 'Failed to export PDF');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = pdfFileName.endsWith('.pdf') ? pdfFileName : `${pdfFileName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      alert(`Failed to export PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setExportingPDF(false);
+    }
+  };
+
+  const handleCalendarGenerateApprovalLink = async () => {
+    if (calendarSelectedPostIds.size === 0) return;
+    setGeneratingApprovalLink(true);
+    try {
+      const response = await fetch('/api/portal/approval-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, postIds: Array.from(calendarSelectedPostIds) }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: 'Failed to create link' }));
+        throw new Error(err.error || 'Failed to create link');
+      }
+      const data = await response.json();
+      setApprovalLinkUrl(data.share_url);
+      setShowApprovalLinkDialog(true);
+    } catch (error) {
+      alert(`Failed to generate approval link: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setGeneratingApprovalLink(false);
+    }
+  };
+
+  const handleCalendarDeleteSelectedPosts = async () => {
+    if (calendarSelectedPostIds.size === 0) return;
+    setPendingDeleteConfirm(false);
+    setIsDeletingSelected(true);
+    try {
+      const idsToDelete = new Set(calendarSelectedPostIds);
+      const results = await Promise.allSettled(
+        Array.from(idsToDelete).map(postId =>
+          fetch('/api/calendar/scheduled', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ postId }),
+          })
+        )
+      );
+      const succeeded = results.filter(r => r.status === 'fulfilled' && (r as PromiseFulfilledResult<Response>).value.ok);
+      if (succeeded.length > 0) {
+        setScheduledPosts(prev => {
+          const updated = { ...prev };
+          Object.keys(updated).forEach(date => {
+            updated[date] = updated[date].filter(p => !idsToDelete.has(p.id));
+            if (updated[date].length === 0) delete updated[date];
+          });
+          return updated;
+        });
+        setCalendarSelectedPostIds(new Set());
+        // Close modal if it was showing a deleted post
+        setModalItem(prev => {
+          if (prev?.type === 'post' && idsToDelete.has(prev.data.id)) return null;
+          return prev;
+        });
+      }
+      const failed = results.length - succeeded.length;
+      if (failed > 0) logger.error(`Failed to delete ${failed} post(s)`);
+    } catch (err) {
+      logger.error('Error deleting posts:', err);
+    } finally {
+      setIsDeletingSelected(false);
     }
   };
 
@@ -1679,6 +1800,83 @@ export default function PortalCalendarPage() {
 
           {/* ── Column Calendar ── */}
           <div className="flex-1 min-w-0 bg-white rounded-lg shadow p-4">
+
+            {/* Selection toolbar */}
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200 flex-wrap">
+              <span className={`text-sm font-medium ${calendarSelectedPostIds.size > 0 ? 'text-gray-800' : 'text-gray-400'}`}>
+                {calendarSelectedPostIds.size > 0 ? `${calendarSelectedPostIds.size} post${calendarSelectedPostIds.size !== 1 ? 's' : ''} selected` : 'Select posts to use toolbar'}
+              </span>
+
+              {pendingDeleteConfirm ? (
+                <div className="inline-flex items-center gap-1.5">
+                  <span className="text-sm text-red-700 font-medium">
+                    Delete {calendarSelectedPostIds.size} post{calendarSelectedPostIds.size !== 1 ? 's' : ''}?
+                  </span>
+                  <button
+                    onClick={handleCalendarDeleteSelectedPosts}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded text-white bg-red-600 hover:bg-red-700 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Yes, delete
+                  </button>
+                  <button
+                    onClick={() => setPendingDeleteConfirm(false)}
+                    className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => calendarSelectedPostIds.size > 0 && setPendingDeleteConfirm(true)}
+                  disabled={isDeletingSelected || calendarSelectedPostIds.size === 0}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
+                    isDeletingSelected ? 'bg-red-400 cursor-not-allowed opacity-70'
+                    : calendarSelectedPostIds.size === 0 ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  {isDeletingSelected ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  {isDeletingSelected ? 'Deleting…' : 'Delete'}
+                </button>
+              )}
+
+              <button
+                onClick={handleCalendarExportToPDF}
+                disabled={exportingPDF || calendarSelectedPostIds.size === 0}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
+                  exportingPDF ? 'bg-blue-400 cursor-not-allowed opacity-70'
+                  : calendarSelectedPostIds.size === 0 ? 'bg-gray-300 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {exportingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                {exportingPDF ? 'Exporting…' : `Export PDF${calendarSelectedPostIds.size > 0 ? ` (${calendarSelectedPostIds.size})` : ''}`}
+              </button>
+
+              <button
+                onClick={handleCalendarGenerateApprovalLink}
+                disabled={generatingApprovalLink || calendarSelectedPostIds.size === 0}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
+                  generatingApprovalLink ? 'bg-purple-400 cursor-not-allowed opacity-70'
+                  : calendarSelectedPostIds.size === 0 ? 'bg-gray-300 cursor-not-allowed'
+                  : 'bg-purple-600 hover:bg-purple-700'
+                }`}
+              >
+                {generatingApprovalLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LinkIcon className="w-3.5 h-3.5" />}
+                {generatingApprovalLink ? 'Generating…' : `One-Time Link${calendarSelectedPostIds.size > 0 ? ` (${calendarSelectedPostIds.size})` : ''}`}
+              </button>
+
+              {calendarSelectedPostIds.size > 0 && (
+                <button
+                  onClick={() => { setCalendarSelectedPostIds(new Set()); setPendingDeleteConfirm(false); }}
+                  className="ml-auto text-xs text-gray-500 hover:text-gray-700 underline"
+                >
+                  Clear selection
+                </button>
+              )}
+            </div>
+
             <PortalColumnViewCalendar
               weeks={getWeeksToDisplay(3)}
               scheduledPosts={scheduledPosts}
@@ -1714,6 +1912,7 @@ export default function PortalCalendarPage() {
                       file_type: uploadData.file_type || 'image/jpeg',
                       file_url: uploadData.file_url || post.image_url || '',
                       notes: uploadData.notes || null,
+                      review_notes: uploadData.review_notes || null,
                       created_at: uploadData.created_at || new Date().toISOString(),
                       target_date: uploadData.target_date ?? null,
                     },
@@ -1735,6 +1934,8 @@ export default function PortalCalendarPage() {
                 }
               }}
               movingToDate={movingToDate}
+              calendarSelectedPostIds={calendarSelectedPostIds}
+              onToggleCalendarPostSelection={handleToggleCalendarPostSelection}
               onEventAdd={(dateKey) => setPortalEventModal({ date: dateKey })}
               onEventClick={(event) => setPortalEventModal({ date: event.date, event })}
               onQueueItemDrop={async (uploadId, dateKey) => {
@@ -1874,6 +2075,49 @@ export default function PortalCalendarPage() {
           onDelete={handlePortalEventDelete}
           onClose={() => setPortalEventModal(null)}
         />
+      )}
+
+      {/* PDF Export Modal */}
+      <PDFExportModal
+        open={showPDFExportModal}
+        onClose={() => setShowPDFExportModal(false)}
+        onExport={performCalendarPDFExport}
+        defaultTitle="Content Calendar"
+        defaultFileName={`content-calendar-${new Date().toISOString().split('T')[0]}`}
+      />
+
+      {/* Approval Link Dialog */}
+      {showApprovalLinkDialog && approvalLinkUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowApprovalLinkDialog(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-gray-900">One-Time Approval Link</h2>
+              <button onClick={() => setShowApprovalLinkDialog(false)} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">
+              Share this link with someone to review and approve the selected {calendarSelectedPostIds.size} post{calendarSelectedPostIds.size !== 1 ? 's' : ''}. The link expires in 30 days.
+            </p>
+            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200 mb-4">
+              <span className="flex-1 text-sm text-gray-700 truncate font-mono">{approvalLinkUrl}</span>
+              <button
+                onClick={async () => {
+                  await navigator.clipboard.writeText(approvalLinkUrl);
+                  setApprovalLinkCopied(true);
+                  setTimeout(() => setApprovalLinkCopied(false), 2000);
+                }}
+                className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium rounded transition-colors"
+              >
+                {approvalLinkCopied ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {approvalLinkCopied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            <button onClick={() => setShowApprovalLinkDialog(false)} className="w-full py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+              Close
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

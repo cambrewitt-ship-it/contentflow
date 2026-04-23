@@ -30,6 +30,7 @@ interface QueueItem {
   file_type: string;
   file_url: string;
   notes: string | null;
+  review_notes: string | null;
   created_at: string;
   target_date: string | null;
   status?: string;

@@ -13,6 +13,7 @@ import {
 interface SocialPreviewCardProps {
   platform: 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'youtube' | 'threads'
   accountName: string
+  accountAvatarUrl?: string
   username?: string
   caption: string
   imageUrl?: string
@@ -26,6 +27,7 @@ interface SocialPreviewCardProps {
 export function SocialPreviewCard({
   platform,
   accountName,
+  accountAvatarUrl,
   username,
   caption,
   imageUrl,

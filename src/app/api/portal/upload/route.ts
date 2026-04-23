@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
         file_url,
         status,
         notes,
+        review_notes,
         target_date,
         created_at,
         updated_at,
@@ -267,7 +268,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { token, uploadId, notes, newDate, status, targetDate } = await request.json();
+    const { token, uploadId, notes, review_notes, newDate, status, targetDate } = await request.json();
 
     if (!token || !uploadId) {
       return NextResponse.json(
@@ -293,6 +294,10 @@ export async function PATCH(request: NextRequest) {
 
     if (notes !== undefined) {
       updateData.notes = notes || null;
+    }
+
+    if (review_notes !== undefined) {
+      updateData.review_notes = review_notes || null;
     }
 
     if (newDate) {

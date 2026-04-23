@@ -4,8 +4,9 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertCircle, CheckCircle, XCircle, AlertTriangle, Minus } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle, XCircle, AlertTriangle, Minus, Eye, EyeOff } from 'lucide-react';
 import logger from '@/lib/logger';
+import { PostSocialPreview } from '@/components/PostSocialPreview';
 
 interface WeekData {
   weekStart: Date;
@@ -80,6 +81,7 @@ export default function PublicApprovalPage() {
   const [selectedPosts, setSelectedPosts] = useState<{ [key: string]: 'approved' | 'rejected' | 'needs_attention' }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [socialPreviewEnabled, setSocialPreviewEnabled] = useState<Set<string>>(new Set());
 
   // Fetch approval data using the token
   const fetchApprovalData = useCallback(async () => {
@@ -514,8 +516,38 @@ export default function PublicApprovalPage() {
                             />
                           </div>
 
-                          {/* Image */}
-                          {post.image_url && (
+                          {/* Social Preview Toggle */}
+                          <div className="mb-3 flex items-center justify-between">
+                            <span className="text-xs font-medium text-gray-500">View as:</span>
+                            <button
+                              type="button"
+                              onClick={() => setSocialPreviewEnabled(prev => {
+                                const next = new Set(prev);
+                                if (next.has(postKey)) next.delete(postKey);
+                                else next.add(postKey);
+                                return next;
+                              })}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                                socialPreviewEnabled.has(postKey)
+                                  ? 'bg-indigo-600 text-white border-indigo-600'
+                                  : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
+                              }`}
+                            >
+                              {socialPreviewEnabled.has(postKey) ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                              {socialPreviewEnabled.has(postKey) ? 'Standard View' : 'Social Preview'}
+                            </button>
+                          </div>
+
+                          {/* Image or Social Preview */}
+                          {socialPreviewEnabled.has(postKey) ? (
+                            <div className="mb-3">
+                              <PostSocialPreview
+                                imageUrl={post.image_url}
+                                caption={editedCaptions[postKey] || post.caption}
+                                businessName={session?.client_name || ''}
+                              />
+                            </div>
+                          ) : post.image_url ? (
                             <div className="relative w-full mb-3">
                               <LazyApprovalImage
                                 src={post.image_url}
@@ -523,7 +555,7 @@ export default function PublicApprovalPage() {
                                 className="w-full h-auto max-h-96 object-contain"
                               />
                             </div>
-                          )}
+                          ) : null}
 
                           {/* Editable Caption */}
                           <div className="mb-3">

@@ -94,6 +94,8 @@ interface PortalColumnViewCalendarProps {
   onEventAdd?: (dateKey: string) => void;
   onEventClick?: (event: CalendarEvent) => void;
   movingToDate?: string | null;
+  calendarSelectedPostIds?: Set<string>;
+  onToggleCalendarPostSelection?: (postId: string) => void;
 }
 
 // Lazy loading image component
@@ -156,8 +158,8 @@ const LazyImage = ({
 };
 
 // Sortable Post Card Component
-function SortablePostCard({ 
-  post, 
+function SortablePostCard({
+  post,
   postKey,
   handleEditScheduledPost,
   editingPostId,
@@ -175,6 +177,8 @@ function SortablePostCard({
   deletingUploadIds,
   clientId,
   onPostClick,
+  calendarSelectedPostIds,
+  onToggleCalendarPostSelection,
 }: {
   post: Post;
   postKey: string;
@@ -194,6 +198,8 @@ function SortablePostCard({
   deletingUploadIds?: Set<string>;
   clientId?: string;
   onPostClick?: (post: Post) => void;
+  calendarSelectedPostIds?: Set<string>;
+  onToggleCalendarPostSelection?: (postId: string) => void;
 }) {
   const isClientUpload =
     post.post_type === 'client-upload' ||
@@ -236,6 +242,7 @@ function SortablePostCard({
 
   const isEditingTime = editingTimePostIds?.has(post.id) || false;
   const isEditing = editingPostId === post.id;
+  const isCalendarSelected = calendarSelectedPostIds?.has(post.id) ?? false;
 
   const selectedStatus = selectedPosts[postKey];
   const statusToUse = selectedStatus || post.approval_status;
@@ -471,11 +478,11 @@ function SortablePostCard({
       {...attributes}
       {...listeners}
       onClick={() => onPostClick?.(post)}
-      className={`rounded-lg border-2 p-3 mb-2 transition-all duration-200 cursor-pointer hover:shadow-md ${getCardStyling()} ${
-        isDragging ? 'opacity-50 scale-105 cursor-grabbing' : ''
-      } ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''}`}
+      className={`rounded-lg border-2 p-3 mb-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
+        isCalendarSelected ? 'border-indigo-500 bg-indigo-50 shadow-lg shadow-indigo-200/50' : getCardStyling()
+      } ${isDragging ? 'opacity-50 scale-105 cursor-grabbing' : ''} ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''}`}
     >
-      {/* Header with Date and Status */}
+      {/* Header with Date, Status and Select button */}
       <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
         <div className="flex flex-col">
           <span className="text-[11px] font-medium text-gray-700">
@@ -487,7 +494,22 @@ function SortablePostCard({
             </span>
           )}
         </div>
-        {renderApprovalStatusBadge()}
+        <div className="flex items-center gap-1.5">
+          {renderApprovalStatusBadge()}
+          {onToggleCalendarPostSelection && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleCalendarPostSelection(post.id); }}
+              className={`text-[10px] px-2 py-1 rounded font-semibold border transition-colors ${
+                isCalendarSelected
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
+              }`}
+            >
+              {isCalendarSelected ? '✓ Selected' : 'Select'}
+            </button>
+          )}
+        </div>
         {renderPipelineChips()}
       </div>
 
@@ -700,6 +722,8 @@ function DroppableDayRow({
   onEventAdd,
   onEventClick,
   movingToDate,
+  calendarSelectedPostIds,
+  onToggleCalendarPostSelection,
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -734,6 +758,8 @@ function DroppableDayRow({
   onEventAdd?: (dateKey: string) => void;
   onEventClick?: (event: CalendarEvent) => void;
   movingToDate?: string | null;
+  calendarSelectedPostIds?: Set<string>;
+  onToggleCalendarPostSelection?: (postId: string) => void;
 }) {
   const router = useRouter();
   const isUploadingToThisDate = uploading && uploadingForDate === dayRow.dateKey;
@@ -939,6 +965,8 @@ function DroppableDayRow({
                     deletingUploadIds={deletingUploadIds}
                     clientId={clientId}
                     onPostClick={onPostClick}
+                    calendarSelectedPostIds={calendarSelectedPostIds}
+                    onToggleCalendarPostSelection={onToggleCalendarPostSelection}
                   />
                 );
               })}
@@ -990,6 +1018,8 @@ export function PortalColumnViewCalendar({
   onEventAdd,
   onEventClick,
   movingToDate,
+  calendarSelectedPostIds,
+  onToggleCalendarPostSelection,
 }: PortalColumnViewCalendarProps) {
   const clientUploadsMap = clientUploads ?? {};
   const VISIBLE_WEEK_COUNT = 5; // Show 5 weeks: 1 partial before, 3 main, 1 partial after
@@ -1408,6 +1438,8 @@ export function PortalColumnViewCalendar({
                         onEventAdd={onEventAdd}
                         onEventClick={onEventClick}
                         movingToDate={movingToDate}
+                        calendarSelectedPostIds={calendarSelectedPostIds}
+                        onToggleCalendarPostSelection={onToggleCalendarPostSelection}
                       />
                     );
                   })}

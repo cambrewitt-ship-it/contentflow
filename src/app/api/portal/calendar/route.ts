@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Resolve token — supports both legacy client tokens and party tokens
     const resolved = await resolvePortalToken(token);
     if (!resolved) {
       return NextResponse.json(
@@ -31,24 +30,11 @@ export async function GET(request: NextRequest) {
 
     const { clientId, party } = resolved;
 
-    // Get client timezone
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .select('id, name, timezone')
-      .eq('id', clientId)
-      .single();
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
-    if (clientError || !client) {
-      return NextResponse.json(
-        { error: 'Client not found' },
-        { status: 401 }
-      );
-    }
-
-    const clientTimezone = client.timezone || 'Pacific/Auckland';
-
-    // Get scheduled posts for the client, including approval steps
-    const { data: scheduledPosts, error: scheduledError } = await supabase
+    // Build posts query with optional date range
+    let postsQuery = supabase
       .from('calendar_scheduled_posts')
       .select(`
         id,
@@ -70,6 +56,37 @@ export async function GET(request: NextRequest) {
       .order('scheduled_date', { ascending: true })
       .order('scheduled_time', { ascending: true });
 
+    if (startDate) postsQuery = postsQuery.gte('scheduled_date', startDate);
+    if (endDate) postsQuery = postsQuery.lte('scheduled_date', endDate);
+
+    // Build events query with same date range
+    let eventsQuery = supabase
+      .from('calendar_events')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('date', { ascending: true });
+
+    if (startDate) eventsQuery = eventsQuery.gte('date', startDate);
+    if (endDate) eventsQuery = eventsQuery.lte('date', endDate);
+
+    // Fetch client, posts and events in parallel
+    const [
+      { data: client, error: clientError },
+      { data: scheduledPosts, error: scheduledError },
+      { data: calendarEvents },
+    ] = await Promise.all([
+      supabase.from('clients').select('id, name, timezone, logo_url').eq('id', clientId).single(),
+      postsQuery,
+      eventsQuery,
+    ]);
+
+    if (clientError || !client) {
+      return NextResponse.json(
+        { error: 'Client not found' },
+        { status: 401 }
+      );
+    }
+
     if (scheduledError) {
       logger.error('Error fetching scheduled posts:', scheduledError);
       return NextResponse.json(
@@ -79,14 +96,15 @@ export async function GET(request: NextRequest) {
     }
 
     const posts = scheduledPosts ?? [];
-
-    // Batch-fetch approval steps — silently skip if table doesn't exist yet
-    let stepsByPostId: Record<string, any[]> = {};
     const postIds = posts.map((p: any) => p.id);
 
+    // Batch-fetch approval steps and tags in parallel
+    let stepsByPostId: Record<string, any[]> = {};
+    let tagsByPostId: Record<string, any[]> = {};
+
     if (postIds.length > 0) {
-      try {
-        const { data: allSteps } = await supabase
+      const [stepsResult, tagsResult] = await Promise.allSettled([
+        supabase
           .from('post_approval_steps')
           .select(`
             id,
@@ -105,37 +123,33 @@ export async function GET(request: NextRequest) {
           `)
           .in('post_id', postIds)
           .eq('post_type', 'calendar_scheduled')
-          .order('step_order', { ascending: true });
+          .order('step_order', { ascending: true }),
+        supabase
+          .from('post_tags')
+          .select('post_id, tags(id, name, color)')
+          .in('post_id', postIds),
+      ]);
 
-        for (const step of allSteps ?? []) {
+      if (stepsResult.status === 'fulfilled' && !stepsResult.value.error) {
+        for (const step of stepsResult.value.data ?? []) {
           if (!stepsByPostId[step.post_id]) stepsByPostId[step.post_id] = [];
           stepsByPostId[step.post_id].push(step);
         }
-      } catch {
+      } else if (stepsResult.status === 'rejected') {
         logger.debug('post_approval_steps table not available yet, skipping steps fetch');
       }
-    }
 
-    // Batch-fetch post tags
-    let tagsByPostId: Record<string, any[]> = {};
-    if (postIds.length > 0) {
-      try {
-        const { data: allPostTags } = await supabase
-          .from('post_tags')
-          .select('post_id, tags(id, name, color)')
-          .in('post_id', postIds);
-
-        for (const pt of allPostTags ?? []) {
+      if (tagsResult.status === 'fulfilled' && !tagsResult.value.error) {
+        for (const pt of tagsResult.value.data ?? []) {
           if (!tagsByPostId[pt.post_id]) tagsByPostId[pt.post_id] = [];
           const tag = (pt as any).tags;
           if (tag) tagsByPostId[pt.post_id].push({ id: tag.id, name: tag.name, color: tag.color });
         }
-      } catch {
+      } else if (tagsResult.status === 'rejected') {
         logger.debug('post_tags table not available yet, skipping tags fetch');
       }
     }
 
-    // Attach steps and tags to posts and group by date
     const postsByDate = posts.reduce((acc: Record<string, any[]>, post: any) => {
       const date = post.scheduled_date;
       if (!acc[date]) acc[date] = [];
@@ -147,13 +161,6 @@ export async function GET(request: NextRequest) {
       return acc;
     }, {} as Record<string, any[]>);
 
-    // Fetch calendar events for this client
-    const { data: calendarEvents } = await supabase
-      .from('calendar_events')
-      .select('*')
-      .eq('client_id', clientId)
-      .order('date', { ascending: true });
-
     const eventsByDate = (calendarEvents ?? []).reduce((acc: Record<string, any[]>, evt: any) => {
       if (!acc[evt.date]) acc[evt.date] = [];
       acc[evt.date].push(evt);
@@ -161,12 +168,12 @@ export async function GET(request: NextRequest) {
     }, {} as Record<string, any[]>);
 
     return NextResponse.json({
-      client: { id: client.id, name: client.name },
+      client: { id: client.id, name: client.name, logo_url: client.logo_url ?? null },
       party: party ?? null,
       posts: postsByDate,
       events: eventsByDate,
       totalPosts: posts.length,
-      timezone: clientTimezone,
+      timezone: client.timezone || 'Pacific/Auckland',
     });
 
   } catch (error) {

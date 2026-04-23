@@ -73,11 +73,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get post approvals for this session
-    const { data: postApprovals, error: approvalsError } = await supabase
-      .from('post_approvals')
-      .select('post_id, post_type, approval_status, client_comments, created_at')
-      .eq('session_id', session.id);
+    // Get post approvals and client brand info in parallel
+    const [{ data: postApprovals, error: approvalsError }, { data: clientData }] = await Promise.all([
+      supabase
+        .from('post_approvals')
+        .select('post_id, post_type, approval_status, client_comments, created_at')
+        .eq('session_id', session.id),
+      supabase
+        .from('clients')
+        .select('name, logo_url')
+        .eq('id', session.client_id)
+        .single(),
+    ]);
 
     if (approvalsError) {
       logger.error('❌ Error fetching post approvals:', approvalsError);
@@ -207,7 +214,11 @@ export async function GET(request: NextRequest) {
     const queryDuration = Date.now() - startTime;
 
     return NextResponse.json({
-      session,
+      session: {
+        ...session,
+        client_name: clientData?.name ?? null,
+        client_logo_url: clientData?.logo_url ?? null,
+      },
       weeks,
       total_posts: allPosts.length,
       performance: {

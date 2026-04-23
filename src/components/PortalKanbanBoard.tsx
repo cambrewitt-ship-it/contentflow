@@ -22,6 +22,7 @@ export interface KanbanItem {
   file_type: string;
   file_url: string;
   notes: string | null;
+  review_notes: string | null;
   created_at: string;
   status: string;
 }

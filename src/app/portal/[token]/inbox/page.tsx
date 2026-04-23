@@ -27,6 +27,7 @@ interface InboxUpload {
   file_url: string;
   status: string;
   notes: string | null;
+  review_notes: string | null;
   target_date: string | null;
   created_at: string;
   uploaded_by_party: {

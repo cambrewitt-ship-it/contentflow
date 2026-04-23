@@ -56,6 +56,7 @@ export interface ModalUpload {
   file_type: string;
   file_url: string;
   notes: string | null;
+  review_notes: string | null;
   created_at: string;
   target_date?: string | null;
 }
@@ -208,6 +209,9 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned 
   const [uploadFeedback, setUploadFeedback] = useState("");
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [feedbackDone, setFeedbackDone] = useState<string | null>(null);
+  const [localReviewNotes, setLocalReviewNotes] = useState<string | null>(
+    isUpload ? (item.data as ModalUpload).review_notes : null
+  );
 
   // Scroll comments into view on load
   const scrollToBottom = () => {
@@ -331,13 +335,12 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned 
         hour: "2-digit",
         minute: "2-digit",
       });
-      const partyLabel = party?.name ?? "Reviewer";
       const line = approved
-        ? `[${partyLabel} — Approved ✓ — ${timestamp}]`
-        : `[${partyLabel} — Changes Requested — ${timestamp}]: ${uploadFeedback.trim()}`;
+        ? `approved:${timestamp}`
+        : `${timestamp}: ${uploadFeedback.trim()}`;
 
-      const existingNotes = upload.notes ?? "";
-      const newNotes = existingNotes ? `${existingNotes}\n\n${line}` : line;
+      const existingReviewNotes = upload.review_notes ?? "";
+      const newReviewNotes = existingReviewNotes ? `${existingReviewNotes}\n\n${line}` : line;
 
       // approved  → 'completed'  (Kanban: Approved column)
       // changes   → 'processing' (Kanban: In Review column)
@@ -349,16 +352,15 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned 
         body: JSON.stringify({
           token: portalToken,
           uploadId: upload.id,
-          notes: newNotes,
+          review_notes: newReviewNotes,
           status: newStatus,
         }),
       });
       if (!res.ok) throw new Error("Failed to submit");
-      setFeedbackDone(approved ? "Approved!" : "Changes requested");
+      setLocalReviewNotes(newReviewNotes);
       setUploadFeedback("");
-      setTimeout(() => {
-        onActioned();
-      }, 1500);
+      setFeedbackDone(approved ? "Approved!" : "Comment added");
+      setTimeout(() => setFeedbackDone(null), 2000);
     } catch (err) {
       logger.error("Upload feedback error:", err);
     } finally {
@@ -559,6 +561,43 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned 
                 </div>
               )}
 
+              {/* Review feedback notifications (uploads only) */}
+              {isUpload && localReviewNotes && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                    Review Feedback
+                  </p>
+                  <div className="space-y-2">
+                    {localReviewNotes
+                      .split(/\n\n/)
+                      .filter(Boolean)
+                      .map((entry, i) => {
+                        const isApproved = entry.startsWith("approved:");
+                        const displayText = isApproved
+                          ? `Approved — ${entry.slice("approved:".length)}`
+                          : entry;
+                        return (
+                          <div
+                            key={i}
+                            className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
+                              isApproved
+                                ? "bg-green-50 border border-green-200 text-green-800"
+                                : "bg-amber-50 border border-amber-200 text-amber-800"
+                            }`}
+                          >
+                            {isApproved ? (
+                              <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-600" />
+                            ) : (
+                              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-500" />
+                            )}
+                            <span className="whitespace-pre-wrap">{displayText}</span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
               {/* ── APPROVAL SECTION (posts) ── */}
               {isPost && (
                 <div className="space-y-4">
@@ -705,7 +744,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned 
                           disabled={isSubmittingFeedback || !uploadFeedback.trim()}
                         >
                           <AlertTriangle className="w-3.5 h-3.5" />
-                          Request Changes
+                          Comment
                         </Button>
                       </div>
                     </>
