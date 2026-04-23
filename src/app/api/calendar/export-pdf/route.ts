@@ -168,92 +168,56 @@ function formatPostDate(dateString: string): string {
   }
 }
 
-// Helper function to add header with logos to a page
-async function addHeaderWithLogos(
+interface LogoData {
+  base64: string;
+  dims: { width: number; height: number };
+  format: 'JPEG' | 'PNG' | 'WEBP';
+}
+
+// Helper function to add header with logos to a page (uses pre-fetched logo data)
+function addHeaderWithLogos(
   doc: jsPDF,
   pageWidth: number,
-  clientLogoUrl: string | null,
-  companyLogoUrl: string | null,
+  clientLogo: LogoData | null,
+  companyLogo: LogoData | null,
   pdfTitle: string,
   clientName: string
-): Promise<number> {
+): number {
   const logoMaxHeight = 20; // 20mm max height (slightly bigger)
   const logoTopMargin = 5; // 5mm from top
   const logoSideMargin = 15; // 15mm from sides
-  
+
   // Add client logo (top left)
-  if (clientLogoUrl) {
+  if (clientLogo) {
     try {
-      const clientLogoBase64 = await fetchImageAsBase64(clientLogoUrl);
-      if (clientLogoBase64) {
-        const clientLogoDims = await getImageDimensions(clientLogoBase64);
-        const clientAspectRatio = clientLogoDims.width / clientLogoDims.height;
-        
-        let clientLogoWidth = logoMaxHeight * clientAspectRatio;
-        let clientLogoHeight = logoMaxHeight;
-        
-        // If logo is wider than available space, scale down
-        if (clientLogoWidth > (pageWidth / 2) - logoSideMargin) {
-          clientLogoWidth = (pageWidth / 2) - logoSideMargin;
-          clientLogoHeight = clientLogoWidth / clientAspectRatio;
-        }
-        
-        // Determine image format
-        let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
-        if (clientLogoBase64.includes('image/png')) {
-          format = 'PNG';
-        } else if (clientLogoBase64.includes('image/webp')) {
-          format = 'WEBP';
-        }
-        
-        doc.addImage(
-          clientLogoBase64,
-          format,
-          logoSideMargin,
-          logoTopMargin,
-          clientLogoWidth,
-          clientLogoHeight
-        );
+      const clientAspectRatio = clientLogo.dims.width / clientLogo.dims.height;
+      let clientLogoWidth = logoMaxHeight * clientAspectRatio;
+      let clientLogoHeight = logoMaxHeight;
+
+      if (clientLogoWidth > (pageWidth / 2) - logoSideMargin) {
+        clientLogoWidth = (pageWidth / 2) - logoSideMargin;
+        clientLogoHeight = clientLogoWidth / clientAspectRatio;
       }
+
+      doc.addImage(clientLogo.base64, clientLogo.format, logoSideMargin, logoTopMargin, clientLogoWidth, clientLogoHeight);
     } catch (error) {
       console.error('Error adding client logo to PDF:', error);
     }
   }
-  
+
   // Add company logo (top right)
-  if (companyLogoUrl) {
+  if (companyLogo) {
     try {
-      const companyLogoBase64 = await fetchImageAsBase64(companyLogoUrl);
-      if (companyLogoBase64) {
-        const companyLogoDims = await getImageDimensions(companyLogoBase64);
-        const companyAspectRatio = companyLogoDims.width / companyLogoDims.height;
-        
-        let companyLogoWidth = logoMaxHeight * companyAspectRatio;
-        let companyLogoHeight = logoMaxHeight;
-        
-        // If logo is wider than available space, scale down
-        if (companyLogoWidth > (pageWidth / 2) - logoSideMargin) {
-          companyLogoWidth = (pageWidth / 2) - logoSideMargin;
-          companyLogoHeight = companyLogoWidth / companyAspectRatio;
-        }
-        
-        // Determine image format
-        let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
-        if (companyLogoBase64.includes('image/png')) {
-          format = 'PNG';
-        } else if (companyLogoBase64.includes('image/webp')) {
-          format = 'WEBP';
-        }
-        
-        doc.addImage(
-          companyLogoBase64,
-          format,
-          pageWidth - logoSideMargin - companyLogoWidth,
-          logoTopMargin,
-          companyLogoWidth,
-          companyLogoHeight
-        );
+      const companyAspectRatio = companyLogo.dims.width / companyLogo.dims.height;
+      let companyLogoWidth = logoMaxHeight * companyAspectRatio;
+      let companyLogoHeight = logoMaxHeight;
+
+      if (companyLogoWidth > (pageWidth / 2) - logoSideMargin) {
+        companyLogoWidth = (pageWidth / 2) - logoSideMargin;
+        companyLogoHeight = companyLogoWidth / companyAspectRatio;
       }
+
+      doc.addImage(companyLogo.base64, companyLogo.format, pageWidth - logoSideMargin - companyLogoWidth, logoTopMargin, companyLogoWidth, companyLogoHeight);
     } catch (error) {
       console.error('Error adding company logo to PDF:', error);
     }
@@ -375,6 +339,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Pre-fetch all images in parallel (logos + post images)
+    const fetchLogoData = async (url: string | null): Promise<LogoData | null> => {
+      if (!url) return null;
+      const base64 = await fetchImageAsBase64(url);
+      if (!base64) return null;
+      const dims = await getImageDimensions(base64);
+      let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
+      if (base64.includes('image/png')) format = 'PNG';
+      else if (base64.includes('image/webp')) format = 'WEBP';
+      return { base64, dims, format };
+    };
+
+    const imageUrls = posts.map(p => p.image_url as string | null);
+    const [clientLogo, companyLogo, ...postImageBase64s] = await Promise.all([
+      fetchLogoData(clientLogoUrl),
+      fetchLogoData(companyLogoUrl),
+      ...imageUrls.map(url => url ? fetchImageAsBase64(url) : Promise.resolve(null)),
+    ]);
+
+    // Map post ID -> pre-fetched base64 for O(1) lookup in render loop
+    const postImageMap = new Map<string, string | null>();
+    posts.forEach((post, i) => {
+      postImageMap.set(post.id, postImageBase64s[i] ?? null);
+    });
+
     // Create PDF document
     const doc = new jsPDF({
       orientation: 'landscape',
@@ -386,24 +375,24 @@ export async function POST(request: NextRequest) {
     const NotoSansRegular = loadFont('NotoSans-Regular.js');
     doc.addFileToVFS('NotoSans-Regular.ttf', NotoSansRegular);
     doc.addFont('NotoSans-Regular.ttf', 'NotoSans', 'normal');
-    
+
     // Add Poppins fonts
     const PoppinsBold = loadFont('Poppins-Bold.js');
     doc.addFileToVFS('Poppins-Bold.ttf', PoppinsBold);
     doc.addFont('Poppins-Bold.ttf', 'Poppins', 'bold');
-    
+
     const PoppinsLight = loadFont('Poppins-Light.js');
     doc.addFileToVFS('Poppins-Light.ttf', PoppinsLight);
     doc.addFont('Poppins-Light.ttf', 'PoppinsLight', 'normal');
-    
+
     // Use Helvetica by default for proper spacing (switch to NotoSans when emojis detected)
     doc.setFont('helvetica', 'normal');
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    
+
     // Add header with logos on first page and get the Y position after header
-    const headerHeight = await addHeaderWithLogos(doc, pageWidth, clientLogoUrl, companyLogoUrl, pdfTitle, client.name);
+    const headerHeight = addHeaderWithLogos(doc, pageWidth, clientLogo, companyLogo, pdfTitle, client.name);
     let yPosition = headerHeight;
 
     // Group posts by date
@@ -465,7 +454,7 @@ export async function POST(request: NextRequest) {
       if (currentColumn >= 3) {
         doc.addPage();
         // Add header with logos on new page and get the Y position after header
-        const newHeaderHeight = await addHeaderWithLogos(doc, pageWidth, clientLogoUrl, companyLogoUrl, pdfTitle, client.name);
+        const newHeaderHeight = addHeaderWithLogos(doc, pageWidth, clientLogo, companyLogo, pdfTitle, client.name);
         pageStartHeaderY = newHeaderHeight;
         // Start with header position, will center after we know actual content height
         rowStartY = newHeaderHeight;
@@ -478,7 +467,7 @@ export async function POST(request: NextRequest) {
       if (currentColumn === 0 && yPosition > pageHeight - 40) {
         doc.addPage();
         // Add header with logos on new page and get the Y position after header
-        const newHeaderHeight = await addHeaderWithLogos(doc, pageWidth, clientLogoUrl, companyLogoUrl, pdfTitle, client.name);
+        const newHeaderHeight = addHeaderWithLogos(doc, pageWidth, clientLogo, companyLogo, pdfTitle, client.name);
         pageStartHeaderY = newHeaderHeight;
         // Start with header position, will center after we know actual content height
         rowStartY = newHeaderHeight;
@@ -519,10 +508,9 @@ export async function POST(request: NextRequest) {
       }
         
         const startY = rowStartY;
-        
-        const imageX = columnX + 2; // Small padding from column edge (2mm)
+        const columnCenterX = columnX + columnWidth / 2;
         const imageY = startY + 5; // Position image below date/time
-        
+
         // Ensure image doesn't exceed column width
         const effectiveMaxImageWidth = Math.min(maxImageWidth, columnWidth - 4);
 
@@ -530,15 +518,17 @@ export async function POST(request: NextRequest) {
         let imageAdded = false;
         let actualImageWidth = effectiveMaxImageWidth;
         let actualImageHeight = effectiveMaxImageWidth; // Default to square
-        
+        // imageX starts centred for the default square size; updated once actual dimensions are known
+        let imageX = columnCenterX - effectiveMaxImageWidth / 2;
+
         if (post.image_url) {
           try {
-            const imageBase64 = await fetchImageAsBase64(post.image_url);
+            const imageBase64 = postImageMap.get(post.id) ?? null;
             if (imageBase64) {
               // Get actual image dimensions
               const imageDimensions = await getImageDimensions(imageBase64);
               const aspectRatio = imageDimensions.width / imageDimensions.height;
-              
+
               // Calculate scaled dimensions while preserving aspect ratio
               if (aspectRatio > 1) {
                 // Landscape orientation
@@ -553,7 +543,10 @@ export async function POST(request: NextRequest) {
                 actualImageWidth = effectiveMaxImageWidth;
                 actualImageHeight = effectiveMaxImageWidth;
               }
-              
+
+              // Centre image horizontally within its column
+              imageX = columnCenterX - actualImageWidth / 2;
+
               // Determine image format
               let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
               if (imageBase64.includes('image/png')) {
@@ -561,76 +554,54 @@ export async function POST(request: NextRequest) {
               } else if (imageBase64.includes('image/webp')) {
                 format = 'WEBP';
               }
-              
-              // Calculate image center for centering date/time text
-              const imageCenterX = imageX + (actualImageWidth / 2);
-              
-              // Add post date and time at the top of each post, centered with the image
+
+              // Add post date and time at the top of each post, centered with the column
               const postDateY = startY;
               doc.setFontSize(12);
               doc.setFont('helvetica', 'bold');
               doc.setTextColor(0, 0, 0);
-              
+
               const postDateText = formatPostDate(post.scheduled_date || 'No Date');
               const postTimeText = post.scheduled_time ? formatTime(post.scheduled_time) : '';
               const dateTimeText = postTimeText ? `${postDateText} ${postTimeText}` : postDateText;
-              
-              // Center the date/time text with the image
-              doc.text(dateTimeText, imageCenterX, postDateY, { align: 'center' });
-              
+
+              doc.text(dateTimeText, columnCenterX, postDateY, { align: 'center' });
+
               doc.addImage(imageBase64, format, imageX, imageY, actualImageWidth, actualImageHeight);
               imageAdded = true;
             }
           } catch (error) {
             console.error('Error adding image to PDF:', error);
-            // Calculate image center for centering date/time text
-            const imageCenterX = imageX + (actualImageWidth / 2);
-            
-            // Add post date and time at the top of each post, centered with the image
             const postDateY = startY;
             doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(0, 0, 0);
-            
             const postDateText = formatPostDate(post.scheduled_date || 'No Date');
             const postTimeText = post.scheduled_time ? formatTime(post.scheduled_time) : '';
             const dateTimeText = postTimeText ? `${postDateText} ${postTimeText}` : postDateText;
-            
-            // Center the date/time text with the image
-            doc.text(dateTimeText, imageCenterX, postDateY, { align: 'center' });
-            
-            // Draw placeholder rectangle
+            doc.text(dateTimeText, columnCenterX, postDateY, { align: 'center' });
             doc.setFillColor(240, 240, 240);
             doc.rect(imageX, imageY, actualImageWidth, actualImageHeight, 'F');
             doc.setFontSize(8);
             doc.setTextColor(150, 150, 150);
-            doc.text('Image', imageX + actualImageWidth / 2, imageY + actualImageHeight / 2, { align: 'center' });
+            doc.text('Image', columnCenterX, imageY + actualImageHeight / 2, { align: 'center' });
           }
         }
 
         if (!imageAdded) {
-          // Calculate image center for centering date/time text
-          const imageCenterX = imageX + (actualImageWidth / 2);
-          
-          // Add post date and time at the top of each post, centered with the image
           const postDateY = startY;
           doc.setFontSize(12);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(0, 0, 0);
-          
           const postDateText = formatPostDate(post.scheduled_date || 'No Date');
           const postTimeText = post.scheduled_time ? formatTime(post.scheduled_time) : '';
           const dateTimeText = postTimeText ? `${postDateText} ${postTimeText}` : postDateText;
-          
-          // Center the date/time text with the image
-          doc.text(dateTimeText, imageCenterX, postDateY, { align: 'center' });
-          
-          // Draw placeholder if no image
+          doc.text(dateTimeText, columnCenterX, postDateY, { align: 'center' });
           doc.setFillColor(240, 240, 240);
           doc.rect(imageX, imageY, actualImageWidth, actualImageHeight, 'F');
           doc.setFontSize(8);
           doc.setTextColor(150, 150, 150);
-          doc.text('No Image', imageX + actualImageWidth / 2, imageY + actualImageHeight / 2, { align: 'center' });
+          doc.text('No Image', columnCenterX, imageY + actualImageHeight / 2, { align: 'center' });
         }
 
         // Post details (below image)

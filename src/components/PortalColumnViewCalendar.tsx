@@ -174,6 +174,7 @@ function SortablePostCard({
   onDeleteClientUpload,
   deletingUploadIds,
   clientId,
+  onPostClick,
 }: {
   post: Post;
   postKey: string;
@@ -1266,24 +1267,6 @@ export function PortalColumnViewCalendar({
     return date.toDateString() === today.toDateString();
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  const handleNavigate = (direction: 'left' | 'right') => {
-    setStartWeek((prev) => {
-      const base = prev ? new Date(prev) : new Date();
-      const deltaDays = direction === 'left' ? -7 : 7;
-      base.setDate(base.getDate() + deltaDays);
-      base.setHours(0, 0, 0, 0);
-      return base;
-    });
-  };
-
   // Native drop handler — bypasses React's event delegation (more reliable inside DndContext)
   const calendarContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -1317,6 +1300,24 @@ export function PortalColumnViewCalendar({
       container.removeEventListener('drop', nativeDrop);
     };
   }, [onDrop]);
+
+  const handleNavigate = (direction: 'left' | 'right') => {
+    setStartWeek((prev) => {
+      const base = prev ? new Date(prev) : new Date();
+      const deltaDays = direction === 'left' ? -7 : 7;
+      base.setDate(base.getDate() + deltaDays);
+      base.setHours(0, 0, 0, 0);
+      return base;
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <DndContext

@@ -196,49 +196,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    console.log('🔐 Starting sign in for:', { email });
-    
     try {
-      // Call server-side login route to properly set cookies
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        console.error('❌ Sign in error:', { errorMessage: data.error, userEmail: email });
-        return { error: { message: data.error, status: response.status } as any };
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        return { error };
       }
-      
-      console.log('✅ Sign in successful (server-side):', {
-        userId: data.user?.id,
-        hasUser: !!data.user
-      });
-      
-      // Refresh the session from Supabase to get the updated state
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error('❌ Error getting session after login:', sessionError);
-        return { error: sessionError };
+
+      if (data.session) {
+        setUser(data.session.user);
+        setSession(data.session);
       }
-      
-      if (sessionData?.session) {
-        console.log('✅ Session retrieved successfully after login');
-        setUser(sessionData.session.user);
-        setSession(sessionData.session);
-      } else {
-        console.warn('⚠️ No session found after successful login');
-      }
-      
+
       return { error: null };
     } catch (err) {
-      console.error('💥 Unexpected sign in error:', err);
       return { error: { message: 'An unexpected error occurred' } as any };
     }
   };
