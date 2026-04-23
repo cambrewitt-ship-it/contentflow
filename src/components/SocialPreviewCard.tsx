@@ -89,14 +89,30 @@ export function SocialPreviewCard({
 
   const styles = getPlatformStyles()
 
+  // Renders the account avatar — uses uploaded logo when provided, otherwise falls back to platform icon
+  const renderAccountAvatar = (sizeClass?: string) => {
+    const containerClass = sizeClass || styles.iconBg
+    if (accountAvatarUrl) {
+      return (
+        <div className={containerClass + ' overflow-hidden'} style={{ background: 'none' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={accountAvatarUrl} alt={accountName} className="w-full h-full object-cover rounded-full" />
+        </div>
+      )
+    }
+    return (
+      <div className={containerClass}>
+        {getPlatformIcon()}
+      </div>
+    )
+  }
+
   const renderFacebookPreview = () => (
     <div className={styles.container} style={{ fontFamily: styles.fontFamily }}>
       {/* Facebook Header */}
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center">
-          <div className={styles.iconBg}>
-            {getPlatformIcon()}
-          </div>
+          {renderAccountAvatar()}
           <div className="ml-3">
             <div className="font-semibold text-gray-900 text-sm">
               {accountName}
@@ -178,9 +194,7 @@ export function SocialPreviewCard({
       {/* Instagram Header */}
       <div className="flex items-center justify-between px-3 py-3">
         <div className="flex items-center">
-          <div className={styles.iconBg}>
-            {getPlatformIcon()}
-          </div>
+          {renderAccountAvatar()}
           <div className="ml-3">
             <div className="font-semibold text-gray-900 text-sm">
               {accountName}
@@ -242,9 +256,7 @@ export function SocialPreviewCard({
     <div className={styles.container}>
       {/* Twitter Header */}
       <div className="flex items-center p-3 border-b border-gray-100">
-        <div className={styles.iconBg}>
-          {getPlatformIcon()}
-        </div>
+        {renderAccountAvatar()}
         <div className="ml-3 flex-1">
           <div className="font-semibold text-gray-900 text-sm">
             {accountName}

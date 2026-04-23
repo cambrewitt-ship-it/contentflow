@@ -89,6 +89,8 @@ interface Props {
   party: PortalParty | null;
   onClose: () => void;
   onActioned: () => void;
+  brandName?: string;
+  brandLogoUrl?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -173,7 +175,7 @@ function PipelineSteps({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function PortalItemModal({ item, portalToken, party, onClose, onActioned }: Props) {
+export function PortalItemModal({ item, portalToken, party, onClose, onActioned, brandName, brandLogoUrl }: Props) {
   const isPost = item.type === "post";
   const isUpload = item.type === "upload";
 
@@ -499,7 +501,8 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned 
                 <div className="flex-1 px-3 pb-4">
                   <SocialPreviewCard
                     platform={selectedPlatform}
-                    accountName="Your Account"
+                    accountName={brandName || "Your Account"}
+                    accountAvatarUrl={brandLogoUrl}
                     caption={
                       isPost
                         ? (item.data as ModalPost).caption || ""

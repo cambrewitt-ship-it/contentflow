@@ -545,6 +545,7 @@ export default function PublicApprovalPage() {
                                 imageUrl={post.image_url}
                                 caption={editedCaptions[postKey] || post.caption}
                                 businessName={session?.client_name || ''}
+                                logoUrl={session?.client_logo_url || null}
                               />
                             </div>
                           ) : post.image_url ? (

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, ChangeEvent, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns, Inbox, Upload, Image as ImageIcon, Film, Trash2, Sparkles, File, ListOrdered, FileDown, Link as LinkIcon, Copy, CheckCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns, Inbox, Upload, Image as ImageIcon, Film, Trash2, Sparkles, File, ListOrdered, FileDown, Link as LinkIcon, Copy, CheckCheck, Settings2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -331,7 +331,15 @@ export default function PortalCalendarPage() {
   const [approvalLinkCopied, setApprovalLinkCopied] = useState(false);
   const [isDeletingSelected, setIsDeletingSelected] = useState(false);
   const [pendingDeleteConfirm, setPendingDeleteConfirm] = useState(false);
-  
+
+  // Brand settings (persisted in localStorage, keyed by portal token)
+  const [brandName, setBrandName] = useState('');
+  const [brandLogoUrl, setBrandLogoUrl] = useState('');
+  const [showBrandSettings, setShowBrandSettings] = useState(false);
+  const [tempBrandName, setTempBrandName] = useState('');
+  const [tempBrandLogoUrl, setTempBrandLogoUrl] = useState('');
+  const brandInitializedRef = useRef(false);
+
   // View mode state
   const [viewMode, setViewMode] = useState<'column' | 'month' | 'kanban' | 'inbox'>('column');
   const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0);
@@ -354,6 +362,22 @@ export default function PortalCalendarPage() {
   
   // Client timezone for calendar display
   const [clientTimezone, setClientTimezone] = useState<string>('Pacific/Auckland');
+
+  // Load brand settings from localStorage on mount
+  useEffect(() => {
+    if (!token) return;
+    try {
+      const stored = localStorage.getItem(`portal_brand_${token}`);
+      if (stored) {
+        const { name, logoUrl } = JSON.parse(stored);
+        if (name !== undefined) setBrandName(name);
+        if (logoUrl !== undefined) setBrandLogoUrl(logoUrl);
+        brandInitializedRef.current = true;
+      }
+    } catch {
+      // ignore
+    }
+  }, [token]);
 
   // Get start of week (Monday) in client's timezone
   const getStartOfWeek = useCallback((offset: number = 0) => {
@@ -455,6 +479,13 @@ export default function PortalCalendarPage() {
       if (data.timezone) {
         setClientTimezone(data.timezone);
         logger.debug('📍 Portal using client timezone:', data.timezone);
+      }
+
+      // Seed brand defaults from client record if not yet set via localStorage
+      if (!brandInitializedRef.current && data.client) {
+        brandInitializedRef.current = true;
+        setBrandName(data.client.name || '');
+        setBrandLogoUrl(data.client.logo_url || '');
       }
       
       // The API already returns posts grouped by date, so we can use it directly
@@ -871,6 +902,24 @@ export default function PortalCalendarPage() {
       alert('Failed to delete post. Please try again.');
     } finally {
       setDeletingItems(prev => ({ ...prev, [itemKey]: false }));
+    }
+  };
+
+  // Brand settings handlers
+  const openBrandSettings = () => {
+    setTempBrandName(brandName);
+    setTempBrandLogoUrl(brandLogoUrl);
+    setShowBrandSettings(true);
+  };
+
+  const saveBrandSettings = () => {
+    setBrandName(tempBrandName);
+    setBrandLogoUrl(tempBrandLogoUrl);
+    setShowBrandSettings(false);
+    try {
+      localStorage.setItem(`portal_brand_${token}`, JSON.stringify({ name: tempBrandName, logoUrl: tempBrandLogoUrl }));
+    } catch {
+      // ignore
     }
   };
 
@@ -1867,10 +1916,25 @@ export default function PortalCalendarPage() {
                 {generatingApprovalLink ? 'Generating…' : `One-Time Link${calendarSelectedPostIds.size > 0 ? ` (${calendarSelectedPostIds.size})` : ''}`}
               </button>
 
+              {/* Brand Settings button — always visible, on the right end */}
+              <button
+                onClick={openBrandSettings}
+                className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition-colors flex-shrink-0"
+                title="Set brand name & logo for previews"
+              >
+                {brandLogoUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={brandLogoUrl} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
+                ) : (
+                  <Settings2 className="w-3.5 h-3.5" />
+                )}
+                {brandName ? <span className="max-w-[120px] truncate">{brandName}</span> : 'Brand'}
+              </button>
+
               {calendarSelectedPostIds.size > 0 && (
                 <button
                   onClick={() => { setCalendarSelectedPostIds(new Set()); setPendingDeleteConfirm(false); }}
-                  className="ml-auto text-xs text-gray-500 hover:text-gray-700 underline"
+                  className="text-xs text-gray-500 hover:text-gray-700 underline"
                 >
                   Clear selection
                 </button>
@@ -2054,6 +2118,8 @@ export default function PortalCalendarPage() {
           item={modalItem}
           portalToken={token}
           party={party}
+          brandName={brandName || undefined}
+          brandLogoUrl={brandLogoUrl || undefined}
           onClose={() => setModalItem(null)}
           onActioned={() => {
             setModalItem(null);
@@ -2075,6 +2141,91 @@ export default function PortalCalendarPage() {
           onDelete={handlePortalEventDelete}
           onClose={() => setPortalEventModal(null)}
         />
+      )}
+
+      {/* Brand Settings Modal */}
+      {showBrandSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowBrandSettings(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Brand Settings</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Used in post previews &amp; social mock-ups</p>
+              </div>
+              <button onClick={() => setShowBrandSettings(false)} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Brand name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Brand Name</label>
+                <input
+                  type="text"
+                  value={tempBrandName}
+                  onChange={e => setTempBrandName(e.target.value)}
+                  placeholder="e.g. Acme Co."
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+                />
+              </div>
+
+              {/* Logo URL */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
+                <input
+                  type="url"
+                  value={tempBrandLogoUrl}
+                  onChange={e => setTempBrandLogoUrl(e.target.value)}
+                  placeholder="https://example.com/logo.png"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+                />
+                {tempBrandLogoUrl && (
+                  <div className="mt-2 flex items-center gap-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={tempBrandLogoUrl}
+                      alt="Logo preview"
+                      className="w-10 h-10 rounded-full object-cover border border-gray-200 bg-gray-50"
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <span className="text-xs text-gray-500">Preview</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => setShowBrandSettings(false)}
+                className="flex-1 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              {(brandName || brandLogoUrl) && (
+                <button
+                  onClick={() => {
+                    setTempBrandName('');
+                    setTempBrandLogoUrl('');
+                    setBrandName('');
+                    setBrandLogoUrl('');
+                    setShowBrandSettings(false);
+                    try { localStorage.removeItem(`portal_brand_${token}`); } catch { /* ignore */ }
+                  }}
+                  className="px-3 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+              <button
+                onClick={saveBrandSettings}
+                className="flex-1 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* PDF Export Modal */}
