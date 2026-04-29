@@ -1118,7 +1118,7 @@ function DroppableDayRow({
         items={dayRow.posts.map((post) => `${post.post_type || 'post'}-${post.id}`)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="space-y-2 min-h-[60px]">
+        <div className="space-y-2">
           {dayRow.posts.length === 0 ? (
             <button
               type="button"
@@ -1129,12 +1129,10 @@ function DroppableDayRow({
                   router.push(`/dashboard/client/${clientId}/content-suite?scheduledDate=${dayRow.dateKey}`);
                 }
               }}
-              className="w-full flex items-center justify-center py-4 border-2 border-dashed border-gray-300 rounded hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 group"
+              style={{ height: '60px' }}
+              className="w-full flex items-center justify-center border border-dashed border-gray-200 rounded-md hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 group"
             >
-              <div className="flex items-center gap-1.5 text-gray-400 group-hover:text-blue-600">
-                <Plus className="w-4 h-4" />
-                <span className="text-sm font-medium">Upload Content</span>
-              </div>
+              <Plus className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition-colors" />
             </button>
           ) : (
             dayRow.posts.map((post) => {
@@ -1527,8 +1525,7 @@ export function ColumnViewCalendar({
         <div style={{display: 'flex', gap: '8px', padding: '16px 8px', width: 'max-content', minWidth: '100%'}}>
           {columns.map((column, index) => {
             const isCurrent = isCurrentWeek(column.weekStart);
-            const isEdgeColumn = index === 0 || index === columns.length - 1;
-            const opacityClass = isEdgeColumn ? 'opacity-40' : 'opacity-100';
+            const opacityClass = 'opacity-100';
             
             return (
               <div

@@ -149,8 +149,29 @@ export async function DELETE(
     const permanent = url.searchParams.get('permanent') === 'true';
 
     if (permanent) {
-      // Hard delete: remove from database and blob storage
+      // Hard delete: remove references from related rows first, then delete from database and blob storage
       try {
+        const cleanupTables = [
+          'calendar_scheduled_posts',
+          'autopilot_candidates',
+          'content_preferences',
+        ];
+
+        for (const table of cleanupTables) {
+          const { error: cleanupError } = await admin
+            .from(table)
+            .update({ media_gallery_id: null })
+            .eq('media_gallery_id', mediaId);
+
+          if (cleanupError) {
+            logger.error(`Error nullifying media_gallery_id in ${table}:`, cleanupError);
+            return NextResponse.json(
+              { success: false, error: 'Failed to remove media references before deleting' },
+              { status: 500 }
+            );
+          }
+        }
+
         // If media has a URL from Vercel Blob, attempt to delete it
         if (media.media_url) {
           try {

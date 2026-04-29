@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
-import { PortalColumnViewCalendar } from '@/components/PortalColumnViewCalendar';
+import { PortalColumnViewCalendar, type PortalCalendarRef } from '@/components/PortalColumnViewCalendar';
 import { PortalContentInbox } from '@/components/PortalContentInbox';
 import { PortalKanbanBoard, type KanbanItem } from '@/components/PortalKanbanBoard';
 import { PortalItemModal, type ModalItem } from '@/components/PortalItemModal';
@@ -359,6 +359,7 @@ export default function PortalCalendarPage() {
   const [isLoadingInbox, setIsLoadingInbox] = useState(false);
   const [inboxError, setInboxError] = useState<string | null>(null);
   const inboxFileInputRef = useRef<HTMLInputElement | null>(null);
+  const portalCalendarRef = useRef<PortalCalendarRef>(null);
   
   // Client timezone for calendar display
   const [clientTimezone, setClientTimezone] = useState<string>('Pacific/Auckland');
@@ -529,16 +530,14 @@ export default function PortalCalendarPage() {
       const data = await response.json();
       const uploadsList = data.uploads || [];
       
-      // Group uploads by target_date (when scheduled) or created_at (for unscheduled)
+      // Group uploads by target_date — only include on calendar if explicitly placed there
       const uploadsByDate: {[key: string]: Upload[]} = {};
       uploadsList.forEach((upload: Upload) => {
-        // Use target_date if set (item has been scheduled to a calendar date)
-        // Fall back to created_at for items not yet placed on the calendar
-        const uploadDate = upload.target_date || new Date(upload.created_at).toLocaleDateString('en-CA');
-        if (!uploadsByDate[uploadDate]) {
-          uploadsByDate[uploadDate] = [];
+        if (!upload.target_date) return; // queue-only items stay out of the calendar
+        if (!uploadsByDate[upload.target_date]) {
+          uploadsByDate[upload.target_date] = [];
         }
-        uploadsByDate[uploadDate].push(upload);
+        uploadsByDate[upload.target_date].push(upload);
       });
       
       setUploads(uploadsByDate);
@@ -872,13 +871,14 @@ export default function PortalCalendarPage() {
     setDeletingItems(prev => ({ ...prev, [itemKey]: true }));
 
     try {
-      const response = await fetch('/api/calendar/scheduled', {
+      const response = await fetch('/api/portal/delete-post', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          postId
+          portal_token: token,
+          post_id: postId,
         })
       });
 
@@ -1290,16 +1290,15 @@ export default function PortalCalendarPage() {
     });
 
     try {
-      const response = await fetch('/api/calendar/scheduled', {
+      const response = await fetch('/api/portal/calendar', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          token,
           postId: movingPost.id,
-          updates: {
-            scheduled_date: newDate,
-          },
+          scheduled_date: newDate,
         }),
       });
 
@@ -1344,7 +1343,7 @@ export default function PortalCalendarPage() {
         return (
           <span className={`${baseClasses} bg-orange-100 text-orange-800`}>
             <AlertTriangle className="w-3 h-3 mr-1" />
-            Needs Attention
+            Improve
           </span>
         );
       case 'draft':
@@ -1916,6 +1915,20 @@ export default function PortalCalendarPage() {
                 {generatingApprovalLink ? 'Generating…' : `One-Time Link${calendarSelectedPostIds.size > 0 ? ` (${calendarSelectedPostIds.size})` : ''}`}
               </button>
 
+              {/* Calendar nav buttons — always visible */}
+              <button
+                onClick={() => portalCalendarRef.current?.navigatePrev()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors flex-shrink-0"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" /> Previous
+              </button>
+              <button
+                onClick={() => portalCalendarRef.current?.navigateNext()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors flex-shrink-0"
+              >
+                Next <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+
               {/* Brand Settings button — always visible, on the right end */}
               <button
                 onClick={openBrandSettings}
@@ -1942,6 +1955,7 @@ export default function PortalCalendarPage() {
             </div>
 
             <PortalColumnViewCalendar
+              ref={portalCalendarRef}
               weeks={getWeeksToDisplay(3)}
               scheduledPosts={scheduledPosts}
               clientUploads={uploads}

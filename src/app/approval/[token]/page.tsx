@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, AlertCircle, CheckCircle, XCircle, AlertTriangle, Minus, Eye, EyeOff } from 'lucide-react';
@@ -299,11 +300,13 @@ export default function PublicApprovalPage() {
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center">
-            <img
-              src="/cm-logo.png"
-              alt="CM Logo"
-              className="h-12 w-auto object-contain"
-            />
+            <Link href="/">
+              <img
+                src="/cm-logo.png"
+                alt="CM Logo"
+                className="h-12 w-auto object-contain"
+              />
+            </Link>
           </div>
         </div>
       </div>

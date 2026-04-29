@@ -201,7 +201,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
 
   if (loading) {
     return (
-      <div className="w-64 bg-white border-r border-gray-200 p-4 min-h-screen">
+      <div className="w-64 bg-white border-r border-gray-200 p-4 h-screen">
         <div className="flex items-center justify-center h-32">
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
@@ -211,7 +211,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
 
   if (error) {
     return (
-      <div className="w-64 bg-white border-r border-gray-200 p-4 min-h-screen">
+      <div className="w-64 bg-white border-r border-gray-200 p-4 h-screen">
         <div className="text-center p-4">
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
           <p className="text-sm text-red-600 mb-2">Failed to load profiles</p>
@@ -226,10 +226,10 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
   return (
     <div 
       className={getThemeClasses(
-        `bg-white border-r border-gray-200 min-h-screen flex flex-col transition-all duration-300 ${
+        `bg-white border-r border-gray-200 h-screen flex flex-col transition-all duration-300 ${
           collapsed ? 'w-16' : 'w-64'
         }`,
-        `glass-sidebar min-h-screen flex flex-col transition-all duration-300 ${
+        `glass-sidebar h-screen flex flex-col transition-all duration-300 ${
           collapsed ? 'w-16' : 'w-64'
         }`
       )}

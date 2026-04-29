@@ -139,13 +139,18 @@ export async function POST(request: NextRequest) {
     const clientName = client?.name || '';
     const clientLogoUrl = client?.logo_url || null;
 
-    const { data: posts } = await supabase
+    const { data: posts, error: postsError } = await supabase
       .from('calendar_scheduled_posts')
-      .select('id, caption, image_url, platform, scheduled_date, scheduled_time')
+      .select('id, caption, image_url, platforms_scheduled, scheduled_date, scheduled_time')
       .in('id', postIds)
       .eq('client_id', clientId)
       .order('scheduled_date', { ascending: true })
       .order('scheduled_time', { ascending: true });
+
+    if (postsError) {
+      console.error('Portal PDF export - posts query error:', postsError);
+      return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
+    }
 
     if (!posts || posts.length === 0) {
       return NextResponse.json({ error: 'Posts not found' }, { status: 404 });
@@ -313,8 +318,11 @@ export async function POST(request: NextRequest) {
       const textWidth = actualImageWidth;
       let textY = imageY + actualImageHeight + 4;
 
-      if (post.platform) {
-        const cleanPlatform = cleanTextForPDF(post.platform);
+      const platformText = Array.isArray(post.platforms_scheduled) && post.platforms_scheduled.length > 0
+        ? post.platforms_scheduled.join(', ')
+        : null;
+      if (platformText) {
+        const cleanPlatform = cleanTextForPDF(platformText);
         doc.setFontSize(10);
         doc.setTextColor(0, 0, 0);
         if (hasEmojiOrUnicode(cleanPlatform)) doc.setFont('NotoSans', 'bold');

@@ -184,3 +184,64 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { token, postId, scheduled_date } = body;
+
+    if (!token || !postId || !scheduled_date) {
+      return NextResponse.json(
+        { error: 'token, postId, and scheduled_date are required' },
+        { status: 400 }
+      );
+    }
+
+    const resolved = await resolvePortalToken(token);
+    if (!resolved) {
+      return NextResponse.json(
+        { error: 'Invalid portal token' },
+        { status: 401 }
+      );
+    }
+
+    const { clientId } = resolved;
+
+    // Verify the post belongs to this client
+    const { data: existing, error: fetchError } = await supabase
+      .from('calendar_scheduled_posts')
+      .select('id')
+      .eq('id', postId)
+      .eq('client_id', clientId)
+      .single();
+
+    if (fetchError || !existing) {
+      return NextResponse.json(
+        { error: 'Post not found' },
+        { status: 404 }
+      );
+    }
+
+    const { error: updateError } = await supabase
+      .from('calendar_scheduled_posts')
+      .update({ scheduled_date })
+      .eq('id', postId);
+
+    if (updateError) {
+      logger.error('Error updating post date:', updateError);
+      return NextResponse.json(
+        { error: 'Failed to update post' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+
+  } catch (error) {
+    logger.error('Portal calendar PATCH error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

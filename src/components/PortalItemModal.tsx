@@ -324,6 +324,41 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     }
   };
 
+  // ── Direct approval (portal token, no pipeline required) ────────────────
+
+  const handleDirectApproval = async (status: "approved" | "rejected") => {
+    if (!isPost) return;
+    setIsActioning(true);
+    setActionError(null);
+    try {
+      const res = await fetch("/api/portal/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: portalToken,
+          post_id: (item.data as ModalPost).id,
+          post_type: "planner_scheduled",
+          approval_status: status,
+          client_comments: "",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionError(data.error ?? "Failed to submit");
+        return;
+      }
+      setActionDone(status === "approved" ? "Approved!" : "Rejected");
+      setTimeout(() => {
+        onActioned();
+      }, 1500);
+    } catch (err) {
+      logger.error("Direct approval error:", err);
+      setActionError("Failed to submit. Please try again.");
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
   // ── Upload feedback ──────────────────────────────────────────────────────
 
   const handleUploadFeedback = async (approved: boolean) => {
@@ -617,40 +652,24 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                       <PipelineSteps steps={steps} myPartyId={party?.id} />
                     ) : null}
 
-                    {/* Action buttons */}
-                    {isMyTurn && !actionDone && (
-                      <div className="mt-4 space-y-3">
-                        <p className="text-sm font-medium text-gray-700">
-                          It&apos;s your turn to review
-                        </p>
-
-                        {/* Comment input (required for reject/changes) */}
-                        {pendingAction && (
-                          <Textarea
-                            placeholder={
-                              pendingAction === "changes_requested"
-                                ? "Describe the changes needed..."
-                                : "Reason for rejection..."
-                            }
-                            value={actionComment}
-                            onChange={(e) => setActionComment(e.target.value)}
-                            className="text-sm resize-none min-h-[80px] border-amber-200 focus:border-amber-400"
-                            autoFocus
-                          />
-                        )}
-
+                    {actionDone ? (
+                      <div className="mt-3 flex items-center gap-2 text-green-700 bg-green-50 rounded-lg px-3 py-2 text-sm font-medium">
+                        <CheckCircle className="w-4 h-4" />
+                        {actionDone}
+                      </div>
+                    ) : (
+                      <div className="mt-4 space-y-2">
                         {actionError && (
                           <p className="text-xs text-red-600">{actionError}</p>
                         )}
-
                         <div className="flex gap-2">
                           <Button
                             size="sm"
                             className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5 h-9"
-                            onClick={() => handlePostAction("approved")}
+                            onClick={() => handleDirectApproval("approved")}
                             disabled={isActioning}
                           >
-                            {isActioning && !pendingAction ? (
+                            {isActioning ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                               <CheckCircle className="w-3.5 h-3.5" />
@@ -660,44 +679,13 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                           <Button
                             size="sm"
                             variant="outline"
-                            className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-50 gap-1.5 h-9"
-                            onClick={() => {
-                              if (pendingAction === "changes_requested" && actionComment.trim()) {
-                                handlePostAction("changes_requested");
-                              } else {
-                                setPendingAction("changes_requested");
-                              }
-                            }}
-                            disabled={isActioning}
-                          >
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            {pendingAction === "changes_requested" && actionComment.trim()
-                              ? "Confirm"
-                              : "Request Changes"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-red-300 text-red-700 hover:bg-red-50 gap-1.5 h-9 px-3"
-                            onClick={() => {
-                              if (pendingAction === "rejected" && actionComment.trim()) {
-                                handlePostAction("rejected");
-                              } else {
-                                setPendingAction("rejected");
-                              }
-                            }}
+                            className="border-red-300 text-red-700 hover:bg-red-50 gap-1.5 h-9 px-4"
+                            onClick={() => handleDirectApproval("rejected")}
                             disabled={isActioning}
                           >
                             <XCircle className="w-3.5 h-3.5" />
                           </Button>
                         </div>
-                      </div>
-                    )}
-
-                    {actionDone && (
-                      <div className="mt-3 flex items-center gap-2 text-green-700 bg-green-50 rounded-lg px-3 py-2 text-sm font-medium">
-                        <CheckCircle className="w-4 h-4" />
-                        {actionDone}
                       </div>
                     )}
                   </div>

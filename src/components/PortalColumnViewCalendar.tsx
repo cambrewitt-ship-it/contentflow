@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo, ChangeEvent } from 'react';
-import { Calendar, ArrowLeft, ArrowRight, CheckCircle, AlertTriangle, XCircle, Minus, Download, Trash2, Tag, FileText, CalendarDays, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo, ChangeEvent, useImperativeHandle, forwardRef } from 'react';
+import { Calendar, CheckCircle, AlertTriangle, XCircle, Minus, Download, Trash2, Tag, FileText, CalendarDays, Loader2, Plus } from 'lucide-react';
 import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
@@ -366,7 +366,7 @@ function SortablePostCard({
         return (
           <span className={`${baseClasses} bg-orange-100 text-orange-800`}>
             <AlertTriangle className="w-3 h-3 mr-1" />
-            Needs Attention
+            Improve
           </span>
         );
       case 'draft':
@@ -569,104 +569,43 @@ function SortablePostCard({
         </div>
       )}
 
-      {/* Approval Actions */}
-      <div className="mt-2 space-y-3" onClick={(e) => e.stopPropagation()}>
-        <div className="flex gap-1">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleStatusClick('approved');
-            }}
-            className={`flex items-center justify-center gap-1 text-xs flex-1 px-2 py-1.5 rounded-md font-medium transition-all duration-200 ${
-              statusToUse === 'approved'
-                ? 'bg-green-600 text-white shadow-sm ring-2 ring-green-300'
-                : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
-            }`}
-          >
-            <CheckCircle className="w-3 h-3" />
-            Approve
-          </button>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleStatusClick('needs_attention');
-            }}
-            className={`flex items-center justify-center gap-1 text-xs flex-1 px-2 py-1.5 rounded-md font-medium transition-all duration-200 ${
-              statusToUse === 'needs_attention'
-                ? 'bg-orange-600 text-white shadow-sm ring-2 ring-orange-300'
-                : 'bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200'
-            }`}
-          >
-            <AlertTriangle className="w-3 h-3" />
-            Improve
-          </button>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleStatusClick('rejected');
-            }}
-            className={`flex items-center justify-center text-xs w-10 h-8 p-0 rounded-md font-medium transition-all duration-200 ${
-              statusToUse === 'rejected'
-                ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-300'
-                : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-            }`}
-            title="Reject"
-          >
-            <XCircle className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div>
-          <textarea
-            value={commentValue}
-            onChange={(e) => onCommentChange(postKey, e.target.value)}
-            placeholder="Add feedback..."
-            className="w-full p-2 text-xs border border-gray-300 rounded-md resize-none bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-            rows={2}
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-
-      </div>
-
       {/* Tags Section */}
-      <div className="relative mt-2 mx-2 mb-2">
-        <div className="flex items-center justify-between gap-2">
-          {/* Tags Display */}
-          <div className="flex-1 flex flex-wrap gap-1 min-h-[24px]">
-            {postTags.map((tag) => (
-              <span
-                key={tag.id}
-                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full text-white"
-                style={{ backgroundColor: tag.color }}
+      {(postTags.length > 0 || (clientId && !isClientUpload)) && (
+        <div className="relative mt-2 mx-2 mb-2">
+          <div className="flex items-center justify-between gap-2">
+            {/* Tags Display */}
+            {postTags.length > 0 && (
+              <div className="flex-1 flex flex-wrap gap-1">
+                {postTags.map((tag) => (
+                  <span
+                    key={tag.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full text-white"
+                    style={{ backgroundColor: tag.color }}
+                  >
+                    {tag.name}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Add Tag Button */}
+            {clientId && !isClientUpload && (
+              <button
+                ref={setTagButtonRef}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsTagModalOpen(true);
+                }}
+                className="flex-shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                title="Add tag"
               >
-                {tag.name}
-              </span>
-            ))}
+                <Tag className="w-4 h-4" />
+              </button>
+            )}
           </div>
-          
-          {/* Add Tag Button */}
-          {clientId && !isClientUpload && (
-            <button
-              ref={setTagButtonRef}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsTagModalOpen(true);
-              }}
-              className="flex-shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-              title="Add tag"
-            >
-              <Tag className="w-4 h-4" />
-            </button>
-          )}
         </div>
-      </div>
+      )}
 
       {/* Tag Dropdown Modal */}
       {clientId && isTagModalOpen && (
@@ -925,20 +864,25 @@ function DroppableDayRow({
         items={dayRow.posts.map((post) => `${post.post_type || 'post'}-${post.id}`)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="space-y-2 min-h-[60px]" onDragOver={(e) => e.preventDefault()}>
+        <div className="space-y-2" onDragOver={(e) => e.preventDefault()}>
           {dayRow.posts.length === 0 ? (
-            <div className={`w-full min-h-[60px] rounded border-2 border-dashed transition-all duration-200 ${
-              isUploadingToThisDate
-                ? 'border-blue-400 bg-blue-50 flex items-center justify-center py-4'
-                : 'border-gray-200'
-            }`}>
-              {isUploadingToThisDate && (
+            isUploadingToThisDate ? (
+              <div style={{ height: '60px' }} className="w-full flex items-center justify-center border-2 border-dashed border-blue-400 bg-blue-50 rounded-md">
                 <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                   <span className="text-sm text-blue-600 font-medium">Uploading...</span>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onAddUploadClick?.(dayRow.dateKey)}
+                style={{ height: '60px' }}
+                className="w-full flex items-center justify-center border border-dashed border-gray-200 rounded-md hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 group"
+              >
+                <Plus className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition-colors" />
+              </button>
+            )
           ) : (
             <>
               {dayRow.posts.map((post) => {
@@ -986,7 +930,12 @@ function DroppableDayRow({
   );
 }
 
-export function PortalColumnViewCalendar({
+export interface PortalCalendarRef {
+  navigatePrev: () => void;
+  navigateNext: () => void;
+}
+
+export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColumnViewCalendarProps>(function PortalColumnViewCalendar({
   weeks,
   scheduledPosts,
   clientUploads = {},
@@ -1020,7 +969,7 @@ export function PortalColumnViewCalendar({
   movingToDate,
   calendarSelectedPostIds,
   onToggleCalendarPostSelection,
-}: PortalColumnViewCalendarProps) {
+}, ref) {
   const clientUploadsMap = clientUploads ?? {};
   const VISIBLE_WEEK_COUNT = 5; // Show 5 weeks: 1 partial before, 3 main, 1 partial after
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1341,6 +1290,11 @@ export function PortalColumnViewCalendar({
     });
   };
 
+  useImperativeHandle(ref, () => ({
+    navigatePrev: () => handleNavigate('left'),
+    navigateNext: () => handleNavigate('right'),
+  }));
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -1357,30 +1311,17 @@ export function PortalColumnViewCalendar({
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
     >
-      <div className="relative" ref={calendarContainerRef}>
-        <button
-          type="button"
-          onClick={() => handleNavigate('left')}
-          className="absolute -top-[4.75rem] left-4 z-10 flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white text-gray-600 shadow-md transition hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label="Scroll to previous weeks"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <button
-          type="button"
-          onClick={() => handleNavigate('right')}
-          className="absolute -top-[4.75rem] right-4 z-10 flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white text-gray-600 shadow-md transition hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label="Scroll to next weeks"
-        >
-          <ArrowRight className="h-5 w-5" />
-        </button>
+      {/* Relative root — gives absolute children a positioning context */}
+      <div style={{position: 'relative', width: '100%'}} ref={calendarContainerRef}>
+        {/* Scroll container: block element, natural height (page scrolls vertically), horizontal scroll self-contained */}
         <div
-          className="flex justify-center gap-2 overflow-x-clip pb-4 px-2 pt-4 min-h-screen max-w-[1312px] mx-auto"
+          className="calendar-hscroll"
+          style={{overflowX: 'scroll', overflowY: 'visible'}}
         >
+        <div style={{display: 'flex', gap: '8px', padding: '16px 8px', width: 'max-content', minWidth: '100%'}}>
           {columns.map((column, index) => {
             const isCurrent = isCurrentWeek(column.weekStart);
-            const isEdgeColumn = index === 0 || index === columns.length - 1;
-            const opacityClass = isEdgeColumn ? 'opacity-40' : 'opacity-100';
+            const opacityClass = 'opacity-100';
             
             return (
               <div
@@ -1448,6 +1389,7 @@ export function PortalColumnViewCalendar({
             );
           })}
         </div>
+        </div>
       </div>
 
       <DragOverlay>
@@ -1459,5 +1401,5 @@ export function PortalColumnViewCalendar({
       </DragOverlay>
     </DndContext>
   );
-}
+});
 

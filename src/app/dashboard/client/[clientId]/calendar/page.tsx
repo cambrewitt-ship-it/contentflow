@@ -2208,44 +2208,220 @@ export default function CalendarPage() {
       )}
 
 
-      {/* Action Bar - Project filter + Create Content */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 mb-4 rounded-lg shadow flex items-center justify-end gap-3">
-        {/* Project Filter Dropdown */}
-        <select
-          value={selectedProjectFilter}
-          onChange={(e) => setSelectedProjectFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-        >
-          <option value="all">All Projects</option>
-          <option value="untagged">Untagged</option>
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
-        </select>
+      {/* Action Bar - all controls in one bar */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3 mb-4 rounded-lg shadow flex items-center justify-between gap-3">
+        {/* Left side - action buttons */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              const totalPosts = Object.values(scheduledPosts).reduce((acc, week) => acc + week.length, 0);
+              if (selectedPosts.size === totalPosts && totalPosts > 0) {
+                handleDeselectAllPosts();
+              } else {
+                handleSelectAllPosts();
+              }
+            }}
+            className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-gray-600 hover:bg-gray-700"
+          >
+            {(() => {
+              const totalPosts = Object.values(scheduledPosts).reduce((acc, week) => acc + week.length, 0);
+              return selectedPosts.size === totalPosts && totalPosts > 0 ? 'Deselect All' : 'Select All';
+            })()}
+          </button>
 
-        {/* Autopilot Button */}
-        <Link
-          href={`/dashboard/client/${clientId}/autopilot`}
-          className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white rounded-md shadow-sm hover:shadow-md transition-all duration-300 text-sm font-medium"
-        >
-          <Sparkles className="w-4 h-4 mr-1.5" />
-          Autopilot
-        </Link>
+          <button
+            onClick={handleBulkDelete}
+            disabled={isDeleting || selectedPosts.size === 0}
+            className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+              isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' :
+              selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+              'bg-red-600 hover:bg-red-700'
+            }`}
+          >
+            {isDeleting && (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            )}
+            {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
+          </button>
 
-        {/* Create Content Button */}
-        <Link
-          href={`/dashboard/client/${clientId}/content-suite`}
-          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white rounded-md shadow-sm hover:shadow-md transition-all duration-300"
-        >
-          <Plus className="w-5 h-5 mr-2 stroke-[2.5]" />
-          Create Content
-        </Link>
+          <button
+            onClick={handleExportToPDF}
+            disabled={exportingPDF || selectedPosts.size === 0}
+            className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+              exportingPDF ? 'opacity-50 cursor-not-allowed bg-blue-500' :
+              selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+              'bg-blue-600 hover:bg-blue-700'
+            }`}
+            title={selectedPosts.size === 0 ? 'Select posts to export' : 'Export selected posts to PDF'}
+          >
+            {exportingPDF ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Exporting...
+              </>
+            ) : (
+              <>
+                <FileDown className="w-4 h-4" />
+                Export to PDF ({selectedPosts.size || 0})
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleGenerateApprovalLink}
+            disabled={generatingApprovalLink || selectedPosts.size === 0}
+            className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+              generatingApprovalLink ? 'opacity-50 cursor-not-allowed bg-purple-500' :
+              selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+              'bg-purple-600 hover:bg-purple-700'
+            }`}
+            title={selectedPosts.size === 0 ? 'Select posts to create approval link' : 'Create approval link for client'}
+          >
+            {generatingApprovalLink ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Generating...
+              </>
+            ) : (
+              <>
+                <LinkIcon className="w-4 h-4" />
+                Share Approval Link ({selectedPosts.size || 0})
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleScrollToClientPortal}
+            className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-teal-600 hover:bg-teal-700"
+            title="Scroll to Content Portal section"
+          >
+            <User className="w-4 h-4" />
+            Content Portal
+          </button>
+        </div>
+
+        {/* Right side - schedule + project filter + nav buttons */}
+        <div className="flex items-center gap-3">
+          {/* Schedule buttons */}
+          {(connectedAccounts.length > 0 || selectedPosts.size > 0) && (
+            <span
+              className={`text-sm py-2 transition-colors ${
+              selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-400'
+              }`}
+            >
+              {selectedPosts.size || 0} selected:
+            </span>
+          )}
+          {connectedAccounts.length > 0 ? (
+            connectedAccounts.map((account) => {
+              const isScheduling = schedulingPlatform === account.platform;
+
+              const allScheduledPosts = Object.values(scheduledPosts).flat();
+              const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
+
+              console.log('🔍 Button enable check for', account.platform, ':', {
+                selectedPostsSize: selectedPosts.size,
+                postsToScheduleLength: postsToSchedule.length,
+                allScheduledPostsCount: allScheduledPosts.length,
+                selectedPostsArray: Array.from(selectedPosts),
+                postsToSchedule: postsToSchedule.map(p => ({
+                  id: p.id,
+                  caption: p.caption,
+                  captionType: typeof p.caption,
+                  captionLength: p.caption?.length,
+                  trimmedCaption: p.caption?.trim(),
+                  hasCaption: !!p.caption,
+                  captionIsEmpty: !p.caption || p.caption.trim() === '',
+                  fullPost: p
+                })),
+                hasEmptyCaptions: postsToSchedule.some(p => !p.caption || p.caption.trim() === ''),
+                isScheduling,
+                buttonShouldBeEnabled: !isScheduling && !postsToSchedule.some(p => !p.caption || p.caption.trim() === '')
+              });
+
+              const hasEmptyCaptions = postsToSchedule.some(post => {
+                const currentCaption = editingCaptions[post.id] || post.caption || '';
+                return currentCaption.trim().length === 0;
+              });
+
+              const isDisabled = isScheduling || hasEmptyCaptions || selectedPosts.size === 0;
+              const platformBgColor = selectedPosts.size === 0 ? 'bg-gray-400' :
+                account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
+                account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
+                account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
+                account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
+                'bg-gray-600 hover:bg-gray-700';
+
+              return (
+                <button
+                  key={account._id}
+                  onClick={() => handleScheduleToPlatform(account)}
+                  disabled={isDisabled}
+                  className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 transition-all ${
+                    isDisabled ? 'opacity-40 cursor-not-allowed' : ''
+                  } ${platformBgColor}`}
+                  title={
+                    selectedPosts.size === 0 ? 'Select posts to schedule' :
+                    hasEmptyCaptions ? 'Add captions to selected posts before scheduling' :
+                    `Schedule ${selectedPosts.size} post${selectedPosts.size === 1 ? '' : 's'} to ${account.platform}`
+                  }
+                >
+                  {isScheduling ? (
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {account.platform === 'facebook' && <FacebookIcon size={16} />}
+                      {account.platform === 'instagram' && <InstagramIcon size={16} />}
+                      {account.platform === 'twitter' && <TwitterIcon size={16} />}
+                      {account.platform === 'linkedin' && <LinkedInIcon size={16} />}
+                      <span>Schedule {selectedPosts.size > 0 ? `(${selectedPosts.size})` : ''}</span>
+                    </div>
+                  )}
+                </button>
+              );
+            })
+          ) : (
+            selectedPosts.size > 0 && (
+              <Link href={`/dashboard/client/${clientId}`}>
+                <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm flex items-center gap-2 transition-all">
+                  Connect Social Media to Publish
+                </button>
+              </Link>
+            )
+          )}
+
+          {/* Divider */}
+          <div className="w-px h-6 bg-gray-200" />
+
+          {/* Project Filter Dropdown */}
+          <select
+            value={selectedProjectFilter}
+            onChange={(e) => setSelectedProjectFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          >
+            <option value="all">All Projects</option>
+            <option value="untagged">Untagged</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Autopilot Button */}
+          <Link
+            href={`/dashboard/client/${clientId}/autopilot`}
+            className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white rounded-md shadow-sm hover:shadow-md transition-all duration-300 text-sm font-medium"
+          >
+            <Sparkles className="w-4 h-4 mr-1.5" />
+            Autopilot
+          </Link>
+
+        </div>
       </div>
 
         {/* Main Layout: Sidebar + Calendar Content */}
-        <div className="flex gap-6 relative overflow-hidden min-w-0">
+        <div className="flex gap-6 relative min-w-0" style={{ height: 'calc(100vh - 200px)' }}>
           {/* Left Sidebar - Posts in Project (Vertical) */}
           <div 
             className="bg-white rounded-lg shadow transition-all duration-300 flex flex-col w-36 flex-shrink-0 sticky top-0"
@@ -2366,202 +2542,13 @@ export default function CalendarPage() {
           </div>
 
           {/* Main Content - Calendar */}
-          <div className="flex-1">
-        {/* Action Buttons - Above Calendar */}
-        <div className="flex justify-between items-center mb-4 mx-8">
-            {/* Left side - Delete, Export, and Approval Link buttons */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  const totalPosts = Object.values(scheduledPosts).reduce((acc, week) => acc + week.length, 0);
-                  if (selectedPosts.size === totalPosts && totalPosts > 0) {
-                    handleDeselectAllPosts();
-                  } else {
-                    handleSelectAllPosts();
-                  }
-                }}
-                className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-gray-600 hover:bg-gray-700"
-              >
-                {(() => {
-                  const totalPosts = Object.values(scheduledPosts).reduce((acc, week) => acc + week.length, 0);
-                  return selectedPosts.size === totalPosts && totalPosts > 0 ? 'Deselect All' : 'Select All';
-                })()}
-              </button>
-
-              <button
-                onClick={handleBulkDelete}
-                disabled={isDeleting || selectedPosts.size === 0}
-                className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-                  isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' : 
-                  selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
-                  'bg-red-600 hover:bg-red-700'
-                }`}
-              >
-                {isDeleting && (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                )}
-                {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
-              </button>
-
-              <button
-                onClick={handleExportToPDF}
-                disabled={exportingPDF || selectedPosts.size === 0}
-                className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-                  exportingPDF ? 'opacity-50 cursor-not-allowed bg-blue-500' : 
-                  selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
-                  'bg-blue-600 hover:bg-blue-700'
-                }`}
-                title={selectedPosts.size === 0 ? 'Select posts to export' : 'Export selected posts to PDF'}
-              >
-                {exportingPDF ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Exporting...
-                  </>
-                ) : (
-                  <>
-                    <FileDown className="w-4 h-4" />
-                    Export to PDF ({selectedPosts.size || 0})
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={handleGenerateApprovalLink}
-                disabled={generatingApprovalLink || selectedPosts.size === 0}
-                className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-                  generatingApprovalLink ? 'opacity-50 cursor-not-allowed bg-purple-500' : 
-                  selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
-                  'bg-purple-600 hover:bg-purple-700'
-                }`}
-                title={selectedPosts.size === 0 ? 'Select posts to create approval link' : 'Create approval link for client'}
-              >
-                {generatingApprovalLink ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <LinkIcon className="w-4 h-4" />
-                    Share Approval Link ({selectedPosts.size || 0})
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={handleScrollToClientPortal}
-                className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-teal-600 hover:bg-teal-700"
-                title="Scroll to Content Portal section"
-              >
-                <User className="w-4 h-4" />
-                Content Portal
-              </button>
-            </div>
-            
-            {/* Right side - Schedule buttons or guidance */}
-            <div className="flex items-center gap-2">
-              {/* Debug info */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="text-xs text-gray-500 mr-2">
-                  Accounts: {connectedAccounts.length}
-                </div>
-              )}
-              
-              {(connectedAccounts.length > 0 || selectedPosts.size > 0) && (
-                <span
-                  className={`text-sm py-2 transition-colors ${
-                  selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-400'
-                  }`}
-                >
-                  {selectedPosts.size || 0} selected:
-                </span>
-              )}
-              {connectedAccounts.length > 0 ? (
-                connectedAccounts.map((account) => {
-                  const isScheduling = schedulingPlatform === account.platform;
-                  
-                  const allScheduledPosts = Object.values(scheduledPosts).flat();
-                  const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
-                  
-                  console.log('🔍 Button enable check for', account.platform, ':', {
-                    selectedPostsSize: selectedPosts.size,
-                    postsToScheduleLength: postsToSchedule.length,
-                    allScheduledPostsCount: allScheduledPosts.length,
-                    selectedPostsArray: Array.from(selectedPosts),
-                    postsToSchedule: postsToSchedule.map(p => ({
-                      id: p.id,
-                      caption: p.caption,
-                      captionType: typeof p.caption,
-                      captionLength: p.caption?.length,
-                      trimmedCaption: p.caption?.trim(),
-                      hasCaption: !!p.caption,
-                      captionIsEmpty: !p.caption || p.caption.trim() === '',
-                      fullPost: p
-                    })),
-                    hasEmptyCaptions: postsToSchedule.some(p => !p.caption || p.caption.trim() === ''),
-                    isScheduling,
-                    buttonShouldBeEnabled: !isScheduling && !postsToSchedule.some(p => !p.caption || p.caption.trim() === '')
-                  });
-                  
-                  const hasEmptyCaptions = postsToSchedule.some(post => {
-                    const currentCaption = editingCaptions[post.id] || post.caption || '';
-                    return currentCaption.trim().length === 0;
-                  });
-                  
-                  const isDisabled = isScheduling || hasEmptyCaptions || selectedPosts.size === 0;
-                  const platformBgColor = selectedPosts.size === 0 ? 'bg-gray-400' :
-                    account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
-                    account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
-                    account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
-                    account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
-                    'bg-gray-600 hover:bg-gray-700';
-                  
-                  return (
-                    <button
-                      key={account._id}
-                      onClick={() => handleScheduleToPlatform(account)}
-                      disabled={isDisabled}
-                      className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 transition-all ${
-                        isDisabled ? 'opacity-40 cursor-not-allowed' : ''
-                      } ${platformBgColor}`}
-                      title={
-                        selectedPosts.size === 0 ? 'Select posts to schedule' :
-                        hasEmptyCaptions ? 'Add captions to selected posts before scheduling' : 
-                        `Schedule ${selectedPosts.size} post${selectedPosts.size === 1 ? '' : 's'} to ${account.platform}`
-                      }
-                    >
-                      {isScheduling ? (
-                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          {account.platform === 'facebook' && <FacebookIcon size={16} />}
-                          {account.platform === 'instagram' && <InstagramIcon size={16} />}
-                          {account.platform === 'twitter' && <TwitterIcon size={16} />}
-                          {account.platform === 'linkedin' && <LinkedInIcon size={16} />}
-                          <span>Schedule {selectedPosts.size > 0 ? `(${selectedPosts.size})` : ''}</span>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })
-              ) : (
-                selectedPosts.size > 0 && (
-                  <Link href={`/dashboard/client/${clientId}`}>
-                    <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm flex items-center gap-2 transition-all">
-                      Connect Social Media to Publish
-                    </button>
-                  </Link>
-                )
-              )}
-            </div>
-          </div>
+          <div className="flex-1 flex flex-col min-h-0">
 
         {/* Calendar */}
         <div
           key={refreshKey}
           ref={calendarScrollRef}
-          className="bg-white rounded-lg shadow flex-1 min-w-0"
+          className="bg-white rounded-lg shadow flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden"
         >
           {viewMode === 'month' ? (
             <>
@@ -2647,8 +2634,8 @@ export default function CalendarPage() {
                     Events
                   </button>
                 </div>
-                <div className="flex flex-1 min-w-0">
-                <div className="flex-1 min-w-0" style={{height: 'calc(100vh - 420px)', minHeight: '400px'}}>
+                <div className="flex flex-1 min-w-0 min-h-0">
+                <div className="flex-1 min-w-0 min-h-0">
                 <ColumnViewCalendar
                   weeks={getWeeksToDisplay()}
                   scheduledPosts={scheduledPosts as any}
@@ -2846,9 +2833,10 @@ export default function CalendarPage() {
             )}
         </div>
         </div> {/* End Sidebar + Calendar Flex Container */}
+        </div> {/* End Outer Flex Container */}
 
-          {/* Content Portal Section */}
-          <div ref={clientPortalRef} className="mt-8 bg-white rounded-lg shadow p-8">
+        {/* Content Portal Section */}
+        <div ref={clientPortalRef} className="mt-8 bg-white rounded-lg shadow p-8">
             <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Content Portal</h3>
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
@@ -2918,7 +2906,6 @@ export default function CalendarPage() {
               )}
             </div>
           </div>
-        </div>
       </div>
 
       <Dialog open={showPlanRestrictionDialog} onOpenChange={setShowPlanRestrictionDialog}>

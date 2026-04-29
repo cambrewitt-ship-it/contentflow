@@ -14,18 +14,23 @@ const VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
 const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 const VIDEO_MAX_BYTES = 100 * 1024 * 1024;
 
-const uploadItemSchema = z.object({
-  mediaData: z.string().min(1),
-  fileName: z.string().min(1),
-  mediaType: z.enum(['image', 'video']),
-  userTags: z.array(z.string()).optional(),
-  userContext: z.string().optional(),
-  userCategory: z.string().optional(),
-});
+const uploadItemSchema = z
+  .object({
+    mediaData: z.string().min(1).optional(),
+    mediaUrl: z.string().url().optional(),
+    fileName: z.string().min(1),
+    mediaType: z.enum(['image', 'video']),
+    userTags: z.array(z.string()).optional(),
+    userContext: z.string().optional(),
+    userCategory: z.string().optional(),
+  })
+  .refine((item) => !!item.mediaData || !!item.mediaUrl, {
+    message: 'Either mediaData or mediaUrl must be provided',
+  });
 
 const bulkUploadSchema = z.object({
   clientId: z.string().uuid(),
-  items: z.array(uploadItemSchema).min(1).max(20),
+  items: z.array(uploadItemSchema).min(1).max(50),
 });
 
 export async function GET(request: NextRequest) {
@@ -103,6 +108,14 @@ export async function POST(request: NextRequest) {
     if (auth.error) return auth.error;
     const { user } = auth;
 
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      logger.warn('⚠️ BLOB_READ_WRITE_TOKEN not configured for media gallery upload');
+      return NextResponse.json(
+        { success: false, error: 'Media upload is not configured. Missing BLOB_READ_WRITE_TOKEN.' },
+        { status: 500 }
+      );
+    }
+
     // Use admin client for writes — ownership already verified above,
     // and the RLS policy's USING clause doesn't reliably cover INSERTs.
     const admin = createSupabaseAdmin();
@@ -111,40 +124,46 @@ export async function POST(request: NextRequest) {
     const imageIds: string[] = [];
 
     for (const item of items) {
-      const mimeMatch = item.mediaData.match(/^data:([^;]+);base64,/);
-      const mimeType = mimeMatch?.[1] || '';
-      const base64Data = item.mediaData.includes(',')
-        ? item.mediaData.split(',')[1]
-        : item.mediaData;
-
-      const allowedTypes = item.mediaType === 'image' ? IMAGE_MIME_TYPES : VIDEO_MIME_TYPES;
-      if (!allowedTypes.includes(mimeType)) {
-        return NextResponse.json(
-          { success: false, error: `Invalid file type "${mimeType}" for ${item.mediaType} "${item.fileName}"` },
-          { status: 400 }
-        );
-      }
-
-      const padding = (base64Data.match(/=/g) || []).length;
-      const fileSize = Math.floor(base64Data.length * 0.75) - padding;
-      const maxBytes = item.mediaType === 'image' ? IMAGE_MAX_BYTES : VIDEO_MAX_BYTES;
-
-      if (fileSize > maxBytes) {
-        return NextResponse.json(
-          { success: false, error: `"${item.fileName}" exceeds the ${maxBytes / 1024 / 1024}MB size limit` },
-          { status: 400 }
-        );
-      }
-
       let blobResult: { url: string };
-      try {
-        const buffer = Buffer.from(base64Data, 'base64');
-        const fileBlob = new Blob([buffer], { type: mimeType });
-        blobResult = await put(item.fileName, fileBlob, { access: 'public', addRandomSuffix: true });
-      } catch (blobErr) {
-        const msg = blobErr instanceof Error ? blobErr.message : String(blobErr);
-        logger.error('Vercel Blob upload failed:', blobErr);
-        return NextResponse.json({ success: false, error: `Storage upload failed: ${msg}` }, { status: 500 });
+      let fileSize: number | null = null;
+
+      if (item.mediaUrl) {
+        blobResult = { url: item.mediaUrl };
+      } else {
+        const mimeMatch = item.mediaData.match(/^data:([^;]+);base64,/);
+        const mimeType = mimeMatch?.[1] || '';
+        const base64Data = item.mediaData.includes(',')
+          ? item.mediaData.split(',')[1]
+          : item.mediaData;
+
+        const allowedTypes = item.mediaType === 'image' ? IMAGE_MIME_TYPES : VIDEO_MIME_TYPES;
+        if (!allowedTypes.includes(mimeType)) {
+          return NextResponse.json(
+            { success: false, error: `Invalid file type "${mimeType}" for ${item.mediaType} "${item.fileName}"` },
+            { status: 400 }
+          );
+        }
+
+        const padding = (base64Data.match(/=/g) || []).length;
+        fileSize = Math.floor(base64Data.length * 0.75) - padding;
+        const maxBytes = item.mediaType === 'image' ? IMAGE_MAX_BYTES : VIDEO_MAX_BYTES;
+
+        if (fileSize > maxBytes) {
+          return NextResponse.json(
+            { success: false, error: `"${item.fileName}" exceeds the ${maxBytes / 1024 / 1024}MB size limit` },
+            { status: 400 }
+          );
+        }
+
+        try {
+          const buffer = Buffer.from(base64Data, 'base64');
+          const fileBlob = new Blob([buffer], { type: mimeType });
+          blobResult = await put(item.fileName, fileBlob, { access: 'public', addRandomSuffix: true });
+        } catch (blobErr) {
+          const msg = blobErr instanceof Error ? blobErr.message : String(blobErr);
+          logger.error('Vercel Blob upload failed:', blobErr);
+          return NextResponse.json({ success: false, error: `Storage upload failed: ${msg}` }, { status: 500 });
+        }
       }
 
       const { data: record, error: insertError } = await admin

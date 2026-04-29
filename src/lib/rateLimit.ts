@@ -73,6 +73,12 @@ export const routePatterns: Record<string, RateLimitTier> = {
   '/api/portal': 'portal',
   '/portal': 'portal',
   
+  // Upload and media routes - authenticated user operations
+  '/api/media-gallery': 'authenticated',
+  '/api/upload-media': 'authenticated',
+  '/api/upload-presigned-url': 'authenticated',
+  '/api/upload-image': 'authenticated',
+  
   // Client routes (authenticated)
   '/api/clients': 'authenticated',
   

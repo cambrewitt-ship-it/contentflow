@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
         return {
           allowedContentTypes: isVideo ? SUPPORTED_VIDEO_TYPES : SUPPORTED_IMAGE_TYPES,
           maximumSizeInBytes: maxSize,
+          addRandomSuffix: true,
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {

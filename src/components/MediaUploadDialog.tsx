@@ -12,12 +12,59 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, X, ImageIcon, Video, Upload, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { uploadMediaToBlob } from '@/lib/blobUpload';
 
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
 const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
 const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
 const MAX_FILES = 50;
-const BATCH_SIZE = 5;
+const UPLOAD_THROTTLE_MS = 1000;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function postGalleryItems(
+  clientId: string,
+  token: string,
+  items: Array<{ mediaUrl: string; fileName: string; mediaType: 'image' | 'video'; userContext?: string }>
+) {
+  const maxAttempts = 4;
+  let attempt = 0;
+
+  while (true) {
+    const response = await fetch('/api/media-gallery', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ clientId, items }),
+    });
+
+    const responseText = await response.text();
+    let data: any;
+
+    try {
+      data = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      data = { error: responseText };
+    }
+
+    if (response.ok && data?.success) {
+      return;
+    }
+
+    const errorMessage = data?.error || data?.message || 'Upload failed';
+    const isRateLimit = response.status === 429 || errorMessage.toLowerCase().includes('too many requests');
+
+    if (!isRateLimit || attempt >= maxAttempts - 1) {
+      throw new Error(errorMessage);
+    }
+
+    const retryDelay = 1000 * Math.pow(2, attempt);
+    attempt += 1;
+    await sleep(retryDelay);
+  }
+}
 
 interface SelectedFile {
   id: string;
@@ -25,6 +72,7 @@ interface SelectedFile {
   preview: string;
   context: string;
   showContext: boolean;
+  status: 'pending' | 'uploading' | 'uploaded' | 'failed';
 }
 
 interface MediaUploadDialogProps {
@@ -32,15 +80,6 @@ interface MediaUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUploadComplete: () => void;
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 export default function MediaUploadDialog({
@@ -54,6 +93,7 @@ export default function MediaUploadDialog({
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [uploadingFile, setUploadingFile] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -82,7 +122,8 @@ export default function MediaUploadDialog({
           preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : '',
           context: '',
           showContext: false,
-        })),
+          status: 'pending',
+        } as SelectedFile)),
       ]);
     },
     [selectedFiles.length]
@@ -131,52 +172,107 @@ export default function MediaUploadDialog({
     if (selectedFiles.length === 0) return;
     setUploading(true);
     setError(null);
+    setSuccess(false);
     setProgress({ current: 0, total: selectedFiles.length });
+    setUploadingFile('');
 
     try {
       const token = getAccessToken();
-      let uploaded = 0;
-
-      for (let i = 0; i < selectedFiles.length; i += BATCH_SIZE) {
-        const batch = selectedFiles.slice(i, i + BATCH_SIZE);
-
-        const items = await Promise.all(
-          batch.map(async sf => ({
-            mediaData: await fileToBase64(sf.file),
-            fileName: sf.file.name,
-            mediaType: sf.file.type.startsWith('video/') ? 'video' : ('image' as 'image' | 'video'),
-            userContext: sf.context || undefined,
-          }))
-        );
-
-        const res = await fetch('/api/media-gallery', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ clientId, items }),
-        });
-
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.error || 'Upload failed');
-
-        uploaded += batch.length;
-        setProgress({ current: uploaded, total: selectedFiles.length });
+      if (!token) {
+        throw new Error('Authentication is required to upload media. Please sign in again.');
       }
 
-      setSuccess(true);
+      const items: Array<{ mediaUrl: string; fileName: string; mediaType: 'image' | 'video'; userContext?: string }> = [];
+      let completed = 0;
+      const failedFiles: string[] = [];
+      let firstErrorMessage: string | null = null;
+
+      for (const fileItem of selectedFiles) {
+        setUploadingFile(fileItem.file.name);
+        setSelectedFiles(prev =>
+          prev.map(f =>
+            f.id === fileItem.id ? { ...f, status: 'uploading' } : f
+          )
+        );
+
+        try {
+          const uploadResult = await uploadMediaToBlob(fileItem.file, fileItem.file.name, token || undefined);
+
+          items.push({
+            mediaUrl: uploadResult.url,
+            fileName: fileItem.file.name,
+            mediaType: uploadResult.mediaType,
+            userContext: fileItem.context || undefined,
+          });
+
+          setSelectedFiles(prev =>
+            prev.map(f =>
+              f.id === fileItem.id ? { ...f, status: 'uploaded' } : f
+            )
+          );
+        } catch (uploadError) {
+          const message = uploadError instanceof Error ? uploadError.message : String(uploadError);
+          if (!firstErrorMessage) {
+            firstErrorMessage = message;
+          }
+          failedFiles.push(fileItem.file.name);
+          setSelectedFiles(prev =>
+            prev.map(f =>
+              f.id === fileItem.id ? { ...f, status: 'failed' } : f
+            )
+          );
+        }
+
+        completed += 1;
+        setProgress({ current: completed, total: selectedFiles.length });
+
+        if (completed < selectedFiles.length) {
+          await sleep(UPLOAD_THROTTLE_MS);
+        }
+      }
+
+      if (items.length > 0) {
+        await postGalleryItems(clientId, token, items);
+      }
+
+      if (items.length === 0) {
+        throw new Error(firstErrorMessage || 'Upload failed for all files.');
+      }
+
+      if (failedFiles.length > 0) {
+        setError(`${failedFiles.length} file${failedFiles.length === 1 ? '' : 's'} failed to upload. ${firstErrorMessage || ''}`);
+      } else {
+        setSuccess(true);
+      }
+
       setTimeout(() => {
-        onUploadComplete();
-        onOpenChange(false);
-        setSelectedFiles([]);
-        setSuccess(false);
-        setProgress({ current: 0, total: 0 });
+        if (items.length > 0) {
+          onUploadComplete();
+        }
+        if (failedFiles.length === 0) {
+          onOpenChange(false);
+          setSelectedFiles([]);
+          setProgress({ current: 0, total: 0 });
+          setSuccess(false);
+        }
+        setUploadingFile('');
       }, 1200);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
+      const message = err instanceof Error ? err.message : 'Upload failed. Please try again.';
+      if (message.toLowerCase().includes('too many requests') || message.includes('429')) {
+        setError('Upload rate limited. Please wait a few seconds and try again.');
+      } else {
+        setError(message);
+      }
+
+      setSelectedFiles(prev =>
+        prev.map(f =>
+          f.status === 'uploading' ? { ...f, status: 'failed' } : f
+        )
+      );
     } finally {
       setUploading(false);
+      setUploadingFile('');
     }
   };
 
@@ -247,7 +343,8 @@ export default function MediaUploadDialog({
           {uploading && (
             <div className="space-y-2">
               <p className="text-sm text-gray-600">
-                Uploading {progress.current} of {progress.total}...
+                Uploading {progress.current} of {progress.total}
+                {uploadingFile ? ` — ${uploadingFile}` : ''}
               </p>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div
@@ -257,6 +354,11 @@ export default function MediaUploadDialog({
                   }}
                 />
               </div>
+              {progress.total > 20 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Large uploads may take several minutes. Please keep this window open.
+                </p>
+              )}
             </div>
           )}
 
@@ -298,7 +400,26 @@ export default function MediaUploadDialog({
                       </div>
                     </div>
                     <div className="p-2">
-                      <p className="text-xs text-gray-700 truncate font-medium">{sf.file.name}</p>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <p className="text-xs text-gray-700 truncate font-medium">{sf.file.name}</p>
+                        <span className={`text-[10px] font-semibold uppercase tracking-wide ${
+                          sf.status === 'uploading'
+                            ? 'text-blue-600'
+                            : sf.status === 'uploaded'
+                            ? 'text-green-600'
+                            : sf.status === 'failed'
+                            ? 'text-red-600'
+                            : 'text-gray-500'
+                        }`}>
+                          {sf.status === 'uploading'
+                            ? 'Uploading'
+                            : sf.status === 'uploaded'
+                            ? 'Uploaded'
+                            : sf.status === 'failed'
+                            ? 'Failed'
+                            : 'Pending'}
+                        </span>
+                      </div>
                       <button
                         type="button"
                         onClick={() => toggleContext(sf.id)}
