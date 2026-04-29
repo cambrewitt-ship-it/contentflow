@@ -19,6 +19,44 @@ export interface ApiResponse<T = unknown> {
   message?: string;
 }
 
+// Autopilot JSONB types
+export interface OperatingHours {
+  [day: string]: { open: string; close: string } | null;
+}
+
+export interface ContentMix {
+  promotional: number;
+  engagement: number;
+  seasonal: number;
+  educational: number;
+}
+
+export interface PostingPreferences {
+  posts_per_week: number;
+  preferred_days: string[];
+  preferred_times: string[];
+  avoid_days: string[];
+  content_mix: ContentMix;
+}
+
+export interface BusinessContext {
+  business_type: string;
+  hemisphere: string;
+  attributes: string[];
+  key_offerings: string[];
+  local_sports_teams: string[];
+}
+
+export interface AutopilotSettings {
+  auto_generate: boolean;
+  generation_day: string;
+  planning_horizon_days: number;
+  require_approval: boolean;
+  notification_method: string;
+  auto_publish: boolean;
+  auto_publish_hours: number;
+}
+
 // Client Types
 export interface Client {
   id: string;
@@ -42,6 +80,11 @@ export interface Client {
   logo_url?: string;
   region?: string;
   timezone?: string;
+  operating_hours?: OperatingHours;
+  posting_preferences?: PostingPreferences;
+  business_context?: BusinessContext;
+  autopilot_enabled?: boolean;
+  autopilot_settings?: AutopilotSettings;
   created_at: string;
   updated_at: string;
 }

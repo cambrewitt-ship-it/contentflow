@@ -17,7 +17,14 @@ import {
   Plus,
   RotateCcw,
   Clock,
-  CreditCard
+  CreditCard,
+  Calendar,
+  Images,
+  Bot,
+  Sparkles,
+  PenSquare,
+  Link2,
+  Settings,
 } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
@@ -146,9 +153,12 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
 
   // Extract current client ID from pathname
   const currentClientId = pathname?.split('/')[2] || null;
-  
+
   // Check if we're on a client-specific page
   const isOnClientPage = pathname?.includes('/dashboard/client/');
+
+  // Robustly extract clientId for per-client navigation links
+  const clientIdFromPath = pathname?.match(/\/dashboard\/client\/([^/]+)/)?.[1] || null;
   
   // Check if we're on the main dashboard
   const isOnMainDashboard = pathname === '/dashboard';
@@ -296,6 +306,86 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                     title={collapsed ? item.name : undefined}
                   >
                     <Icon className={`w-4 h-4 ${collapsed ? '' : 'mr-2'}`} />
+                    {!collapsed && item.name}
+                  </Button>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      )}
+
+      {/* Client navigation — shown when viewing a specific client */}
+      {isOnClientPage && clientIdFromPath && (
+        <div className={getThemeClasses(
+          "p-4 border-b border-gray-200",
+          "p-4 border-b border-white/20"
+        )}>
+          {!collapsed && (
+            <h3 className={getThemeClasses(
+              "text-sm font-medium text-gray-500 mb-3",
+              "text-sm font-medium glass-text-muted mb-3"
+            )}>Client</h3>
+          )}
+          <nav className="space-y-1">
+            {[
+              {
+                name: "Content Suite",
+                href: `/dashboard/client/${clientIdFromPath}/content-suite`,
+                icon: PenSquare,
+                active: !!pathname?.includes("/content-suite"),
+              },
+              {
+                name: "Calendar",
+                href: `/dashboard/client/${clientIdFromPath}/calendar`,
+                icon: Calendar,
+                active: !!pathname?.includes("/calendar"),
+              },
+              {
+                name: "Media Gallery",
+                href: `/dashboard/client/${clientIdFromPath}/media-gallery`,
+                icon: Images,
+                active: !!pathname?.includes("/media-gallery"),
+              },
+              {
+                name: "Autopilot ✨",
+                href: `/dashboard/client/${clientIdFromPath}/autopilot`,
+                icon: Sparkles,
+                active: !pathname?.includes("/autopilot-settings") && !!pathname?.includes("/autopilot"),
+              },
+              {
+                name: "Connect",
+                href: `/dashboard/client/${clientIdFromPath}/connect-platforms`,
+                icon: Link2,
+                active: !!pathname?.includes("/connect-platforms"),
+              },
+              {
+                name: "Settings",
+                href: `/dashboard/client/${clientIdFromPath}/autopilot-settings`,
+                icon: Settings,
+                active: !!pathname?.includes("/autopilot-settings"),
+              },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link key={item.name} href={item.href}>
+                  <Button
+                    variant={item.active ? "secondary" : "ghost"}
+                    className={getThemeClasses(
+                      `w-full ${collapsed ? "justify-center px-2" : "justify-start"} ${
+                        item.active
+                          ? "bg-blue-50 text-blue-700 border-blue-200"
+                          : "text-gray-700 hover:bg-gray-50"
+                      }`,
+                      `w-full ${collapsed ? "justify-center px-2" : "justify-start"} glass-button ${
+                        item.active
+                          ? "glass-text-primary"
+                          : "glass-text-secondary hover:glass-text-primary"
+                      }`
+                    )}
+                    title={collapsed ? item.name : undefined}
+                  >
+                    <Icon className={`w-4 h-4 ${collapsed ? "" : "mr-2"}`} />
                     {!collapsed && item.name}
                   </Button>
                 </Link>

@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Send, Settings } from 'lucide-react'
+import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Send, Settings, Images } from 'lucide-react'
+import PhotoSwapDialog from '@/components/PhotoSwapDialog'
 import Link from 'next/link'
 import ClientViewToggle from '@/components/ClientViewToggle'
 import { SocialPreviewColumn } from './SocialPreviewColumn'
@@ -94,7 +95,7 @@ export default function ContentSuitePage({ params }: PageProps) {
   
   // Schedule modal state
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
-  
+
   // Connected accounts for scheduling
   const [connectedAccounts, setConnectedAccounts] = useState<any[]>([])
   
@@ -867,6 +868,35 @@ function ContentSuiteContent({
   
   const { user } = useAuth()
   
+  // Gallery picker state (lives here so setUploadedImages / setActiveImageId are in scope)
+  const [galleryPickerOpen, setGalleryPickerOpen] = useState(false)
+
+  const handleGalleryPhotoSelected = useCallback(async (mediaGalleryId: string) => {
+    const accessToken = getAccessToken()
+    try {
+      const res = await fetch(
+        `/api/media-gallery?clientId=${clientId}&limit=200&status=available`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      )
+      const data = await res.json()
+      const items: Array<{ id: string; media_url: string }> = data.items ?? data.gallery ?? []
+      const item = items.find(i => i.id === mediaGalleryId)
+      if (!item) return
+
+      const mockFile = new File([], 'gallery-photo.jpg', { type: 'image/jpeg' })
+      const imageId = `gallery-${mediaGalleryId}`
+      setUploadedImages((prev: { preview: string; id: string; file?: File; blobUrl?: string }[]) => [
+        ...prev,
+        { id: imageId, file: mockFile, preview: item.media_url, blobUrl: item.media_url },
+      ])
+      setActiveImageId(imageId)
+      setGalleryPickerOpen(false)
+    } catch (err) {
+      console.error('Failed to load gallery item:', err)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, getAccessToken, setUploadedImages, setActiveImageId])
+
   // State for refreshing content ideas
   const [refreshingIdeas, setRefreshingIdeas] = useState(false)
   const [showCreditDialog, setShowCreditDialog] = useState(false)
@@ -1848,22 +1878,42 @@ function ContentSuiteContent({
                   {/* Top Row: Square Upload Box + Thumbnails + Dropdowns */}
                   <div className="grid grid-cols-[200px_1fr_320px] gap-4 mb-4 items-start">
                     {/* Square Upload Box on Left */}
-                    <div
-                      className="rounded-2xl p-4 text-center transition-colors cursor-pointer w-[200px] h-[200px] flex flex-col items-center justify-center bg-gradient-to-br from-blue-700/90 to-blue-400/90"
-                      onDragOver={handleDragOver}
-                      onDrop={handleDrop}
-                      onClick={() => document.getElementById('media-upload-v2')?.click()}
-                    >
-                      <div className="text-[100px] font-light text-white leading-none">+</div>
-                      <input
-                        id="media-upload-v2"
-                        type="file"
-                        multiple
-                        accept="image/*,video/*"
-                        onChange={handleMediaUpload}
-                        className="hidden"
-                      />
+                    <div className="flex flex-col gap-2 w-[200px]">
+                      <div
+                        className="rounded-2xl p-4 text-center transition-colors cursor-pointer w-[200px] h-[200px] flex flex-col items-center justify-center bg-gradient-to-br from-blue-700/90 to-blue-400/90"
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                        onClick={() => document.getElementById('media-upload-v2')?.click()}
+                      >
+                        <div className="text-[100px] font-light text-white leading-none">+</div>
+                        <input
+                          id="media-upload-v2"
+                          type="file"
+                          multiple
+                          accept="image/*,video/*"
+                          onChange={handleMediaUpload}
+                          className="hidden"
+                        />
+                      </div>
+                      {/* Pick from Media Gallery */}
+                      <button
+                        type="button"
+                        onClick={() => setGalleryPickerOpen(true)}
+                        className="flex items-center justify-center gap-1.5 w-full py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+                      >
+                        <Images className="w-3.5 h-3.5" />
+                        Pick from Gallery
+                      </button>
                     </div>
+
+                    {/* Gallery Picker Dialog */}
+                    <PhotoSwapDialog
+                      open={galleryPickerOpen}
+                      onOpenChange={setGalleryPickerOpen}
+                      clientId={clientId}
+                      currentMediaGalleryId={null}
+                      onPhotoSelected={handleGalleryPhotoSelected}
+                    />
 
                     {/* Uploaded Media Thumbnails - To the right of upload box */}
                     <div className="flex gap-3 flex-wrap items-start min-w-0">

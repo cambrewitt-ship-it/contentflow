@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download, Copy, Pencil, Check, X, Tag, FileText, CalendarDays } from 'lucide-react';
+import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download, Copy, Pencil, Check, X, Tag, FileText, CalendarDays, Sparkles } from 'lucide-react';
 import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
@@ -35,6 +35,26 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { type ContentEvent, EVENT_TYPE_COLORS } from '@/components/EventsCalendarLayer';
+
+function EventIndicatorsInline({ events }: { events: ContentEvent[] }) {
+  const visible = events.slice(0, 4);
+  const overflow = events.length - 4;
+  return (
+    <div className="flex items-center gap-0.5 flex-wrap">
+      {visible.map(event => (
+        <span
+          key={`${event.id}-${event.occurrence_date || event.event_date}`}
+          className={`inline-block w-1.5 h-1.5 rounded-full ${EVENT_TYPE_COLORS[event.event_type]} flex-shrink-0`}
+          title={event.title}
+        />
+      ))}
+      {overflow > 0 && (
+        <span className="text-[9px] text-gray-400 leading-none">+{overflow}</span>
+      )}
+    </div>
+  );
+}
 
 interface ClientUpload {
   id: string;
@@ -108,6 +128,7 @@ interface ColumnViewCalendarProps {
   savingCaptionPostIds?: Set<string>;
   onEventAdd?: (dateKey: string) => void;
   onEventClick?: (event: CalendarEvent) => void;
+  contentEvents?: Record<string, import('@/components/EventsCalendarLayer').ContentEvent[]>;
 }
 
 const normalizeToWeekStart = (input: Date) => {
@@ -603,8 +624,19 @@ function SortablePostCard({
 
       {/* Header with Date and Status */}
       <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200 p-2">
-        <div className="text-xs text-gray-600">
-          {post.scheduled_date ? `:: ${formatDate(post.scheduled_date)}` : ''}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-gray-600">
+            {post.scheduled_date ? `:: ${formatDate(post.scheduled_date)}` : ''}
+          </span>
+          {post.source === 'autopilot' && (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 text-[9px] font-semibold leading-none"
+              title="AI-generated post"
+            >
+              <Sparkles className="h-2.5 w-2.5" />
+              AI
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {onTogglePostSelection && (
@@ -913,6 +945,7 @@ function DroppableDayRow({
   dayEvents = [],
   onEventAdd,
   onEventClick,
+  contentEventIndicators,
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -944,6 +977,7 @@ function DroppableDayRow({
   dayEvents?: CalendarEvent[];
   onEventAdd?: (dateKey: string) => void;
   onEventClick?: (event: CalendarEvent) => void;
+  contentEventIndicators?: import('@/components/EventsCalendarLayer').ContentEvent[];
 }) {
   const router = useRouter();
   const { setNodeRef } = useDroppable({
@@ -1043,6 +1077,13 @@ function DroppableDayRow({
 </button>
           )}
         </div>
+
+        {/* Content event indicators (holidays, sports, etc.) */}
+        {contentEventIndicators && contentEventIndicators.length > 0 && (
+          <div className="mt-1">
+            <EventIndicatorsInline events={contentEventIndicators} />
+          </div>
+        )}
 
         {/* Events & Notes for this day */}
         {dayEvents.length > 0 && (
@@ -1169,6 +1210,7 @@ export function ColumnViewCalendar({
   savingCaptionPostIds,
   onEventAdd,
   onEventClick,
+  contentEvents,
 }: ColumnViewCalendarProps) {
   const clientUploadsMap = clientUploads ?? {};
   const VISIBLE_WEEK_COUNT = 5; // Show 5 weeks: 1 partial before, 3 main, 1 partial after
@@ -1456,26 +1498,33 @@ export function ColumnViewCalendar({
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
     >
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => handleNavigate('left')}
-          className="absolute -top-[4.75rem] left-4 z-10 flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white text-gray-600 shadow-md transition hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label="Scroll to previous weeks"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <button
-          type="button"
-          onClick={() => handleNavigate('right')}
-          className="absolute -top-[4.75rem] right-4 z-10 flex items-center justify-center h-10 w-10 rounded-full border border-gray-200 bg-white text-gray-600 shadow-md transition hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label="Scroll to next weeks"
-        >
-          <ArrowRight className="h-5 w-5" />
-        </button>
+      {/* Relative container — gives absolute children a positioning context */}
+      <div style={{position: 'relative', width: '100%', height: '100%'}}>
+        {/* Nav bar: absolute left:0 right:0 guarantees full parent width regardless of flex parents */}
+        <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', borderBottom: '1px solid #e5e7eb', background: '#fff', zIndex: 2}}>
+          <button
+            type="button"
+            onClick={() => handleNavigate('left')}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-gray-600 text-sm font-medium shadow-sm transition hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Previous
+          </button>
+          <button
+            type="button"
+            onClick={() => handleNavigate('right')}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-gray-600 text-sm font-medium shadow-sm transition hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300"
+          >
+            Next
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+        {/* Scroll container: absolute inset pins it to exact parent bounds — content wider than this → scroll */}
         <div
-          className="flex justify-center gap-2 overflow-x-clip pb-4 px-2 pt-4 min-h-screen max-w-[1312px] mx-auto"
+          className="calendar-hscroll"
+          style={{position: 'absolute', top: '44px', left: 0, right: 0, bottom: 0, overflowX: 'scroll', overflowY: 'auto'}}
         >
+        <div style={{display: 'flex', gap: '8px', padding: '16px 8px', width: 'max-content', minWidth: '100%'}}>
           {columns.map((column, index) => {
             const isCurrent = isCurrentWeek(column.weekStart);
             const isEdgeColumn = index === 0 || index === columns.length - 1;
@@ -1534,6 +1583,7 @@ export function ColumnViewCalendar({
                         dayEvents={events[dayRow.dateKey] ?? []}
                         onEventAdd={onEventAdd}
                         onEventClick={onEventClick}
+                        contentEventIndicators={contentEvents?.[dayRow.dateKey]}
                       />
                     );
                   })}
@@ -1541,6 +1591,7 @@ export function ColumnViewCalendar({
               </div>
             );
           })}
+        </div>
         </div>
       </div>
 

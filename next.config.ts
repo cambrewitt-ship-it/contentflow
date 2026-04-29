@@ -136,6 +136,10 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   
+  // Keep resend (email SDK) as a server-side external so Turbopack doesn't try
+  // to statically bundle its optional @react-email/render dynamic import.
+  serverExternalPackages: ['resend'],
+
   // Skip all API routes during static generation and force them to be dynamic
   webpack: (config, { isServer }) => {
     if (isServer) {

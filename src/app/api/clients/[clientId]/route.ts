@@ -226,9 +226,14 @@ export async function PUT(
       value_proposition?: string;
       portal_enabled?: boolean;
       region?: string;
+      operating_hours?: Record<string, { open: string; close: string } | null>;
+      posting_preferences?: Record<string, unknown>;
+      business_context?: Record<string, unknown>;
+      autopilot_enabled?: boolean;
+      autopilot_settings?: Record<string, unknown>;
       updated_at?: string;
     } = {};
-    
+
     if (body.name !== undefined) updateData.name = body.name;
     if (body.company_description !== undefined) updateData.company_description = body.company_description;
     if (body.website_url !== undefined) updateData.website_url = body.website_url;
@@ -242,6 +247,11 @@ export async function PUT(
     if (body.value_proposition !== undefined) updateData.value_proposition = body.value_proposition;
     if (body.portal_enabled !== undefined) updateData.portal_enabled = body.portal_enabled;
     if (body.region !== undefined) updateData.region = body.region;
+    if (body.operating_hours !== undefined) updateData.operating_hours = body.operating_hours;
+    if (body.posting_preferences !== undefined) updateData.posting_preferences = body.posting_preferences;
+    if (body.business_context !== undefined) updateData.business_context = body.business_context;
+    if (body.autopilot_enabled !== undefined) updateData.autopilot_enabled = body.autopilot_enabled;
+    if (body.autopilot_settings !== undefined) updateData.autopilot_settings = body.autopilot_settings;
     
     // Add updated_at timestamp
     updateData.updated_at = new Date().toISOString();

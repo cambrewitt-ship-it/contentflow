@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle, FileDown } from 'lucide-react';
+import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle, FileDown, Sparkles } from 'lucide-react';
 import ClientViewToggle from '@/components/ClientViewToggle';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
@@ -16,6 +16,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { PDFExportModal } from '@/components/PDFExportModal';
 import { FacebookIcon, InstagramIcon, TwitterIcon, LinkedInIcon } from '@/components/social-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { useContentEvents } from '@/components/EventsCalendarLayer';
+import EventsPanel from '@/components/EventsPanel';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -231,6 +233,9 @@ export default function CalendarPage() {
   const [approvalLinkUrl, setApprovalLinkUrl] = useState<string | null>(null);
   const [generatingApprovalLink, setGeneratingApprovalLink] = useState(false);
   const [approvalLinkCopied, setApprovalLinkCopied] = useState(false);
+  const [showEventsPanel, setShowEventsPanel] = useState(false);
+
+  const { eventsByDate: contentEventsByDate, refetch: refetchContentEvents } = useContentEvents(clientId as string);
 
   const updatePostCaption = (postId: string, newCaption: string) => {
     setEditingCaptions(prev => ({
@@ -2220,6 +2225,15 @@ export default function CalendarPage() {
           ))}
         </select>
 
+        {/* Autopilot Button */}
+        <Link
+          href={`/dashboard/client/${clientId}/autopilot`}
+          className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white rounded-md shadow-sm hover:shadow-md transition-all duration-300 text-sm font-medium"
+        >
+          <Sparkles className="w-4 h-4 mr-1.5" />
+          Autopilot
+        </Link>
+
         {/* Create Content Button */}
         <Link
           href={`/dashboard/client/${clientId}/content-suite`}
@@ -2231,7 +2245,7 @@ export default function CalendarPage() {
       </div>
 
         {/* Main Layout: Sidebar + Calendar Content */}
-        <div className="flex gap-6 relative">
+        <div className="flex gap-6 relative overflow-hidden min-w-0">
           {/* Left Sidebar - Posts in Project (Vertical) */}
           <div 
             className="bg-white rounded-lg shadow transition-all duration-300 flex flex-col w-36 flex-shrink-0 sticky top-0"
@@ -2357,6 +2371,23 @@ export default function CalendarPage() {
         <div className="flex justify-between items-center mb-4 mx-8">
             {/* Left side - Delete, Export, and Approval Link buttons */}
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  const totalPosts = Object.values(scheduledPosts).reduce((acc, week) => acc + week.length, 0);
+                  if (selectedPosts.size === totalPosts && totalPosts > 0) {
+                    handleDeselectAllPosts();
+                  } else {
+                    handleSelectAllPosts();
+                  }
+                }}
+                className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-gray-600 hover:bg-gray-700"
+              >
+                {(() => {
+                  const totalPosts = Object.values(scheduledPosts).reduce((acc, week) => acc + week.length, 0);
+                  return selectedPosts.size === totalPosts && totalPosts > 0 ? 'Deselect All' : 'Select All';
+                })()}
+              </button>
+
               <button
                 onClick={handleBulkDelete}
                 disabled={isDeleting || selectedPosts.size === 0}
@@ -2530,7 +2561,7 @@ export default function CalendarPage() {
         <div
           key={refreshKey}
           ref={calendarScrollRef}
-          className="bg-white rounded-lg shadow overflow-hidden"
+          className="bg-white rounded-lg shadow flex-1 min-w-0"
         >
           {viewMode === 'month' ? (
             <>
@@ -2604,8 +2635,20 @@ export default function CalendarPage() {
                       Column
                     </button>
                   </div>
+                  <button
+                    onClick={() => setShowEventsPanel(v => !v)}
+                    className={`ml-3 px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 border ${
+                      showEventsPanel
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : 'text-gray-600 hover:text-gray-900 border-gray-200'
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Events
+                  </button>
                 </div>
-                <div className="p-4">
+                <div className="flex flex-1 min-w-0">
+                <div className="flex-1 min-w-0" style={{height: 'calc(100vh - 420px)', minHeight: '400px'}}>
                 <ColumnViewCalendar
                   weeks={getWeeksToDisplay()}
                   scheduledPosts={scheduledPosts as any}
@@ -2632,6 +2675,7 @@ export default function CalendarPage() {
                   savingCaptionPostIds={savingCaptionPostIds}
                   onEventAdd={handleOpenEventModal}
                   onEventClick={handleEditEvent}
+                  contentEvents={contentEventsByDate}
                   onDrop={async (e: React.DragEvent, dateKey: string) => {
                     // Handle native HTML5 drag from unscheduled posts
                     const postData = e.dataTransfer.getData('post');
@@ -2791,9 +2835,17 @@ export default function CalendarPage() {
                   }}
                 />
                 </div>
+                {showEventsPanel && (
+                  <EventsPanel
+                    clientId={clientId as string}
+                    onClose={() => setShowEventsPanel(false)}
+                  />
+                )}
+                </div>
               </>
             )}
         </div>
+        </div> {/* End Sidebar + Calendar Flex Container */}
 
           {/* Content Portal Section */}
           <div ref={clientPortalRef} className="mt-8 bg-white rounded-lg shadow p-8">
@@ -2866,8 +2918,7 @@ export default function CalendarPage() {
               )}
             </div>
           </div>
-        </div> {/* End Main Content */}
-        </div> {/* End Sidebar + Calendar Flex Container */}
+        </div>
       </div>
 
       <Dialog open={showPlanRestrictionDialog} onOpenChange={setShowPlanRestrictionDialog}>
