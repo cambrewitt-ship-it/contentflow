@@ -1,5 +1,5 @@
 -- Autopilot Candidates: individual post candidates for swipe review
-CREATE TABLE autopilot_candidates (
+CREATE TABLE IF NOT EXISTS autopilot_candidates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   autopilot_plan_id UUID NOT NULL REFERENCES autopilot_plans(id) ON DELETE CASCADE,
   client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
@@ -32,22 +32,32 @@ CREATE TABLE autopilot_candidates (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_candidates_plan ON autopilot_candidates(autopilot_plan_id);
-CREATE INDEX idx_candidates_client ON autopilot_candidates(client_id);
-CREATE INDEX idx_candidates_decision ON autopilot_candidates(autopilot_plan_id, decision);
+CREATE INDEX IF NOT EXISTS idx_candidates_plan ON autopilot_candidates(autopilot_plan_id);
+CREATE INDEX IF NOT EXISTS idx_candidates_client ON autopilot_candidates(client_id);
+CREATE INDEX IF NOT EXISTS idx_candidates_decision ON autopilot_candidates(autopilot_plan_id, decision);
 
-CREATE TRIGGER update_candidates_updated_at
-  BEFORE UPDATE ON autopilot_candidates
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_candidates_updated_at') THEN
+    CREATE TRIGGER update_candidates_updated_at
+      BEFORE UPDATE ON autopilot_candidates
+      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  END IF;
+END $$;
 
 ALTER TABLE autopilot_candidates ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can manage candidates for their clients" ON autopilot_candidates
-  FOR ALL USING (
-    client_id IN (SELECT id FROM clients WHERE user_id = auth.uid())
-  );
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'autopilot_candidates' AND policyname = 'Users can manage candidates for their clients'
+  ) THEN
+    CREATE POLICY "Users can manage candidates for their clients" ON autopilot_candidates
+      FOR ALL USING (
+        client_id IN (SELECT id FROM clients WHERE user_id = auth.uid())
+      );
+  END IF;
+END $$;
 
 -- Content Preferences: training data from swipe decisions
-CREATE TABLE content_preferences (
+CREATE TABLE IF NOT EXISTS content_preferences (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id),
@@ -70,13 +80,19 @@ CREATE TABLE content_preferences (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_content_prefs_client ON content_preferences(client_id);
-CREATE INDEX idx_content_prefs_liked ON content_preferences(client_id, liked);
-CREATE INDEX idx_content_prefs_user ON content_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_content_prefs_client ON content_preferences(client_id);
+CREATE INDEX IF NOT EXISTS idx_content_prefs_liked ON content_preferences(client_id, liked);
+CREATE INDEX IF NOT EXISTS idx_content_prefs_user ON content_preferences(user_id);
 
 ALTER TABLE content_preferences ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can manage their own preferences" ON content_preferences
-  FOR ALL USING (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'content_preferences' AND policyname = 'Users can manage their own preferences'
+  ) THEN
+    CREATE POLICY "Users can manage their own preferences" ON content_preferences
+      FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- Extend autopilot_plans for v2
 ALTER TABLE autopilot_plans ADD COLUMN IF NOT EXISTS candidates_generated INTEGER DEFAULT 0;

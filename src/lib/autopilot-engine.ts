@@ -93,6 +93,24 @@ interface AIGeneratedCandidates {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+const SOUTHERN_HEMISPHERE_REGIONS = [
+  'new zealand', 'nz', 'australia', 'au', 'south africa', 'za',
+  'argentina', 'brazil', 'chile', 'peru', 'uruguay', 'paraguay',
+  'bolivia', 'ecuador', 'fiji', 'papua new guinea', 'new caledonia',
+  'vanuatu', 'solomon islands', 'tonga', 'samoa', 'madagascar',
+  'mozambique', 'zimbabwe', 'zambia', 'namibia', 'botswana', 'lesotho',
+  'eswatini', 'malawi', 'tanzania', 'kenya', 'indonesia', 'timor-leste',
+];
+
+export function inferHemisphere(hemisphere: string | null | undefined, region: string | null | undefined): string {
+  if (hemisphere === 'southern' || hemisphere === 'northern') return hemisphere;
+  if (region) {
+    const lower = region.toLowerCase();
+    if (SOUTHERN_HEMISPHERE_REGIONS.some(r => lower.includes(r))) return 'southern';
+  }
+  return 'northern';
+}
+
 export function deriveSeason(hemisphere: string, date: Date): string {
   const month = date.getUTCMonth() + 1; // 1-12
   const isSouthern = hemisphere === 'southern';
@@ -276,11 +294,12 @@ function buildPrompt(params: {
   recentPosts: Awaited<ReturnType<typeof getRecentPosts>>;
   gallery: GalleryItem[];
   season: string;
+  hemisphere: string;
   postsToGenerate: number;
   startDate: Date;
   endDate: Date;
 }): { system: string; user: string } {
-  const { client, brandCtx, events, recentPosts, gallery, season, postsToGenerate, startDate, endDate } = params;
+  const { client, brandCtx, events, recentPosts, gallery, season, hemisphere, postsToGenerate, startDate, endDate } = params;
 
   const biz = (client.business_context ?? {}) as Record<string, unknown>;
   const prefs = (client.posting_preferences ?? {}) as Record<string, unknown>;
@@ -360,7 +379,7 @@ Website: ${websiteText}
 
 ## Business Operations
 Type: ${biz.business_type || 'business'}
-Hemisphere: ${biz.hemisphere || 'northern'}
+Hemisphere: ${hemisphere}
 Current Season: ${season}
 Region: ${client.region || 'Not specified'}
 Operating Hours: ${JSON.stringify(hours)}
@@ -414,12 +433,13 @@ function buildPromptV2(params: {
   recentPosts: Awaited<ReturnType<typeof getRecentPosts>>;
   gallery: GalleryItem[];
   season: string;
+  hemisphere: string;
   candidateCount: number;
   startDate: Date;
   endDate: Date;
   stylePreferences: string;
 }): { system: string; user: string } {
-  const { client, brandCtx, events, recentPosts, gallery, season, candidateCount, startDate, endDate, stylePreferences } = params;
+  const { client, brandCtx, events, recentPosts, gallery, season, hemisphere, candidateCount, startDate, endDate, stylePreferences } = params;
 
   const biz = (client.business_context ?? {}) as Record<string, unknown>;
   const prefs = (client.posting_preferences ?? {}) as Record<string, unknown>;
@@ -506,7 +526,7 @@ Website: ${websiteText}
 
 ## Business Operations
 Type: ${biz.business_type || 'business'}
-Hemisphere: ${biz.hemisphere || 'northern'}
+Hemisphere: ${hemisphere}
 Current Season: ${season}
 Region: ${client.region || 'Not specified'}
 Operating Hours: ${JSON.stringify(hours)}
@@ -586,10 +606,11 @@ export async function generateContentPlan(
   const prefs = (client.posting_preferences ?? {}) as Record<string, unknown>;
   const postsPerWeek = (prefs.posts_per_week as number) || 3;
   const candidateCount = Math.min(12, Math.max(10, postsPerWeek * 3));
-  const season = deriveSeason(
-    ((client.business_context as Record<string, unknown>)?.hemisphere as string) || 'northern',
-    startDate
+  const hemisphere = inferHemisphere(
+    (client.business_context as Record<string, unknown>)?.hemisphere as string | undefined,
+    client.region
   );
+  const season = deriveSeason(hemisphere, startDate);
 
   logger.info('Autopilot v2: plan params', {
     postsPerWeek,
@@ -651,6 +672,7 @@ export async function generateContentPlan(
     recentPosts,
     gallery,
     season,
+    hemisphere,
     candidateCount,
     startDate,
     endDate,
@@ -766,7 +788,7 @@ export async function generateContentPlan(
     const { data: userProfile } = await admin
       .from('user_profiles')
       .select('full_name, email')
-      .eq('user_id', userId)
+      .eq('id', userId)
       .maybeSingle();
 
     if (userProfile?.email) {

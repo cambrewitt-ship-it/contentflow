@@ -4,7 +4,6 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import {
   X,
   Loader2,
-  CalendarPlus,
   ListOrdered,
   Film,
   FileText,
@@ -83,7 +82,6 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
   const [caption, setCaption] = useState("");
   const [targetDate, setTargetDate] = useState("");
 
-  const [isAddingCalendar, setIsAddingCalendar] = useState(false);
   const [isAddingQueue, setIsAddingQueue] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -136,64 +134,46 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
     setErrorMsg(null);
   };
 
-  const uploadFiles = async (targetDateValue: string | null) => {
+  const uploadFiles = async (targetDateValue: string | null): Promise<QueueItem[]> => {
     const notes = caption.trim() || null;
+    const created: QueueItem[] = [];
     for (const uploadedFile of files) {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(uploadedFile.file);
-      });
+      const formData = new FormData();
+      formData.append("token", token);
+      formData.append("file", uploadedFile.file);
+      formData.append("fileName", uploadedFile.file.name);
+      formData.append("fileType", uploadedFile.file.type);
+      formData.append("fileSize", String(uploadedFile.file.size));
+      if (notes) formData.append("notes", notes);
+      if (targetDateValue) formData.append("targetDate", targetDateValue);
       const res = await fetch("/api/portal/upload", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token,
-          fileName: uploadedFile.file.name,
-          fileType: uploadedFile.file.type,
-          fileSize: uploadedFile.file.size,
-          fileUrl: base64,
-          notes,
-          targetDate: targetDateValue,
-        }),
+        body: formData,
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || `Failed to upload ${uploadedFile.file.name}`);
       }
+      const data = await res.json();
+      if (data.upload) created.push(data.upload);
     }
+    return created;
   };
 
-  const handleAddToCalendar = async () => {
-    if (files.length === 0) { setErrorMsg("Please upload at least one file."); return; }
-    setIsAddingCalendar(true);
-    setErrorMsg(null);
-    try {
-      await uploadFiles(targetDate || null);
-      resetForm();
-      setSuccessMsg("Added to calendar!");
-      setTimeout(() => setSuccessMsg(null), 4000);
-      onCalendarSuccess?.();
-      fetchQueue();
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setIsAddingCalendar(false);
-    }
-  };
-
-  const handleAddToQueue = async () => {
+const handleAddToQueue = async () => {
     if (files.length === 0) { setErrorMsg("Please upload at least one file."); return; }
     setIsAddingQueue(true);
     setErrorMsg(null);
     try {
-      await uploadFiles(null);
+      const created = await uploadFiles(null);
       resetForm();
       setSuccessMsg("Added to queue!");
       setTimeout(() => setSuccessMsg(null), 4000);
       if (externalQueueItems !== undefined) {
         onCalendarSuccess?.();
+      } else if (created.length > 0) {
+        // Immediately show the new items without a round-trip re-fetch
+        setQueueItems((prev) => [...created.filter((u) => !u.target_date), ...prev]);
       } else {
         fetchQueue();
       }
@@ -226,7 +206,7 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
     }
   };
 
-  const isLoading = isAddingCalendar || isAddingQueue;
+  const isLoading = isAddingQueue;
   const hasFiles = files.length > 0;
 
   return (
@@ -322,25 +302,12 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
               <Button
                 onClick={handleAddToQueue}
                 disabled={isLoading || !hasFiles}
-                variant="outline"
-                className="w-full h-10 border-2 border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold gap-2"
+                className="w-full h-10 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold gap-2 shadow-sm"
               >
                 {isAddingQueue ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</>
                 ) : (
                   <><ListOrdered className="w-4 h-4" /> Add to Queue</>
-                )}
-              </Button>
-
-              <Button
-                onClick={handleAddToCalendar}
-                disabled={isLoading || !hasFiles}
-                className="w-full h-10 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold gap-2 shadow-sm"
-              >
-                {isAddingCalendar ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</>
-                ) : (
-                  <><CalendarPlus className="w-4 h-4" /> Add to Calendar</>
                 )}
               </Button>
             </div>

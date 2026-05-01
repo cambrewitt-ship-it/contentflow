@@ -140,6 +140,22 @@ const nextConfig: NextConfig = {
   // to statically bundle its optional @react-email/render dynamic import.
   serverExternalPackages: ['resend'],
 
+  // Allow Next.js Image Optimization to resize/convert images from Vercel Blob Storage
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.public.blob.vercel-storage.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'public.blob.vercel-storage.com',
+        pathname: '/**',
+      },
+    ],
+  },
+
   // Skip all API routes during static generation and force them to be dynamic
   webpack: (config, { isServer }) => {
     if (isServer) {

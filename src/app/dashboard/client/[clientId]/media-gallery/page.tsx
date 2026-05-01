@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useState, useEffect } from 'react';
+import Image from 'next/image';
 import {
   Search,
   Upload,
@@ -384,7 +385,7 @@ export default function MediaGalleryPage({
 
       {/* Grid */}
       {!loading && displayItems.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-2">
           {displayItems.map(item => (
             <div
               key={item.id}
@@ -392,12 +393,13 @@ export default function MediaGalleryPage({
               onClick={() => openDetail(item)}
             >
               {item.media_type === 'image' ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={item.media_url}
                   alt={item.file_name || 'Gallery image'}
+                  width={200}
+                  height={200}
                   className="w-full h-full object-cover"
-                  loading="lazy"
+                  quality={70}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-900">
@@ -535,11 +537,13 @@ export default function MediaGalleryPage({
               {/* Image preview */}
               <div className="rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center max-h-64">
                 {selectedItem.media_type === 'image' ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Image
                     src={selectedItem.media_url}
                     alt={selectedItem.file_name || 'Media'}
+                    width={640}
+                    height={256}
                     className="max-h-64 w-full object-contain"
+                    quality={85}
                   />
                 ) : (
                   <div className="h-48 flex items-center justify-center">

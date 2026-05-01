@@ -18,9 +18,7 @@ const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif
 const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
 const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
 const MAX_FILES = 50;
-const UPLOAD_THROTTLE_MS = 1000;
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const CONCURRENT_UPLOADS = 5;
 
 async function postGalleryItems(
   clientId: string,
@@ -62,7 +60,7 @@ async function postGalleryItems(
 
     const retryDelay = 1000 * Math.pow(2, attempt);
     attempt += 1;
-    await sleep(retryDelay);
+    await new Promise(r => setTimeout(r, retryDelay));
   }
 }
 
@@ -187,48 +185,39 @@ export default function MediaUploadDialog({
       const failedFiles: string[] = [];
       let firstErrorMessage: string | null = null;
 
-      for (const fileItem of selectedFiles) {
-        setUploadingFile(fileItem.file.name);
+      const uploadOne = async (fileItem: SelectedFile) => {
         setSelectedFiles(prev =>
-          prev.map(f =>
-            f.id === fileItem.id ? { ...f, status: 'uploading' } : f
-          )
+          prev.map(f => f.id === fileItem.id ? { ...f, status: 'uploading' } : f)
         );
-
         try {
           const uploadResult = await uploadMediaToBlob(fileItem.file, fileItem.file.name, token || undefined);
-
           items.push({
             mediaUrl: uploadResult.url,
             fileName: fileItem.file.name,
             mediaType: uploadResult.mediaType,
             userContext: fileItem.context || undefined,
           });
-
           setSelectedFiles(prev =>
-            prev.map(f =>
-              f.id === fileItem.id ? { ...f, status: 'uploaded' } : f
-            )
+            prev.map(f => f.id === fileItem.id ? { ...f, status: 'uploaded' } : f)
           );
         } catch (uploadError) {
           const message = uploadError instanceof Error ? uploadError.message : String(uploadError);
-          if (!firstErrorMessage) {
-            firstErrorMessage = message;
-          }
+          if (!firstErrorMessage) firstErrorMessage = message;
           failedFiles.push(fileItem.file.name);
           setSelectedFiles(prev =>
-            prev.map(f =>
-              f.id === fileItem.id ? { ...f, status: 'failed' } : f
-            )
+            prev.map(f => f.id === fileItem.id ? { ...f, status: 'failed' } : f)
           );
+        } finally {
+          completed += 1;
+          setProgress({ current: completed, total: selectedFiles.length });
         }
+      };
 
-        completed += 1;
-        setProgress({ current: completed, total: selectedFiles.length });
-
-        if (completed < selectedFiles.length) {
-          await sleep(UPLOAD_THROTTLE_MS);
-        }
+      // Upload in parallel batches
+      for (let i = 0; i < selectedFiles.length; i += CONCURRENT_UPLOADS) {
+        const batch = selectedFiles.slice(i, i + CONCURRENT_UPLOADS);
+        setUploadingFile(batch[0].file.name);
+        await Promise.all(batch.map(uploadOne));
       }
 
       if (items.length > 0) {

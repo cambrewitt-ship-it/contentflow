@@ -12,10 +12,15 @@ import {
   Clock,
   XCircle,
   AlertCircle,
-  ChevronRight,
+  ChevronDown,
+  ChevronUp,
   CalendarDays,
   Lock,
   PartyPopper,
+  Heart,
+  X,
+  ImageIcon,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabaseClient';
@@ -94,7 +99,12 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
   const [pageView, setPageView] = useState<PageView>('idle');
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
-  const [existingPlanConflict, setExistingPlanConflict] = useState<string | null>(null);
+
+  // History expand
+  const [expandedHistoryPlanId, setExpandedHistoryPlanId] = useState<string | null>(null);
+  const [historyPlanCandidates, setHistoryPlanCandidates] = useState<Record<string, AutopilotCandidate[]>>({});
+  const [loadingHistoryPlanId, setLoadingHistoryPlanId] = useState<string | null>(null);
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
 
   const fetchRef = useRef(false);
 
@@ -222,29 +232,23 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
 
   // ── Generate plan ──────────────────────────────────────────────────────────
 
-  async function handleGenerate(force = false) {
+  async function handleGenerate() {
+    setShowGenerateModal(false);
     setPageView('generating');
     setGenerateError(null);
-    setExistingPlanConflict(null);
     const token = getAccessToken();
     try {
       const res = await fetch('/api/autopilot/generate-plan', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token ?? ''}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, force }),
+        body: JSON.stringify({ clientId, force: true }),
       });
       const data = await res.json();
 
       if (!data.success) {
-        if (res.status === 409 && data.existingPlanId) {
-          setExistingPlanConflict(data.existingPlanId);
-          setPageView('idle');
-          setShowGenerateModal(true);
-        } else {
-          setGenerateError(data.error || 'Failed to generate plan');
-          setPageView('idle');
-          setShowGenerateModal(true);
-        }
+        setGenerateError(data.error || 'Failed to generate plan');
+        setPageView('idle');
+        setShowGenerateModal(true);
         return;
       }
 
@@ -283,6 +287,40 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
   // ── History plans (all except the currently active one) ────────────────────
 
   const historyPlans = plans.filter(p => p.id !== activePlan?.id);
+
+  async function toggleHistoryPlan(plan: AutopilotPlan) {
+    if (expandedHistoryPlanId === plan.id) {
+      setExpandedHistoryPlanId(null);
+      return;
+    }
+    if (!historyPlanCandidates[plan.id]) {
+      setLoadingHistoryPlanId(plan.id);
+      const fetched = await fetchCandidates(plan.id);
+      setHistoryPlanCandidates(prev => ({ ...prev, [plan.id]: fetched }));
+      setLoadingHistoryPlanId(null);
+    }
+    setExpandedHistoryPlanId(plan.id);
+  }
+
+  async function handleDeletePlan(planId: string) {
+    const token = getAccessToken();
+    setDeletingPlanId(planId);
+    try {
+      await fetch(`/api/autopilot/plans/${planId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token ?? ''}` },
+      });
+      setExpandedHistoryPlanId(null);
+      setHistoryPlanCandidates(prev => {
+        const next = { ...prev };
+        delete next[planId];
+        return next;
+      });
+      await fetchPlans();
+    } finally {
+      setDeletingPlanId(null);
+    }
+  }
 
   // ── Subscription gate ──────────────────────────────────────────────────────
 
@@ -334,12 +372,11 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
           </p>
         </div>
 
-        {(pageView === 'idle' || pageView === 'published') && (
+        {pageView !== 'generating' && (
           <Button
             onClick={() => {
               setShowGenerateModal(true);
               setGenerateError(null);
-              setExistingPlanConflict(null);
             }}
             className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white shadow-md"
           >
@@ -383,34 +420,7 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
               </div>
             )}
 
-            {existingPlanConflict && (
-              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 space-y-2">
-                <p className="font-medium">A plan already exists for this period.</p>
-                <div className="flex gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const existing = plans.find(p => p.id === existingPlanConflict);
-                      if (existing) applyPlanState(existing);
-                      setShowGenerateModal(false);
-                    }}
-                    className="text-xs"
-                  >
-                    View Existing
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => handleGenerate(true)}
-                    className="text-xs bg-amber-600 hover:bg-amber-700 text-white"
-                  >
-                    Replace & Regenerate
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {generateError && (
+{generateError && (
               <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
                 {generateError}
               </div>
@@ -420,17 +430,15 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
               <Button variant="outline" onClick={() => setShowGenerateModal(false)}>
                 Cancel
               </Button>
-              {!existingPlanConflict && (
-                <Button
-                  onClick={() => handleGenerate(false)}
-                  disabled={creditInfo != null && creditInfo.max - creditInfo.used < 13}
-                  className="bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50"
-                  title={creditInfo != null && creditInfo.max - creditInfo.used < 13 ? 'Insufficient AI credits' : undefined}
-                >
-                  <Sparkles className="h-4 w-4 mr-1.5" />
-                  Generate
-                </Button>
-              )}
+              <Button
+                onClick={() => handleGenerate()}
+                disabled={creditInfo != null && creditInfo.max - creditInfo.used < 13}
+                className="bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50"
+                title={creditInfo != null && creditInfo.max - creditInfo.used < 13 ? 'Insufficient AI credits' : undefined}
+              >
+                <Sparkles className="h-4 w-4 mr-1.5" />
+                Generate
+              </Button>
             </div>
           </div>
         </div>
@@ -557,38 +565,180 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
 
           {/* ── HISTORY ── */}
           {historyPlans.length > 0 && (
-            <div className="space-y-2 pt-2">
+            <div className="space-y-3 pt-2">
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
                 Previous Plans
               </h2>
-              <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
-                {historyPlans.map(plan => (
-                  <button
-                    key={plan.id}
-                    type="button"
-                    onClick={() => applyPlanState(plan)}
-                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <CalendarDays className="h-4 w-4 text-gray-300 flex-shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">
+
+              {/* Thumbnail row */}
+              <div className="flex flex-wrap gap-3">
+                {historyPlans.map(plan => {
+                  const isExpanded = expandedHistoryPlanId === plan.id;
+                  const isLoading = loadingHistoryPlanId === plan.id;
+                  const planCandidates = historyPlanCandidates[plan.id] ?? [];
+                  const kept = planCandidates.filter(c => c.decision === 'kept');
+                  const skipped = planCandidates.filter(c => c.decision === 'skipped');
+                  // Up to 3 images for the stack (back → front)
+                  const stackUrls = planCandidates.slice(0, 3).map(c => c.media_url);
+
+                  return (
+                    <button
+                      key={plan.id}
+                      type="button"
+                      onClick={() => toggleHistoryPlan(plan)}
+                      className={`relative flex-shrink-0 w-24 h-24 rounded-xl focus:outline-none group transition-transform hover:-translate-y-0.5 ${isExpanded ? 'ring-2 ring-purple-500 ring-offset-2' : ''}`}
+                      title={formatDateRange(plan.plan_week_start, plan.plan_week_end)}
+                    >
+                      {/* Photo stack — back to front */}
+                      {isLoading ? (
+                        <div className="absolute inset-0 rounded-xl bg-gray-100 flex items-center justify-center">
+                          <Loader2 className="h-5 w-5 animate-spin text-gray-300" />
+                        </div>
+                      ) : stackUrls.length === 0 ? (
+                        <>
+                          <div className="absolute inset-0 rounded-xl bg-gray-200 rotate-6 shadow-sm" />
+                          <div className="absolute inset-0 rounded-xl bg-gray-100 rotate-3 shadow-sm" />
+                          <div className="absolute inset-0 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center shadow-sm">
+                            <ImageIcon className="h-6 w-6 text-gray-300" />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {stackUrls[2] && (
+                            <img
+                              src={stackUrls[2]}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover rounded-xl rotate-6 shadow-sm"
+                            />
+                          )}
+                          {stackUrls[1] && (
+                            <img
+                              src={stackUrls[1]}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover rounded-xl rotate-3 shadow-sm"
+                            />
+                          )}
+                          <img
+                            src={stackUrls[0]}
+                            alt=""
+                            className="absolute inset-0 w-full h-full object-cover rounded-xl shadow-md"
+                          />
+                        </>
+                      )}
+
+                      {/* Date label on hover */}
+                      <div className="absolute inset-x-0 bottom-0 rounded-b-xl bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1.5 pt-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        <p className="text-white text-[9px] leading-tight font-medium truncate">
                           {formatDateRange(plan.plan_week_start, plan.plan_week_end)}
                         </p>
-                        <p className="text-xs text-gray-400">
-                          {plan.candidates_generated
-                            ? `${plan.candidates_generated} candidates · ${plan.candidates_liked ?? 0} kept`
-                            : `${plan.posts_planned} posts planned`}
+                      </div>
+
+                      {/* Status dot */}
+                      <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ring-1 ring-white ${
+                        plan.status === 'published' ? 'bg-green-500' :
+                        plan.status === 'approved' || plan.status === 'partially_approved' ? 'bg-blue-500' :
+                        plan.status === 'pending_approval' ? 'bg-amber-400' :
+                        plan.status === 'failed' ? 'bg-red-500' :
+                        'bg-gray-400'
+                      }`} />
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Expanded detail panel — shown below the row */}
+              {expandedHistoryPlanId && (() => {
+                const plan = historyPlans.find(p => p.id === expandedHistoryPlanId);
+                if (!plan) return null;
+                const isLoading = loadingHistoryPlanId === expandedHistoryPlanId;
+                const planCandidates = historyPlanCandidates[expandedHistoryPlanId] ?? [];
+                const kept = planCandidates.filter(c => c.decision === 'kept');
+                const skipped = planCandidates.filter(c => c.decision === 'skipped');
+
+                return (
+                  <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">
+                          {formatDateRange(plan.plan_week_start, plan.plan_week_end)}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {plan.candidates_generated != null
+                            ? `${plan.candidates_liked ?? 0} kept · ${plan.candidates_skipped ?? 0} skipped`
+                            : `${plan.posts_planned} posts`}
                         </p>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={plan.status} />
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePlan(plan.id)}
+                          disabled={deletingPlanId === plan.id}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                          title="Delete plan"
+                        >
+                          {deletingPlanId === plan.id
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <Trash2 className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge status={plan.status} />
-                      <ChevronRight className="h-4 w-4 text-gray-300" />
-                    </div>
-                  </button>
-                ))}
-              </div>
+
+                    {isLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                      </div>
+                    ) : (
+                      <>
+                        {kept.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-green-700">
+                              <Heart className="h-3.5 w-3.5" />
+                              Kept ({kept.length})
+                            </div>
+                            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                              {kept.map(c => (
+                                <div key={c.id} className="group relative rounded-lg overflow-hidden aspect-square bg-gray-100">
+                                  <img src={c.media_url} alt="" className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-end p-1 opacity-0 group-hover:opacity-100">
+                                    <p className="text-white text-[9px] leading-tight line-clamp-3">{c.caption}</p>
+                                  </div>
+                                  <div className="absolute top-1 right-1 bg-green-500 rounded-full p-0.5">
+                                    <Heart className="h-2 w-2 text-white fill-white" />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {skipped.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400">
+                              <X className="h-3.5 w-3.5" />
+                              Skipped ({skipped.length})
+                            </div>
+                            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                              {skipped.map(c => (
+                                <div key={c.id} className="group relative rounded-lg overflow-hidden aspect-square bg-gray-100">
+                                  <img src={c.media_url} alt="" className="w-full h-full object-cover grayscale opacity-50" />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-end p-1 opacity-0 group-hover:opacity-100">
+                                    <p className="text-white text-[9px] leading-tight line-clamp-3">{c.caption}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {kept.length === 0 && skipped.length === 0 && (
+                          <p className="text-sm text-gray-400 text-center py-4">No decisions recorded yet.</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </>

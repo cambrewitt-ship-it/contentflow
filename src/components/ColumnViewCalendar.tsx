@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download, Copy, Pencil, Check, X, Tag, FileText, CalendarDays, Sparkles } from 'lucide-react';
 import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
 import { useRouter } from 'next/navigation';
@@ -1179,7 +1179,11 @@ function DroppableDayRow({
   );
 }
 
-export function ColumnViewCalendar({
+export interface ColumnViewCalendarHandle {
+  navigate: (direction: 'left' | 'right') => void;
+}
+
+export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnViewCalendarProps>(function ColumnViewCalendar({
   weeks,
   scheduledPosts,
   clientUploads = {},
@@ -1209,9 +1213,9 @@ export function ColumnViewCalendar({
   onEventAdd,
   onEventClick,
   contentEvents,
-}: ColumnViewCalendarProps) {
+}: ColumnViewCalendarProps, ref: React.Ref<ColumnViewCalendarHandle>) {
   const clientUploadsMap = clientUploads ?? {};
-  const VISIBLE_WEEK_COUNT = 5; // Show 5 weeks: 1 partial before, 3 main, 1 partial after
+  const VISIBLE_WEEK_COUNT = 10;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
   const [startWeek, setStartWeek] = useState<Date>(() => {
@@ -1470,14 +1474,6 @@ export function ColumnViewCalendar({
     return date.toDateString() === today.toDateString();
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
   const handleNavigate = (direction: 'left' | 'right') => {
     setStartWeek((prev) => {
       const base = new Date(prev);
@@ -1488,6 +1484,16 @@ export function ColumnViewCalendar({
     });
   };
 
+  useImperativeHandle(ref, () => ({ navigate: handleNavigate }));
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -1496,32 +1502,8 @@ export function ColumnViewCalendar({
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
     >
-      {/* Relative container — gives absolute children a positioning context */}
-      <div style={{position: 'relative', width: '100%', height: '100%'}}>
-        {/* Nav bar: absolute left:0 right:0 guarantees full parent width regardless of flex parents */}
-        <div style={{position: 'absolute', top: 0, left: 0, right: 0, height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', borderBottom: '1px solid #e5e7eb', background: '#fff', zIndex: 2}}>
-          <button
-            type="button"
-            onClick={() => handleNavigate('left')}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-gray-600 text-sm font-medium shadow-sm transition hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Previous
-          </button>
-          <button
-            type="button"
-            onClick={() => handleNavigate('right')}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-gray-600 text-sm font-medium shadow-sm transition hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300"
-          >
-            Next
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
-        {/* Scroll container: absolute inset pins it to exact parent bounds — content wider than this → scroll */}
-        <div
-          className="calendar-hscroll"
-          style={{position: 'absolute', top: '44px', left: 0, right: 0, bottom: 0, overflowX: 'scroll', overflowY: 'auto'}}
-        >
+      {/* Scroll container fills its parent entirely */}
+      <div style={{width: '100%', height: '100%', overflowX: 'scroll', overflowY: 'auto'}} className="calendar-hscroll">
         <div style={{display: 'flex', gap: '8px', padding: '16px 8px', width: 'max-content', minWidth: '100%'}}>
           {columns.map((column, index) => {
             const isCurrent = isCurrentWeek(column.weekStart);
@@ -1589,7 +1571,6 @@ export function ColumnViewCalendar({
             );
           })}
         </div>
-        </div>
       </div>
 
       <DragOverlay>
@@ -1601,5 +1582,5 @@ export function ColumnViewCalendar({
       </DragOverlay>
     </DndContext>
   );
-}
+});
 

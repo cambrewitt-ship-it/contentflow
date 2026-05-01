@@ -34,8 +34,6 @@ function addDays(date: Date, days: number): Date {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireClientOwnership(request, '');
-    // Re-parse body first to get clientId for ownership check
     const rawBody = await request.json();
     const parsed = bodySchema.safeParse(rawBody);
 

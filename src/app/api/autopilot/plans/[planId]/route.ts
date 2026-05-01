@@ -126,3 +126,35 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ planId: string }> }
+) {
+  try {
+    const { planId } = await params;
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+    const { user } = auth;
+
+    const { plan, notFound } = await getOwnedPlan(planId, user.id);
+    if (notFound) return NextResponse.json({ success: false, error: 'Plan not found' }, { status: 404 });
+    if (!plan) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+
+    const admin = createSupabaseAdmin();
+
+    // Delete candidates first (foreign key), then the plan
+    await admin.from('autopilot_candidates').delete().eq('autopilot_plan_id', planId);
+    const { error: deleteErr } = await admin.from('autopilot_plans').delete().eq('id', planId);
+
+    if (deleteErr) {
+      logger.error('Error deleting autopilot plan:', deleteErr);
+      return NextResponse.json({ success: false, error: 'Failed to delete plan' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    logger.error('DELETE /api/autopilot/plans/[planId] error:', error);
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+  }
+}

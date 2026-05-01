@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle, FileDown, Sparkles } from 'lucide-react';
+import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle, FileDown, Sparkles, ArrowLeft, ArrowRight } from 'lucide-react';
 import ClientViewToggle from '@/components/ClientViewToggle';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
-import { ColumnViewCalendar } from '@/components/ColumnViewCalendar';
+import { ColumnViewCalendar, type ColumnViewCalendarHandle } from '@/components/ColumnViewCalendar';
 import { CalendarEventModal, type CalendarEvent } from '@/components/CalendarEventModal';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
@@ -201,10 +201,11 @@ export default function CalendarPage() {
   const [editingTimePostIds, setEditingTimePostIds] = useState<Set<string>>(new Set());
   const [savingCaptionPostIds, setSavingCaptionPostIds] = useState<Set<string>>(new Set());
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
   const [viewMode, setViewMode] = useState<'month' | 'column'>('column');
   const calendarScrollRef = useRef<HTMLDivElement>(null);
+  const columnViewRef = useRef<ColumnViewCalendarHandle>(null);
 
   // Calendar events / notes
   const [calendarEvents, setCalendarEvents] = useState<{[dateKey: string]: CalendarEvent[]}>({});
@@ -537,7 +538,7 @@ export default function CalendarPage() {
 
   const fetchScheduledPosts = useCallback(async (retryCount = 0, forceRefresh = false) => {
     const maxRetries = 1; // Reduced retries to prevent loops
-    const baseLimit = 20; // Reduced limit to prevent timeouts
+    const baseLimit = 200;
     
     try {
       if (retryCount === 0) {
@@ -615,7 +616,6 @@ export default function CalendarPage() {
       setScheduledPosts(mapped);
       setClientUploads(uploadsMapped);
       setIsLoadingScheduledPosts(false);
-      setRefreshKey(prev => prev + 1); // Force re-render
       console.log('Scheduled posts loaded - dates:', Object.keys(mapped).length, 'Uploads dates:', Object.keys(uploadsMapped).length);
       
     } catch (error) {
@@ -667,7 +667,7 @@ export default function CalendarPage() {
   const handleDateClick = (date: Date) => {
     const weekOffset = getWeekOffsetForDate(date);
     setWeekOffset(weekOffset);
-    setViewMode('week');
+    setViewMode('column');
   };
 
   // Fetch projects for the client
@@ -2542,11 +2542,10 @@ export default function CalendarPage() {
           </div>
 
           {/* Main Content - Calendar */}
-          <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 flex flex-col min-h-0 min-w-0">
 
         {/* Calendar */}
         <div
-          key={refreshKey}
           ref={calendarScrollRef}
           className="bg-white rounded-lg shadow flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden"
         >
@@ -2596,47 +2595,66 @@ export default function CalendarPage() {
             </>
             ) : (
               <>
-                <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center justify-center">
+                <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => columnViewRef.current?.navigate('left')}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-gray-600 text-sm font-medium shadow-sm transition hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Previous
+                  </button>
                   {/* View Toggle */}
-                  <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                      <button
+                        onClick={() => setViewMode('month')}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                          viewMode === 'month'
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        <Calendar className="w-4 h-4" />
+                        Month
+                      </button>
+                      <button
+                        onClick={() => setViewMode('column')}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                          viewMode === 'column'
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        <Columns className="w-4 h-4" />
+                        Column
+                      </button>
+                    </div>
                     <button
-                      onClick={() => setViewMode('month')}
-                      className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                        viewMode === 'month'
-                          ? 'bg-white text-gray-900 shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900'
+                      onClick={() => setShowEventsPanel(v => !v)}
+                      className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 border ${
+                        showEventsPanel
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : 'text-gray-600 hover:text-gray-900 border-gray-200'
                       }`}
                     >
                       <Calendar className="w-4 h-4" />
-                      Month
-                    </button>
-                    <button
-                      onClick={() => setViewMode('column')}
-                      className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                        viewMode === 'column'
-                          ? 'bg-white text-gray-900 shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      <Columns className="w-4 h-4" />
-                      Column
+                      Events
                     </button>
                   </div>
                   <button
-                    onClick={() => setShowEventsPanel(v => !v)}
-                    className={`ml-3 px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 border ${
-                      showEventsPanel
-                        ? 'bg-blue-50 text-blue-700 border-blue-200'
-                        : 'text-gray-600 hover:text-gray-900 border-gray-200'
-                    }`}
+                    type="button"
+                    onClick={() => columnViewRef.current?.navigate('right')}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-gray-600 text-sm font-medium shadow-sm transition hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300"
                   >
-                    <Calendar className="w-4 h-4" />
-                    Events
+                    Next
+                    <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>
                 <div className="flex flex-1 min-w-0 min-h-0">
                 <div className="flex-1 min-w-0 min-h-0">
                 <ColumnViewCalendar
+                  ref={columnViewRef}
                   weeks={getWeeksToDisplay()}
                   scheduledPosts={scheduledPosts as any}
                   clientUploads={clientUploads}

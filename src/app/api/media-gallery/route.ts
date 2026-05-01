@@ -5,7 +5,7 @@ import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -120,15 +120,27 @@ export async function POST(request: NextRequest) {
     // and the RLS policy's USING clause doesn't reliably cover INSERTs.
     const admin = createSupabaseAdmin();
 
-    const uploadedItems: Array<{ id: string; media_url: string; ai_analysis_status: string }> = [];
-    const imageIds: string[] = [];
+    // Build insert records, handling any legacy base64 items alongside pre-uploaded URLs
+    type InsertRow = {
+      client_id: string;
+      user_id: string;
+      media_url: string;
+      media_type: string;
+      file_name: string;
+      file_size: number | null;
+      user_tags: string[];
+      user_context: string | null;
+      user_category: string | null;
+      ai_analysis_status: string;
+    };
+    const insertRows: InsertRow[] = [];
 
     for (const item of items) {
-      let blobResult: { url: string };
+      let mediaUrl: string;
       let fileSize: number | null = null;
 
       if (item.mediaUrl) {
-        blobResult = { url: item.mediaUrl };
+        mediaUrl = item.mediaUrl;
       } else {
         const mimeMatch = item.mediaData.match(/^data:([^;]+);base64,/);
         const mimeType = mimeMatch?.[1] || '';
@@ -158,7 +170,8 @@ export async function POST(request: NextRequest) {
         try {
           const buffer = Buffer.from(base64Data, 'base64');
           const fileBlob = new Blob([buffer], { type: mimeType });
-          blobResult = await put(item.fileName, fileBlob, { access: 'public', addRandomSuffix: true });
+          const blobResult = await put(item.fileName, fileBlob, { access: 'public', addRandomSuffix: true });
+          mediaUrl = blobResult.url;
         } catch (blobErr) {
           const msg = blobErr instanceof Error ? blobErr.message : String(blobErr);
           logger.error('Vercel Blob upload failed:', blobErr);
@@ -166,36 +179,42 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const { data: record, error: insertError } = await admin
-        .from('media_gallery')
-        .insert({
-          client_id: clientId,
-          user_id: user.id,
-          media_url: blobResult.url,
-          media_type: item.mediaType,
-          file_name: item.fileName,
-          file_size: fileSize,
-          user_tags: item.userTags || [],
-          user_context: item.userContext ?? null,
-          user_category: item.userCategory ?? null,
-          ai_analysis_status: 'pending',
-        })
-        .select('id, media_url, ai_analysis_status')
-        .single();
-
-      if (insertError || !record) {
-        logger.error('Error inserting media gallery item:', insertError);
-        return NextResponse.json(
-          { success: false, error: `Failed to save media item: ${insertError?.message ?? 'unknown error'}` },
-          { status: 500 }
-        );
-      }
-
-      uploadedItems.push(record);
-      if (item.mediaType === 'image') {
-        imageIds.push(record.id);
-      }
+      insertRows.push({
+        client_id: clientId,
+        user_id: user.id,
+        media_url: mediaUrl,
+        media_type: item.mediaType,
+        file_name: item.fileName,
+        file_size: fileSize,
+        user_tags: item.userTags || [],
+        user_context: item.userContext ?? null,
+        user_category: item.userCategory ?? null,
+        ai_analysis_status: 'pending',
+      });
     }
+
+    // Single batch insert for all items
+    const { data: insertedRecords, error: insertError } = await admin
+      .from('media_gallery')
+      .insert(insertRows)
+      .select('id, media_url, ai_analysis_status, media_type');
+
+    if (insertError || !insertedRecords) {
+      logger.error('Error batch-inserting media gallery items:', insertError);
+      return NextResponse.json(
+        { success: false, error: `Failed to save media items: ${insertError?.message ?? 'unknown error'}` },
+        { status: 500 }
+      );
+    }
+
+    const uploadedItems = insertedRecords.map(r => ({
+      id: r.id,
+      media_url: r.media_url,
+      ai_analysis_status: r.ai_analysis_status,
+    }));
+    const imageIds = insertedRecords
+      .filter(r => r.media_type === 'image')
+      .map(r => r.id);
 
     // Fire-and-forget AI analysis for uploaded images
     if (imageIds.length > 0) {

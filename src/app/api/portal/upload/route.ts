@@ -167,7 +167,27 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { token, fileName, fileType, fileSize, fileUrl, notes, targetDate } = await request.json();
+    const contentType = request.headers.get('content-type') ?? '';
+    let token: string, fileName: string, fileType: string, fileSize: number,
+        fileUrl: string, notes: string | null, targetDate: string | null;
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData();
+      token = formData.get('token') as string;
+      fileName = formData.get('fileName') as string;
+      fileType = formData.get('fileType') as string;
+      fileSize = Number(formData.get('fileSize') ?? 0);
+      notes = (formData.get('notes') as string) || null;
+      targetDate = (formData.get('targetDate') as string) || null;
+      const file = formData.get('file') as File | null;
+      if (!file) {
+        return NextResponse.json({ error: 'Missing file' }, { status: 400 });
+      }
+      const buffer = Buffer.from(await file.arrayBuffer());
+      fileUrl = `data:${fileType};base64,${buffer.toString('base64')}`;
+    } else {
+      ({ token, fileName, fileType, fileSize, fileUrl, notes, targetDate } = await request.json());
+    }
 
     if (!token || !fileName || !fileUrl) {
       return NextResponse.json(
