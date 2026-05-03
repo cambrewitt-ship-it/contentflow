@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { put } from '@vercel/blob';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
@@ -168,17 +169,12 @@ export async function POST(request: NextRequest) {
 
         try {
           const buffer = Buffer.from(base64Data, 'base64');
-          const ext = item.fileName.split('.').pop()?.toLowerCase() || 'bin';
-          const storagePath = `${Date.now()}-${crypto.randomUUID()}.${ext}`;
-          const storageAdmin = createSupabaseAdmin();
-          const { error: uploadError } = await storageAdmin.storage
-            .from('media-gallery')
-            .upload(storagePath, buffer, { contentType: mimeType });
-          if (uploadError) throw new Error(uploadError.message);
-          mediaUrl = storageAdmin.storage.from('media-gallery').getPublicUrl(storagePath).data.publicUrl;
+          const fileBlob = new Blob([buffer], { type: mimeType });
+          const blobResult = await put(item.fileName, fileBlob, { access: 'public', addRandomSuffix: true });
+          mediaUrl = blobResult.url;
         } catch (blobErr) {
           const msg = blobErr instanceof Error ? blobErr.message : String(blobErr);
-          logger.error('Supabase Storage upload failed:', blobErr);
+          logger.error('Vercel Blob upload failed:', blobErr);
           return NextResponse.json({ success: false, error: `Storage upload failed: ${msg}` }, { status: 500 });
         }
       }
