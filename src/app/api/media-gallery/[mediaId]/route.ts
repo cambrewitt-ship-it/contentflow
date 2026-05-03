@@ -172,13 +172,19 @@ export async function DELETE(
           }
         }
 
-        // If media has a URL from Vercel Blob, attempt to delete it
+        // Delete the file from storage
         if (media.media_url) {
           try {
-            const { del } = await import('@vercel/blob');
-            await del(media.media_url);
-          } catch (blobError) {
-            logger.warn('Failed to delete blob from storage:', blobError);
+            const supabaseMatch = media.media_url.match(/\/storage\/v1\/object\/public\/media-gallery\/(.+)/);
+            if (supabaseMatch?.[1]) {
+              await admin.storage.from('media-gallery').remove([decodeURIComponent(supabaseMatch[1])]);
+            } else {
+              // Fallback for legacy Vercel Blob URLs
+              const { del } = await import('@vercel/blob');
+              await del(media.media_url);
+            }
+          } catch (storageError) {
+            logger.warn('Failed to delete file from storage:', storageError);
             // Continue anyway - database record is what matters
           }
         }
