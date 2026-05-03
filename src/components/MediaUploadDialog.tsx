@@ -18,7 +18,7 @@ const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif
 const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
 const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
 const MAX_FILES = 50;
-const CONCURRENT_UPLOADS = 5;
+const CONCURRENT_UPLOADS = 15;
 
 async function postGalleryItems(
   clientId: string,
@@ -213,12 +213,21 @@ export default function MediaUploadDialog({
         }
       };
 
-      // Upload in parallel batches
-      for (let i = 0; i < selectedFiles.length; i += CONCURRENT_UPLOADS) {
-        const batch = selectedFiles.slice(i, i + CONCURRENT_UPLOADS);
-        setUploadingFile(batch[0].file.name);
-        await Promise.all(batch.map(uploadOne));
-      }
+      // Semaphore queue — next upload starts the moment any slot frees, no round-waiting
+      let active = 0;
+      let index = 0;
+      await new Promise<void>((resolve, reject) => {
+        const next = () => {
+          if (index >= selectedFiles.length && active === 0) { resolve(); return; }
+          while (active < CONCURRENT_UPLOADS && index < selectedFiles.length) {
+            const fileItem = selectedFiles[index++];
+            active++;
+            setUploadingFile(fileItem.file.name);
+            uploadOne(fileItem).then(() => { active--; next(); }).catch(reject);
+          }
+        };
+        next();
+      });
 
       if (items.length > 0) {
         await postGalleryItems(clientId, token, items);
