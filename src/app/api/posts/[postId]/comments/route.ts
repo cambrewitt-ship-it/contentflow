@@ -14,7 +14,7 @@ const AddCommentSchema = z.object({
   portal_token: z.string().uuid().optional(),
   author_name: z.string().min(1).max(200),
   content: z.string().min(1).max(5000),
-  post_type: z.enum(['scheduled', 'calendar_scheduled']).default('calendar_scheduled'),
+  post_type: z.enum(['scheduled', 'calendar_scheduled', 'portal_upload']).default('calendar_scheduled'),
 });
 
 // GET /api/posts/[postId]/comments
@@ -37,31 +37,63 @@ export async function GET(
         return NextResponse.json({ error: 'Invalid portal token' }, { status: 401 });
       }
       clientId = resolved.clientId;
+
+      // For portal_upload, verify the upload belongs to this client
+      if (postType === 'portal_upload') {
+        const { data: upload } = await supabaseAdmin
+          .from('client_uploads')
+          .select('client_id')
+          .eq('id', postId)
+          .maybeSingle();
+        if (!upload || upload.client_id !== clientId) {
+          return NextResponse.json({ error: 'Upload not found' }, { status: 404 });
+        }
+      }
     } else {
       const auth = await requireAuth(request);
       if (auth.error) return auth.error;
       const { supabase, user } = auth;
 
-      const postTable = postType === 'calendar_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
-      const { data: post } = await supabase
-        .from(postTable)
-        .select('client_id')
-        .eq('id', postId)
-        .maybeSingle();
+      if (postType === 'portal_upload') {
+        const { data: upload } = await supabase
+          .from('client_uploads')
+          .select('client_id')
+          .eq('id', postId)
+          .maybeSingle();
+        if (!upload) {
+          return NextResponse.json({ error: 'Upload not found' }, { status: 404 });
+        }
+        const { data: clientCheck } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('id', upload.client_id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (!clientCheck) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+      } else {
+        const postTable = postType === 'calendar_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
+        const { data: post } = await supabase
+          .from(postTable)
+          .select('client_id')
+          .eq('id', postId)
+          .maybeSingle();
 
-      if (!post) {
-        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
-      }
+        if (!post) {
+          return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+        }
 
-      const { data: clientCheck } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('id', post.client_id)
-        .eq('user_id', user.id)
-        .maybeSingle();
+        const { data: clientCheck } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('id', post.client_id)
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-      if (!clientCheck) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        if (!clientCheck) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
       }
     }
 
@@ -129,16 +161,25 @@ export async function POST(
       partyId = resolved.party?.id ?? null;
       authorType = 'portal_party';
 
-      // Verify post belongs to client
-      const postTable = post_type === 'calendar_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
-      const { data: post } = await supabaseAdmin
-        .from(postTable)
-        .select('client_id')
-        .eq('id', postId)
-        .maybeSingle();
-
-      if (!post || post.client_id !== resolved.clientId) {
-        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      if (post_type === 'portal_upload') {
+        const { data: upload } = await supabaseAdmin
+          .from('client_uploads')
+          .select('client_id')
+          .eq('id', postId)
+          .maybeSingle();
+        if (!upload || upload.client_id !== resolved.clientId) {
+          return NextResponse.json({ error: 'Upload not found' }, { status: 404 });
+        }
+      } else {
+        const postTable = post_type === 'calendar_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
+        const { data: post } = await supabaseAdmin
+          .from(postTable)
+          .select('client_id')
+          .eq('id', postId)
+          .maybeSingle();
+        if (!post || post.client_id !== resolved.clientId) {
+          return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+        }
       }
     } else {
       // Agency comment
@@ -149,26 +190,46 @@ export async function POST(
       userId = user.id;
       authorType = 'agency';
 
-      const postTable = post_type === 'calendar_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
-      const { data: post } = await supabase
-        .from(postTable)
-        .select('client_id')
-        .eq('id', postId)
-        .maybeSingle();
+      if (post_type === 'portal_upload') {
+        const { data: upload } = await supabase
+          .from('client_uploads')
+          .select('client_id')
+          .eq('id', postId)
+          .maybeSingle();
+        if (!upload) {
+          return NextResponse.json({ error: 'Upload not found' }, { status: 404 });
+        }
+        const { data: clientCheck } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('id', upload.client_id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (!clientCheck) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+      } else {
+        const postTable = post_type === 'calendar_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
+        const { data: post } = await supabase
+          .from(postTable)
+          .select('client_id')
+          .eq('id', postId)
+          .maybeSingle();
 
-      if (!post) {
-        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
-      }
+        if (!post) {
+          return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+        }
 
-      const { data: clientCheck } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('id', post.client_id)
-        .eq('user_id', user.id)
-        .maybeSingle();
+        const { data: clientCheck } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('id', post.client_id)
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-      if (!clientCheck) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        if (!clientCheck) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
       }
     }
 

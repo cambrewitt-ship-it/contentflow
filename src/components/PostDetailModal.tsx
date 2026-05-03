@@ -227,7 +227,46 @@ export function PostDetailModal({
             <ApprovalPipeline steps={steps} activePartyId={party?.id} />
           )}
 
-          {/* Action buttons — shown only when it's this party's turn */}
+          {/* Comments section */}
+          <div>
+            <button
+              onClick={() => setShowComments(!showComments)}
+              className="flex items-center gap-2 text-sm font-medium text-foreground w-full"
+            >
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              Comments
+              {comments.length > 0 && (
+                <Badge variant="secondary" className="text-xs ml-1">
+                  {comments.length}
+                </Badge>
+              )}
+              <span className="ml-auto">
+                {showComments ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </span>
+            </button>
+
+            {showComments && (
+              <div className="mt-4">
+                {isLoadingComments ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading comments...
+                  </div>
+                ) : (
+                  <PostCommentThread
+                    postId={post.id}
+                    postType={postType}
+                    comments={comments}
+                    portalToken={portalToken}
+                    authorName={party?.name ?? "Portal User"}
+                    onCommentAdded={comment => setComments(prev => [...prev, comment])}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Action buttons — below comment box */}
           {isMyTurn && !actionSuccess && (
             <div className="space-y-3 p-4 rounded-lg border border-border bg-muted/30">
               <p className="text-sm font-medium">It's your turn to review</p>
@@ -320,45 +359,6 @@ export function PostDetailModal({
               {actionSuccess}
             </div>
           )}
-
-          {/* Comments section */}
-          <div>
-            <button
-              onClick={() => setShowComments(!showComments)}
-              className="flex items-center gap-2 text-sm font-medium text-foreground w-full"
-            >
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-              Comments
-              {comments.length > 0 && (
-                <Badge variant="secondary" className="text-xs ml-1">
-                  {comments.length}
-                </Badge>
-              )}
-              <span className="ml-auto">
-                {showComments ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </span>
-            </button>
-
-            {showComments && (
-              <div className="mt-4">
-                {isLoadingComments ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading comments...
-                  </div>
-                ) : (
-                  <PostCommentThread
-                    postId={post.id}
-                    postType={postType}
-                    comments={comments}
-                    portalToken={portalToken}
-                    authorName={party?.name ?? "Portal User"}
-                    onCommentAdded={comment => setComments(prev => [...prev, comment])}
-                  />
-                )}
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

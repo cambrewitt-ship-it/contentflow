@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
     const clientName = client?.name || '';
     const clientLogoUrl = client?.logo_url || null;
 
-    const { data: posts, error: postsError } = await supabase
+    const { data: calendarPosts, error: postsError } = await supabase
       .from('calendar_scheduled_posts')
       .select('id, caption, image_url, platforms_scheduled, scheduled_date, scheduled_time')
       .in('id', postIds)
@@ -152,7 +152,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
     }
 
-    if (!posts || posts.length === 0) {
+    // Fetch any IDs not found in calendar_scheduled_posts — they're portal uploads
+    const foundPostIds = new Set((calendarPosts || []).map(p => p.id));
+    const uploadIds = postIds.filter((id: string) => !foundPostIds.has(id));
+
+    let uploadRows: Array<{ id: string; caption: string; image_url: string | null; platforms_scheduled: null; scheduled_date: string; scheduled_time: string | null }> = [];
+    if (uploadIds.length > 0) {
+      const { data: uploads } = await supabase
+        .from('client_uploads')
+        .select('id, notes, file_url, file_type, target_date, created_at')
+        .in('id', uploadIds)
+        .eq('client_id', clientId);
+
+      uploadRows = (uploads || []).map(u => ({
+        id: u.id,
+        caption: u.notes || 'Portal Upload',
+        image_url: u.file_type?.startsWith('image/') ? u.file_url : null,
+        platforms_scheduled: null,
+        scheduled_date: u.target_date || u.created_at?.split('T')[0] || '',
+        scheduled_time: null,
+      }));
+    }
+
+    const posts = [
+      ...(calendarPosts || []),
+      ...uploadRows,
+    ].sort((a, b) => {
+      const da = a.scheduled_date || '';
+      const db = b.scheduled_date || '';
+      if (da !== db) return da < db ? -1 : 1;
+      return (a.scheduled_time || '') < (b.scheduled_time || '') ? -1 : 1;
+    });
+
+    if (posts.length === 0) {
       return NextResponse.json({ error: 'Posts not found' }, { status: 404 });
     }
 

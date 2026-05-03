@@ -5,7 +5,7 @@ import { Calendar, CheckCircle, AlertTriangle, XCircle, Minus, Download, Trash2,
 import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
-import { TagDropdownModal } from '@/components/TagDropdownModal';
+import { PortalTagDropdown } from '@/components/PortalTagDropdown';
 import {
   DndContext,
   DragEndEvent,
@@ -73,6 +73,7 @@ interface PortalColumnViewCalendarProps {
   onDrop?: (e: React.DragEvent, dateKey: string) => void;
   onQueueItemDrop?: (uploadId: string, dateKey: string) => void;
   clientId?: string;
+  portalToken?: string;
   handleEditScheduledPost?: (post: any, newTime: string) => Promise<void>;
   editingPostId?: string | null;
   setEditingPostId?: (postId: string | null) => void;
@@ -96,6 +97,7 @@ interface PortalColumnViewCalendarProps {
   movingToDate?: string | null;
   calendarSelectedPostIds?: Set<string>;
   onToggleCalendarPostSelection?: (postId: string) => void;
+  onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
 }
 
 // Lazy loading image component
@@ -176,9 +178,11 @@ function SortablePostCard({
   onDeleteClientUpload,
   deletingUploadIds,
   clientId,
+  portalToken,
   onPostClick,
   calendarSelectedPostIds,
   onToggleCalendarPostSelection,
+  onTagsChange,
 }: {
   post: Post;
   postKey: string;
@@ -197,9 +201,11 @@ function SortablePostCard({
   onDeleteClientUpload?: (upload: ClientUpload) => void;
   deletingUploadIds?: Set<string>;
   clientId?: string;
+  portalToken?: string;
   onPostClick?: (post: Post) => void;
   calendarSelectedPostIds?: Set<string>;
   onToggleCalendarPostSelection?: (postId: string) => void;
+  onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
 }) {
   const isClientUpload =
     post.post_type === 'client-upload' ||
@@ -253,33 +259,46 @@ function SortablePostCard({
   const hasCaptionChanged = captionValue !== (post.caption || '');
   const isDeletingUpload = isClientUpload ? deletingUploadIds?.has(post.id) ?? false : false;
 
-  // Tags state
-  const [postTags, setPostTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
+  // Tags state — initialise from post.tags (pre-loaded by portal calendar API)
+  const [postTags, setPostTags] = useState<Array<{ id: string; name: string; color: string }>>(
+    post.tags ?? []
+  );
   const [isTagModalOpen, setIsTagModalOpen] = useState(false);
   const [tagButtonRef, setTagButtonRef] = useState<HTMLButtonElement | null>(null);
 
-  // Fetch post tags
+  // Sync local tags when parent updates post.tags (e.g. changed via the detail modal)
   useEffect(() => {
-    if (post.id && !isClientUpload) {
-      fetchPostTags();
-    }
-  }, [post.id, isClientUpload]);
+    setPostTags(post.tags ?? []);
+  }, [post.tags]);
 
-  const fetchPostTags = async () => {
-    if (!post.id) return;
-    try {
-      // For portal, we might not have a session, so skip tag fetching
-      // Tags functionality may not be available in portal view
-      return;
-    } catch (error) {
-      console.error('Error fetching post tags:', error);
+  const handleTagToggle = async (tagId: string, tag: { id: string; name: string; color: string }, isSelected: boolean) => {
+    if (!portalToken || isClientUpload) return;
+    if (isSelected) {
+      const next = postTags.filter(t => t.id !== tagId);
+      setPostTags(next);
+      const res = await fetch(
+        `/api/portal/post-tags?portal_token=${encodeURIComponent(portalToken)}&post_id=${post.id}&tag_id=${tagId}`,
+        { method: 'DELETE' }
+      );
+      if (!res.ok) {
+        setPostTags(prev => [...prev, tag]);
+      } else {
+        onTagsChange?.(post.id, next);
+      }
+    } else {
+      const next = [...postTags, tag];
+      setPostTags(next);
+      const res = await fetch('/api/portal/post-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portal_token: portalToken, post_id: post.id, tag_id: tagId }),
+      });
+      if (!res.ok) {
+        setPostTags(prev => prev.filter(t => t.id !== tagId));
+      } else {
+        onTagsChange?.(post.id, next);
+      }
     }
-  };
-
-  const handleTagToggle = async (tagId: string) => {
-    // Tags functionality may not be available in portal view
-    // This is a placeholder for future implementation
-    console.log('Tag toggle not available in portal view');
   };
 
   const getCardStyling = () => {
@@ -411,24 +430,37 @@ function SortablePostCard({
         ref={setNodeRef}
         style={style}
         onClick={() => onPostClick?.(post)}
-        className={`rounded-lg border-2 border-blue-300 bg-blue-50 p-3 mb-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
+        className={`rounded-lg border-2 border-gray-200 bg-white p-3 mb-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
           isDragging ? 'opacity-50' : ''
         } ${isDeletingUpload ? 'opacity-60 pointer-events-none' : ''}`}
       >
-        <div className="flex items-center justify-between mb-2 pb-1 border-b border-blue-200">
+        <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
           <div>
-            <span className="text-xs font-semibold uppercase text-blue-700">Portal Upload</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold uppercase bg-blue-100 text-blue-700">Portal Upload</span>
             {(displayDate || displayTime) && (
-              <div className="text-[11px] text-blue-600">
+              <div className="text-[11px] text-gray-500">
                 {displayDate}
                 {displayDate && displayTime ? ' • ' : ''}
                 {displayTime}
               </div>
             )}
           </div>
+          {onToggleCalendarPostSelection && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleCalendarPostSelection(post.id); }}
+              className={`text-[10px] px-2 py-1 rounded font-semibold border transition-colors ${
+                calendarSelectedPostIds?.has(post.id)
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
+              }`}
+            >
+              {calendarSelectedPostIds?.has(post.id) ? '✓ Selected' : 'Select'}
+            </button>
+          )}
         </div>
         {post.image_url && (
-          <div className="w-full mb-2 rounded overflow-hidden border border-blue-200">
+          <div className="w-full mb-2 rounded overflow-hidden border border-gray-200">
             <LazyImage
               src={post.image_url}
               alt={fileName || 'Client upload'}
@@ -436,14 +468,16 @@ function SortablePostCard({
             />
           </div>
         )}
-        {fileName && (
-          <p className="text-xs text-blue-700 font-semibold mb-1 break-all">
-            File: {fileName}
-          </p>
-        )}
-        {uploadNotes && (
-          <p className="text-xs text-blue-700 whitespace-pre-wrap">{uploadNotes}</p>
-        )}
+        {(() => {
+          const filtered = uploadNotes
+            .split('\n')
+            .filter(line => !/^\[.*?—.*?—.*?\]:/.test(line))
+            .join('\n')
+            .trim();
+          return filtered ? (
+            <p className="text-xs text-gray-600 whitespace-pre-wrap mb-2">{filtered}</p>
+          ) : null;
+        })()}
         <div className="mt-3 flex items-center gap-2">
           {uploadData.file_url && (
             <a
@@ -451,7 +485,7 @@ function SortablePostCard({
               download={fileName || undefined}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-md border border-blue-300 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+              className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
             >
               <Download className="w-3 h-3" />
               Download
@@ -570,49 +604,41 @@ function SortablePostCard({
       )}
 
       {/* Tags Section */}
-      {(postTags.length > 0 || (clientId && !isClientUpload)) && (
-        <div className="relative mt-2 mx-2 mb-2">
+      {(postTags.length > 0 || (portalToken && !isClientUpload)) && (
+        <div className="relative mt-2 mb-1">
           <div className="flex items-center justify-between gap-2">
-            {/* Tags Display */}
-            {postTags.length > 0 && (
-              <div className="flex-1 flex flex-wrap gap-1">
-                {postTags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full text-white"
-                    style={{ backgroundColor: tag.color }}
-                  >
-                    {tag.name}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Add Tag Button */}
-            {clientId && !isClientUpload && (
+            <div className="flex-1 flex flex-wrap gap-1">
+              {postTags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full text-white"
+                  style={{ backgroundColor: tag.color }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+            {portalToken && !isClientUpload && (
               <button
                 ref={setTagButtonRef}
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsTagModalOpen(true);
-                }}
-                className="flex-shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                onClick={(e) => { e.stopPropagation(); setIsTagModalOpen(true); }}
+                className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
                 title="Add tag"
               >
-                <Tag className="w-4 h-4" />
+                <Tag className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
         </div>
       )}
 
-      {/* Tag Dropdown Modal */}
-      {clientId && isTagModalOpen && (
-        <TagDropdownModal
+      {/* Portal Tag Dropdown */}
+      {portalToken && isTagModalOpen && (
+        <PortalTagDropdown
           isOpen={isTagModalOpen}
           onClose={() => setIsTagModalOpen(false)}
-          clientId={clientId}
+          portalToken={portalToken}
           postId={post.id}
           selectedTagIds={postTags.map(t => t.id)}
           onTagToggle={handleTagToggle}
@@ -637,6 +663,7 @@ function DroppableDayRow({
   onNativeDragEnter,
   onNativeDragLeave,
   clientId,
+  portalToken,
   handleEditScheduledPost,
   editingPostId,
   setEditingPostId,
@@ -663,6 +690,7 @@ function DroppableDayRow({
   movingToDate,
   calendarSelectedPostIds,
   onToggleCalendarPostSelection,
+  onTagsChange,
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -673,6 +701,7 @@ function DroppableDayRow({
   onNativeDragEnter?: (e: React.DragEvent) => void;
   onNativeDragLeave?: (e: React.DragEvent) => void;
   clientId?: string;
+  portalToken?: string;
   handleEditScheduledPost?: (post: any, newTime: string) => Promise<void>;
   editingPostId?: string | null;
   setEditingPostId?: (postId: string | null) => void;
@@ -699,6 +728,7 @@ function DroppableDayRow({
   movingToDate?: string | null;
   calendarSelectedPostIds?: Set<string>;
   onToggleCalendarPostSelection?: (postId: string) => void;
+  onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
 }) {
   const router = useRouter();
   const isUploadingToThisDate = uploading && uploadingForDate === dayRow.dateKey;
@@ -908,9 +938,11 @@ function DroppableDayRow({
                     onDeleteClientUpload={onDeleteClientUpload}
                     deletingUploadIds={deletingUploadIds}
                     clientId={clientId}
+                    portalToken={portalToken}
                     onPostClick={onPostClick}
                     calendarSelectedPostIds={calendarSelectedPostIds}
                     onToggleCalendarPostSelection={onToggleCalendarPostSelection}
+                    onTagsChange={onTagsChange}
                   />
                 );
               })}
@@ -946,6 +978,7 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
   onDrop,
   onQueueItemDrop,
   clientId,
+  portalToken,
   handleEditScheduledPost,
   editingPostId,
   setEditingPostId,
@@ -969,9 +1002,10 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
   movingToDate,
   calendarSelectedPostIds,
   onToggleCalendarPostSelection,
+  onTagsChange,
 }, ref) {
   const clientUploadsMap = clientUploads ?? {};
-  const VISIBLE_WEEK_COUNT = 5; // Show 5 weeks: 1 partial before, 3 main, 1 partial after
+  const VISIBLE_WEEK_COUNT = 10;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
   const [startWeek, setStartWeek] = useState<Date | null>(() => {
@@ -1355,6 +1389,7 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
                         getDayNumber={getDayNumber}
                         onNativeDrop={onDrop}
                         clientId={clientId}
+                        portalToken={portalToken}
                         handleEditScheduledPost={handleEditScheduledPost}
                         editingPostId={editingPostId}
                         setEditingPostId={setEditingPostId}
@@ -1381,6 +1416,7 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
                         movingToDate={movingToDate}
                         calendarSelectedPostIds={calendarSelectedPostIds}
                         onToggleCalendarPostSelection={onToggleCalendarPostSelection}
+                        onTagsChange={onTagsChange}
                       />
                     );
                   })}

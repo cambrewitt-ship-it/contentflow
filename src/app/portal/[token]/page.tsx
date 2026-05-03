@@ -933,6 +933,22 @@ export default function PortalCalendarPage() {
     });
   };
 
+  const handleTagsChange = (postId: string, tags: Array<{ id: string; name: string; color: string }>) => {
+    setScheduledPosts(prev => {
+      const next = { ...prev };
+      for (const [dateKey, posts] of Object.entries(next)) {
+        const idx = posts.findIndex(p => p.id === postId);
+        if (idx !== -1) {
+          const updated = [...posts];
+          updated[idx] = { ...updated[idx], tags };
+          next[dateKey] = updated;
+          break;
+        }
+      }
+      return next;
+    });
+  };
+
   const handleCalendarExportToPDF = () => {
     if (calendarSelectedPostIds.size === 0) return;
     setShowPDFExportModal(true);
@@ -1964,6 +1980,7 @@ export default function PortalCalendarPage() {
               onPostMove={handleColumnPostMove}
               formatWeekCommencing={formatWeekCommencing}
               formatTimeTo12Hour={formatTimeTo12Hour}
+              portalToken={token}
               onAddUploadClick={handleColumnAddUpload}
               selectedPosts={selectedPosts}
               onPostSelection={handlePostSelection}
@@ -2007,6 +2024,7 @@ export default function PortalCalendarPage() {
                       approval_status: post.approval_status,
                       approval_steps: post.approval_steps,
                       platforms_scheduled: post.platforms_scheduled,
+                      tags: post.tags ?? [],
                     },
                   });
                 }
@@ -2014,6 +2032,7 @@ export default function PortalCalendarPage() {
               movingToDate={movingToDate}
               calendarSelectedPostIds={calendarSelectedPostIds}
               onToggleCalendarPostSelection={handleToggleCalendarPostSelection}
+              onTagsChange={handleTagsChange}
               onEventAdd={(dateKey) => setPortalEventModal({ date: dateKey })}
               onEventClick={(event) => setPortalEventModal({ date: event.date, event })}
               onQueueItemDrop={async (uploadId, dateKey) => {
@@ -2142,6 +2161,7 @@ export default function PortalCalendarPage() {
             setKanbanRefreshKey(k => k + 1);
             setQueueRefreshKey(k => k + 1);
           }}
+          onTagsChange={handleTagsChange}
         />
       )}
 

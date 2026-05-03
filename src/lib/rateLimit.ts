@@ -71,6 +71,7 @@ export const routePatterns: Record<string, RateLimitTier> = {
   
   // Portal routes
   '/api/portal': 'portal',
+  '/api/approval-sessions': 'portal',
   '/portal': 'portal',
   
   // Upload and media routes - authenticated user operations

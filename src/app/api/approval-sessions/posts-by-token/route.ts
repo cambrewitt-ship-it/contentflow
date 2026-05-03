@@ -8,7 +8,7 @@ interface ApprovalBoardPost {
   image_url: string;
   scheduled_time: string;
   scheduled_date: string;
-  post_type: 'scheduled' | 'planner_scheduled';
+  post_type: 'scheduled' | 'planner_scheduled' | 'portal_upload';
   project_id?: string;
   client_id?: string;
   approval?: {
@@ -98,14 +98,17 @@ export async function GET(request: NextRequest) {
     const selectedPlannerPostIds = postApprovals
       ?.filter(approval => approval.post_type === 'planner_scheduled')
       ?.map(approval => approval.post_id) || [];
-    
+
     const selectedScheduledPostIds = postApprovals
       ?.filter(approval => approval.post_type === 'scheduled')
       ?.map(approval => approval.post_id) || [];
 
+    const selectedUploadIds = postApprovals
+      ?.filter(approval => approval.post_type === 'portal_upload')
+      ?.map(approval => approval.post_id) || [];
+
     // Fetch posts by their IDs (already validated in post_approvals table)
-    // No need to filter by project_id - we trust the post_approvals table links
-    const [scheduledResult, otherScheduledResult] = await Promise.all([
+    const [scheduledResult, otherScheduledResult, uploadsResult] = await Promise.all([
       selectedPlannerPostIds.length > 0 ? supabase
         .from('calendar_scheduled_posts')
         .select(`
@@ -120,7 +123,7 @@ export async function GET(request: NextRequest) {
         .eq('client_id', session.client_id)
         .in('id', selectedPlannerPostIds)
         .order('scheduled_date', { ascending: true }) : { data: [], error: null },
-      
+
       selectedScheduledPostIds.length > 0 ? supabase
         .from('scheduled_posts')
         .select(`
@@ -133,11 +136,18 @@ export async function GET(request: NextRequest) {
         `)
         .eq('client_id', session.client_id)
         .in('id', selectedScheduledPostIds)
-        .order('scheduled_time', { ascending: true }) : { data: [], error: null }
+        .order('scheduled_time', { ascending: true }) : { data: [], error: null },
+
+      selectedUploadIds.length > 0 ? supabase
+        .from('client_uploads')
+        .select('id, notes, file_url, file_type, target_date, created_at, client_id')
+        .eq('client_id', session.client_id)
+        .in('id', selectedUploadIds) : { data: [], error: null },
     ]);
 
     const { data: scheduledPosts, error: scheduledError } = scheduledResult;
     const { data: otherScheduledPosts, error: otherScheduledError } = otherScheduledResult;
+    const { data: uploadPosts, error: uploadsError } = uploadsResult;
     const approvals = postApprovals;
 
     if (scheduledError) {
@@ -145,6 +155,9 @@ export async function GET(request: NextRequest) {
     }
     if (otherScheduledError) {
       logger.error('❌ Error fetching other scheduled posts:', otherScheduledError);
+    }
+    if (uploadsError) {
+      logger.error('❌ Error fetching portal uploads:', uploadsError);
     }
 
     // Combine and format posts
@@ -160,7 +173,17 @@ export async function GET(request: NextRequest) {
         post_type: 'scheduled' as const,
         scheduled_date: post.scheduled_time?.split('T')[0] || '',
         approval: approvals?.find(a => a.post_id === post.id && a.post_type === 'scheduled')
-      }))
+      })),
+      ...(uploadPosts || []).map(upload => ({
+        id: upload.id,
+        caption: upload.notes || 'Portal Upload',
+        image_url: upload.file_type?.startsWith('image/') ? upload.file_url : '',
+        scheduled_time: '',
+        scheduled_date: upload.target_date || upload.created_at?.split('T')[0] || '',
+        post_type: 'portal_upload' as const,
+        client_id: upload.client_id,
+        approval: approvals?.find(a => a.post_id === upload.id && a.post_type === 'portal_upload')
+      })),
     ];
 
     // Group posts by week

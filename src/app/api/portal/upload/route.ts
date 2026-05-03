@@ -183,10 +183,31 @@ export async function POST(request: NextRequest) {
       if (!file) {
         return NextResponse.json({ error: 'Missing file' }, { status: 400 });
       }
-      const buffer = Buffer.from(await file.arrayBuffer());
-      fileUrl = `data:${fileType};base64,${buffer.toString('base64')}`;
+      const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storagePath = `${Date.now()}-${safeName}`;
+      const { error: storageError } = await supabase.storage
+        .from('portal-uploads')
+        .upload(storagePath, file, { contentType: fileType, upsert: false });
+      if (storageError) throw new Error(`Storage upload failed: ${storageError.message}`);
+      const { data: { publicUrl } } = supabase.storage.from('portal-uploads').getPublicUrl(storagePath);
+      fileUrl = publicUrl;
     } else {
       ({ token, fileName, fileType, fileSize, fileUrl, notes, targetDate } = await request.json());
+
+      // If the client sent raw base64, upload it to Blob storage first
+      if (fileUrl && fileUrl.startsWith('data:')) {
+        const mimeType = fileUrl.match(/data:([^;]+)/)?.[1] || fileType || 'image/jpeg';
+        const base64Data = fileUrl.replace(/^data:[^;]+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        const safeName = (fileName || 'upload').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `${Date.now()}-${safeName}`;
+        const { error: storageError } = await supabase.storage
+          .from('portal-uploads')
+          .upload(storagePath, buffer, { contentType: mimeType, upsert: false });
+        if (storageError) throw new Error(`Storage upload failed: ${storageError.message}`);
+        const { data: { publicUrl } } = supabase.storage.from('portal-uploads').getPublicUrl(storagePath);
+        fileUrl = publicUrl;
+      }
     }
 
     if (!token || !fileName || !fileUrl) {
@@ -278,9 +299,10 @@ export async function POST(request: NextRequest) {
       upload
     });
   } catch (error) {
-    logger.error('Portal upload creation error:', error);
+    const msg = error instanceof Error ? error.message : JSON.stringify(error) || String(error);
+    logger.error('Portal upload creation error:', msg);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', detail: msg },
       { status: 500 }
     );
   }

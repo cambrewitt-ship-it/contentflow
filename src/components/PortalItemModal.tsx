@@ -11,11 +11,13 @@ import {
   Film,
   FileText,
   Calendar,
-  Send,
+  ArrowUp,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
+import { PortalTagDropdown } from "@/components/PortalTagDropdown";
 import { PortalParty } from "@/contexts/PortalContext";
 import logger from "@/lib/logger";
 
@@ -30,6 +32,7 @@ export interface ModalPost {
   approval_status?: string;
   approval_steps?: ApprovalStep[];
   platforms_scheduled?: string[];
+  tags?: Array<{ id: string; name: string; color: string }>;
 }
 
 type PreviewPlatform = "facebook" | "instagram" | "twitter" | "linkedin" | "tiktok" | "youtube" | "threads";
@@ -71,6 +74,7 @@ interface ApprovalStep {
   status: "pending" | "approved" | "rejected" | "changes_requested";
   party: { id: string; name: string; color: string | null } | null;
   actioned_by?: string | null;
+  actioned_at?: string | null;
   comments?: string | null;
 }
 
@@ -89,6 +93,7 @@ interface Props {
   party: PortalParty | null;
   onClose: () => void;
   onActioned: () => void;
+  onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
   brandName?: string;
   brandLogoUrl?: string;
 }
@@ -175,7 +180,7 @@ function PipelineSteps({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function PortalItemModal({ item, portalToken, party, onClose, onActioned, brandName, brandLogoUrl }: Props) {
+export function PortalItemModal({ item, portalToken, party, onClose, onActioned, onTagsChange, brandName, brandLogoUrl }: Props) {
   const isPost = item.type === "post";
   const isUpload = item.type === "upload";
 
@@ -190,7 +195,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   );
   const [isLoadingPipeline, setIsLoadingPipeline] = useState(isPost);
   const [comments, setComments] = useState<Comment[]>([]);
-  const [isLoadingComments, setIsLoadingComments] = useState(isPost);
+  const [isLoadingComments, setIsLoadingComments] = useState(true);
 
   // Action state
   const [isActioning, setIsActioning] = useState(false);
@@ -207,13 +212,17 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   const [commentError, setCommentError] = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
-  // Upload feedback state (for queue items)
-  const [uploadFeedback, setUploadFeedback] = useState("");
-  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
-  const [feedbackDone, setFeedbackDone] = useState<string | null>(null);
-  const [localReviewNotes, setLocalReviewNotes] = useState<string | null>(
+  // Upload review notes (shown as update notifications)
+  const [localReviewNotes] = useState<string | null>(
     isUpload ? (item.data as ModalUpload).review_notes : null
   );
+
+  // Tags (posts only)
+  const [postTags, setPostTags] = useState<Array<{ id: string; name: string; color: string }>>(
+    isPost ? (item.data as ModalPost).tags ?? [] : []
+  );
+  const [isTagOpen, setIsTagOpen] = useState(false);
+  const tagButtonRef = useRef<HTMLButtonElement>(null);
 
   // Scroll comments into view on load
   const scrollToBottom = () => {
@@ -241,15 +250,16 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     }
   }, [isPost, item.data, portalToken]);
 
+  const itemId = isPost ? (item.data as ModalPost).id : (item.data as ModalUpload).id;
+  const commentPostType = isPost ? "calendar_scheduled" : "portal_upload";
+
   const fetchComments = useCallback(async () => {
-    if (!isPost) return;
-    const postId = (item.data as ModalPost).id;
     setIsLoadingComments(true);
     try {
       const res = await fetch(
-        `/api/posts/${postId}/comments?portal_token=${encodeURIComponent(
+        `/api/posts/${itemId}/comments?portal_token=${encodeURIComponent(
           portalToken
-        )}&post_type=calendar_scheduled`
+        )}&post_type=${commentPostType}`
       );
       const data = await res.json();
       if (res.ok) setComments(data.comments ?? []);
@@ -258,7 +268,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     } finally {
       setIsLoadingComments(false);
     }
-  }, [isPost, item.data, portalToken]);
+  }, [itemId, portalToken, commentPostType]);
 
   useEffect(() => {
     fetchPipeline();
@@ -359,68 +369,54 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     }
   };
 
-  // ── Upload feedback ──────────────────────────────────────────────────────
+  // ── Tag toggle ───────────────────────────────────────────────────────────
 
-  const handleUploadFeedback = async (approved: boolean) => {
-    if (!isUpload) return;
-    const upload = item.data as ModalUpload;
-    setIsSubmittingFeedback(true);
-    try {
-      const timestamp = new Date().toLocaleString("en-GB", {
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      const line = approved
-        ? `approved:${timestamp}`
-        : `${timestamp}: ${uploadFeedback.trim()}`;
-
-      const existingReviewNotes = upload.review_notes ?? "";
-      const newReviewNotes = existingReviewNotes ? `${existingReviewNotes}\n\n${line}` : line;
-
-      // approved  → 'completed'  (Kanban: Approved column)
-      // changes   → 'processing' (Kanban: In Review column)
-      const newStatus = approved ? "completed" : "processing";
-
-      const res = await fetch("/api/portal/upload", {
-        method: "PATCH",
+  const handleTagToggle = async (tagId: string, tag: { id: string; name: string; color: string }, isSelected: boolean) => {
+    if (!isPost) return;
+    const postId = (item.data as ModalPost).id;
+    if (isSelected) {
+      const next = postTags.filter(t => t.id !== tagId);
+      setPostTags(next);
+      const res = await fetch(
+        `/api/portal/post-tags?portal_token=${encodeURIComponent(portalToken)}&post_id=${postId}&tag_id=${tagId}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        setPostTags(prev => [...prev, tag]);
+      } else {
+        onTagsChange?.(postId, next);
+      }
+    } else {
+      const next = [...postTags, tag];
+      setPostTags(next);
+      const res = await fetch("/api/portal/post-tags", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token: portalToken,
-          uploadId: upload.id,
-          review_notes: newReviewNotes,
-          status: newStatus,
-        }),
+        body: JSON.stringify({ portal_token: portalToken, post_id: postId, tag_id: tagId }),
       });
-      if (!res.ok) throw new Error("Failed to submit");
-      setLocalReviewNotes(newReviewNotes);
-      setUploadFeedback("");
-      setFeedbackDone(approved ? "Approved!" : "Comment added");
-      setTimeout(() => setFeedbackDone(null), 2000);
-    } catch (err) {
-      logger.error("Upload feedback error:", err);
-    } finally {
-      setIsSubmittingFeedback(false);
+      if (!res.ok) {
+        setPostTags(prev => prev.filter(t => t.id !== tagId));
+      } else {
+        onTagsChange?.(postId, next);
+      }
     }
   };
 
   // ── Post comment ─────────────────────────────────────────────────────────
 
   const handlePostComment = async () => {
-    if (!newComment.trim() || !isPost) return;
-    const postId = (item.data as ModalPost).id;
+    if (!newComment.trim()) return;
     setIsPostingComment(true);
     setCommentError(null);
     try {
-      const res = await fetch(`/api/posts/${postId}/comments`, {
+      const res = await fetch(`/api/posts/${itemId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           portal_token: portalToken,
           author_name: party?.name ?? "Portal User",
           content: newComment.trim(),
-          post_type: "calendar_scheduled",
+          post_type: commentPostType,
         }),
       });
       const data = await res.json();
@@ -460,9 +456,17 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
 
   const title = isPost ? "Post" : (item.data as ModalUpload).file_name;
 
-  const copyText = isPost
+  const rawCopyText = isPost
     ? (item.data as ModalPost).caption
     : (item.data as ModalUpload).notes;
+
+  const copyText = rawCopyText
+    ? rawCopyText
+        .split('\n')
+        .filter(line => !/^\[.*?—.*?—.*?\]:/.test(line))
+        .join('\n')
+        .trim() || null
+    : rawCopyText;
 
   const dateStr = isPost
     ? (item.data as ModalPost).scheduled_date
@@ -495,7 +499,6 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                 })}
               </span>
             )}
-            <StatusBadge status={approvalStatus} />
           </div>
           <button
             onClick={onClose}
@@ -587,6 +590,50 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                 <h2 className="text-base font-semibold text-gray-900 break-words">{title}</h2>
               </div>
 
+              {/* Tags (posts only) */}
+              {isPost && (
+                <div className="relative">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {postTags.map(tag => (
+                      <span
+                        key={tag.id}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                        style={{ backgroundColor: tag.color }}
+                      >
+                        {tag.name}
+                      </span>
+                    ))}
+                    <button
+                      ref={tagButtonRef}
+                      type="button"
+                      onClick={() => setIsTagOpen(prev => !prev)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-gray-400 border border-dashed border-gray-300 hover:border-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <Tag className="w-3 h-3" />
+                      Tags
+                    </button>
+                  </div>
+                  {isTagOpen && (
+                    <PortalTagDropdown
+                      isOpen={isTagOpen}
+                      onClose={() => setIsTagOpen(false)}
+                      portalToken={portalToken}
+                      postId={(item.data as ModalPost).id}
+                      selectedTagIds={postTags.map(t => t.id)}
+                      onTagToggle={handleTagToggle}
+                      position={
+                        tagButtonRef.current
+                          ? (() => {
+                              const r = tagButtonRef.current!.getBoundingClientRect();
+                              return { top: r.bottom, left: r.left };
+                            })()
+                          : undefined
+                      }
+                    />
+                  )}
+                </div>
+              )}
+
               {/* Copy / Caption */}
               {copyText && (
                 <div>
@@ -636,116 +683,42 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                 </div>
               )}
 
-              {/* ── APPROVAL SECTION (posts) ── */}
+              {/* ── PIPELINE STEPS (posts only, informational) ── */}
               {isPost && (
-                <div className="space-y-4">
-                  <div className="border-t border-gray-100 pt-4">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                      Approval
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      Status
                     </p>
-
-                    {isLoadingPipeline ? (
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
-                        <Loader2 className="w-4 h-4 animate-spin" /> Loading...
-                      </div>
-                    ) : steps.length > 0 ? (
-                      <PipelineSteps steps={steps} myPartyId={party?.id} />
-                    ) : null}
-
-                    {actionDone ? (
-                      <div className="mt-3 flex items-center gap-2 text-green-700 bg-green-50 rounded-lg px-3 py-2 text-sm font-medium">
-                        <CheckCircle className="w-4 h-4" />
-                        {actionDone}
-                      </div>
-                    ) : (
-                      <div className="mt-4 space-y-2">
-                        {actionError && (
-                          <p className="text-xs text-red-600">{actionError}</p>
-                        )}
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5 h-9"
-                            onClick={() => handleDirectApproval("approved")}
-                            disabled={isActioning}
-                          >
-                            {isActioning ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <CheckCircle className="w-3.5 h-3.5" />
-                            )}
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-red-300 text-red-700 hover:bg-red-50 gap-1.5 h-9 px-4"
-                            onClick={() => handleDirectApproval("rejected")}
-                            disabled={isActioning}
-                          >
-                            <XCircle className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+                    <StatusBadge status={approvalStatus} />
+                    {(() => {
+                      const lastActioned = steps
+                        .filter(s => s.actioned_at)
+                        .sort((a, b) => new Date(b.actioned_at!).getTime() - new Date(a.actioned_at!).getTime())[0];
+                      return lastActioned?.actioned_at ? (
+                        <span className="text-[10px] text-gray-400">
+                          {new Date(lastActioned.actioned_at).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
-                </div>
-              )}
-
-              {/* ── APPROVAL SECTION (uploads) ── */}
-              {isUpload && (
-                <div className="border-t border-gray-100 pt-4 space-y-3">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                    Review
-                  </p>
-
-                  {feedbackDone ? (
-                    <div className="flex items-center gap-2 text-green-700 bg-green-50 rounded-lg px-3 py-2 text-sm font-medium">
-                      <CheckCircle className="w-4 h-4" />
-                      {feedbackDone}
+                  {isLoadingPipeline ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Loading...
                     </div>
-                  ) : (
-                    <>
-                      <Textarea
-                        value={uploadFeedback}
-                        onChange={(e) => setUploadFeedback(e.target.value)}
-                        placeholder="Add feedback or notes (required if requesting changes)..."
-                        className="text-sm resize-none min-h-[80px]"
-                        disabled={isSubmittingFeedback}
-                      />
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-1.5 h-9"
-                          onClick={() => handleUploadFeedback(true)}
-                          disabled={isSubmittingFeedback}
-                        >
-                          {isSubmittingFeedback ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <CheckCircle className="w-3.5 h-3.5" />
-                          )}
-                          Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-50 gap-1.5 h-9"
-                          onClick={() => handleUploadFeedback(false)}
-                          disabled={isSubmittingFeedback || !uploadFeedback.trim()}
-                        >
-                          <AlertTriangle className="w-3.5 h-3.5" />
-                          Comment
-                        </Button>
-                      </div>
-                    </>
-                  )}
+                  ) : steps.length > 0 ? (
+                    <PipelineSteps steps={steps} myPartyId={party?.id} />
+                  ) : null}
                 </div>
               )}
 
-              {/* ── COMMENTS (posts only) ── */}
-              {isPost && (
-                <div className="border-t border-gray-100 pt-4 space-y-4">
+              {/* ── COMMENTS ── */}
+              <div className="border-t border-gray-100 pt-4 space-y-4">
                   <div className="flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-gray-400" />
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
@@ -818,16 +791,8 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                   )}
 
                   {/* Comment composer */}
-                  <div className="flex gap-2 items-end">
-                    {party && (
-                      <div
-                        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white"
-                        style={{ backgroundColor: party.color ?? "#6366f1" }}
-                      >
-                        {party.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="flex-1 space-y-1.5">
+                  <div className="space-y-1.5">
+                    <div className="relative">
                       <Textarea
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}
@@ -838,29 +803,53 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                           }
                         }}
                         placeholder="Add a comment... (⌘↵ to send)"
-                        className="resize-none text-sm min-h-[72px]"
+                        className={`resize-none text-sm pr-12 ${isPost ? "min-h-[96px] pb-12" : "min-h-[72px]"}`}
                         disabled={isPostingComment}
                       />
-                      {commentError && (
-                        <p className="text-xs text-red-600">{commentError}</p>
+                      {/* Send button — top right */}
+                      <button
+                        onClick={handlePostComment}
+                        disabled={isPostingComment || !newComment.trim()}
+                        className="absolute top-2 right-2 w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        {isPostingComment ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      {/* Approve / Reject buttons — bottom right (posts only) */}
+                      {isPost && !actionDone && (
+                        <div className="absolute bottom-2 right-2 flex gap-1.5">
+                          <button
+                            onClick={() => handleDirectApproval("approved")}
+                            disabled={isActioning}
+                            className="h-8 rounded-full bg-green-600 text-white flex items-center justify-center gap-1.5 px-3 hover:bg-green-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium"
+                          >
+                            {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleDirectApproval("rejected")}
+                            disabled={isActioning}
+                            className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      )}
+                      {isPost && actionDone && (
+                        <div className="absolute bottom-2 right-2 flex items-center gap-1.5 text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1 text-xs font-medium">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          {actionDone}
+                        </div>
                       )}
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={handlePostComment}
-                      disabled={isPostingComment || !newComment.trim()}
-                      className="flex-shrink-0 h-9 px-3 gap-1.5"
-                    >
-                      {isPostingComment ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Send className="w-3.5 h-3.5" />
-                      )}
-                      Send
-                    </Button>
+                    {(commentError || actionError) && (
+                      <p className="text-xs text-red-600">{commentError || actionError}</p>
+                    )}
                   </div>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
