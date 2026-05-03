@@ -62,6 +62,7 @@ export interface ModalUpload {
   review_notes: string | null;
   created_at: string;
   target_date?: string | null;
+  status?: string;
 }
 
 export type ModalItem =
@@ -134,6 +135,14 @@ function StatusBadge({ status }: { status?: string }) {
       {status}
     </span>
   );
+}
+
+function mapUploadStatus(status?: string): string {
+  if (!status || status === "pending" || status === "unassigned") return "pending";
+  if (status === "processing") return "pending";
+  if (status === "completed" || status === "in_use" || status === "published") return "approved";
+  if (status === "failed") return "rejected";
+  return "pending";
 }
 
 function PipelineSteps({
@@ -369,6 +378,40 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     }
   };
 
+  // ── Upload approval ─────────────────────────────────────────────────────
+
+  const handleUploadApproval = async (action: "approved" | "rejected") => {
+    if (!isUpload) return;
+    setIsActioning(true);
+    setActionError(null);
+    try {
+      const newStatus = action === "approved" ? "completed" : "failed";
+      const res = await fetch("/api/portal/upload", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: portalToken,
+          uploadId: (item.data as ModalUpload).id,
+          status: newStatus,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionError(data.error ?? "Failed to submit");
+        return;
+      }
+      setActionDone(action === "approved" ? "Approved!" : "Rejected");
+      setTimeout(() => {
+        onActioned();
+      }, 1500);
+    } catch (err) {
+      logger.error("Upload approval error:", err);
+      setActionError("Failed to submit. Please try again.");
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
   // ── Tag toggle ───────────────────────────────────────────────────────────
 
   const handleTagToggle = async (tagId: string, tag: { id: string; name: string; color: string }, isSelected: boolean) => {
@@ -472,7 +515,9 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     ? (item.data as ModalPost).scheduled_date
     : (item.data as ModalUpload).target_date ?? (item.data as ModalUpload).created_at;
 
-  const approvalStatus = isPost ? (item.data as ModalPost).approval_status : undefined;
+  const approvalStatus = isPost
+    ? (item.data as ModalPost).approval_status
+    : mapUploadStatus((item.data as ModalUpload).status);
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -683,39 +728,39 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                 </div>
               )}
 
-              {/* ── PIPELINE STEPS (posts only, informational) ── */}
-              {isPost && (
-                <div className="border-t border-gray-100 pt-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                      Status
-                    </p>
-                    <StatusBadge status={approvalStatus} />
-                    {(() => {
-                      const lastActioned = steps
-                        .filter(s => s.actioned_at)
-                        .sort((a, b) => new Date(b.actioned_at!).getTime() - new Date(a.actioned_at!).getTime())[0];
-                      return lastActioned?.actioned_at ? (
-                        <span className="text-[10px] text-gray-400">
-                          {new Date(lastActioned.actioned_at).toLocaleString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      ) : null;
-                    })()}
-                  </div>
-                  {isLoadingPipeline ? (
+              {/* ── STATUS (posts: pipeline steps; uploads: simple badge) ── */}
+              <div className="border-t border-gray-100 pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    Status
+                  </p>
+                  <StatusBadge status={approvalStatus} />
+                  {isPost && (() => {
+                    const lastActioned = steps
+                      .filter(s => s.actioned_at)
+                      .sort((a, b) => new Date(b.actioned_at!).getTime() - new Date(a.actioned_at!).getTime())[0];
+                    return lastActioned?.actioned_at ? (
+                      <span className="text-[10px] text-gray-400">
+                        {new Date(lastActioned.actioned_at).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
+                {isPost && (
+                  isLoadingPipeline ? (
                     <div className="flex items-center gap-2 text-sm text-gray-400">
                       <Loader2 className="w-4 h-4 animate-spin" /> Loading...
                     </div>
                   ) : steps.length > 0 ? (
                     <PipelineSteps steps={steps} myPartyId={party?.id} />
-                  ) : null}
-                </div>
-              )}
+                  ) : null
+                )}
+              </div>
 
               {/* ── COMMENTS ── */}
               <div className="border-t border-gray-100 pt-4 space-y-4">
@@ -803,7 +848,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                           }
                         }}
                         placeholder="Add a comment... (⌘↵ to send)"
-                        className={`resize-none text-sm pr-12 ${isPost ? "min-h-[96px] pb-12" : "min-h-[72px]"}`}
+                        className="resize-none text-sm pr-12 min-h-[96px] pb-12"
                         disabled={isPostingComment}
                       />
                       {/* Send button — top right */}
@@ -818,11 +863,11 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                           <ArrowUp className="w-3.5 h-3.5" />
                         )}
                       </button>
-                      {/* Approve / Reject buttons — bottom right (posts only) */}
-                      {isPost && !actionDone && (
+                      {/* Approve / Reject buttons — bottom right */}
+                      {!actionDone && (
                         <div className="absolute bottom-2 right-2 flex gap-1.5">
                           <button
-                            onClick={() => handleDirectApproval("approved")}
+                            onClick={() => isPost ? handleDirectApproval("approved") : handleUploadApproval("approved")}
                             disabled={isActioning}
                             className="h-8 rounded-full bg-green-600 text-white flex items-center justify-center gap-1.5 px-3 hover:bg-green-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium"
                           >
@@ -830,7 +875,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                             Approve
                           </button>
                           <button
-                            onClick={() => handleDirectApproval("rejected")}
+                            onClick={() => isPost ? handleDirectApproval("rejected") : handleUploadApproval("rejected")}
                             disabled={isActioning}
                             className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           >
@@ -838,7 +883,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                           </button>
                         </div>
                       )}
-                      {isPost && actionDone && (
+                      {actionDone && (
                         <div className="absolute bottom-2 right-2 flex items-center gap-1.5 text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1 text-xs font-medium">
                           <CheckCircle className="w-3.5 h-3.5" />
                           {actionDone}

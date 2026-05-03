@@ -95,6 +95,7 @@ interface PortalColumnViewCalendarProps {
   onEventAdd?: (dateKey: string) => void;
   onEventClick?: (event: CalendarEvent) => void;
   movingToDate?: string | null;
+  movingUploadId?: string | null;
   calendarSelectedPostIds?: Set<string>;
   onToggleCalendarPostSelection?: (postId: string) => void;
   onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
@@ -183,6 +184,7 @@ function SortablePostCard({
   calendarSelectedPostIds,
   onToggleCalendarPostSelection,
   onTagsChange,
+  movingUploadId,
 }: {
   post: Post;
   postKey: string;
@@ -206,6 +208,7 @@ function SortablePostCard({
   calendarSelectedPostIds?: Set<string>;
   onToggleCalendarPostSelection?: (postId: string) => void;
   onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
+  movingUploadId?: string | null;
 }) {
   const isClientUpload =
     post.post_type === 'client-upload' ||
@@ -219,7 +222,7 @@ function SortablePostCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: postKey, disabled: isClientUpload });
+  } = useSortable({ id: postKey });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -429,11 +432,21 @@ function SortablePostCard({
       <div
         ref={setNodeRef}
         style={style}
+        {...attributes}
+        {...listeners}
         onClick={() => onPostClick?.(post)}
-        className={`rounded-lg border-2 border-gray-200 bg-white p-3 mb-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
-          isDragging ? 'opacity-50' : ''
+        className={`relative rounded-lg border-2 border-gray-200 bg-white p-3 mb-2 transition-all duration-200 cursor-grab hover:shadow-md ${
+          isDragging ? 'opacity-50 cursor-grabbing' : ''
         } ${isDeletingUpload ? 'opacity-60 pointer-events-none' : ''}`}
       >
+        {movingUploadId === post.id && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-lg z-10">
+            <div className="flex flex-col items-center gap-1.5">
+              <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+              <span className="text-xs text-blue-600 font-medium">Moving…</span>
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
           <div>
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold uppercase bg-blue-100 text-blue-700">Portal Upload</span>
@@ -688,6 +701,7 @@ function DroppableDayRow({
   onEventAdd,
   onEventClick,
   movingToDate,
+  movingUploadId,
   calendarSelectedPostIds,
   onToggleCalendarPostSelection,
   onTagsChange,
@@ -726,6 +740,7 @@ function DroppableDayRow({
   onEventAdd?: (dateKey: string) => void;
   onEventClick?: (event: CalendarEvent) => void;
   movingToDate?: string | null;
+  movingUploadId?: string | null;
   calendarSelectedPostIds?: Set<string>;
   onToggleCalendarPostSelection?: (postId: string) => void;
   onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
@@ -943,6 +958,7 @@ function DroppableDayRow({
                     calendarSelectedPostIds={calendarSelectedPostIds}
                     onToggleCalendarPostSelection={onToggleCalendarPostSelection}
                     onTagsChange={onTagsChange}
+                    movingUploadId={movingUploadId}
                   />
                 );
               })}
@@ -1000,6 +1016,7 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
   onEventAdd,
   onEventClick,
   movingToDate,
+  movingUploadId,
   calendarSelectedPostIds,
   onToggleCalendarPostSelection,
   onTagsChange,
@@ -1141,11 +1158,6 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
 
     logger.debug('🔵 Looking for drop target:', { activeId, overId });
 
-    if (activeId.startsWith('client-upload-')) {
-      setActiveId(null);
-      return;
-    }
-
     // Find which day row the post is being dropped into
     // The overId could be either:
     // 1. A day row dateKey (when dropping on empty area or the droppable container)
@@ -1209,8 +1221,14 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
     });
 
     if (targetDateKey && targetDateKey !== currentDateKey) {
-      logger.debug('🔵 Moving post from', currentDateKey, 'to:', targetDateKey);
-      onPostMove(activeId, targetDateKey);
+      if (activeId.startsWith('client-upload-')) {
+        const uploadId = activeId.replace('client-upload-', '');
+        logger.debug('🔵 Moving portal upload', uploadId, 'to:', targetDateKey);
+        onQueueItemDrop?.(uploadId, targetDateKey);
+      } else {
+        logger.debug('🔵 Moving post from', currentDateKey, 'to:', targetDateKey);
+        onPostMove(activeId, targetDateKey);
+      }
     } else {
       logger.debug('🔵 No valid target found or same location', { targetDateKey, currentDateKey });
     }
@@ -1414,6 +1432,7 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
                         onEventAdd={onEventAdd}
                         onEventClick={onEventClick}
                         movingToDate={movingToDate}
+                        movingUploadId={movingUploadId}
                         calendarSelectedPostIds={calendarSelectedPostIds}
                         onToggleCalendarPostSelection={onToggleCalendarPostSelection}
                         onTagsChange={onTagsChange}

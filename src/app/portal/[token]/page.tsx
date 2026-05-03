@@ -1752,8 +1752,10 @@ export default function PortalCalendarPage() {
                 file_type: item.file_type,
                 file_url: item.file_url,
                 notes: item.notes,
+                review_notes: item.review_notes,
                 created_at: item.created_at,
                 target_date: null,
+                status: item.status,
               },
             })
           }
@@ -2010,6 +2012,7 @@ export default function PortalCalendarPage() {
                       review_notes: uploadData.review_notes || null,
                       created_at: uploadData.created_at || new Date().toISOString(),
                       target_date: uploadData.target_date ?? null,
+                      status: uploadData.status ?? (post as any).status,
                     },
                   });
                 } else {
@@ -2030,12 +2033,15 @@ export default function PortalCalendarPage() {
                 }
               }}
               movingToDate={movingToDate}
+              movingUploadId={movingUploadId}
               calendarSelectedPostIds={calendarSelectedPostIds}
               onToggleCalendarPostSelection={handleToggleCalendarPostSelection}
               onTagsChange={handleTagsChange}
               onEventAdd={(dateKey) => setPortalEventModal({ date: dateKey })}
               onEventClick={(event) => setPortalEventModal({ date: event.date, event })}
               onQueueItemDrop={async (uploadId, dateKey) => {
+                setMovingUploadId(uploadId);
+                setMovingToDate(dateKey);
                 try {
                   await fetch('/api/portal/upload', {
                     method: 'PATCH',
@@ -2047,6 +2053,9 @@ export default function PortalCalendarPage() {
                   setQueueRefreshKey(k => k + 1);
                 } catch {
                   // silent fail
+                } finally {
+                  setMovingUploadId(null);
+                  setMovingToDate(null);
                 }
               }}
               onDrop={async (e, dateKey) => {
