@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import { PortalColumnViewCalendar, type PortalCalendarRef } from '@/components/PortalColumnViewCalendar';
 import { PortalContentInbox } from '@/components/PortalContentInbox';
-import { PortalKanbanBoard, type KanbanItem } from '@/components/PortalKanbanBoard';
+import { PortalKanbanBoard, type KanbanItem, type KanbanCalendarPost } from '@/components/PortalKanbanBoard';
 import { PortalItemModal, type ModalItem } from '@/components/PortalItemModal';
 import { type CalendarEvent } from '@/components/CalendarEventModal';
 import { PDFExportModal } from '@/components/PDFExportModal';
@@ -1185,8 +1185,9 @@ export default function PortalCalendarPage() {
       
       logger.debug('🔄 Refreshing calendar data...');
       await fetchScheduledPosts(0, true);
+      setKanbanRefreshKey(k => k + 1);
       logger.debug('✅ Calendar data refreshed');
-      
+
       // Show success message
       const count = Object.keys(selectedPosts).length;
       setSuccessMessage(`Successfully submitted ${count} approval(s)! Your feedback has been sent to the team.`);
@@ -1746,6 +1747,22 @@ export default function PortalCalendarPage() {
                 created_at: item.created_at,
                 target_date: null,
                 status: item.status,
+              },
+            })
+          }
+          onPostClick={(post: KanbanCalendarPost) =>
+            setModalItem({
+              type: 'post',
+              data: {
+                id: post.id,
+                caption: post.caption,
+                image_url: post.image_url,
+                scheduled_date: post.scheduled_date,
+                scheduled_time: post.scheduled_time,
+                approval_status: post.approval_status,
+                approval_steps: post.approval_steps,
+                platforms_scheduled: post.platforms_scheduled ?? undefined,
+                tags: post.tags,
               },
             })
           }
