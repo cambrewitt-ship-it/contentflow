@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, ChangeEvent, useImperativeHandle, forwardRef } from 'react';
-import { Calendar, CheckCircle, AlertTriangle, XCircle, Minus, Download, Trash2, Tag, FileText, CalendarDays, Loader2, Plus } from 'lucide-react';
+import { Calendar, CheckCircle, AlertTriangle, XCircle, Minus, Tag, FileText, CalendarDays, Loader2, Plus } from 'lucide-react';
 import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
@@ -275,7 +275,7 @@ function SortablePostCard({
   }, [post.tags]);
 
   const handleTagToggle = async (tagId: string, tag: { id: string; name: string; color: string }, isSelected: boolean) => {
-    if (!portalToken || isClientUpload) return;
+    if (!portalToken) return;
     if (isSelected) {
       const next = postTags.filter(t => t.id !== tagId);
       setPostTags(next);
@@ -491,29 +491,47 @@ function SortablePostCard({
             <p className="text-xs text-gray-600 whitespace-pre-wrap mb-2">{filtered}</p>
           ) : null;
         })()}
-        <div className="mt-3 flex items-center gap-2">
-          {uploadData.file_url && (
-            <a
-              href={uploadData.file_url}
-              download={fileName || undefined}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <Download className="w-3 h-3" />
-              Download
-            </a>
-          )}
-          <button
-            type="button"
-            onClick={() => onDeleteClientUpload?.(uploadData)}
-            className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-            disabled={!onDeleteClientUpload || isDeletingUpload}
-          >
-            <Trash2 className="w-3 h-3" />
-            Delete
-          </button>
+        {/* Tags */}
+        <div className="relative mt-2 mb-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1 flex flex-wrap gap-1">
+              {postTags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full text-white"
+                  style={{ backgroundColor: tag.color }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+            {portalToken && (
+              <button
+                ref={setTagButtonRef}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setIsTagModalOpen(true); }}
+                className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                title="Add tag"
+              >
+                <Tag className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
+        {portalToken && isTagModalOpen && (
+          <PortalTagDropdown
+            isOpen={isTagModalOpen}
+            onClose={() => setIsTagModalOpen(false)}
+            portalToken={portalToken}
+            postId={post.id}
+            selectedTagIds={postTags.map(t => t.id)}
+            onTagToggle={handleTagToggle}
+            position={tagButtonRef ? {
+              top: tagButtonRef.getBoundingClientRect().bottom + window.scrollY,
+              left: tagButtonRef.getBoundingClientRect().left + window.scrollX,
+            } : undefined}
+          />
+        )}
       </div>
     );
   }
@@ -617,34 +635,32 @@ function SortablePostCard({
       )}
 
       {/* Tags Section */}
-      {(postTags.length > 0 || (portalToken && !isClientUpload)) && (
-        <div className="relative mt-2 mb-1">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex-1 flex flex-wrap gap-1">
-              {postTags.map((tag) => (
-                <span
-                  key={tag.id}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full text-white"
-                  style={{ backgroundColor: tag.color }}
-                >
-                  {tag.name}
-                </span>
-              ))}
-            </div>
-            {portalToken && !isClientUpload && (
-              <button
-                ref={setTagButtonRef}
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setIsTagModalOpen(true); }}
-                className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                title="Add tag"
+      <div className="relative mt-2 mb-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex-1 flex flex-wrap gap-1">
+            {postTags.map((tag) => (
+              <span
+                key={tag.id}
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full text-white"
+                style={{ backgroundColor: tag.color }}
               >
-                <Tag className="w-3.5 h-3.5" />
-              </button>
-            )}
+                {tag.name}
+              </span>
+            ))}
           </div>
+          {portalToken && (
+            <button
+              ref={setTagButtonRef}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIsTagModalOpen(true); }}
+              className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+              title="Add tag"
+            >
+              <Tag className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Portal Tag Dropdown */}
       {portalToken && isTagModalOpen && (

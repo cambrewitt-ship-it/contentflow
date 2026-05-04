@@ -135,6 +135,59 @@ async function retryWithBackoff<T>(
   }
 }
 
+const MAX_IMAGE_DIMENSION = 2048;
+const IMAGE_QUALITY = 0.82;
+const COMPRESS_THRESHOLD = 500 * 1024; // only compress if > 500KB
+
+async function compressImageFile(file: File | Blob): Promise<Blob> {
+  // Skip videos, GIFs (animation), and small files
+  if (
+    !file.type.startsWith('image/') ||
+    file.type === 'image/gif' ||
+    file.size <= COMPRESS_THRESHOLD
+  ) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      let { width, height } = img;
+      if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+        if (width > height) {
+          height = Math.round((height / width) * MAX_IMAGE_DIMENSION);
+          width = MAX_IMAGE_DIMENSION;
+        } else {
+          width = Math.round((width / height) * MAX_IMAGE_DIMENSION);
+          height = MAX_IMAGE_DIMENSION;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      canvas.toBlob(
+        (compressed) => resolve(compressed && compressed.size < file.size ? compressed : file),
+        outputType,
+        outputType === 'image/jpeg' ? IMAGE_QUALITY : undefined
+      );
+    };
+
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file); };
+    img.src = objectUrl;
+  });
+}
+
 // Upload media (images or videos) to blob storage
 export async function uploadMediaToBlob(
   mediaFile: File | Blob,
@@ -143,33 +196,19 @@ export async function uploadMediaToBlob(
 ): Promise<{ url: string; mediaType: 'image' | 'video'; mimeType: string }> {
   try {
     const isVideo = mediaFile.type.startsWith('video/');
-    const fileSize = mediaFile.size;
     const mediaType = isVideo ? 'video' : 'image';
 
-    logger.info(`📤 Starting upload for ${mediaType}`, {
-      size: `${(fileSize / (1024 * 1024)).toFixed(2)}MB`,
-      type: mediaFile.type,
-      fileName: filename,
-      willUseClientSide: isVideo || fileSize > CLIENT_UPLOAD_THRESHOLD
-    });
-
-    logger.info(`🎬 Uploading ${isVideo ? 'video' : 'image'} via client-side upload...`, {
-      size: `${(fileSize / (1024 * 1024)).toFixed(2)}MB`,
-      type: mediaFile.type
-    });
+    const fileToUpload = isVideo ? mediaFile : await compressImageFile(mediaFile);
+    const fileSize = fileToUpload.size;
 
     try {
-      // Upload directly to blob storage using presigned URL
-      // The handleUploadUrl endpoint manages the BLOB_READ_WRITE_TOKEN server-side
-      // and can apply upload options such as addRandomSuffix.
-      logger.info('📡 Requesting presigned URL for direct upload...');
       const blob = await retryWithBackoff(async () => {
-        return await upload(filename, mediaFile, {
+        return await upload(filename, fileToUpload, {
           access: 'public',
           handleUploadUrl: '/api/upload-presigned-url',
           clientPayload: JSON.stringify({
             size: fileSize,
-            type: mediaFile.type,
+            type: fileToUpload.type,
           }),
         });
       }, 'Vercel Blob direct upload');

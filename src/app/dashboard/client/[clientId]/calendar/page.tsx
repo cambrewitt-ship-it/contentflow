@@ -18,6 +18,8 @@ import { FacebookIcon, InstagramIcon, TwitterIcon, LinkedInIcon } from '@/compon
 import { useAuth } from '@/contexts/AuthContext';
 import { useContentEvents } from '@/components/EventsCalendarLayer';
 import EventsPanel from '@/components/EventsPanel';
+import { ClientPostDetailModal, type ClientPostDetailItem } from '@/components/ClientPostDetailModal';
+import { ClientUploadDetailModal, type ClientUploadDetailItem } from '@/components/ClientUploadDetailModal';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -132,6 +134,7 @@ interface ClientUpload {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  tags?: Array<{ id: string; name: string; color: string }>;
 }
 
 interface ConnectedAccount {
@@ -203,6 +206,8 @@ export default function CalendarPage() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
+  const [postDetailModal, setPostDetailModal] = useState<ClientPostDetailItem | null>(null);
+  const [uploadDetailModal, setUploadDetailModal] = useState<ClientUploadDetailItem | null>(null);
   const [viewMode, setViewMode] = useState<'month' | 'column'>('column');
   const calendarScrollRef = useRef<HTMLDivElement>(null);
   const columnViewRef = useRef<ColumnViewCalendarHandle>(null);
@@ -225,7 +230,8 @@ export default function CalendarPage() {
   const [exportingPDF, setExportingPDF] = useState(false);
   const [showPDFExportModal, setShowPDFExportModal] = useState(false);
   const [clientName, setClientName] = useState<string>('');
-  
+  const [clientLogoUrl, setClientLogoUrl] = useState<string | null>(null);
+
   // Client timezone for calendar display
   const [clientTimezone, setClientTimezone] = useState<string>('Pacific/Auckland');
   
@@ -719,6 +725,9 @@ export default function CalendarPage() {
           }
           if (clientData?.name) {
             setClientName(clientData.name);
+          }
+          if (clientData?.logo_url) {
+            setClientLogoUrl(clientData.logo_url);
           }
         } else {
           console.error('❌ Error fetching client data:', clientRes.status);
@@ -2681,6 +2690,35 @@ export default function CalendarPage() {
                   onEventAdd={handleOpenEventModal}
                   onEventClick={handleEditEvent}
                   contentEvents={contentEventsByDate}
+                  onPostClick={(post) => {
+                    const isUpload =
+                      post.post_type === 'client-upload' ||
+                      post.post_type === 'client_upload' ||
+                      (post as any).isClientUpload;
+                    if (isUpload) {
+                      const uploadData = (post as any).client_upload || (post as any).upload || post;
+                      setUploadDetailModal({
+                        id: post.id,
+                        file_name: uploadData.file_name || post.caption || 'Upload',
+                        file_type: uploadData.file_type || 'image/jpeg',
+                        file_url: uploadData.file_url || post.image_url || '',
+                        notes: uploadData.notes || null,
+                        created_at: uploadData.created_at || new Date().toISOString(),
+                        target_date: uploadData.target_date ?? null,
+                      });
+                    } else {
+                      setPostDetailModal({
+                        id: post.id,
+                        caption: post.caption,
+                        image_url: post.image_url,
+                        scheduled_date: post.scheduled_date,
+                        scheduled_time: post.scheduled_time,
+                        approval_status: post.approval_status,
+                        platforms_scheduled: post.platforms_scheduled,
+                        tags: post.tags ?? [],
+                      });
+                    }
+                  }}
                   onDrop={async (e: React.DragEvent, dateKey: string) => {
                     // Handle native HTML5 drag from unscheduled posts
                     const postData = e.dataTransfer.getData('post');
@@ -2955,6 +2993,37 @@ export default function CalendarPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Post Detail Modal */}
+      {postDetailModal && (
+        <ClientPostDetailModal
+          post={postDetailModal}
+          onClose={() => setPostDetailModal(null)}
+          getAccessToken={getAccessToken}
+          authorName={user?.user_metadata?.full_name || user?.email || 'Agency'}
+          accountName={clientName || undefined}
+          accountAvatarUrl={clientLogoUrl || undefined}
+        />
+      )}
+
+      {uploadDetailModal && (
+        <ClientUploadDetailModal
+          upload={uploadDetailModal}
+          onClose={() => setUploadDetailModal(null)}
+          getAccessToken={getAccessToken}
+          authorName={user?.user_metadata?.full_name || user?.email || 'Agency'}
+          onDelete={(upload) => {
+            const existingEntry = Object.entries(clientUploads).find(([, items]) =>
+              items.some(item => item.id === upload.id)
+            );
+            const uploadDateKey = existingEntry?.[0];
+            if (uploadDateKey) {
+              const found = clientUploads[uploadDateKey]?.find(u => u.id === upload.id);
+              if (found) handleDeleteClientUpload(found as any);
+            }
+          }}
+        />
+      )}
 
       {/* Calendar Event Modal */}
       {eventModalDate && (

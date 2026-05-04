@@ -22,7 +22,19 @@ async function resolveAndVerify(portalToken: string, postId: string) {
     .eq('id', postId)
     .maybeSingle();
 
-  if (!post || post.client_id !== resolved.clientId) return null;
+  if (post) {
+    if (post.client_id !== resolved.clientId) return null;
+    return resolved;
+  }
+
+  // Also allow tagging client uploads
+  const { data: upload } = await supabaseAdmin
+    .from('client_uploads')
+    .select('client_id')
+    .eq('id', postId)
+    .maybeSingle();
+
+  if (!upload || upload.client_id !== resolved.clientId) return null;
   return resolved;
 }
 

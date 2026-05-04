@@ -108,9 +108,10 @@ export function PortalTagDropdown({
 
   return (
     <>
-      <div className="fixed inset-0 z-[9998]" onClick={onClose} />
+      <div className="fixed inset-0 z-[9998]" onClick={(e) => { e.stopPropagation(); onClose(); }} />
       <div
         ref={modalRef}
+        onClick={(e) => e.stopPropagation()}
         className="bg-white rounded-lg shadow-xl border border-gray-200 w-70 overflow-hidden flex flex-col"
         style={{ ...getModalStyle(), width: 280 }}
       >

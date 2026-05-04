@@ -423,7 +423,6 @@ export default function PortalCalendarPage() {
     }
     
     const maxRetries = 1;
-    const baseLimit = 20;
     
     try {
       if (retryCount === 0) {
@@ -432,17 +431,8 @@ export default function PortalCalendarPage() {
       }
       logger.debug(`🔍 FETCHING - Scheduled posts for portal (attempt ${retryCount + 1})`);
       
-      // Calculate date range for calendar views (3 weeks to support column layout)
-      const weeksToFetch = 3;
-      const startOfWeek = getStartOfWeek(weekOffset);
-      const endOfWeek = new Date(startOfWeek);
-      endOfWeek.setDate(startOfWeek.getDate() + (weeksToFetch * 7) - 1);
-
-      const startDate = startOfWeek.toISOString().split('T')[0];
-      const endDate = endOfWeek.toISOString().split('T')[0];
-
       const response = await fetch(
-        `/api/portal/calendar?token=${encodeURIComponent(token)}&startDate=${startDate}&endDate=${endDate}`
+        `/api/portal/calendar?token=${encodeURIComponent(token)}`
       );
       
       if (!response.ok) {
@@ -513,7 +503,7 @@ export default function PortalCalendarPage() {
       setError(`Failed to load scheduled posts: ${errorMessage}`);
       setIsLoadingScheduledPosts(false);
     }
-  }, [token, weekOffset]); // Remove problematic dependencies that cause infinite loops
+  }, [token]); // Fetch all posts once — no date range restriction
 
   // Fetch uploads for the current date range
   const fetchUploads = useCallback(async () => {
@@ -1220,7 +1210,7 @@ export default function PortalCalendarPage() {
     }, 100); // Small delay to debounce rapid changes
     
     return () => clearTimeout(timeoutId);
-  }, [token, weekOffset]); // Remove function dependencies to prevent infinite loops
+  }, [token]); // weekOffset no longer triggers a refetch — all posts fetched upfront
 
   const getWeeksToDisplay = (count: number = 2) => {
     const weeks = [];
@@ -2171,6 +2161,13 @@ export default function PortalCalendarPage() {
             setQueueRefreshKey(k => k + 1);
           }}
           onTagsChange={handleTagsChange}
+          onDeleteUpload={(uploadId) => {
+            const existingEntry = Object.entries(uploads).find(([, items]) =>
+              items.some(item => item.id === uploadId)
+            );
+            const uploadDateKey = existingEntry?.[0] ?? null;
+            if (uploadDateKey) void handleDeleteUpload(uploadId, uploadDateKey);
+          }}
         />
       )}
 

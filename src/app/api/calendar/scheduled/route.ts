@@ -248,9 +248,34 @@ export async function GET(request: Request) {
       // Don't fail the whole request, just log the error
     }
 
+    // Fetch tags for uploads using the same post_tags table (upload IDs are stored as post_id)
+    const uploadIds = (uploadsData || []).map((u: Record<string, unknown>) => u.id as string);
+    const tagsByUploadId: Record<string, Array<{ id: string; name: string; color: string }>> = {};
+
+    if (uploadIds.length > 0) {
+      const { data: uploadTagsData, error: uploadTagsError } = await adminSupabase
+        .from('post_tags')
+        .select('post_id, tags(id, name, color)')
+        .in('post_id', uploadIds);
+
+      if (uploadTagsError) {
+        logger.error('⚠️ Error fetching upload tags:', uploadTagsError);
+      } else {
+        for (const row of (uploadTagsData || []) as Array<{ post_id: string; tags: { id: string; name: string; color: string } }>) {
+          if (!tagsByUploadId[row.post_id]) tagsByUploadId[row.post_id] = [];
+          if (row.tags) tagsByUploadId[row.post_id].push(row.tags);
+        }
+      }
+    }
+
+    const uploads = (uploadsData || []).map((upload: Record<string, unknown>) => ({
+      ...upload,
+      tags: tagsByUploadId[upload.id as string] ?? [],
+    }));
+
     return NextResponse.json({
       posts,
-      uploads: uploadsData || [],
+      uploads,
       performance: {
         queryDuration,
         optimized: queryDuration < 1000, // Consider optimized if under 1 second

@@ -231,9 +231,9 @@ export function SocialPreviewCard({
       </div>
 
       {imageUrl ? (
-        <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+        <div className="bg-black w-full">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageUrl} alt="Post" className="w-full h-full object-cover" />
+          <img src={imageUrl} alt="Post" className="w-full h-auto block" />
         </div>
       ) : (
         <div className="aspect-square bg-gray-100 flex items-center justify-center border-y border-gray-200">

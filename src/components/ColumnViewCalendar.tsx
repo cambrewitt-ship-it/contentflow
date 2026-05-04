@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Download, Copy, Pencil, Check, X, Tag, FileText, CalendarDays, Sparkles } from 'lucide-react';
+import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Copy, Pencil, Check, X, Tag, FileText, CalendarDays, Sparkles } from 'lucide-react';
 import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
@@ -129,6 +129,7 @@ interface ColumnViewCalendarProps {
   onEventAdd?: (dateKey: string) => void;
   onEventClick?: (event: CalendarEvent) => void;
   contentEvents?: Record<string, import('@/components/EventsCalendarLayer').ContentEvent[]>;
+  onPostClick?: (post: Post) => void;
 }
 
 const normalizeToWeekStart = (input: Date) => {
@@ -272,6 +273,7 @@ function SortablePostCard({
   onUpdateCaption,
   isSavingCaption,
   clientId,
+  onPostClick,
 }: {
   post: Post;
   postKey: string;
@@ -291,6 +293,7 @@ function SortablePostCard({
   onUpdateCaption?: (post: Post, newCaption: string) => Promise<void>;
   isSavingCaption: boolean;
   clientId?: string;
+  onPostClick?: (post: Post) => void;
 }) {
   const isClientUpload =
     post.post_type === 'client-upload' ||
@@ -515,7 +518,7 @@ function SortablePostCard({
 
   if (isClientUpload) {
     const uploadData = (post.client_upload || post.upload || {}) as ClientUpload;
-    const uploadNotes = uploadData.notes || post.caption || 'Client upload submitted';
+    const uploadNotes = uploadData.notes || post.caption || '';
     const fileName = uploadData.file_name || uploadData.name;
     const createdAt = uploadData.created_at ? new Date(uploadData.created_at) : null;
     const displayDate = createdAt
@@ -527,19 +530,30 @@ function SortablePostCard({
       ? createdAt.toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit' })
       : '';
 
+    const filteredNotes = uploadNotes
+      .split('\n')
+      .filter(line => !/^\[.*?—.*?—.*?\]:/.test(line))
+      .join('\n')
+      .trim();
+
     return (
       <div
         ref={setNodeRef}
         style={style}
-        className={`rounded-lg border-2 border-blue-300 bg-blue-50 p-3 mb-2 shadow-sm ${
-          isDragging ? 'opacity-50' : ''
+        {...attributes}
+        {...listeners}
+        onClick={() => onPostClick?.(post)}
+        className={`relative rounded-lg border-2 border-gray-200 bg-white p-3 mb-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
+          isDragging ? 'opacity-50 cursor-grabbing' : ''
         } ${isDeleting ? 'opacity-60 pointer-events-none' : ''}`}
       >
-        <div className="flex items-center justify-between mb-2 pb-1 border-b border-blue-200">
+        <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
           <div>
-            <div className="text-xs font-semibold text-blue-700 uppercase">Portal Upload</div>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold uppercase bg-blue-100 text-blue-700">
+              Portal Upload
+            </span>
             {(displayDate || displayTime) && (
-              <div className="text-[11px] text-blue-600">
+              <div className="text-[11px] text-gray-500 mt-0.5">
                 {displayDate}
                 {displayDate && displayTime ? ' • ' : ''}
                 {displayTime}
@@ -548,39 +562,26 @@ function SortablePostCard({
           </div>
         </div>
         {post.image_url && (
-          <div className="w-full mb-2 rounded overflow-hidden border border-blue-200">
+          <div className="w-full mb-2 rounded overflow-hidden border border-gray-200">
             <LazyImage src={post.image_url} alt={fileName || 'Client upload'} className="w-full" />
           </div>
         )}
-        {fileName && (
-          <p className="text-xs text-blue-700 font-medium mb-1 break-all">File: {fileName}</p>
+        {filteredNotes && (
+          <p className="text-xs text-gray-600 whitespace-pre-wrap mb-2">{filteredNotes}</p>
         )}
-        {uploadNotes && (
-          <p className="text-xs text-blue-700 whitespace-pre-wrap">{uploadNotes}</p>
+        {(post.tags ?? []).length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {(post.tags as Array<{ id: string; name: string; color: string }>).map(tag => (
+              <span
+                key={tag.id}
+                className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full text-white"
+                style={{ backgroundColor: tag.color }}
+              >
+                {tag.name}
+              </span>
+            ))}
+          </div>
         )}
-        <div className="mt-3 flex items-center gap-2">
-          {uploadData.file_url && (
-            <a
-              href={uploadData.file_url}
-              download={fileName || undefined}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-md border border-blue-300 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
-            >
-              <Download className="w-3 h-3" />
-              Download
-            </a>
-          )}
-          <button
-            type="button"
-            onClick={() => onDeleteClientUpload?.(uploadData)}
-            className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-            disabled={!onDeleteClientUpload || isDeleting}
-          >
-            <Trash2 className="w-3 h-3" />
-            Delete
-          </button>
-        </div>
       </div>
     );
   }
@@ -602,10 +603,11 @@ function SortablePostCard({
       style={style}
       {...attributes}
       {...listeners}
+      onClick={() => onPostClick?.(post)}
       className={`rounded-lg border-2 border-gray-200 bg-white overflow-hidden mb-2 shadow-sm hover:shadow-md transition-all duration-200 ${
         isDragging ? 'opacity-50 scale-105' : ''
       } ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''} ${
-        isDeleting ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-grab active:cursor-grabbing'
+        isDeleting ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer active:cursor-grabbing'
       } ${isSelected ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200' : ''}`}
     >
       {/* Published Indicator Bar */}
@@ -946,6 +948,7 @@ function DroppableDayRow({
   onEventAdd,
   onEventClick,
   contentEventIndicators,
+  onPostClick,
 }: {
   dayRow: DayRow;
   isTodayDay: boolean;
@@ -978,6 +981,7 @@ function DroppableDayRow({
   onEventAdd?: (dateKey: string) => void;
   onEventClick?: (event: CalendarEvent) => void;
   contentEventIndicators?: import('@/components/EventsCalendarLayer').ContentEvent[];
+  onPostClick?: (post: Post) => void;
 }) {
   const router = useRouter();
   const { setNodeRef } = useDroppable({
@@ -1169,6 +1173,7 @@ function DroppableDayRow({
                   onUpdateCaption={isClientUpload ? undefined : onUpdateCaption}
                   isSavingCaption={isSavingCaption}
                   clientId={clientId}
+                  onPostClick={onPostClick}
                 />
               );
             })
@@ -1213,6 +1218,7 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
   onEventAdd,
   onEventClick,
   contentEvents,
+  onPostClick,
 }: ColumnViewCalendarProps, ref: React.Ref<ColumnViewCalendarHandle>) {
   const clientUploadsMap = clientUploads ?? {};
   const VISIBLE_WEEK_COUNT = 10;
@@ -1291,6 +1297,7 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
             scheduled_date: dateKey,
             client_upload: upload,
             isClientUpload: true,
+            tags: upload.tags ?? [],
           };
         });
 
@@ -1563,6 +1570,7 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
                         onEventAdd={onEventAdd}
                         onEventClick={onEventClick}
                         contentEventIndicators={contentEvents?.[dayRow.dateKey]}
+                        onPostClick={onPostClick}
                       />
                     );
                   })}

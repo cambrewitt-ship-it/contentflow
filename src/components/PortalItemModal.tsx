@@ -13,6 +13,8 @@ import {
   Calendar,
   ArrowUp,
   Tag,
+  Download,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,6 +65,7 @@ export interface ModalUpload {
   created_at: string;
   target_date?: string | null;
   status?: string;
+  tags?: Array<{ id: string; name: string; color: string }>;
 }
 
 export type ModalItem =
@@ -95,6 +98,7 @@ interface Props {
   onClose: () => void;
   onActioned: () => void;
   onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
+  onDeleteUpload?: (uploadId: string) => void;
   brandName?: string;
   brandLogoUrl?: string;
 }
@@ -189,7 +193,7 @@ function PipelineSteps({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function PortalItemModal({ item, portalToken, party, onClose, onActioned, onTagsChange, brandName, brandLogoUrl }: Props) {
+export function PortalItemModal({ item, portalToken, party, onClose, onActioned, onTagsChange, onDeleteUpload, brandName, brandLogoUrl }: Props) {
   const isPost = item.type === "post";
   const isUpload = item.type === "upload";
 
@@ -226,9 +230,27 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     isUpload ? (item.data as ModalUpload).review_notes : null
   );
 
-  // Tags (posts only)
+  // Editable notes (uploads only) — compute initial value directly from item.data
+  const initialNotes = isUpload
+    ? (() => {
+        const raw = (item.data as ModalUpload).notes;
+        if (!raw) return "";
+        return raw
+          .split('\n')
+          .filter(line => !/^\[.*?—.*?—.*?\]:/.test(line))
+          .join('\n')
+          .trim();
+      })()
+    : "";
+  const [editedNotes, setEditedNotes] = useState<string>(initialNotes);
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [notesSaveError, setNotesSaveError] = useState<string | null>(null);
+  const [notesSaved, setNotesSaved] = useState(false);
+  const notesChanged = isUpload && editedNotes !== initialNotes;
+
+  // Tags (posts and uploads)
   const [postTags, setPostTags] = useState<Array<{ id: string; name: string; color: string }>>(
-    isPost ? (item.data as ModalPost).tags ?? [] : []
+    isPost ? (item.data as ModalPost).tags ?? [] : (item.data as ModalUpload).tags ?? []
   );
   const [isTagOpen, setIsTagOpen] = useState(false);
   const tagButtonRef = useRef<HTMLButtonElement>(null);
@@ -415,8 +437,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   // ── Tag toggle ───────────────────────────────────────────────────────────
 
   const handleTagToggle = async (tagId: string, tag: { id: string; name: string; color: string }, isSelected: boolean) => {
-    if (!isPost) return;
-    const postId = (item.data as ModalPost).id;
+    const postId = isPost ? (item.data as ModalPost).id : (item.data as ModalUpload).id;
     if (isSelected) {
       const next = postTags.filter(t => t.id !== tagId);
       setPostTags(next);
@@ -442,6 +463,37 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
       } else {
         onTagsChange?.(postId, next);
       }
+    }
+  };
+
+  // ── Save upload notes ────────────────────────────────────────────────────
+
+  const handleSaveNotes = async () => {
+    if (!isUpload) return;
+    setIsSavingNotes(true);
+    setNotesSaveError(null);
+    setNotesSaved(false);
+    try {
+      const res = await fetch("/api/portal/upload", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: portalToken,
+          uploadId: (item.data as ModalUpload).id,
+          notes: editedNotes.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setNotesSaveError(data.error ?? "Failed to save");
+        return;
+      }
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 2000);
+    } catch {
+      setNotesSaveError("Failed to save notes");
+    } finally {
+      setIsSavingNotes(false);
     }
   };
 
@@ -545,12 +597,41 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
               </span>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {isUpload && (
+              <>
+                {(item.data as ModalUpload).file_url && (
+                  <a
+                    href={(item.data as ModalUpload).file_url}
+                    download={(item.data as ModalUpload).file_name || undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download
+                  </a>
+                )}
+                {onDeleteUpload && (
+                  <button
+                    type="button"
+                    onClick={() => { onDeleteUpload((item.data as ModalUpload).id); onClose(); }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete
+                  </button>
+                )}
+              </>
+            )}
+            <button
+              onClick={onClose}
+              className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* ── Body ── */}
@@ -635,59 +716,96 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                 <h2 className="text-base font-semibold text-gray-900 break-words">{title}</h2>
               </div>
 
-              {/* Tags (posts only) */}
-              {isPost && (
-                <div className="relative">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {postTags.map(tag => (
-                      <span
-                        key={tag.id}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                        style={{ backgroundColor: tag.color }}
-                      >
-                        {tag.name}
-                      </span>
-                    ))}
-                    <button
-                      ref={tagButtonRef}
-                      type="button"
-                      onClick={() => setIsTagOpen(prev => !prev)}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-gray-400 border border-dashed border-gray-300 hover:border-gray-400 hover:text-gray-600 transition-colors"
+              {/* Tags */}
+              <div className="relative">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {postTags.map(tag => (
+                    <span
+                      key={tag.id}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                      style={{ backgroundColor: tag.color }}
                     >
-                      <Tag className="w-3 h-3" />
-                      Tags
-                    </button>
-                  </div>
-                  {isTagOpen && (
-                    <PortalTagDropdown
-                      isOpen={isTagOpen}
-                      onClose={() => setIsTagOpen(false)}
-                      portalToken={portalToken}
-                      postId={(item.data as ModalPost).id}
-                      selectedTagIds={postTags.map(t => t.id)}
-                      onTagToggle={handleTagToggle}
-                      position={
-                        tagButtonRef.current
-                          ? (() => {
-                              const r = tagButtonRef.current!.getBoundingClientRect();
-                              return { top: r.bottom, left: r.left };
-                            })()
-                          : undefined
-                      }
-                    />
-                  )}
+                      {tag.name}
+                    </span>
+                  ))}
+                  <button
+                    ref={tagButtonRef}
+                    type="button"
+                    onClick={() => setIsTagOpen(prev => !prev)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-gray-400 border border-dashed border-gray-300 hover:border-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <Tag className="w-3 h-3" />
+                    Tags
+                  </button>
                 </div>
-              )}
+                {isTagOpen && (
+                  <PortalTagDropdown
+                    isOpen={isTagOpen}
+                    onClose={() => setIsTagOpen(false)}
+                    portalToken={portalToken}
+                    postId={isPost ? (item.data as ModalPost).id : (item.data as ModalUpload).id}
+                    selectedTagIds={postTags.map(t => t.id)}
+                    onTagToggle={handleTagToggle}
+                    position={
+                      tagButtonRef.current
+                        ? (() => {
+                            const r = tagButtonRef.current!.getBoundingClientRect();
+                            return { top: r.bottom, left: r.left };
+                          })()
+                        : undefined
+                    }
+                  />
+                )}
+              </div>
 
               {/* Copy / Caption */}
-              {copyText && (
+              {isPost ? (
+                copyText && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                      Caption
+                    </p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-100">
+                      {copyText}
+                    </p>
+                  </div>
+                )
+              ) : (
                 <div>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                    {isPost ? "Caption" : "Notes / Copy"}
-                  </p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-100">
-                    {copyText}
-                  </p>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      Notes / Copy
+                    </p>
+                    {notesSaved && (
+                      <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> Saved
+                      </span>
+                    )}
+                  </div>
+                  <Textarea
+                    value={editedNotes}
+                    onChange={(e) => setEditedNotes(e.target.value)}
+                    placeholder="Add notes or copy for this upload..."
+                    className="text-sm min-h-[100px] resize-none"
+                    disabled={isSavingNotes}
+                  />
+                  {notesSaveError && (
+                    <p className="text-xs text-red-600 mt-1">{notesSaveError}</p>
+                  )}
+                  {notesChanged && (
+                    <button
+                      type="button"
+                      onClick={handleSaveNotes}
+                      disabled={isSavingNotes}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+                    >
+                      {isSavingNotes ? (
+                        <><Loader2 className="w-3 h-3 animate-spin" /> Saving…</>
+                      ) : (
+                        "Save notes"
+                      )}
+                    </button>
+                  )}
                 </div>
               )}
 
