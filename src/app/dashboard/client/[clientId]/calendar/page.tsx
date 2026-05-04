@@ -8,6 +8,7 @@ import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import { ColumnViewCalendar, type ColumnViewCalendarHandle } from '@/components/ColumnViewCalendar';
+import { StripCalendar, type StripCalendarHandle } from '@/components/StripCalendar';
 import { CalendarEventModal, type CalendarEvent } from '@/components/CalendarEventModal';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
@@ -208,9 +209,10 @@ export default function CalendarPage() {
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
   const [postDetailModal, setPostDetailModal] = useState<ClientPostDetailItem | null>(null);
   const [uploadDetailModal, setUploadDetailModal] = useState<ClientUploadDetailItem | null>(null);
-  const [viewMode, setViewMode] = useState<'month' | 'column'>('column');
+  const [viewMode, setViewMode] = useState<'month' | 'column' | 'strip'>('column');
   const calendarScrollRef = useRef<HTMLDivElement>(null);
   const columnViewRef = useRef<ColumnViewCalendarHandle>(null);
+  const stripViewRef = useRef<StripCalendarHandle>(null);
 
   // Calendar events / notes
   const [calendarEvents, setCalendarEvents] = useState<{[dateKey: string]: CalendarEvent[]}>({});
@@ -1330,6 +1332,47 @@ export default function CalendarPage() {
     }
   };
 
+  const handleColumnPostMove = async (postKey: string, newDate: string) => {
+    const firstHyphenIndex = postKey.indexOf('-');
+    if (firstHyphenIndex === -1) return;
+    const postType = postKey.substring(0, firstHyphenIndex);
+    const postId = postKey.substring(firstHyphenIndex + 1);
+
+    let postToMove: Post | null = null;
+    let oldDateKey: string | null = null;
+    Object.entries(scheduledPosts).forEach(([dateKey, posts]) => {
+      const found = posts.find(p => p.id === postId && (p.post_type || 'post') === postType);
+      if (found) { postToMove = found; oldDateKey = dateKey; }
+    });
+    if (!postToMove || !oldDateKey) return;
+
+    setMovingPostId((postToMove as Post).id);
+    try {
+      const accessToken = requireAccessToken();
+      const response = await fetch('/api/calendar/scheduled', {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: (postToMove as Post).id, updates: { scheduled_date: newDate } }),
+      });
+      if (!response.ok) throw new Error(`Failed to move post: ${response.statusText}`);
+      setScheduledPosts(prev => {
+        const updated = { ...prev };
+        if (updated[oldDateKey!]) {
+          updated[oldDateKey!] = updated[oldDateKey!].filter(
+            p => !(p.id === (postToMove as Post).id && (p.post_type || 'post') === ((postToMove as Post).post_type || 'post'))
+          );
+          if (updated[oldDateKey!].length === 0) delete updated[oldDateKey!];
+        }
+        updated[newDate] = [...(updated[newDate] || []), { ...(postToMove as Post), post_type: (postToMove as Post).post_type || 'post', scheduled_date: newDate }];
+        return updated;
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to move post');
+    } finally {
+      setMovingPostId(null);
+    }
+  };
+
   // Month view drop handler - converts Date to the format expected by handleDrop/handleMovePost
   const handleMonthViewDrop = async (e: React.DragEvent, date: Date) => {
     e.preventDefault();
@@ -2430,11 +2473,11 @@ export default function CalendarPage() {
       </div>
 
         {/* Main Layout: Sidebar + Calendar Content */}
-        <div className="flex gap-6 relative min-w-0" style={{ height: 'calc(100vh - 200px)' }}>
+        <div className="flex gap-6 relative min-w-0" style={viewMode === 'month' ? { minHeight: 'calc(100vh - 200px)' } : { height: 'calc(100vh - 200px)' }}>
           {/* Left Sidebar - Posts in Project (Vertical) */}
-          <div 
+          <div
             className="bg-white rounded-lg shadow transition-all duration-300 flex flex-col w-36 flex-shrink-0 sticky top-0"
-            style={{ height: 'calc(100vh - 200px)' }}
+            style={viewMode === 'month' ? { height: 'calc(100vh - 200px)', alignSelf: 'flex-start' } : { height: 'calc(100vh - 200px)' }}
           >
             {/* Sidebar Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 min-h-[73px]">
@@ -2556,7 +2599,7 @@ export default function CalendarPage() {
         {/* Calendar */}
         <div
           ref={calendarScrollRef}
-          className="bg-white rounded-lg shadow flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden"
+          className={`bg-white rounded-lg shadow flex-1 min-h-0 min-w-0 flex flex-col ${viewMode === 'month' ? 'overflow-auto' : 'overflow-hidden'}`}
         >
           {viewMode === 'month' ? (
             <>
@@ -2585,6 +2628,17 @@ export default function CalendarPage() {
                     <Columns className="w-4 h-4" />
                     Column
                   </button>
+                  <button
+                    onClick={() => setViewMode('strip')}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                      viewMode === 'strip'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    Strip
+                  </button>
                 </div>
               </div>
               <MonthViewCalendar
@@ -2601,6 +2655,71 @@ export default function CalendarPage() {
                   onDrop={handleMonthViewDrop}
                   dragOverDate={dragOverDate}
                 />
+            </>
+            ) : viewMode === 'strip' ? (
+            <>
+              <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center justify-center">
+                {/* View Toggle */}
+                <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('month')}
+                    className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Month
+                  </button>
+                  <button
+                    onClick={() => setViewMode('column')}
+                    className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                  >
+                    <Columns className="w-4 h-4" />
+                    Column
+                  </button>
+                  <button
+                    onClick={() => setViewMode('strip')}
+                    className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 bg-white text-gray-900 shadow-sm"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    Strip
+                  </button>
+                </div>
+              </div>
+              <StripCalendar
+                ref={stripViewRef}
+                scheduledPosts={scheduledPosts as any}
+                clientUploads={clientUploads}
+                loading={isLoadingScheduledPosts}
+                onPostMove={handleColumnPostMove}
+                onPostClick={(post) => {
+                  const isUpload =
+                    post.post_type === 'client-upload' ||
+                    post.post_type === 'client_upload' ||
+                    (post as any).isClientUpload;
+                  if (isUpload) {
+                    const uploadData = (post as any).client_upload || (post as any).upload || post;
+                    setUploadDetailModal({
+                      id: post.id,
+                      file_name: uploadData.file_name || post.caption || 'Upload',
+                      file_type: uploadData.file_type || 'image/jpeg',
+                      file_url: uploadData.file_url || post.image_url || '',
+                      notes: uploadData.notes || null,
+                      created_at: uploadData.created_at || new Date().toISOString(),
+                      target_date: uploadData.target_date ?? null,
+                    });
+                  } else {
+                    setPostDetailModal({
+                      id: post.id,
+                      caption: post.caption,
+                      image_url: post.image_url,
+                      scheduled_date: post.scheduled_date,
+                      scheduled_time: post.scheduled_time,
+                      approval_status: post.approval_status,
+                      platforms_scheduled: post.platforms_scheduled,
+                      tags: post.tags ?? [],
+                    });
+                  }
+                }}
+              />
             </>
             ) : (
               <>
@@ -2637,6 +2756,17 @@ export default function CalendarPage() {
                       >
                         <Columns className="w-4 h-4" />
                         Column
+                      </button>
+                      <button
+                        onClick={() => setViewMode('strip')}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                          viewMode === 'strip'
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                        Strip
                       </button>
                     </div>
                     <button
@@ -2785,97 +2915,7 @@ export default function CalendarPage() {
                       setMovingPostId(null);
                     }
                   }}
-                  onPostMove={async (postKey: string, newDate: string) => {
-                    // Extract post type and id from postKey (format: "post_type-id")
-                    // Split on the first hyphen only (UUIDs contain hyphens)
-                    // Key format: "post-123e4567-e89b-12d3-a456-426614174000"
-                    const firstHyphenIndex = postKey.indexOf('-');
-                    if (firstHyphenIndex === -1) {
-                      console.error('Invalid postKey format:', postKey);
-                      return;
-                    }
-
-                    const postType = postKey.substring(0, firstHyphenIndex);
-                    const postId = postKey.substring(firstHyphenIndex + 1);
-
-                    console.log('🔵 onPostMove called:', { postKey, postType, postId, newDate });
-
-                    // Find the post in scheduledPosts
-                    let postToMove: Post | null = null;
-                    let oldDateKey: string | null = null;
-
-                    Object.entries(scheduledPosts).forEach(([dateKey, posts]) => {
-                      const foundPost = posts.find(p => {
-                        const pId = p.id;
-                        const pType = p.post_type || 'post';
-                        return pId === postId && pType === postType;
-                      });
-                      if (foundPost) {
-                        postToMove = foundPost;
-                        oldDateKey = dateKey;
-                      }
-                    });
-
-                    if (!postToMove || !oldDateKey) {
-                      console.error('Post not found for move:', { postKey, postType, postId, scheduledPostsKeys: Object.keys(scheduledPosts) });
-                      return;
-                    }
-
-                    // Set loading state
-                    setMovingPostId((postToMove as Post).id);
-
-                    try {
-                      // Update the post's scheduled date
-                      const accessToken = requireAccessToken();
-                      const response = await fetch('/api/calendar/scheduled', {
-                        method: 'PATCH',
-                        headers: { 
-                          'Authorization': `Bearer ${accessToken}`,
-                          'Content-Type': 'application/json' 
-                        },
-                        body: JSON.stringify({
-                          postId: (postToMove as Post).id,
-                          updates: {
-                            scheduled_date: newDate
-                          }
-                        })
-                      });
-
-                      if (!response.ok) {
-                        throw new Error(`Failed to move post: ${response.statusText}`);
-                      }
-
-                      // Update local state
-                      setScheduledPosts(prev => {
-                        const updated = { ...prev };
-
-                        // Remove from old date
-                        if (updated[oldDateKey!]) {
-                          updated[oldDateKey!] = updated[oldDateKey!].filter(
-                            p => !(p.id === postToMove!.id && (p.post_type || 'post') === (postToMove!.post_type || 'post'))
-                          );
-                          if (updated[oldDateKey!].length === 0) {
-                            delete updated[oldDateKey!];
-                          }
-                        }
-
-                        // Add to new date
-                        const updatedPost: Post = {
-                          ...postToMove!,
-                          post_type: postToMove!.post_type || 'post', // Ensure post_type is set
-                          scheduled_date: newDate
-                        };
-                        updated[newDate] = [...(updated[newDate] || []), updatedPost];
-
-                        return updated;
-                      });
-                    } catch (error) {
-                      console.error('Error moving post:', error);
-                      setError(error instanceof Error ? error.message : 'Failed to move post');
-                    } finally {
-                      setMovingPostId(null);
-                    }
-                  }}
+                  onPostMove={handleColumnPostMove}
                 />
                 </div>
                 {showEventsPanel && (

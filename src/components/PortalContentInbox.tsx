@@ -13,6 +13,7 @@ import {
   Columns,
   Calendar,
   Kanban,
+  GalleryHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,7 +59,7 @@ interface StatusSummary {
   pending: number;
 }
 
-type PortalViewMode = "column" | "month" | "kanban";
+type PortalViewMode = "column" | "month" | "kanban" | "strip";
 
 interface Props {
   token: string;
@@ -429,6 +430,16 @@ const handleAddToQueue = async () => {
                   >
                     <Kanban className="w-3.5 h-3.5" />
                     Kanban
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onViewModeChange("strip")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      viewMode === "strip" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    <GalleryHorizontal className="w-3.5 h-3.5" />
+                    Strip
                   </button>
                 </div>
               </div>

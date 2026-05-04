@@ -530,6 +530,15 @@ function SortablePostCard({
       ? createdAt.toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit' })
       : '';
 
+    const approvalTag = (() => {
+      const s = uploadData.status as string | undefined;
+      if (s === 'completed' || s === 'in_use' || s === 'published')
+        return { label: 'Approved', className: 'bg-green-100 text-green-700' };
+      if (s === 'failed')
+        return { label: 'Rejected', className: 'bg-red-100 text-red-700' };
+      return { label: 'Pending', className: 'bg-gray-100 text-gray-600' };
+    })();
+
     const filteredNotes = uploadNotes
       .split('\n')
       .filter(line => !/^\[.*?—.*?—.*?\]:/.test(line))
@@ -549,6 +558,8 @@ function SortablePostCard({
       >
         <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
           <div>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold mb-1 ${approvalTag.className}`}>{approvalTag.label}</span>
+            <br />
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold uppercase bg-blue-100 text-blue-700">
               Portal Upload
             </span>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import { PortalColumnViewCalendar, type PortalCalendarRef } from '@/components/PortalColumnViewCalendar';
+import { StripCalendar, type StripCalendarHandle } from '@/components/StripCalendar';
 import { PortalContentInbox } from '@/components/PortalContentInbox';
 import { PortalKanbanBoard, type KanbanItem, type KanbanCalendarPost } from '@/components/PortalKanbanBoard';
 import { PortalItemModal, type ModalItem } from '@/components/PortalItemModal';
@@ -341,7 +342,7 @@ export default function PortalCalendarPage() {
   const brandInitializedRef = useRef(false);
 
   // View mode state
-  const [viewMode, setViewMode] = useState<'column' | 'month' | 'kanban' | 'inbox'>('column');
+  const [viewMode, setViewMode] = useState<'column' | 'month' | 'kanban' | 'inbox' | 'strip'>('column');
   const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0);
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
   const [monthDragOverDate, setMonthDragOverDate] = useState<string | null>(null);
@@ -360,6 +361,7 @@ export default function PortalCalendarPage() {
   const [inboxError, setInboxError] = useState<string | null>(null);
   const inboxFileInputRef = useRef<HTMLInputElement | null>(null);
   const portalCalendarRef = useRef<PortalCalendarRef>(null);
+  const portalStripRef = useRef<StripCalendarHandle>(null);
   
   // Client timezone for calendar display
   const [clientTimezone, setClientTimezone] = useState<string>('Pacific/Auckland');
@@ -1702,12 +1704,12 @@ export default function PortalCalendarPage() {
       {viewMode !== 'inbox' && (
         <PortalContentInbox
           token={token}
-          viewMode={viewMode === 'inbox' ? 'column' : viewMode as 'column' | 'month' | 'kanban'}
+          viewMode={viewMode === 'inbox' ? 'column' : viewMode as 'column' | 'month' | 'kanban' | 'strip'}
           onViewModeChange={(mode) => setViewMode(mode)}
           refreshTrigger={queueRefreshKey}
           externalQueueItems={allUploads.filter(u => !u.target_date)}
           isExternalQueueLoading={isLoadingUploads}
-          hideQueueStrip={viewMode === 'column'}
+          hideQueueStrip={viewMode === 'column' || viewMode === 'strip'}
           onCalendarSuccess={() => {
             fetchUploads();
             fetchScheduledPosts(0, true);
@@ -2096,6 +2098,57 @@ export default function PortalCalendarPage() {
               }}
             />
           </div>
+        </div>
+      )}
+
+      {/* Calendar — Strip View */}
+      {viewMode === 'strip' && (
+        <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: '500px' }}>
+          <StripCalendar
+            ref={portalStripRef}
+            scheduledPosts={scheduledPosts}
+            clientUploads={uploads}
+            loading={isLoadingScheduledPosts}
+            onPostMove={handleColumnPostMove}
+            onPostClick={(post) => {
+              const isUpload =
+                post.post_type === 'client-upload' ||
+                post.post_type === 'client_upload' ||
+                (post as any).isClientUpload;
+              if (isUpload) {
+                const uploadData = (post as any).client_upload || (post as any).upload || post;
+                setModalItem({
+                  type: 'upload',
+                  data: {
+                    id: post.id,
+                    file_name: uploadData.file_name || post.caption || 'Upload',
+                    file_type: uploadData.file_type || 'image/jpeg',
+                    file_url: uploadData.file_url || post.image_url || '',
+                    notes: uploadData.notes || null,
+                    review_notes: null,
+                    created_at: uploadData.created_at || new Date().toISOString(),
+                    target_date: uploadData.target_date ?? null,
+                    status: uploadData.status,
+                  },
+                });
+              } else {
+                setModalItem({
+                  type: 'post',
+                  data: {
+                    id: post.id,
+                    caption: post.caption,
+                    image_url: post.image_url,
+                    scheduled_date: post.scheduled_date,
+                    scheduled_time: post.scheduled_time,
+                    approval_status: post.approval_status,
+                    approval_steps: post.approval_steps,
+                    platforms_scheduled: post.platforms_scheduled ?? undefined,
+                    tags: post.tags,
+                  },
+                });
+              }
+            }}
+          />
         </div>
       )}
 
