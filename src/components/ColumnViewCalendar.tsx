@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Copy, Pencil, Check, X, Tag, FileText, CalendarDays, Sparkles } from 'lucide-react';
+import { VideoThumbnail } from '@/components/VideoThumbnail';
+import { isVideoUrl } from '@/lib/videoUtils';
 import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
@@ -572,9 +574,13 @@ function SortablePostCard({
             )}
           </div>
         </div>
-        {post.image_url && (
+        {uploadData.file_url && (
           <div className="w-full mb-2 rounded overflow-hidden border border-gray-200">
-            <LazyImage src={post.image_url} alt={fileName || 'Client upload'} className="w-full" />
+            {uploadData.file_type?.startsWith('video/') ? (
+              <VideoThumbnail src={uploadData.file_url} className="w-full min-h-24" objectFit="cover" />
+            ) : (
+              <LazyImage src={uploadData.file_url} alt={fileName || 'Client upload'} className="w-full" />
+            )}
           </div>
         )}
         {filteredNotes && (
@@ -717,11 +723,15 @@ function SortablePostCard({
       {/* Post Image */}
       {post.image_url && (
         <div className="w-full mb-2 rounded overflow-hidden px-2">
-          <LazyImage
-            src={post.image_url}
-            alt="Post"
-            className="w-full"
-          />
+          {isVideoUrl(post.image_url) ? (
+            <VideoThumbnail src={post.image_url} className="w-full min-h-24" objectFit="cover" />
+          ) : (
+            <LazyImage
+              src={post.image_url}
+              alt="Post"
+              className="w-full"
+            />
+          )}
         </div>
       )}
 

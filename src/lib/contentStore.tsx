@@ -3,6 +3,7 @@
 import React from 'react'
 import { createContext, useContext, useState, useEffect } from 'react'
 import { uploadMediaToBlob, getMediaType } from './blobUpload'
+import { extractVideoThumbnail } from './videoUtils'
 import logger from './logger'
 
 // Helper function to compress/resize image if it's too large
@@ -210,53 +211,6 @@ export const useContentStore = () => {
 }
 
 const getStorageKey = (key: string) => `contentflow_${key}`
-
-// Helper function to extract first frame from video as thumbnail
-const extractVideoThumbnail = async (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video')
-    const canvas = document.createElement('canvas')
-    const context = canvas.getContext('2d')
-    
-    if (!context) {
-      reject(new Error('Could not get canvas context'))
-      return
-    }
-    
-    video.preload = 'metadata'
-    video.muted = true
-    video.playsInline = true
-    
-    video.onloadedmetadata = () => {
-      // Set canvas size to video dimensions
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      
-      // Seek to first frame
-      video.currentTime = 0
-    }
-    
-    video.onseeked = () => {
-      // Draw the current video frame to canvas
-      context.drawImage(video, 0, 0, canvas.width, canvas.height)
-      
-      // Convert canvas to data URL
-      const thumbnail = canvas.toDataURL('image/jpeg', 0.8)
-      
-      // Clean up
-      URL.revokeObjectURL(video.src)
-      
-      resolve(thumbnail)
-    }
-    
-    video.onerror = () => {
-      reject(new Error('Failed to load video'))
-    }
-    
-    // Create blob URL from file
-    video.src = URL.createObjectURL(file)
-  })
-}
 
 // Helper functions to convert between UploadedImage and SerializableUploadedImage
 const toSerializable = (image: UploadedImage): SerializableUploadedImage => ({

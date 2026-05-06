@@ -17,10 +17,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { VideoThumbnail } from "@/components/VideoThumbnail";
+import { extractVideoThumbnail } from "@/lib/videoUtils";
 
 interface UploadedFile {
   file: File;
   preview: string;
+  thumbnail?: string;
   id: string;
 }
 
@@ -111,12 +114,29 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
   const displayIsLoadingQueue = externalQueueItems !== undefined ? (isExternalQueueLoading ?? false) : isLoadingQueue;
 
   const addFiles = useCallback((newFiles: FileList | File[]) => {
-    const mapped: UploadedFile[] = Array.from(newFiles).map((f) => ({
+    const fileArray = Array.from(newFiles);
+    const mapped: UploadedFile[] = fileArray.map((f) => ({
       file: f,
       preview: URL.createObjectURL(f),
       id: `${f.name}-${Date.now()}-${Math.random()}`,
     }));
     setFiles((prev) => [...prev, ...mapped]);
+
+    // Extract thumbnails for video files after adding
+    fileArray.forEach((f, i) => {
+      if (f.type.startsWith("video/")) {
+        const entry = mapped[i];
+        extractVideoThumbnail(f)
+          .then((thumb) => {
+            setFiles((prev) =>
+              prev.map((item) =>
+                item.id === entry.id ? { ...item, thumbnail: thumb } : item
+              )
+            );
+          })
+          .catch(() => {/* leave without thumbnail */});
+      }
+    });
   }, []);
 
   const removeFile = (id: string) => {
@@ -295,9 +315,21 @@ const handleAddToQueue = async () => {
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={f.preview} alt={f.file.name} className="w-full h-full object-cover" />
                       ) : f.file.type.startsWith("video/") ? (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                          <Film className="w-5 h-5 text-gray-400" />
-                        </div>
+                        f.thumbnail ? (
+                          <div className="relative w-full h-full">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={f.thumbnail} alt={f.file.name} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center">
+                                <Film className="w-3.5 h-3.5 text-white" />
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-100 animate-pulse">
+                            <Film className="w-5 h-5 text-gray-400" />
+                          </div>
+                        )
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gray-100">
                           <FileText className="w-5 h-5 text-gray-400" />
@@ -535,10 +567,7 @@ const handleAddToQueue = async () => {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={item.file_url} alt={item.file_name} className="w-full h-full object-cover" />
                     ) : isVideo ? (
-                      <div className="flex flex-col items-center gap-1 text-gray-400">
-                        <Film className="w-7 h-7" />
-                        <span className="text-xs">Video</span>
-                      </div>
+                      <VideoThumbnail src={item.file_url} className="w-full h-full" objectFit="cover" />
                     ) : (
                       <div className="flex flex-col items-center gap-1 text-gray-400">
                         <FileText className="w-7 h-7" />

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Plus, Check } from 'lucide-react';
+import { X, Plus, Check, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 
 interface Tag {
   id: string;
@@ -39,6 +39,10 @@ export function PortalTagDropdown({
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editColor, setEditColor] = useState(TAG_COLORS[0]);
+  const [openMenuTagId, setOpenMenuTagId] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,6 +56,13 @@ export function PortalTagDropdown({
     if (isOpen) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!openMenuTagId) return;
+    const handleClose = () => setOpenMenuTagId(null);
+    document.addEventListener('mousedown', handleClose);
+    return () => document.removeEventListener('mousedown', handleClose);
+  }, [openMenuTagId]);
 
   const fetchTags = async () => {
     setLoading(true);
@@ -81,6 +92,40 @@ export function PortalTagDropdown({
       }
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleEditSave = async (tagId: string) => {
+    if (!editName.trim()) return;
+    try {
+      const res = await fetch(`/api/portal/tags/${tagId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portal_token: portalToken, name: editName.trim(), color: editColor }),
+      });
+      if (res.ok) {
+        await fetchTags();
+        setEditingTagId(null);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update tag');
+      }
+    } catch (error) {
+      console.error('Error updating tag:', error);
+    }
+  };
+
+  const handleDeleteTag = async (tagId: string) => {
+    try {
+      const res = await fetch(`/api/portal/tags/${tagId}?portal_token=${encodeURIComponent(portalToken)}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        await fetchTags();
+        setOpenMenuTagId(null);
+      }
+    } catch (error) {
+      console.error('Error deleting tag:', error);
     }
   };
 
@@ -132,17 +177,106 @@ export function PortalTagDropdown({
           ) : (
             tags.map((tag) => {
               const isSelected = selectedTagIds.includes(tag.id);
+
+              if (editingTagId === tag.id) {
+                return (
+                  <div key={tag.id} className="px-2 py-2 rounded-md bg-gray-50 space-y-2">
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleEditSave(tag.id);
+                        if (e.key === 'Escape') setEditingTagId(null);
+                      }}
+                      className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-400"
+                      autoFocus
+                    />
+                    <div className="flex flex-wrap gap-1">
+                      {TAG_COLORS.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setEditColor(c)}
+                          className={`w-5 h-5 rounded-full transition-transform ${editColor === c ? 'ring-2 ring-offset-1 ring-gray-400 scale-110' : ''}`}
+                          style={{ backgroundColor: c }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleEditSave(tag.id)}
+                        disabled={!editName.trim()}
+                        className="flex-1 py-1 text-xs font-medium bg-gray-900 text-white rounded-md hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingTagId(null)}
+                        className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
-                <button
+                <div
                   key={tag.id}
-                  type="button"
-                  onClick={() => onTagToggle(tag.id, tag, isSelected)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 transition-colors text-left"
+                  className="flex items-center rounded-md hover:bg-gray-50 group transition-colors"
                 >
-                  <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
-                  <span className="flex-1 text-xs text-gray-700">{tag.name}</span>
-                  {isSelected && <Check className="w-3 h-3 text-gray-500 flex-shrink-0" />}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => onTagToggle(tag.id, tag, isSelected)}
+                    className="flex-1 flex items-center gap-2 px-2 py-1.5 text-left"
+                  >
+                    <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                    <span className="flex-1 text-xs text-gray-700">{tag.name}</span>
+                    {isSelected && <Check className="w-3 h-3 text-gray-500 flex-shrink-0" />}
+                  </button>
+                  <div
+                    className="relative pr-1"
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setOpenMenuTagId(openMenuTagId === tag.id ? null : tag.id)}
+                      className="p-1 rounded text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <MoreHorizontal className="w-3 h-3" />
+                    </button>
+                    {openMenuTagId === tag.id && (
+                      <div className="absolute right-0 top-full mt-0.5 z-10 bg-white rounded-md shadow-lg border border-gray-200 py-1 min-w-[100px]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingTagId(tag.id);
+                            setEditName(tag.name);
+                            setEditColor(tag.color);
+                            setOpenMenuTagId(null);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTag(tag.id)}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               );
             })
           )}

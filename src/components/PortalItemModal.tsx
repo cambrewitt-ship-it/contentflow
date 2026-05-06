@@ -8,7 +8,6 @@ import {
   XCircle,
   AlertTriangle,
   MessageSquare,
-  Film,
   FileText,
   Calendar,
   ArrowUp,
@@ -695,12 +694,13 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                 </div>
               </>
             ) : isVideoFile ? (
-              <div className="flex-1 flex items-center justify-center p-4">
+              <div className="flex-1 flex flex-col items-center justify-center p-4 gap-3">
                 <video
                   src={imageUrl ?? undefined}
                   controls
                   playsInline
-                  className="max-w-full max-h-[420px] rounded-xl shadow-sm bg-black"
+                  className="w-full rounded-xl max-h-[420px] bg-black"
+                  style={{ aspectRatio: '16/9' }}
                 />
               </div>
             ) : (

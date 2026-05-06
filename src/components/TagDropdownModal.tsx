@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Plus, Tag as TagIcon, Check } from 'lucide-react';
+import { X, Plus, Tag as TagIcon, Check, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
 interface Tag {
@@ -48,6 +48,10 @@ export function TagDropdownModal({
   const [isCreating, setIsCreating] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editColor, setEditColor] = useState(TAG_COLORS[0]);
+  const [openMenuTagId, setOpenMenuTagId] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Fetch tags for the client
@@ -56,6 +60,14 @@ export function TagDropdownModal({
       fetchTags();
     }
   }, [isOpen, clientId]);
+
+  // Close tag menu when clicking outside
+  useEffect(() => {
+    if (!openMenuTagId) return;
+    const handleClose = () => setOpenMenuTagId(null);
+    document.addEventListener('mousedown', handleClose);
+    return () => document.removeEventListener('mousedown', handleClose);
+  }, [openMenuTagId]);
 
   // Close modal when clicking outside
   useEffect(() => {
@@ -144,6 +156,48 @@ export function TagDropdownModal({
     }
   };
 
+  const handleEditSave = async (tagId: string) => {
+    if (!editName.trim()) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const response = await fetch(`/api/clients/${clientId}/tags/${tagId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ name: editName.trim(), color: editColor }),
+      });
+      if (response.ok) {
+        await fetchTags();
+        setEditingTagId(null);
+      } else {
+        const err = await response.json();
+        alert(err.error || 'Failed to update tag');
+      }
+    } catch (error) {
+      console.error('Error updating tag:', error);
+    }
+  };
+
+  const handleDeleteTag = async (tagId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const response = await fetch(`/api/clients/${clientId}/tags/${tagId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+      if (response.ok) {
+        await fetchTags();
+        setOpenMenuTagId(null);
+      }
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+    }
+  };
+
   if (!isOpen) return null;
 
   // Calculate modal position anchored to the tag button
@@ -203,6 +257,7 @@ export function TagDropdownModal({
       />
       <div
         ref={modalRef}
+        onClick={(e) => e.stopPropagation()}
         className="bg-white rounded-lg shadow-xl border border-gray-200 w-80 max-h-96 overflow-hidden flex flex-col"
         style={modalStyle}
       >
@@ -289,25 +344,112 @@ export function TagDropdownModal({
                 ) : (
                   tags.map((tag) => {
                     const isSelected = selectedTagIds.includes(tag.id);
+
+                    if (editingTagId === tag.id) {
+                      return (
+                        <div key={tag.id} className="px-2 py-2 rounded-md bg-gray-50 space-y-2">
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleEditSave(tag.id);
+                              if (e.key === 'Escape') setEditingTagId(null);
+                            }}
+                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            autoFocus
+                          />
+                          <div className="flex flex-wrap gap-1">
+                            {TAG_COLORS.map((color) => (
+                              <button
+                                key={color}
+                                type="button"
+                                onClick={() => setEditColor(color)}
+                                className={`w-5 h-5 rounded-full transition-transform ${editColor === color ? 'ring-2 ring-offset-1 ring-gray-400 scale-110' : ''}`}
+                                style={{ backgroundColor: color }}
+                              />
+                            ))}
+                          </div>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleEditSave(tag.id)}
+                              disabled={!editName.trim()}
+                              className="flex-1 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40 transition-colors"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingTagId(null)}
+                              className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
-                      <button
+                      <div
                         key={tag.id}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onTagToggle(tag.id);
-                        }}
-                        className="w-full flex items-center gap-2 px-2 py-2 rounded-md hover:bg-gray-50 transition-colors text-left"
+                        className="flex items-center rounded-md hover:bg-gray-50 group transition-colors"
                       >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onTagToggle(tag.id);
+                          }}
+                          className="flex-1 flex items-center gap-2 px-2 py-2 text-left"
+                        >
+                          <div
+                            className="w-4 h-4 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: tag.color }}
+                          />
+                          <span className="flex-1 text-xs text-gray-700">{tag.name}</span>
+                          {isSelected && <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                        </button>
                         <div
-                          className="w-4 h-4 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: tag.color }}
-                        />
-                        <span className="flex-1 text-xs text-gray-700">{tag.name}</span>
-                        {isSelected && (
-                          <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                        )}
-                      </button>
+                          className="relative pr-1"
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setOpenMenuTagId(openMenuTagId === tag.id ? null : tag.id)}
+                            className="p-1 rounded text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <MoreHorizontal className="w-3.5 h-3.5" />
+                          </button>
+                          {openMenuTagId === tag.id && (
+                            <div className="absolute right-0 top-full mt-0.5 z-10 bg-white rounded-md shadow-lg border border-gray-200 py-1 min-w-[100px]">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingTagId(tag.id);
+                                  setEditName(tag.name);
+                                  setEditColor(tag.color);
+                                  setOpenMenuTagId(null);
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                              >
+                                <Pencil className="w-3 h-3" />
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTag(tag.id)}
+                                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     );
                   })
                 )}
