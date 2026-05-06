@@ -35,8 +35,8 @@ const ALLOWED_EXTENSIONS = [
   '.pdf'
 ];
 
-// Maximum file size: 50MB
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
+// Maximum file size: 500MB (Supabase Pro supports up to 5GB per file)
+const MAX_FILE_SIZE = 500 * 1024 * 1024;
 
 /**
  * Validates file upload parameters
