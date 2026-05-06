@@ -86,6 +86,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
+    const action = searchParams.get('action');
 
     if (!token) {
       return NextResponse.json(
@@ -103,6 +104,43 @@ export async function GET(request: NextRequest) {
         { error: 'Invalid portal token' },
         { status: 401 }
       );
+    }
+
+    // Generate a signed upload URL so the client can upload directly to Supabase Storage,
+    // bypassing the Vercel function body size limit entirely.
+    if (action === 'signed-url') {
+      const fileName = searchParams.get('fileName') || '';
+      const fileType = searchParams.get('fileType') || '';
+      const fileSize = Number(searchParams.get('fileSize') || 0);
+
+      if (!fileName) {
+        return NextResponse.json({ error: 'fileName is required' }, { status: 400 });
+      }
+
+      const validation = validateFile(fileName, fileType, fileSize);
+      if (!validation.valid) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+
+      const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storagePath = `${Date.now()}-${safeName}`;
+
+      const { data, error: signedUrlError } = await supabase.storage
+        .from('portal-uploads')
+        .createSignedUploadUrl(storagePath);
+
+      if (signedUrlError || !data) {
+        logger.error('Failed to create signed upload URL:', signedUrlError);
+        return NextResponse.json({ error: 'Failed to create upload URL' }, { status: 500 });
+      }
+
+      const { data: { publicUrl } } = supabase.storage.from('portal-uploads').getPublicUrl(storagePath);
+
+      return NextResponse.json({
+        signedUrl: data.signedUrl,
+        path: data.path,
+        publicUrl,
+      });
     }
 
     // Get client uploads — try with new columns first, fall back to basic query if they don't exist yet

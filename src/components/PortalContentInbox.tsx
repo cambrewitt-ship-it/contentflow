@@ -138,26 +138,58 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
   const uploadFiles = async (targetDateValue: string | null): Promise<QueueItem[]> => {
     const notes = caption.trim() || null;
     const created: QueueItem[] = [];
+
     for (const uploadedFile of files) {
-      const formData = new FormData();
-      formData.append("token", token);
-      formData.append("file", uploadedFile.file);
-      formData.append("fileName", uploadedFile.file.name);
-      formData.append("fileType", uploadedFile.file.type);
-      formData.append("fileSize", String(uploadedFile.file.size));
-      if (notes) formData.append("notes", notes);
-      if (targetDateValue) formData.append("targetDate", targetDateValue);
-      const res = await fetch("/api/portal/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || `Failed to upload ${uploadedFile.file.name}`);
+      // Step 1: Get a signed upload URL — file goes straight to Supabase Storage,
+      // bypassing the Vercel function body size limit (which would cause a 413 for videos).
+      const urlRes = await fetch(
+        `/api/portal/upload?token=${encodeURIComponent(token)}&action=signed-url` +
+        `&fileName=${encodeURIComponent(uploadedFile.file.name)}` +
+        `&fileType=${encodeURIComponent(uploadedFile.file.type)}` +
+        `&fileSize=${uploadedFile.file.size}`
+      );
+      if (!urlRes.ok) {
+        const text = await urlRes.text();
+        let errMsg = `Could not prepare upload for ${uploadedFile.file.name}`;
+        try { errMsg = JSON.parse(text).error || errMsg; } catch { /* plain-text response */ }
+        throw new Error(errMsg);
       }
-      const data = await res.json();
+      const { signedUrl, publicUrl } = await urlRes.json();
+
+      // Step 2: Upload directly to Supabase Storage using the signed URL.
+      const uploadRes = await fetch(signedUrl, {
+        method: "PUT",
+        body: uploadedFile.file,
+        headers: { "Content-Type": uploadedFile.file.type },
+      });
+      if (!uploadRes.ok) {
+        throw new Error(`Failed to upload ${uploadedFile.file.name} (storage error)`);
+      }
+
+      // Step 3: Record metadata via the API (only JSON — no large body).
+      const metaRes = await fetch("/api/portal/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          fileName: uploadedFile.file.name,
+          fileType: uploadedFile.file.type,
+          fileSize: uploadedFile.file.size,
+          fileUrl: publicUrl,
+          notes,
+          targetDate: targetDateValue,
+        }),
+      });
+      if (!metaRes.ok) {
+        const text = await metaRes.text();
+        let errMsg = `Failed to save ${uploadedFile.file.name}`;
+        try { errMsg = JSON.parse(text).error || errMsg; } catch { /* plain-text response */ }
+        throw new Error(errMsg);
+      }
+      const data = await metaRes.json();
       if (data.upload) created.push(data.upload);
     }
+
     return created;
   };
 
