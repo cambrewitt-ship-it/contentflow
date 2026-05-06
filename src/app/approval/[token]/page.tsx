@@ -15,6 +15,12 @@ interface WeekData {
   posts: any[];
 }
 
+function isVideoUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase().split("?")[0];
+  return [".mp4", ".mov", ".webm", ".avi", ".m4v"].some(ext => lower.endsWith(ext));
+}
+
 // Lazy loading image component for approval page
 const LazyApprovalImage = ({
   src,
@@ -541,7 +547,7 @@ export default function PublicApprovalPage() {
                             </button>
                           </div>
 
-                          {/* Image or Social Preview */}
+                          {/* Image / Video or Social Preview */}
                           {socialPreviewEnabled.has(postKey) ? (
                             <div className="mb-3">
                               <PostSocialPreview
@@ -553,11 +559,20 @@ export default function PublicApprovalPage() {
                             </div>
                           ) : post.image_url ? (
                             <div className="relative w-full mb-3">
-                              <LazyApprovalImage
-                                src={post.image_url}
-                                alt="Post"
-                                className="w-full h-auto max-h-96 object-contain"
-                              />
+                              {isVideoUrl(post.image_url) ? (
+                                <video
+                                  src={post.image_url}
+                                  controls
+                                  playsInline
+                                  className="w-full max-h-96 rounded-lg bg-black"
+                                />
+                              ) : (
+                                <LazyApprovalImage
+                                  src={post.image_url}
+                                  alt="Post"
+                                  className="w-full h-auto max-h-96 object-contain"
+                                />
+                              )}
                             </div>
                           ) : null}
 

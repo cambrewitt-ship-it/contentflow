@@ -543,11 +543,19 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     ? (item.data as ModalPost).image_url
     : (item.data as ModalUpload).file_url;
 
-  const isImageFile = isPost
-    ? !!imageUrl
-    : (item.data as ModalUpload).file_type?.startsWith("image/");
+  const isVideoUrl = (url?: string | null) => {
+    if (!url) return false;
+    const lower = url.toLowerCase().split("?")[0];
+    return [".mp4", ".mov", ".webm", ".avi", ".m4v"].some(ext => lower.endsWith(ext));
+  };
 
-  const isVideoFile = isUpload && (item.data as ModalUpload).file_type?.startsWith("video/");
+  const isVideoFile =
+    (isUpload && (item.data as ModalUpload).file_type?.startsWith("video/")) ||
+    (isPost && isVideoUrl(imageUrl));
+
+  const isImageFile = isPost
+    ? (!!imageUrl && !isVideoFile)
+    : (item.data as ModalUpload).file_type?.startsWith("image/");
 
   const title = isPost ? "Post" : (item.data as ModalUpload).file_name;
 
@@ -687,13 +695,13 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                 </div>
               </>
             ) : isVideoFile ? (
-              <div className="flex-1 flex items-center justify-center p-6">
-                <div className="flex flex-col items-center gap-3 text-gray-400">
-                  <div className="w-20 h-20 rounded-2xl bg-gray-200 flex items-center justify-center">
-                    <Film className="w-10 h-10" />
-                  </div>
-                  <span className="text-sm font-medium">Video file</span>
-                </div>
+              <div className="flex-1 flex items-center justify-center p-4">
+                <video
+                  src={imageUrl ?? undefined}
+                  controls
+                  playsInline
+                  className="max-w-full max-h-[420px] rounded-xl shadow-sm bg-black"
+                />
               </div>
             ) : (
               <div className="flex-1 flex items-center justify-center p-6">

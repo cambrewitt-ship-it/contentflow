@@ -202,20 +202,12 @@ export function ClientUploadDetailModal({ upload, onClose, getAccessToken, autho
                 className="max-w-full max-h-[400px] object-contain rounded-lg shadow-sm"
               />
             ) : isVideo ? (
-              <div className="flex flex-col items-center gap-3 text-gray-400">
-                <div className="w-20 h-20 rounded-2xl bg-gray-200 flex items-center justify-center">
-                  <Film className="w-10 h-10" />
-                </div>
-                <span className="text-sm font-medium">{upload.file_name}</span>
-                <a
-                  href={upload.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-blue-600 hover:underline"
-                >
-                  Open video
-                </a>
-              </div>
+              <video
+                src={upload.file_url}
+                controls
+                playsInline
+                className="max-w-full max-h-[400px] rounded-lg shadow-sm bg-black"
+              />
             ) : (
               <div className="flex flex-col items-center gap-3 text-gray-400">
                 <div className="w-20 h-20 rounded-2xl bg-gray-200 flex items-center justify-center">
