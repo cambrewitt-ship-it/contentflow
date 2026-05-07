@@ -191,8 +191,54 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Fetch the latest one-time link approval for each upload
+    const uploadIds = (uploads || []).map((u: any) => u.id);
+    const approvalsByUploadId: Record<string, {
+      approval_status: string;
+      client_comments: string | null;
+      updated_at: string;
+      approved_at: string | null;
+    }> = {};
+
+    if (uploadIds.length > 0) {
+      const { data: approvals } = await supabase
+        .from('post_approvals')
+        .select('post_id, approval_status, client_comments, updated_at, approved_at, session_id')
+        .in('post_id', uploadIds)
+        .eq('post_type', 'portal_upload')
+        .order('updated_at', { ascending: false });
+
+      if (approvals && approvals.length > 0) {
+        const sessionIds = [...new Set(approvals.map((a: any) => a.session_id))];
+        const { data: validSessions } = await supabase
+          .from('client_approval_sessions')
+          .select('id')
+          .in('id', sessionIds)
+          .eq('client_id', resolved.clientId);
+
+        const validSessionIds = new Set((validSessions || []).map((s: any) => s.id));
+
+        for (const approval of approvals) {
+          if (!validSessionIds.has(approval.session_id)) continue;
+          if (!approvalsByUploadId[approval.post_id]) {
+            approvalsByUploadId[approval.post_id] = {
+              approval_status: approval.approval_status,
+              client_comments: approval.client_comments,
+              updated_at: approval.updated_at,
+              approved_at: approval.approved_at,
+            };
+          }
+        }
+      }
+    }
+
+    const uploadsWithApprovals = (uploads || []).map((u: any) => ({
+      ...u,
+      one_time_approval: approvalsByUploadId[u.id] ?? null,
+    }));
+
     return NextResponse.json({
-      uploads: uploads || []
+      uploads: uploadsWithApprovals,
     });
   } catch (error) {
     logger.error('Portal uploads error:', error);

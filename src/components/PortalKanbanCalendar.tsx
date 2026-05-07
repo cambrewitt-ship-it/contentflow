@@ -299,7 +299,7 @@ export function PortalKanbanCalendar({
                               </div>
                             )}
                             {post.approval_status === 'needs_attention' && (
-                              <div className="w-5 h-5 bg-orange-100 rounded-full flex items-center justify-center" title="Needs Attention">
+                              <div className="w-5 h-5 bg-orange-100 rounded-full flex items-center justify-center" title="Improve">
                                 <AlertTriangle className="w-3 h-3 text-orange-700" />
                               </div>
                             )}

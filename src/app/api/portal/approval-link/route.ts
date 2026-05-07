@@ -80,9 +80,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Insert upload approvals separately so a schema constraint failure doesn't block calendar posts
     if (validUploadIds.length > 0) {
-      await supabase.from('post_approvals').insert(
+      const { error: uploadInsertError } = await supabase.from('post_approvals').insert(
         validUploadIds.map(post_id => ({
           session_id: session.id,
           post_id,
@@ -90,6 +89,10 @@ export async function POST(request: NextRequest) {
           approval_status: 'pending',
         }))
       );
+      if (uploadInsertError) {
+        console.error('Portal approval link - upload approvals insert error:', uploadInsertError);
+        return NextResponse.json({ error: 'Failed to create upload approval records' }, { status: 500 });
+      }
     }
 
     const host = request.headers.get('host');

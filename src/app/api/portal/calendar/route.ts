@@ -101,9 +101,10 @@ export async function GET(request: NextRequest) {
     // Batch-fetch approval steps and tags in parallel
     let stepsByPostId: Record<string, any[]> = {};
     let tagsByPostId: Record<string, any[]> = {};
+    let approvalByPostId: Record<string, any> = {};
 
     if (postIds.length > 0) {
-      const [stepsResult, tagsResult] = await Promise.allSettled([
+      const [stepsResult, tagsResult, approvalsResult] = await Promise.allSettled([
         supabase
           .from('post_approval_steps')
           .select(`
@@ -128,6 +129,12 @@ export async function GET(request: NextRequest) {
           .from('post_tags')
           .select('post_id, tags(id, name, color)')
           .in('post_id', postIds),
+        supabase
+          .from('post_approvals')
+          .select('post_id, approval_status, client_comments, approved_at, updated_at')
+          .in('post_id', postIds)
+          .eq('post_type', 'planner_scheduled')
+          .order('updated_at', { ascending: false }),
       ]);
 
       if (stepsResult.status === 'fulfilled' && !stepsResult.value.error) {
@@ -148,6 +155,13 @@ export async function GET(request: NextRequest) {
       } else if (tagsResult.status === 'rejected') {
         logger.debug('post_tags table not available yet, skipping tags fetch');
       }
+
+      if (approvalsResult.status === 'fulfilled' && !approvalsResult.value.error) {
+        // Keep only the most recent approval per post (already ordered desc)
+        for (const row of approvalsResult.value.data ?? []) {
+          if (!approvalByPostId[row.post_id]) approvalByPostId[row.post_id] = row;
+        }
+      }
     }
 
     const postsByDate = posts.reduce((acc: Record<string, any[]>, post: any) => {
@@ -157,6 +171,7 @@ export async function GET(request: NextRequest) {
         ...post,
         approval_steps: stepsByPostId[post.id] ?? [],
         tags: tagsByPostId[post.id] ?? [],
+        one_time_approval: approvalByPostId[post.id] ?? null,
       });
       return acc;
     }, {} as Record<string, any[]>);

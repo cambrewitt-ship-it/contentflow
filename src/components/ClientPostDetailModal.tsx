@@ -95,7 +95,7 @@ function StatusBadge({ status }: { status?: string }) {
   if (status === "needs_attention" || status === "changes_requested") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-        <AlertTriangle className="w-3 h-3" /> Needs Changes
+        <AlertTriangle className="w-3 h-3" /> Improve
       </span>
     );
   }

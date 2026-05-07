@@ -45,7 +45,7 @@ export interface StripCalendarHandle {
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
   approved:        { label: 'Approved',       bg: 'bg-green-100',  text: 'text-green-700' },
   rejected:        { label: 'Rejected',        bg: 'bg-red-100',    text: 'text-red-700' },
-  needs_attention: { label: 'Needs Attention', bg: 'bg-orange-100', text: 'text-orange-700' },
+  needs_attention: { label: 'Improve', bg: 'bg-orange-100', text: 'text-orange-700' },
   pending:         { label: 'Pending',          bg: 'bg-gray-100',   text: 'text-gray-600' },
   draft:           { label: 'Draft',            bg: 'bg-gray-100',   text: 'text-gray-500' },
 };

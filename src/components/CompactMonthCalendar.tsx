@@ -283,7 +283,7 @@ export function CompactMonthCalendar({ posts, uploads = {}, loading = false }: C
         <div className="grid grid-cols-2 gap-3 text-xs">
           <div className="flex items-center space-x-2">
             <div className="w-4 h-4 bg-orange-100 border-2 border-orange-300 rounded-full"></div>
-            <span className="text-gray-600">Needs Attention</span>
+            <span className="text-gray-600">Improve</span>
           </div>
           <div className="flex items-center space-x-2">
             <div className="w-4 h-4 bg-green-100 border-2 border-green-300 rounded-full"></div>

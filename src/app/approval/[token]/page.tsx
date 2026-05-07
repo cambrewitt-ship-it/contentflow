@@ -257,7 +257,7 @@ export default function PublicApprovalPage() {
       // Show success message
       const count = Object.keys(selectedPosts).length;
       setSuccessMessage(
-        `Successfully submitted ${count} approval(s)! The main calendar page will show updated statuses.`
+        `Successfully submitted ${count} post(s) feedback. The content portal will display post status.`
       );
       setTimeout(() => setSuccessMessage(null), 8000);
 
@@ -319,6 +319,16 @@ export default function PublicApprovalPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto py-6 px-4">
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center">
+              <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+              <span className="text-green-800 font-medium">{successMessage}</span>
+            </div>
+          </div>
+        )}
+
         {/* Submit Section - Moved to top */}
         {weeks.length > 0 && (
           <div className="mb-8 p-6 bg-white border border-gray-200 rounded-lg">
@@ -547,14 +557,24 @@ export default function PublicApprovalPage() {
                             </button>
                           </div>
 
-                          {/* Image / Video or Social Preview */}
+                          {/* Image/Video or Social Preview */}
                           {socialPreviewEnabled.has(postKey) ? (
                             <div className="mb-3">
                               <PostSocialPreview
                                 imageUrl={post.image_url}
+                                fileUrl={post.file_url}
+                                fileType={post.file_type}
                                 caption={editedCaptions[postKey] || post.caption}
                                 businessName={session?.client_name || ''}
                                 logoUrl={session?.client_logo_url || null}
+                              />
+                            </div>
+                          ) : post.file_type?.startsWith('video/') && post.file_url ? (
+                            <div className="relative w-full mb-3">
+                              <video
+                                src={post.file_url}
+                                controls
+                                className="w-full max-h-96 rounded-lg object-contain bg-black"
                               />
                             </div>
                           ) : post.image_url ? (
@@ -645,15 +665,6 @@ export default function PublicApprovalPage() {
           </div>
         )}
 
-        {/* Success Message */}
-        {successMessage && (
-          <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center">
-              <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-              <span className="text-green-800 font-medium">{successMessage}</span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

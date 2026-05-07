@@ -22,14 +22,17 @@ const STORY_PLATFORMS = [
 
 interface PostSocialPreviewProps {
   imageUrl?: string | null;
+  fileUrl?: string | null;
+  fileType?: string | null;
   caption: string;
   businessName?: string;
   logoUrl?: string | null;
 }
 
-export function PostSocialPreview({ imageUrl, caption, businessName = '', logoUrl }: PostSocialPreviewProps) {
+export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, businessName = '', logoUrl }: PostSocialPreviewProps) {
+  const isVideo = fileType?.startsWith('video/') && !!fileUrl;
+  const mediaUrl = isVideo ? fileUrl! : (imageUrl || null);
   const [platform, setPlatform] = useState('facebook');
-  const [isAdvert, setIsAdvert] = useState(false);
 
   const isStory = platform === 'fb-stories' || platform === 'ig-stories';
 
@@ -107,7 +110,7 @@ export function PostSocialPreview({ imageUrl, caption, businessName = '', logoUr
           <div>
             <div style={{ fontWeight: 600, color: '#050505', fontSize: '15px' }}>{displayName}</div>
             <div className="flex items-center gap-1" style={{ fontSize: '13px', color: '#65676B' }}>
-              {isAdvert ? <><span>Sponsored</span><span>·</span><FbGlobe /></> : <><span>Just now</span><span>·</span><FbGlobe /></>}
+              <><span>Just now</span><span>·</span><FbGlobe /></>
             </div>
           </div>
         </div>
@@ -116,19 +119,15 @@ export function PostSocialPreview({ imageUrl, caption, businessName = '', logoUr
         </div>
       </div>
       {caption && <div className="px-4 pb-3"><p style={{ color: '#050505', fontSize: '15px' }} className="whitespace-pre-wrap break-words">{caption}</p></div>}
-      {imageUrl ? (
+      {mediaUrl ? (
         <div className="flex items-center justify-center bg-gray-50" style={{ maxHeight: '360px' }}>
-          <img src={imageUrl} alt="Post" className="w-full object-contain" style={{ maxHeight: '360px' }} />
+          {isVideo
+            ? <video src={mediaUrl} controls className="w-full object-contain bg-black" style={{ maxHeight: '360px' }} />
+            : <img src={mediaUrl} alt="Post" className="w-full object-contain" style={{ maxHeight: '360px' }} />}
         </div>
       ) : (
         <div className="h-44 bg-gray-100 flex items-center justify-center border-y-2 border-dashed border-gray-200">
           <div className="text-center text-gray-400"><ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-40" /><p className="text-xs">Image preview</p></div>
-        </div>
-      )}
-      {isAdvert && (
-        <div className="border-t border-gray-200 bg-[#f0f2f5] px-3 py-2.5 flex items-center justify-between gap-3">
-          <div><p style={{ fontSize: '11px', color: '#65676B' }} className="uppercase tracking-wide">yourwebsite.com</p></div>
-          <button style={{ color: '#050505', fontSize: '13px', fontWeight: 600 }} className="bg-[#e4e6eb] px-3 py-1.5 rounded-[6px]">Learn More</button>
         </div>
       )}
       <div className="px-4 py-2 border-t border-[#ced0d4]">
@@ -172,14 +171,15 @@ export function PostSocialPreview({ imageUrl, caption, businessName = '', logoUr
           {renderAvatar('sm', 'instagram')}
           <div className="ml-2.5">
             <div className="font-semibold text-gray-900 text-sm">{displayName}</div>
-            {isAdvert && <div className="text-xs text-gray-400">Sponsored</div>}
           </div>
         </div>
         <div className="text-gray-400 text-lg">⋯</div>
       </div>
-      {imageUrl ? (
+      {mediaUrl ? (
         <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
-          <img src={imageUrl} alt="Post" className="w-full h-full object-cover" />
+          {isVideo
+            ? <video src={mediaUrl} controls className="w-full h-full object-contain bg-black" />
+            : <img src={mediaUrl} alt="Post" className="w-full h-full object-cover" />}
         </div>
       ) : (
         <div className="aspect-square bg-gray-100 flex items-center justify-center border-y border-gray-200">
@@ -210,12 +210,13 @@ export function PostSocialPreview({ imageUrl, caption, businessName = '', logoUr
           <div className="flex items-center gap-1 flex-wrap">
             <span className="font-bold text-gray-900 text-sm">{displayName}</span>
             <span className="text-xs text-gray-500">{handle}</span>
-            {isAdvert && <span className="ml-auto text-xs text-gray-400">Promoted</span>}
           </div>
           {caption && <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap break-words mt-1">{caption}</p>}
-          {imageUrl ? (
+          {mediaUrl ? (
             <div className="mt-2 rounded-2xl overflow-hidden border border-gray-200">
-              <img src={imageUrl} alt="Post" className="w-full max-h-52 object-cover" />
+              {isVideo
+                ? <video src={mediaUrl} controls className="w-full max-h-52 object-contain bg-black" />
+                : <img src={mediaUrl} alt="Post" className="w-full max-h-52 object-cover" />}
             </div>
           ) : (
             <div className="mt-2 rounded-2xl bg-gray-100 flex items-center justify-center border border-dashed border-gray-200" style={{ minHeight: '140px' }}>
@@ -246,8 +247,10 @@ export function PostSocialPreview({ imageUrl, caption, businessName = '', logoUr
   // ── TikTok ────────────────────────────────────────────────────────────────────
   const renderTikTok = () => (
     <div className="relative max-w-[240px] mx-auto rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '9/16', maxHeight: '420px' }}>
-      {imageUrl ? (
-        <img src={imageUrl} alt="Post" className="absolute inset-0 w-full h-full object-cover" />
+      {mediaUrl ? (
+        isVideo
+          ? <video src={mediaUrl} controls className="absolute inset-0 w-full h-full object-contain" />
+          : <img src={mediaUrl} alt="Post" className="absolute inset-0 w-full h-full object-cover" />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-b from-gray-800 to-gray-900 flex items-center justify-center">
           <div className="text-center text-gray-500"><ImageIcon className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-xs opacity-50">Image preview</p></div>
@@ -259,7 +262,6 @@ export function PostSocialPreview({ imageUrl, caption, businessName = '', logoUr
         <span className="text-white/40 text-xs mx-2">|</span>
         <span className="text-white text-xs font-bold">For You</span>
       </div>
-      {isAdvert && <div className="absolute top-9 left-3"><span className="bg-white/20 backdrop-blur-sm text-white text-[10px] font-medium px-2 py-0.5 rounded-full border border-white/30">Sponsored</span></div>}
       <div className="absolute right-2.5 bottom-24 flex flex-col items-center gap-5">
         {renderAvatar('sm', 'tiktok')}
         {[
@@ -291,8 +293,10 @@ export function PostSocialPreview({ imageUrl, caption, businessName = '', logoUr
   // ── FB Stories ────────────────────────────────────────────────────────────────
   const renderFBStories = () => (
     <div className="relative max-w-[240px] mx-auto rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '9/16', maxHeight: '420px' }}>
-      {imageUrl ? (
-        <img src={imageUrl} alt="Story" className="absolute inset-0 w-full h-full object-cover" />
+      {mediaUrl ? (
+        isVideo
+          ? <video src={mediaUrl} controls className="absolute inset-0 w-full h-full object-contain" />
+          : <img src={mediaUrl} alt="Story" className="absolute inset-0 w-full h-full object-cover" />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-blue-900 to-blue-600 flex items-center justify-center">
           <div className="text-center text-white/40"><ImageIcon className="w-10 h-10 mx-auto mb-2 opacity-40" /><p className="text-xs">Image preview</p></div>
@@ -311,7 +315,7 @@ export function PostSocialPreview({ imageUrl, caption, businessName = '', logoUr
           {renderAvatar('sm', 'fb-stories')}
           <div>
             <p className="text-white text-xs font-semibold">{displayName}</p>
-            {isAdvert ? <p className="text-white/70 text-[10px]">Sponsored</p> : <p className="text-white/70 text-[10px]">Just now</p>}
+            <p className="text-white/70 text-[10px]">Just now</p>
           </div>
         </div>
         <svg className="w-4 h-4 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -333,8 +337,10 @@ export function PostSocialPreview({ imageUrl, caption, businessName = '', logoUr
   // ── IG Stories ────────────────────────────────────────────────────────────────
   const renderIGStories = () => (
     <div className="relative max-w-[240px] mx-auto rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '9/16', maxHeight: '420px' }}>
-      {imageUrl ? (
-        <img src={imageUrl} alt="Story" className="absolute inset-0 w-full h-full object-cover" />
+      {mediaUrl ? (
+        isVideo
+          ? <video src={mediaUrl} controls className="absolute inset-0 w-full h-full object-contain" />
+          : <img src={mediaUrl} alt="Story" className="absolute inset-0 w-full h-full object-cover" />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-purple-900 via-pink-700 to-orange-500 flex items-center justify-center">
           <div className="text-center text-white/40"><ImageIcon className="w-10 h-10 mx-auto mb-2 opacity-40" /><p className="text-xs">Image preview</p></div>
@@ -353,7 +359,7 @@ export function PostSocialPreview({ imageUrl, caption, businessName = '', logoUr
           {renderAvatar('sm', 'ig-stories')}
           <div>
             <p className="text-white text-xs font-semibold">{displayName}</p>
-            {isAdvert ? <p className="text-white/70 text-[10px]">Sponsored</p> : <p className="text-white/70 text-[10px]">Just now</p>}
+            <p className="text-white/70 text-[10px]">Just now</p>
           </div>
         </div>
         <svg className="w-4 h-4 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -422,28 +428,6 @@ export function PostSocialPreview({ imageUrl, caption, businessName = '', logoUr
               {p.label}
             </button>
           ))}
-        </div>
-        {/* Organic / Paid toggle */}
-        <div className="flex gap-1.5 items-center">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Type:</span>
-          <button
-            type="button"
-            onClick={() => setIsAdvert(false)}
-            className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
-              !isAdvert ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-            }`}
-          >
-            Organic
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsAdvert(true)}
-            className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
-              isAdvert ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
-            }`}
-          >
-            Paid / Ad
-          </button>
         </div>
       </div>
 

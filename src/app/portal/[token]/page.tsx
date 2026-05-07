@@ -86,6 +86,13 @@ interface Post {
   status?: 'draft' | 'ready' | 'scheduled' | 'published' | 'archived' | 'deleted';
 }
 
+interface OneTimeApproval {
+  approval_status: string;
+  client_comments: string | null;
+  updated_at: string;
+  approved_at: string | null;
+}
+
 interface Upload {
   id: string;
   client_id: string;
@@ -100,6 +107,7 @@ interface Upload {
   target_date?: string | null;
   created_at: string;
   updated_at: string;
+  one_time_approval?: OneTimeApproval | null;
 }
 
 const COLOR_OPTIONS = [
@@ -2022,6 +2030,7 @@ export default function PortalCalendarPage() {
                       created_at: uploadData.created_at || new Date().toISOString(),
                       target_date: uploadData.target_date ?? null,
                       status: uploadData.status ?? (post as any).status,
+                      one_time_approval: uploadData.one_time_approval ?? null,
                     },
                   });
                 } else {
@@ -2037,6 +2046,7 @@ export default function PortalCalendarPage() {
                       approval_steps: post.approval_steps,
                       platforms_scheduled: post.platforms_scheduled,
                       tags: post.tags ?? [],
+                      one_time_approval: (post as any).one_time_approval ?? null,
                     },
                   });
                 }
@@ -2129,6 +2139,7 @@ export default function PortalCalendarPage() {
                     created_at: uploadData.created_at || new Date().toISOString(),
                     target_date: uploadData.target_date ?? null,
                     status: uploadData.status,
+                    one_time_approval: uploadData.one_time_approval ?? null,
                   },
                 });
               } else {
@@ -2144,6 +2155,7 @@ export default function PortalCalendarPage() {
                     approval_steps: post.approval_steps,
                     platforms_scheduled: post.platforms_scheduled ?? undefined,
                     tags: post.tags,
+                    one_time_approval: (post as any).one_time_approval ?? null,
                   },
                 });
               }

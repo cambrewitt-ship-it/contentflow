@@ -228,7 +228,7 @@ function SortableCard({
             'bg-blue-200 text-blue-800'
           }`}>
             {(selectedStatus || post.approval_status) === 'approved' ? '✓ Approved' :
-             (selectedStatus || post.approval_status) === 'needs_attention' ? '⚠ Needs Attention' :
+             (selectedStatus || post.approval_status) === 'needs_attention' ? '⚠ Improve' :
              (selectedStatus || post.approval_status) === 'rejected' ? '✗ Rejected' :
              'Selected'}
           </span>

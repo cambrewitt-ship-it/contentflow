@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS post_approvals (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   session_id UUID NOT NULL REFERENCES client_approval_sessions(id) ON DELETE CASCADE,
   post_id UUID NOT NULL,
-  post_type VARCHAR(50) NOT NULL CHECK (post_type IN ('scheduled', 'planner_scheduled')),
+  post_type VARCHAR(50) NOT NULL CHECK (post_type IN ('scheduled', 'planner_scheduled', 'portal_upload')),
   approval_status VARCHAR(50) DEFAULT 'pending' CHECK (approval_status IN ('pending', 'approved', 'rejected')),
   client_comments TEXT,
   approved_at TIMESTAMP WITH TIME ZONE,

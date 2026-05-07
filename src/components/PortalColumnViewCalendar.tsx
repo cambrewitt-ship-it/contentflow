@@ -431,12 +431,18 @@ function SortablePostCard({
       : '';
 
     const approvalTag = (() => {
+      // One-time link approval takes priority over the raw upload status field
+      const otaStatus = (uploadData as any).one_time_approval?.approval_status as string | undefined;
+      if (otaStatus === 'approved') return { label: 'Approved', className: 'bg-green-100 text-green-700', card: 'border-green-200 bg-green-50' };
+      if (otaStatus === 'rejected') return { label: 'Rejected', className: 'bg-red-100 text-red-700', card: 'border-red-200 bg-red-50' };
+      if (otaStatus === 'needs_attention') return { label: 'Improve', className: 'bg-orange-100 text-orange-700', card: 'border-orange-200 bg-orange-50' };
+
       const s = uploadData.status as string | undefined;
       if (s === 'completed' || s === 'in_use' || s === 'published')
-        return { label: 'Approved', className: 'bg-green-100 text-green-700' };
+        return { label: 'Approved', className: 'bg-green-100 text-green-700', card: 'border-green-200 bg-green-50' };
       if (s === 'failed')
-        return { label: 'Rejected', className: 'bg-red-100 text-red-700' };
-      return { label: 'Pending', className: 'bg-gray-100 text-gray-600' };
+        return { label: 'Rejected', className: 'bg-red-100 text-red-700', card: 'border-red-200 bg-red-50' };
+      return { label: 'Pending', className: 'bg-gray-100 text-gray-600', card: 'border-gray-200 bg-white' };
     })();
 
     return (
@@ -446,7 +452,7 @@ function SortablePostCard({
         {...attributes}
         {...listeners}
         onClick={() => onPostClick?.(post)}
-        className={`relative rounded-lg border-2 border-gray-200 bg-white p-3 mb-2 transition-all duration-200 cursor-grab hover:shadow-md ${
+        className={`relative rounded-lg border-2 ${approvalTag.card} p-3 mb-2 transition-all duration-200 cursor-grab hover:shadow-md ${
           isDragging ? 'opacity-50 cursor-grabbing' : ''
         } ${isDeletingUpload ? 'opacity-60 pointer-events-none' : ''}`}
       >

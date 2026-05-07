@@ -52,10 +52,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get session by share token
+    // Get session by share token (include client name for comment author)
     const { data: session, error: sessionError } = await supabase
       .from('client_approval_sessions')
-      .select('id, client_id, project_id, expires_at')
+      .select('id, client_id, project_id, expires_at, clients(name)')
       .eq('share_token', share_token)
       .single();
 
@@ -75,102 +75,85 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify post belongs to the session's project
-    const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
-    const { data: postRecord, error: postError } = await supabase
-      .from(tableName)
-      .select('id, project_id, client_id')
-      .eq('id', post_id)
-      .single();
+    // Verify post belongs to the session and look up in the right table
+    if (post_type === 'portal_upload') {
+      const { data: uploadRecord, error: uploadError } = await supabase
+        .from('client_uploads')
+        .select('id, client_id')
+        .eq('id', post_id)
+        .single();
 
-    if (postError || !postRecord) {
-      logger.error('❌ Post not found:', postError);
-      return NextResponse.json(
-        { error: 'Post not found' },
-        { status: 404 }
-      );
-    }
+      if (uploadError || !uploadRecord) {
+        logger.error('❌ Upload not found:', uploadError);
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
 
-    // Verify post belongs to session's client
-    if (postRecord.client_id !== session.client_id) {
-      logger.warn('Post client mismatch', {
-        postClientId: postRecord.client_id,
-        sessionClientId: session.client_id
-      });
-      return NextResponse.json(
-        { error: 'Post does not belong to this approval session' },
-        { status: 403 }
-      );
-    }
+      if (uploadRecord.client_id !== session.client_id) {
+        return NextResponse.json({ error: 'Post does not belong to this approval session' }, { status: 403 });
+      }
 
-    // Verify post belongs to session's project (if project_id is set)
-    // If session.project_id is null, accept posts with null project_id
-    if (session.project_id !== null && postRecord.project_id !== session.project_id) {
-      logger.warn('Post project mismatch', {
-        postProjectId: postRecord.project_id,
-        sessionProjectId: session.project_id
-      });
-      return NextResponse.json(
-        { error: 'Post does not belong to this approval session' },
-        { status: 403 }
-      );
-    }
-    
-    if (session.project_id === null && postRecord.project_id !== null) {
-      logger.warn('Post project mismatch - session has no project but post does', {
-        postProjectId: postRecord.project_id,
-        sessionProjectId: session.project_id
-      });
-      return NextResponse.json(
-        { error: 'Post does not belong to this approval session' },
-        { status: 403 }
-      );
-    }
-
-    // Update post caption if client edited it
-    if (edited_caption && edited_caption.trim() !== '') {
-      const { error: captionUpdateError } = await supabase
+      // Update notes if client edited caption
+      if (edited_caption && edited_caption.trim() !== '') {
+        await supabase
+          .from('client_uploads')
+          .update({ notes: edited_caption, updated_at: new Date().toISOString() })
+          .eq('id', post_id);
+      }
+    } else {
+      const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
+      const { data: postRecord, error: postError } = await supabase
         .from(tableName)
-        .update({ 
-          caption: edited_caption,
-          updated_at: new Date().toISOString(),
-        })
+        .select('id, project_id, client_id')
+        .eq('id', post_id)
+        .single();
+
+      if (postError || !postRecord) {
+        logger.error('❌ Post not found:', postError);
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      }
+
+      if (postRecord.client_id !== session.client_id) {
+        return NextResponse.json({ error: 'Post does not belong to this approval session' }, { status: 403 });
+      }
+
+      if (session.project_id !== null && postRecord.project_id !== session.project_id) {
+        return NextResponse.json({ error: 'Post does not belong to this approval session' }, { status: 403 });
+      }
+
+      if (session.project_id === null && postRecord.project_id !== null) {
+        return NextResponse.json({ error: 'Post does not belong to this approval session' }, { status: 403 });
+      }
+
+      // Update post caption if client edited it
+      if (edited_caption && edited_caption.trim() !== '') {
+        const { error: captionUpdateError } = await supabase
+          .from(tableName)
+          .update({ caption: edited_caption, updated_at: new Date().toISOString() })
+          .eq('id', post_id);
+
+        if (captionUpdateError) {
+          logger.error('❌ Error updating caption:', captionUpdateError);
+          return NextResponse.json({ error: 'Failed to update caption' }, { status: 500 });
+        }
+      }
+
+      // Update the post status in the calendar table
+      const statusUpdate: any = {
+        approval_status,
+        updated_at: new Date().toISOString(),
+        needs_attention: approval_status === 'needs_attention',
+        client_feedback: client_comments || null,
+      };
+
+      const { error: statusUpdateError } = await supabase
+        .from(tableName)
+        .update(statusUpdate)
         .eq('id', post_id);
 
-      if (captionUpdateError) {
-        logger.error('❌ Error updating caption:', captionUpdateError);
-        return NextResponse.json(
-          { error: 'Failed to update caption' },
-          { status: 500 }
-        );
+      if (statusUpdateError) {
+        logger.error('❌ Error updating post status:', statusUpdateError);
+        return NextResponse.json({ error: 'Failed to update post status' }, { status: 500 });
       }
-    }
-
-    // Update the post status in the calendar table
-    const statusUpdate: any = {
-      approval_status,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (approval_status === 'needs_attention') {
-      statusUpdate.needs_attention = true;
-      statusUpdate.client_feedback = client_comments;
-    } else {
-      statusUpdate.needs_attention = false;
-      statusUpdate.client_feedback = client_comments || null;
-    }
-
-    const { error: statusUpdateError } = await supabase
-      .from(tableName)
-      .update(statusUpdate)
-      .eq('id', post_id);
-
-    if (statusUpdateError) {
-      logger.error('❌ Error updating post status:', statusUpdateError);
-      return NextResponse.json(
-        { error: 'Failed to update post status' },
-        { status: 500 }
-      );
     }
 
     // Update or create post approval record
@@ -238,6 +221,29 @@ export async function POST(request: NextRequest) {
       }
 
       approval = data;
+    }
+
+    // Write client_comments into the post_comments thread so they appear in the portal modal
+    if (client_comments && client_comments.trim()) {
+      const commentPostType =
+        post_type === 'portal_upload' ? 'portal_upload' :
+        post_type === 'planner_scheduled' ? 'scheduled' :
+        'calendar_scheduled';
+
+      const clientName =
+        (session as any).clients?.name ?? 'Client';
+
+      await supabase
+        .from('post_comments')
+        .insert({
+          post_id,
+          post_type: commentPostType,
+          party_id: null,
+          user_id: null,
+          author_name: clientName,
+          author_type: 'portal_party',
+          content: client_comments.trim(),
+        });
     }
 
     return NextResponse.json({

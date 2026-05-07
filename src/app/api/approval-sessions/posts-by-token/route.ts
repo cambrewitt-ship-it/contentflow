@@ -178,6 +178,8 @@ export async function GET(request: NextRequest) {
         id: upload.id,
         caption: upload.notes || 'Portal Upload',
         image_url: upload.file_type?.startsWith('image/') ? upload.file_url : '',
+        file_url: upload.file_url,
+        file_type: upload.file_type,
         scheduled_time: '',
         scheduled_date: upload.target_date || upload.created_at?.split('T')[0] || '',
         post_type: 'portal_upload' as const,

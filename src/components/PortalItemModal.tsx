@@ -34,6 +34,12 @@ export interface ModalPost {
   approval_steps?: ApprovalStep[];
   platforms_scheduled?: string[];
   tags?: Array<{ id: string; name: string; color: string }>;
+  one_time_approval?: {
+    approval_status: string;
+    client_comments: string | null;
+    updated_at: string;
+    approved_at: string | null;
+  } | null;
 }
 
 type PreviewPlatform = "facebook" | "instagram" | "twitter" | "linkedin" | "tiktok" | "youtube" | "threads";
@@ -65,6 +71,12 @@ export interface ModalUpload {
   target_date?: string | null;
   status?: string;
   tags?: Array<{ id: string; name: string; color: string }>;
+  one_time_approval?: {
+    approval_status: string;
+    client_comments: string | null;
+    updated_at: string;
+    approved_at: string | null;
+  } | null;
 }
 
 export type ModalItem =
@@ -129,7 +141,7 @@ function StatusBadge({ status }: { status?: string }) {
   if (status === "needs_attention" || status === "changes_requested") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-        <AlertTriangle className="w-3 h-3" /> Needs Changes
+        <AlertTriangle className="w-3 h-3" /> Improve
       </span>
     );
   }
@@ -576,7 +588,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
 
   const approvalStatus = isPost
     ? (item.data as ModalPost).approval_status
-    : mapUploadStatus((item.data as ModalUpload).status);
+    : ((item.data as ModalUpload).one_time_approval?.approval_status ?? mapUploadStatus((item.data as ModalUpload).status));
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -854,7 +866,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                 </div>
               )}
 
-              {/* ── STATUS (posts: pipeline steps; uploads: simple badge) ── */}
+              {/* ── STATUS ── */}
               <div className="border-t border-gray-100 pt-4">
                 <div className="flex items-center gap-2 mb-3">
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
@@ -887,6 +899,53 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                   ) : null
                 )}
               </div>
+
+              {/* ── ONE-TIME LINK APPROVAL ── */}
+              {(() => {
+                const ota = isUpload
+                  ? (item.data as ModalUpload).one_time_approval
+                  : (item.data as ModalPost).one_time_approval;
+                if (!ota) return null;
+                const statusColor =
+                  ota.approval_status === 'approved' ? 'bg-green-50 border-green-200 text-green-800' :
+                  ota.approval_status === 'rejected' ? 'bg-red-50 border-red-200 text-red-800' :
+                  ota.approval_status === 'needs_attention' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :
+                  'bg-gray-50 border-gray-200 text-gray-700';
+                const statusIcon =
+                  ota.approval_status === 'approved' ? <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" /> :
+                  ota.approval_status === 'rejected' ? <XCircle className="w-3.5 h-3.5 flex-shrink-0" /> :
+                  ota.approval_status === 'needs_attention' ? <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> :
+                  null;
+                const timestamp = ota.approved_at || ota.updated_at;
+                return (
+                  <div className="border-t border-gray-100 pt-4">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                      Approval Feedback
+                    </p>
+                    <div className={`rounded-lg border px-3 py-2.5 ${statusColor}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        {statusIcon}
+                        <span className="text-xs font-semibold capitalize">
+                          {ota.approval_status === 'needs_attention' ? 'Improve' : ota.approval_status}
+                        </span>
+                        {timestamp && (
+                          <span className="text-[10px] opacity-60 ml-auto">
+                            {new Date(timestamp).toLocaleString(undefined, {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        )}
+                      </div>
+                      {ota.client_comments && (
+                        <p className="text-xs whitespace-pre-wrap mt-1 opacity-90">{ota.client_comments}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* ── COMMENTS ── */}
               <div className="border-t border-gray-100 pt-4 space-y-4">

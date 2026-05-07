@@ -504,7 +504,7 @@ function SortablePostCard({
     const statusConfig = {
       'approved': { bg: 'bg-green-100', text: 'text-green-700', label: 'Approved' },
       'rejected': { bg: 'bg-red-100', text: 'text-red-700', label: 'Rejected' },
-      'needs_attention': { bg: 'bg-orange-100', text: 'text-orange-700', label: 'Needs Attention' },
+      'needs_attention': { bg: 'bg-orange-100', text: 'text-orange-700', label: 'Improve' },
       'pending': { bg: 'bg-gray-200', text: 'text-gray-700', label: 'Pending' },
       'draft': { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Draft' },
     };
