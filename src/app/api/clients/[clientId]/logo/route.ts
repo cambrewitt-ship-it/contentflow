@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
+import { createSupabaseAdmin } from '@/lib/supabaseServer';
 
 export async function POST(
   request: NextRequest,
@@ -36,35 +36,30 @@ export async function POST(
       );
     }
 
-    // Check if BLOB_READ_WRITE_TOKEN is available
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      logger.warn('⚠️ BLOB_READ_WRITE_TOKEN not configured');
-      return NextResponse.json(
-        { error: 'Logo upload not configured' },
-        { status: 500 }
-      );
+    // Convert base64 to buffer
+    const mimeType = imageData.match(/data:([^;]+)/)?.[1] || 'image/jpeg';
+    const base64Data = imageData.replace(/^data:[^;]+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    // Upload to Supabase Storage
+    const admin = createSupabaseAdmin();
+    const storagePath = `client-logos/${clientId}-${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const { error: storageError } = await admin.storage
+      .from('logos')
+      .upload(storagePath, buffer, { contentType: mimeType, upsert: false });
+
+    if (storageError) {
+      logger.error('❌ Storage upload failed:', storageError);
+      return NextResponse.json({ error: 'Failed to upload logo' }, { status: 500 });
     }
 
-    // Convert base64 to blob
-    const mimeType = imageData.match(/data:([^;]+)/)?.[1] || 'image/jpeg';
-    const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
-    const byteCharacters = Buffer.from(base64Data, 'base64');
-    const blob = new Blob([byteCharacters], { type: mimeType });
-
-    // Create a unique filename with client ID
-    const timestamp = Date.now();
-    const uniqueFilename = `client-logos/${clientId}-${timestamp}-${filename}`;
-
-    // Upload to Vercel Blob
-    const result = await put(uniqueFilename, blob, {
-      access: 'public'
-    });
+    const { data: { publicUrl } } = admin.storage.from('logos').getPublicUrl(storagePath);
 
     // Update the client record with the logo URL
     const { data: updatedClient, error: updateError } = await supabase
       .from('clients')
       .update({
-        logo_url: result.url,
+        logo_url: publicUrl,
         updated_at: new Date().toISOString()
       })
       .eq('id', clientId)
@@ -81,7 +76,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      logoUrl: result.url,
+      logoUrl: publicUrl,
       client: updatedClient
     });
   } catch (error) {

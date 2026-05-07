@@ -1,4 +1,3 @@
-import { upload } from '@vercel/blob/client';
 import logger from '@/lib/logger';
 
 // Size threshold for using client-side upload
@@ -188,84 +187,56 @@ async function compressImageFile(file: File | Blob): Promise<Blob> {
   });
 }
 
-// Upload media (images or videos) to blob storage
+// Upload media (images or videos) to Supabase Storage via signed URL
 export async function uploadMediaToBlob(
   mediaFile: File | Blob,
   filename: string,
   accessToken?: string
 ): Promise<{ url: string; mediaType: 'image' | 'video'; mimeType: string }> {
+  const isVideo = mediaFile.type.startsWith('video/');
+  const mediaType = isVideo ? 'video' : 'image';
+  const fileToUpload = isVideo ? mediaFile : await compressImageFile(mediaFile);
+
   try {
-    const isVideo = mediaFile.type.startsWith('video/');
-    const mediaType = isVideo ? 'video' : 'image';
-
-    const fileToUpload = isVideo ? mediaFile : await compressImageFile(mediaFile);
-    const fileSize = fileToUpload.size;
-
-    try {
-      const blob = await retryWithBackoff(async () => {
-        return await upload(filename, fileToUpload, {
-          access: 'public',
-          handleUploadUrl: '/api/upload-presigned-url',
-          clientPayload: JSON.stringify({
-            size: fileSize,
-            type: fileToUpload.type,
-          }),
-        });
-      }, 'Vercel Blob direct upload');
-
-      logger.info('✅ Client-side upload successful', {
-        url: blob.url,
-        size: `${(fileSize / (1024 * 1024)).toFixed(2)}MB`
-      });
-
-      return {
-        url: blob.url,
-        mediaType,
-        mimeType: mediaFile.type
-      };
-    } catch (uploadError) {
-      // Enhanced error logging for debugging (sanitized to avoid exposing tokens)
-      const errorMessage = uploadError instanceof Error ? uploadError.message : String(uploadError);
-      const sanitizedMessage = errorMessage.replace(/vercel_blob_rw_[A-Za-z0-9_-]+/g, 'vercel_blob_rw_***REDACTED***');
-
-      console.error('🔍 Client-side upload error details:', {
-        errorType: typeof uploadError,
-        errorConstructor: uploadError?.constructor?.name,
-        errorMessage: sanitizedMessage,
-        // Only include stack trace in development
-        errorStack: process.env.NODE_ENV === 'development' && uploadError instanceof Error ? uploadError.stack : undefined,
-        fileSize: `${(fileSize / (1024 * 1024)).toFixed(2)}MB`,
-        fileName: filename,
-        mediaType,
-        fileType: mediaFile.type
-      });
-
-      logger.error('❌ Client-side upload failed:', {
-        error: uploadError,
-        message: uploadError instanceof Error ? uploadError.message : String(uploadError),
-        fileSize: `${(fileSize / (1024 * 1024)).toFixed(2)}MB`,
-        mediaType
-      });
-      throw new Error(`Failed to upload ${mediaType} via client-side upload: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
-    }
-  } catch (error) {
-    // Log detailed error information
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStatus = (error as any)?.status || (error as any)?.response?.status;
-    const errorData = (error as any)?.response?.data || (error as any)?.data;
-    
-    logger.error('❌ Error uploading to blob:', {
-      message: errorMessage,
-      status: errorStatus,
-      data: errorData,
-      error: error instanceof Error ? {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      } : error
+    // Step 1: Get a Supabase signed upload URL from our server
+    const params = new URLSearchParams({
+      fileName: filename,
+      fileType: fileToUpload.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+      fileSize: String(fileToUpload.size),
     });
-    
-    throw new Error(`Upload failed: ${errorMessage}`);
+
+    const urlRes = await retryWithBackoff(async () => {
+      const res = await fetch(`/api/upload-presigned-url?${params}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to get upload URL (${res.status})`);
+      }
+      return res.json();
+    }, 'get signed upload URL');
+
+    const { signedUrl, publicUrl } = urlRes;
+
+    // Step 2: PUT the file directly to Supabase Storage (bypasses Vercel function limits)
+    await retryWithBackoff(async () => {
+      const res = await fetch(signedUrl, {
+        method: 'PUT',
+        body: fileToUpload,
+        headers: { 'Content-Type': fileToUpload.type },
+      });
+      if (!res.ok) throw new Error(`Storage upload failed (${res.status})`);
+    }, 'Supabase direct upload');
+
+    logger.info('✅ Upload successful', {
+      url: publicUrl,
+      size: `${(fileToUpload.size / (1024 * 1024)).toFixed(2)}MB`,
+      mediaType,
+    });
+
+    return { url: publicUrl, mediaType, mimeType: mediaFile.type };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error('❌ Upload failed:', { message: msg, mediaType, fileName: filename });
+    throw new Error(`Upload failed: ${msg}`);
   }
 }
 
