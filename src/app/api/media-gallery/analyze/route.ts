@@ -6,7 +6,6 @@ import { requireAuth } from '@/lib/authHelpers';
 import { withAICreditCheck, trackAICreditUsage } from '@/lib/subscriptionMiddleware';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 
-export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 

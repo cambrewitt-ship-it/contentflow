@@ -1,0 +1,15 @@
+name: Check Trial Expiry
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight UTC
+  workflow_dispatch:       # Allow manual trigger
+
+jobs:
+  check-trial-expiry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger trial expiry check
+        run: |
+          curl -f -X GET "${{ secrets.APP_URL }}/api/cron/check-trial-expiry" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

@@ -224,9 +224,14 @@ export default function MediaGalleryPage({
     setAnalyzing(true);
     try {
       const token = getAccessToken();
-      const res = await fetch('/api/media-gallery/analyze', {
+      const edgeFnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/analyze-media`;
+      const res = await fetch(edgeFnUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        },
         body: JSON.stringify({ mediaId: item.id }),
       });
       const data = await res.json();

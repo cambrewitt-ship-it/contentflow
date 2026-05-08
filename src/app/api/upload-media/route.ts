@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
 import { base64ToBlob } from '../../../lib/blobUpload';
 import logger from '@/lib/logger';
+import { createSupabaseAdmin } from '@/lib/supabaseServer';
 
-// Configure route to accept larger payloads for video uploads
 export const runtime = 'nodejs';
-export const maxDuration = 60; // Allow up to 60 seconds for video processing
 
 // Supported media types
 const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
@@ -51,15 +49,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if BLOB_READ_WRITE_TOKEN is available
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      logger.warn('BLOB_READ_WRITE_TOKEN not configured');
-      return NextResponse.json(
-        { error: 'Blob storage not configured' },
-        { status: 500 }
-      );
-    }
-
     // Detect MIME type from base64 data
     const mimeType = mediaData.match(/data:([^;]+)/)?.[1] || 'image/jpeg';
 
@@ -92,16 +81,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upload to Vercel Blob
-    const result = await put(filename, blob, {
-      access: 'public',
-      contentType: mimeType,
-    });
+    // Upload to Supabase Storage
+    const admin = createSupabaseAdmin();
+    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `uploads/${Date.now()}-${safeName}`;
+    const buffer = Buffer.from(await blob.arrayBuffer());
+
+    const { error: storageError } = await admin.storage
+      .from('media')
+      .upload(storagePath, buffer, { contentType: mimeType, upsert: false });
+
+    if (storageError) {
+      logger.error('Storage upload failed:', storageError);
+      return NextResponse.json({ error: 'Failed to upload media' }, { status: 500 });
+    }
+
+    const { data: { publicUrl } } = admin.storage.from('media').getPublicUrl(storagePath);
 
     return NextResponse.json({
       success: true,
-      url: result.url,
-      filename: result.pathname,
+      url: publicUrl,
+      filename: storagePath,
       mediaType: isVideo ? 'video' : 'image',
       mimeType: mimeType,
       size: blob.size,

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
 import { base64ToBlob } from '../../../lib/blobUpload';
 import logger from '@/lib/logger';
-import { createSupabaseWithToken } from '@/lib/supabaseServer';
+import { createSupabaseWithToken, createSupabaseAdmin } from '@/lib/supabaseServer';
 
 // Allowed image MIME types
 const ALLOWED_MIME_TYPES = [
@@ -108,35 +107,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. CHECK BLOB STORAGE CONFIGURATION
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      logger.warn('⚠️ BLOB_READ_WRITE_TOKEN not configured, returning error');
-      return NextResponse.json(
-        { error: 'Blob storage not configured' },
-        { status: 500 }
-      );
+    // 5. CONVERT AND UPLOAD
+    const blob = base64ToBlob(imageData, mimeType);
+    const admin = createSupabaseAdmin();
+    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `uploads/${user.id}-${Date.now()}-${safeName}`;
+    const buffer = Buffer.from(await blob.arrayBuffer());
+
+    const { error: storageError } = await admin.storage
+      .from('media')
+      .upload(storagePath, buffer, { contentType: mimeType, upsert: false });
+
+    if (storageError) {
+      logger.error('❌ Storage upload failed:', storageError);
+      return NextResponse.json({ error: 'Failed to upload image' }, { status: 500 });
     }
 
-    // 6. CONVERT AND UPLOAD
-    // Convert base64 to blob
-    const blob = base64ToBlob(imageData, mimeType);
+    const { data: { publicUrl } } = admin.storage.from('media').getPublicUrl(storagePath);
 
-    // Upload to Vercel Blob
-    const result = await put(filename, blob, {
-      access: 'public'
-    });
-
-    logger.info('✅ Image uploaded successfully', {
-      userId: user.id,
-      filename: result.pathname,
-      size: approximateFileSize,
-      mimeType
-    });
+    logger.info('✅ Image uploaded successfully', { userId: user.id, storagePath, mimeType });
 
     return NextResponse.json({
       success: true,
-      url: result.url,
-      filename: result.pathname
+      url: publicUrl,
+      filename: storagePath
     });
 
   } catch (error: any) {

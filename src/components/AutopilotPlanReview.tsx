@@ -219,10 +219,15 @@ function PostCard({
     setSwapping(true);
     try {
       const token = getAccessToken();
-      const res = await fetch(`/api/autopilot/plans/${planId}/swap-photo`, {
+      const edgeFnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/swap-photo-caption`;
+      const res = await fetch(edgeFnUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ postId: post.id, newMediaGalleryId }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        },
+        body: JSON.stringify({ planId, postId: post.id, newMediaGalleryId }),
       });
       const data = await res.json();
       if (data.success && data.post) {

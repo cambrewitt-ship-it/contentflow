@@ -6,7 +6,6 @@ import { withAICreditCheck } from '@/lib/subscriptionMiddleware';
 import { generateContentPlan } from '@/lib/autopilot-engine';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 
-export const maxDuration = 120;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 

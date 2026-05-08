@@ -238,9 +238,14 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
     setGenerateError(null);
     const token = getAccessToken();
     try {
-      const res = await fetch('/api/autopilot/generate-plan', {
+      const edgeFnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-plan`;
+      const res = await fetch(edgeFnUrl, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token ?? ''}`, 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${token ?? ''}`,
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ clientId, force: true }),
       });
       const data = await res.json();

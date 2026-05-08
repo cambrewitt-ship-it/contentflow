@@ -6,7 +6,6 @@ import { withAICreditCheck, trackAICreditUsage } from '@/lib/subscriptionMiddlew
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { regenerateCaption } from '@/lib/autopilot-engine';
 
-export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 

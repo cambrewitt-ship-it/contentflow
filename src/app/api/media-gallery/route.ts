@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { put } from '@vercel/blob';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 
-export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -108,14 +106,6 @@ export async function POST(request: NextRequest) {
     if (auth.error) return auth.error;
     const { user } = auth;
 
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      logger.warn('⚠️ BLOB_READ_WRITE_TOKEN not configured for media gallery upload');
-      return NextResponse.json(
-        { success: false, error: 'Media upload is not configured. Missing BLOB_READ_WRITE_TOKEN.' },
-        { status: 500 }
-      );
-    }
-
     // Use admin client for writes — ownership already verified above,
     // and the RLS policy's USING clause doesn't reliably cover INSERTs.
     const admin = createSupabaseAdmin();
@@ -169,12 +159,17 @@ export async function POST(request: NextRequest) {
 
         try {
           const buffer = Buffer.from(base64Data, 'base64');
-          const fileBlob = new Blob([buffer], { type: mimeType });
-          const blobResult = await put(item.fileName, fileBlob, { access: 'public', addRandomSuffix: true });
-          mediaUrl = blobResult.url;
-        } catch (blobErr) {
-          const msg = blobErr instanceof Error ? blobErr.message : String(blobErr);
-          logger.error('Vercel Blob upload failed:', blobErr);
+          const safeName = item.fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const storagePath = `uploads/${Date.now()}-${safeName}`;
+          const { error: storageErr } = await admin.storage
+            .from('media')
+            .upload(storagePath, buffer, { contentType: mimeType, upsert: false });
+          if (storageErr) throw storageErr;
+          const { data: { publicUrl } } = admin.storage.from('media').getPublicUrl(storagePath);
+          mediaUrl = publicUrl;
+        } catch (storageErr) {
+          const msg = storageErr instanceof Error ? storageErr.message : String(storageErr);
+          logger.error('Supabase storage upload failed:', storageErr);
           return NextResponse.json({ success: false, error: `Storage upload failed: ${msg}` }, { status: 500 });
         }
       }

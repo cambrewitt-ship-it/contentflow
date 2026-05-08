@@ -5,7 +5,6 @@ import { checkSocialMediaPostingPermission, trackPostCreation } from '@/lib/subs
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { sendAutopilotPublishedEmail } from '@/lib/email';
 
-export const maxDuration = 120;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 

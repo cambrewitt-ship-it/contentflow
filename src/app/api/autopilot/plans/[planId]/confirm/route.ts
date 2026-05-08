@@ -5,7 +5,6 @@ import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { trackPostCreation } from '@/lib/subscriptionMiddleware';
 import { getOrCreateDefaultProject } from '@/lib/autopilot-engine';
 
-export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
