@@ -46,6 +46,25 @@ export async function GET(request: NextRequest) {
     // Use admin client — ownership already verified above
     const admin = createSupabaseAdmin();
 
+    // idsOnly=true: return just IDs of unanalyzed images (no pagination) for bulk analysis
+    if (searchParams.get('idsOnly') === 'true') {
+      const { data, error } = await admin
+        .from('media_gallery')
+        .select('id')
+        .eq('client_id', clientId)
+        .eq('status', 'available')
+        .eq('media_type', 'image')
+        .in('ai_analysis_status', ['pending', 'failed'])
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (error) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, ids: (data || []).map((r) => r.id) });
+    }
+
     const status = searchParams.get('status') || 'available';
     const category = searchParams.get('category');
     const search = searchParams.get('search');

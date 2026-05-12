@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Archive,
   Tag,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -156,6 +157,10 @@ export default function MediaGalleryPage({
   const [analyzing, setAnalyzing] = useState(false);
   const [archiving, setArchiving] = useState(false);
 
+  // Bulk analysis state
+  const [bulkAnalyzing, setBulkAnalyzing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => setActiveSearch(searchInput), 300);
@@ -247,6 +252,80 @@ export default function MediaGalleryPage({
     }
   };
 
+  const handleAnalyzeAll = async () => {
+    setBulkAnalyzing(true);
+    setBulkProgress(null);
+    setError(null);
+
+    try {
+      const token = getAccessToken();
+
+      // Fetch all unanalyzed image IDs
+      const idsRes = await fetch(`/api/media-gallery?clientId=${clientId}&idsOnly=true`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const idsData = await idsRes.json();
+      if (!idsRes.ok || !idsData.success) throw new Error(idsData.error || 'Failed to fetch image IDs');
+
+      const ids: string[] = idsData.ids || [];
+      if (ids.length === 0) {
+        setBulkAnalyzing(false);
+        return;
+      }
+
+      setBulkProgress({ done: 0, total: ids.length });
+
+      // Optimistically mark all as analyzing in the UI
+      setItems(prev =>
+        prev.map(i => ids.includes(i.id) ? { ...i, ai_analysis_status: 'analyzing' as const } : i)
+      );
+
+      // Process with concurrency of 5
+      let done = 0;
+      const CONCURRENCY = 5;
+
+      const runOne = async (id: string) => {
+        try {
+          const res = await fetch('/api/media-gallery/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ mediaId: id }),
+          });
+          const data = await res.json();
+          const status = data.results?.[0]?.ai_analysis_status === 'complete' ? 'complete' : 'failed';
+          setItems(prev =>
+            prev.map(i => i.id === id ? { ...i, ai_analysis_status: status as const } : i)
+          );
+        } catch {
+          setItems(prev =>
+            prev.map(i => i.id === id ? { ...i, ai_analysis_status: 'failed' as const } : i)
+          );
+        } finally {
+          done += 1;
+          setBulkProgress({ done, total: ids.length });
+        }
+      };
+
+      // Pool: keep CONCURRENCY requests in flight at all times
+      const queue = [...ids];
+      const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+        while (queue.length > 0) {
+          const id = queue.shift();
+          if (id) await runOne(id);
+        }
+      });
+      await Promise.all(workers);
+
+      // Refresh to get final server state
+      await fetchItems(0, false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bulk analysis failed');
+    } finally {
+      setBulkAnalyzing(false);
+      setBulkProgress(null);
+    }
+  };
+
   const handleArchive = async (item: MediaGalleryItem) => {
     setArchiving(true);
     try {
@@ -310,10 +389,26 @@ export default function MediaGalleryPage({
             </p>
           )}
         </div>
-        <Button onClick={() => setUploadOpen(true)}>
-          <Upload className="mr-2 h-4 w-4" />
-          Upload Photos
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleAnalyzeAll}
+            disabled={bulkAnalyzing || loading}
+          >
+            {bulkAnalyzing ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-2 h-4 w-4" />
+            )}
+            {bulkProgress
+              ? `Analysing ${bulkProgress.done}/${bulkProgress.total}...`
+              : 'Analyse All Photos with AI'}
+          </Button>
+          <Button onClick={() => setUploadOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Upload Photos
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
