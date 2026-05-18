@@ -110,6 +110,7 @@ interface Upload {
   updated_at: string;
   one_time_approval?: OneTimeApproval | null;
   carousel_group_id?: string | null;
+  carousel_order?: number;
 }
 
 const COLOR_OPTIONS = [
@@ -1805,7 +1806,10 @@ export default function PortalCalendarPage() {
               if (item.carousel_group_id) {
                 if (!seenGroups.has(item.carousel_group_id)) {
                   seenGroups.add(item.carousel_group_id);
-                  groupedQueue.push(queueItems.filter(i => i.carousel_group_id === item.carousel_group_id));
+                  const group = queueItems
+                    .filter(i => i.carousel_group_id === item.carousel_group_id)
+                    .sort((a, b) => (a.carousel_order ?? 0) - (b.carousel_order ?? 0));
+                  groupedQueue.push(group);
                 }
               } else {
                 groupedQueue.push([item]);

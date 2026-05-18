@@ -38,6 +38,7 @@ interface QueueItem {
   target_date: string | null;
   status?: string;
   carousel_group_id?: string | null;
+  carousel_order?: number;
 }
 
 function queueStatusBadge(status: string | undefined) {
@@ -160,7 +161,7 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
     const notes = caption.trim() || null;
     const created: QueueItem[] = [];
 
-    for (const uploadedFile of files) {
+    for (const [index, uploadedFile] of files.entries()) {
       // Step 1: Get a signed upload URL — file goes straight to Supabase Storage,
       // bypassing the Vercel function body size limit (which would cause a 413 for videos).
       const urlRes = await fetch(
@@ -200,6 +201,7 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
           notes,
           targetDate: targetDateValue,
           carouselGroupId: groupId ?? null,
+          carouselOrder: index,
         }),
       });
       if (!metaRes.ok) {
@@ -274,7 +276,10 @@ const handleAddToQueue = async () => {
       if (item.carousel_group_id) {
         if (!seen.has(item.carousel_group_id)) {
           seen.add(item.carousel_group_id);
-          groups.push(items.filter(i => i.carousel_group_id === item.carousel_group_id));
+          const group = items
+            .filter(i => i.carousel_group_id === item.carousel_group_id)
+            .sort((a, b) => (a.carousel_order ?? 0) - (b.carousel_order ?? 0));
+          groups.push(group);
         }
       } else {
         groups.push([item]);
@@ -330,7 +335,7 @@ const handleAddToQueue = async () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2 p-1">
-                  {files.map((f) => (
+                  {files.map((f, index) => (
                     <div key={f.id} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-200">
                       {f.file.type.startsWith("image/") ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -362,6 +367,11 @@ const handleAddToQueue = async () => {
                       >
                         <X className="w-3 h-3" />
                       </button>
+                      {files.length > 1 && (
+                        <span className="absolute top-1 left-1 w-5 h-5 rounded-full bg-black/70 text-white text-[10px] font-bold flex items-center justify-center leading-none pointer-events-none">
+                          {index + 1}
+                        </span>
+                      )}
                     </div>
                   ))}
                   {/* Add-more tile */}

@@ -162,6 +162,7 @@ export async function GET(request: NextRequest) {
         review_notes,
         target_date,
         carousel_group_id,
+        carousel_order,
         created_at,
         updated_at,
         uploaded_by_party:uploaded_by_party_id (
@@ -257,6 +258,7 @@ export async function POST(request: NextRequest) {
         fileUrl: string, notes: string | null, targetDate: string | null;
 
     let carouselGroupId: string | null = null;
+    let carouselOrder: number = 0;
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
@@ -280,7 +282,7 @@ export async function POST(request: NextRequest) {
       const { data: { publicUrl } } = supabase.storage.from('portal-uploads').getPublicUrl(storagePath);
       fileUrl = publicUrl;
     } else {
-      ({ token, fileName, fileType, fileSize, fileUrl, notes, targetDate, carouselGroupId } = await request.json());
+      ({ token, fileName, fileType, fileSize, fileUrl, notes, targetDate, carouselGroupId, carouselOrder } = await request.json());
 
       // If the client sent raw base64, upload it to Blob storage first
       if (fileUrl && fileUrl.startsWith('data:')) {
@@ -354,6 +356,7 @@ export async function POST(request: NextRequest) {
       uploaded_by_party_id: resolved.party?.id ?? null,
       target_date: targetDate ?? null,
       carousel_group_id: carouselGroupId ?? null,
+      carousel_order: carouselOrder ?? 0,
     };
 
     let upload: any = null;

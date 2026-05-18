@@ -73,6 +73,7 @@ export interface ModalUpload {
   created_at: string;
   target_date?: string | null;
   status?: string;
+  carousel_order?: number;
   tags?: Array<{ id: string; name: string; color: string }>;
   one_time_approval?: {
     approval_status: string;
@@ -214,7 +215,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   // Carousel state — for upload groups and posts with multiple media URLs
   const carouselItems: ModalUpload[] | null =
     isUpload && item.type === "upload" && item.carouselItems && item.carouselItems.length > 1
-      ? item.carouselItems
+      ? [...item.carouselItems].sort((a, b) => (a.carousel_order ?? 0) - (b.carousel_order ?? 0))
       : null;
   const postMediaUrls: string[] | null =
     isPost ? ((item.data as ModalPost).media_urls?.length ?? 0) > 1 ? (item.data as ModalPost).media_urls! : null : null;
