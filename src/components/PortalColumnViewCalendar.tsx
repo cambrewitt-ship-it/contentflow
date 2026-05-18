@@ -1162,7 +1162,9 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
           if (upload.carousel_group_id) {
             if (seenCarouselGroups.has(upload.carousel_group_id)) continue;
             seenCarouselGroups.add(upload.carousel_group_id);
-            const group = uploadsForDay.filter((u: ClientUpload) => u.carousel_group_id === upload.carousel_group_id);
+            const group = uploadsForDay
+              .filter((u: ClientUpload) => u.carousel_group_id === upload.carousel_group_id)
+              .sort((a: ClientUpload, b: ClientUpload) => (a.carousel_order ?? 0) - (b.carousel_order ?? 0));
             const isImage = typeof group[0].file_type === 'string'
               ? group[0].file_type.startsWith('image/')
               : /\.(png|jpe?g|gif|webp|svg)$/i.test(group[0].file_name || '');

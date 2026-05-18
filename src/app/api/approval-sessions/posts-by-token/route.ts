@@ -170,9 +170,10 @@ export async function GET(request: NextRequest) {
     if (carouselGroupIds.length > 0) {
       const { data: siblings } = await supabase
         .from('client_uploads')
-        .select('carousel_group_id, file_url')
+        .select('carousel_group_id, file_url, carousel_order')
         .eq('client_id', session.client_id)
-        .in('carousel_group_id', carouselGroupIds);
+        .in('carousel_group_id', carouselGroupIds)
+        .order('carousel_order', { ascending: true });
       for (const sibling of siblings || []) {
         if (!carouselUrlsByGroupId[sibling.carousel_group_id]) {
           carouselUrlsByGroupId[sibling.carousel_group_id] = [];

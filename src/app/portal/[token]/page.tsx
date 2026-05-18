@@ -2080,6 +2080,7 @@ export default function PortalCalendarPage() {
                           created_at: u.created_at || new Date().toISOString(),
                           target_date: u.target_date ?? null,
                           status: u.status,
+                          carousel_order: u.carousel_order ?? 0,
                         }))
                       : undefined,
                   });
@@ -2219,6 +2220,7 @@ export default function PortalCalendarPage() {
                         created_at: u.created_at || new Date().toISOString(),
                         target_date: u.target_date ?? null,
                         status: u.status,
+                        carousel_order: u.carousel_order ?? 0,
                       }))
                     : undefined,
                 });
