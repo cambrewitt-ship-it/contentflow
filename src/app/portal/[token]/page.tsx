@@ -66,6 +66,7 @@ interface Post {
   project_id: string;
   caption: string;
   image_url: string;
+  media_urls?: string[] | null;
   scheduled_time: string | null;
   scheduled_date?: string;
   late_post_id?: string;
@@ -108,6 +109,7 @@ interface Upload {
   created_at: string;
   updated_at: string;
   one_time_approval?: OneTimeApproval | null;
+  carousel_group_id?: string | null;
 }
 
 const COLOR_OPTIONS = [
@@ -301,8 +303,9 @@ export default function PortalCalendarPage() {
   const columnUploadInputRef = useRef<HTMLInputElement | null>(null);
   const [pendingColumnUploadDate, setPendingColumnUploadDate] = useState<string | null>(null);
   
-  // Ref to track currently dragged queue item — avoids DataTransfer.getData() issues
-  const draggingQueueItemRef = useRef<Upload | null>(null);
+  // Ref to track currently dragged queue item(s) — avoids DataTransfer.getData() issues
+  // Holds an array to support carousel groups (multiple uploads treated as one post)
+  const draggingQueueItemRef = useRef<Upload[] | null>(null);
 
   // Loading state for queue-item-to-calendar drag
   const [movingUploadId, setMovingUploadId] = useState<string | null>(null);
@@ -1723,9 +1726,11 @@ export default function PortalCalendarPage() {
             fetchScheduledPosts(0, true);
             setKanbanRefreshKey(k => k + 1);
           }}
-          onQueueItemClick={(upload) =>
-            setModalItem({ type: 'upload', data: upload })
-          }
+          onQueueItemClick={(items) => {
+            const upload = items[0] as any;
+            const carouselItems = items.length > 1 ? items as any[] : undefined;
+            setModalItem({ type: 'upload', data: upload, carouselItems });
+          }}
           statusSummary={(() => {
             const allPosts = Object.values(scheduledPosts).flat();
             return {
@@ -1786,6 +1791,19 @@ export default function PortalCalendarPage() {
           {/* ── Queue Sidebar — sticky, never scrolls past top of content area ── */}
           {(() => {
             const queueItems = allUploads.filter(u => !u.target_date);
+            // Group items by carousel_group_id
+            const groupedQueue: Upload[][] = [];
+            const seenGroups = new Set<string>();
+            for (const item of queueItems) {
+              if (item.carousel_group_id) {
+                if (!seenGroups.has(item.carousel_group_id)) {
+                  seenGroups.add(item.carousel_group_id);
+                  groupedQueue.push(queueItems.filter(i => i.carousel_group_id === item.carousel_group_id));
+                }
+              } else {
+                groupedQueue.push([item]);
+              }
+            }
             return (
               <div
                 className="bg-white rounded-lg shadow flex flex-col flex-shrink-0 w-44 sticky top-0"
@@ -1796,9 +1814,9 @@ export default function PortalCalendarPage() {
                   <div className="flex items-center gap-1.5">
                     <ListOrdered className="w-4 h-4 text-gray-400" />
                     <span className="text-sm font-semibold text-gray-700">Queue</span>
-                    {queueItems.length > 0 && (
+                    {groupedQueue.length > 0 && (
                       <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5 font-medium leading-none">
-                        {queueItems.length}
+                        {groupedQueue.length}
                       </span>
                     )}
                   </div>
@@ -1807,7 +1825,7 @@ export default function PortalCalendarPage() {
 
                 {/* Sidebar content */}
                 <div className="flex-1 overflow-y-auto p-2">
-                  {isLoadingUploads && queueItems.length === 0 ? (
+                  {isLoadingUploads && groupedQueue.length === 0 ? (
                     <div className="flex flex-col gap-2">
                       {[0, 1, 2].map(i => (
                         <div key={i} className="rounded-lg border border-gray-100 bg-gray-50 overflow-hidden animate-pulse">
@@ -1819,27 +1837,29 @@ export default function PortalCalendarPage() {
                         </div>
                       ))}
                     </div>
-                  ) : queueItems.length === 0 ? (
+                  ) : groupedQueue.length === 0 ? (
                     <p className="text-xs text-gray-400 text-center py-6 px-2">No items in queue</p>
                   ) : (
                     <div className="flex flex-col gap-2">
-                      {queueItems.map(item => {
+                      {groupedQueue.map(group => {
+                        const item = group[0];
+                        const isCarousel = group.length > 1;
                         const isImage = item.file_type?.startsWith('image/');
                         const isVideo = item.file_type?.startsWith('video/');
-                        const isMoving = movingUploadId === item.id;
+                        const isMoving = group.some(g => movingUploadId === g.id);
                         return (
                           <div
-                            key={item.id}
+                            key={isCarousel ? (item.carousel_group_id ?? item.id) : item.id}
                             draggable={!isMoving}
                             onDragStart={(e) => {
                               e.dataTransfer.effectAllowed = 'move';
-                              e.dataTransfer.setData('text/portal-upload', JSON.stringify(item));
-                              draggingQueueItemRef.current = item;
+                              e.dataTransfer.setData('text/portal-upload', JSON.stringify(isCarousel ? group : item));
+                              draggingQueueItemRef.current = group;
                             }}
                             onDragEnd={() => {
                               draggingQueueItemRef.current = null;
                             }}
-                            onClick={() => !isMoving && setModalItem({ type: 'upload', data: item })}
+                            onClick={() => !isMoving && setModalItem({ type: 'upload', data: item as any, carouselItems: isCarousel ? group as any[] : undefined })}
                             className={`relative rounded-lg border border-gray-100 bg-gray-50 overflow-hidden transition-all ${isMoving ? 'opacity-50 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing hover:shadow-md hover:border-gray-200'}`}
                           >
                             {isMoving && (
@@ -1847,7 +1867,7 @@ export default function PortalCalendarPage() {
                                 <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                               </div>
                             )}
-                            <div className="h-28 bg-gray-200 flex items-center justify-center overflow-hidden">
+                            <div className="h-28 bg-gray-200 flex items-center justify-center overflow-hidden relative">
                               {isImage ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={item.file_url} alt={item.file_name} draggable={false} className="w-full h-full object-cover" />
@@ -1862,10 +1882,15 @@ export default function PortalCalendarPage() {
                                   <span className="text-xs">{item.file_type?.split('/')[1]?.toUpperCase() ?? 'File'}</span>
                                 </div>
                               )}
+                              {isCarousel && (
+                                <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                                  {group.length}
+                                </div>
+                              )}
                             </div>
                             <div className="p-2">
-                              <p className="text-xs font-medium text-gray-700 truncate" title={item.file_name}>
-                                {item.file_name}
+                              <p className="text-xs font-medium text-gray-700 truncate" title={isCarousel ? `Carousel (${group.length})` : item.file_name}>
+                                {isCarousel ? `Carousel (${group.length})` : item.file_name}
                               </p>
                               <p className="text-[10px] text-gray-400 mt-0.5">
                                 {new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
@@ -2079,23 +2104,31 @@ export default function PortalCalendarPage() {
               }}
               onDrop={async (e, dateKey) => {
                 // Use ref first (most reliable), fall back to DataTransfer
-                const upload = draggingQueueItemRef.current
-                  ?? (() => {
-                    try {
-                      const raw = e.dataTransfer.getData('text/portal-upload');
-                      return raw ? JSON.parse(raw) : null;
-                    } catch { return null; }
-                  })();
+                const refData = draggingQueueItemRef.current;
+                const parsedData = (() => {
+                  try {
+                    const raw = e.dataTransfer.getData('text/portal-upload');
+                    return raw ? JSON.parse(raw) : null;
+                  } catch { return null; }
+                })();
                 draggingQueueItemRef.current = null;
-                if (!upload?.id) return;
-                setMovingUploadId(upload.id);
+
+                // Normalise: could be an array (carousel) or a single upload
+                const uploads: Upload[] = refData ?? (
+                  Array.isArray(parsedData) ? parsedData : (parsedData ? [parsedData] : [])
+                );
+                if (uploads.length === 0) return;
+
+                setMovingUploadId(uploads[0].id);
                 setMovingToDate(dateKey);
                 try {
-                  await fetch('/api/portal/upload', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token, uploadId: upload.id, targetDate: dateKey }),
-                  });
+                  await Promise.all(uploads.map(u =>
+                    fetch('/api/portal/upload', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ token, uploadId: u.id, targetDate: dateKey }),
+                    })
+                  ));
                   await fetchUploads();
                   setKanbanRefreshKey(k => k + 1);
                   setQueueRefreshKey(k => k + 1);
@@ -2190,13 +2223,16 @@ export default function PortalCalendarPage() {
               const queueData = e.dataTransfer.getData('text/portal-upload');
               if (!queueData) return;
               try {
-                const upload = JSON.parse(queueData);
+                const parsed = JSON.parse(queueData);
+                const uploads: Upload[] = Array.isArray(parsed) ? parsed : [parsed];
                 const dateKey = date.toLocaleDateString('en-CA');
-                await fetch('/api/portal/upload', {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ token, uploadId: upload.id, targetDate: dateKey }),
-                });
+                await Promise.all(uploads.map(u =>
+                  fetch('/api/portal/upload', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, uploadId: u.id, targetDate: dateKey }),
+                  })
+                ));
                 fetchUploads();
                 setQueueRefreshKey(k => k + 1);
               } catch {

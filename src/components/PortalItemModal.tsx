@@ -14,6 +14,8 @@ import {
   Tag,
   Download,
   Trash2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +30,7 @@ export interface ModalPost {
   id: string;
   caption: string;
   image_url?: string | null;
+  media_urls?: string[] | null;
   scheduled_date?: string | null;
   scheduled_time?: string | null;
   approval_status?: string;
@@ -81,7 +84,7 @@ export interface ModalUpload {
 
 export type ModalItem =
   | { type: "post"; data: ModalPost }
-  | { type: "upload"; data: ModalUpload };
+  | { type: "upload"; data: ModalUpload; carouselItems?: ModalUpload[] };
 
 interface ApprovalStep {
   id: string;
@@ -207,6 +210,19 @@ function PipelineSteps({
 export function PortalItemModal({ item, portalToken, party, onClose, onActioned, onTagsChange, onDeleteUpload, brandName, brandLogoUrl }: Props) {
   const isPost = item.type === "post";
   const isUpload = item.type === "upload";
+
+  // Carousel state — for upload groups and posts with multiple media URLs
+  const carouselItems: ModalUpload[] | null =
+    isUpload && item.type === "upload" && item.carouselItems && item.carouselItems.length > 1
+      ? item.carouselItems
+      : null;
+  const postMediaUrls: string[] | null =
+    isPost ? ((item.data as ModalPost).media_urls?.length ?? 0) > 1 ? (item.data as ModalPost).media_urls! : null : null;
+  const carouselLength = carouselItems?.length ?? postMediaUrls?.length ?? 0;
+  const [carouselIndex, setCarouselIndex] = useState(0);
+
+  const carouselPrev = () => setCarouselIndex(i => (i - 1 + carouselLength) % carouselLength);
+  const carouselNext = () => setCarouselIndex(i => (i + 1) % carouselLength);
 
   // Social preview platform selector
   const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform>(() =>
@@ -550,9 +566,12 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
 
   // ── Derived values ───────────────────────────────────────────────────────
 
+  // Active media for the current carousel index
+  const activeUpload: ModalUpload | null = carouselItems ? carouselItems[carouselIndex] : null;
+
   const imageUrl = isPost
-    ? (item.data as ModalPost).image_url
-    : (item.data as ModalUpload).file_url;
+    ? (postMediaUrls ? postMediaUrls[carouselIndex] : (item.data as ModalPost).image_url)
+    : (activeUpload ? activeUpload.file_url : (item.data as ModalUpload).file_url);
 
   const isVideoUrl = (url?: string | null) => {
     if (!url) return false;
@@ -560,13 +579,15 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     return [".mp4", ".mov", ".webm", ".avi", ".m4v"].some(ext => lower.endsWith(ext));
   };
 
+  const activeFileType = activeUpload?.file_type ?? (isUpload ? (item.data as ModalUpload).file_type : null);
+
   const isVideoFile =
-    (isUpload && (item.data as ModalUpload).file_type?.startsWith("video/")) ||
+    (isUpload && activeFileType?.startsWith("video/")) ||
     (isPost && isVideoUrl(imageUrl));
 
   const isImageFile = isPost
     ? (!!imageUrl && !isVideoFile)
-    : (item.data as ModalUpload).file_type?.startsWith("image/");
+    : activeFileType?.startsWith("image/");
 
   const title = isPost ? "Post" : (item.data as ModalUpload).file_name;
 
@@ -692,6 +713,11 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                         : (item.data as ModalUpload).notes || ""
                     }
                     imageUrl={imageUrl ?? undefined}
+                    mediaUrls={
+                      carouselItems
+                        ? carouselItems.map(c => c.file_url)
+                        : postMediaUrls ?? undefined
+                    }
                     scheduledDate={
                       isPost
                         ? (item.data as ModalPost).scheduled_date ?? undefined
@@ -706,7 +732,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                 </div>
               </>
             ) : isVideoFile ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-4 gap-3">
+              <div className="flex-1 flex flex-col items-center justify-center p-4 gap-3 relative">
                 <video
                   src={imageUrl ?? undefined}
                   controls
@@ -714,6 +740,18 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                   className="w-full rounded-xl max-h-[420px] bg-black"
                   style={{ aspectRatio: '16/9' }}
                 />
+                {/* Carousel navigation for video carousels */}
+                {carouselLength > 1 && (
+                  <div className="flex items-center gap-3 mt-2">
+                    <button onClick={carouselPrev} className="w-8 h-8 rounded-full bg-white shadow border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors">
+                      <ChevronLeft className="w-4 h-4 text-gray-600" />
+                    </button>
+                    <span className="text-xs text-gray-500 font-medium">{carouselIndex + 1} / {carouselLength}</span>
+                    <button onClick={carouselNext} className="w-8 h-8 rounded-full bg-white shadow border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors">
+                      <ChevronRight className="w-4 h-4 text-gray-600" />
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex-1 flex items-center justify-center p-6">

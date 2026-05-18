@@ -161,6 +161,7 @@ export async function GET(request: NextRequest) {
         notes,
         review_notes,
         target_date,
+        carousel_group_id,
         created_at,
         updated_at,
         uploaded_by_party:uploaded_by_party_id (
@@ -255,6 +256,8 @@ export async function POST(request: NextRequest) {
     let token: string, fileName: string, fileType: string, fileSize: number,
         fileUrl: string, notes: string | null, targetDate: string | null;
 
+    let carouselGroupId: string | null = null;
+
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
       token = formData.get('token') as string;
@@ -263,6 +266,7 @@ export async function POST(request: NextRequest) {
       fileSize = Number(formData.get('fileSize') ?? 0);
       notes = (formData.get('notes') as string) || null;
       targetDate = (formData.get('targetDate') as string) || null;
+      carouselGroupId = (formData.get('carouselGroupId') as string) || null;
       const file = formData.get('file') as File | null;
       if (!file) {
         return NextResponse.json({ error: 'Missing file' }, { status: 400 });
@@ -276,7 +280,7 @@ export async function POST(request: NextRequest) {
       const { data: { publicUrl } } = supabase.storage.from('portal-uploads').getPublicUrl(storagePath);
       fileUrl = publicUrl;
     } else {
-      ({ token, fileName, fileType, fileSize, fileUrl, notes, targetDate } = await request.json());
+      ({ token, fileName, fileType, fileSize, fileUrl, notes, targetDate, carouselGroupId } = await request.json());
 
       // If the client sent raw base64, upload it to Blob storage first
       if (fileUrl && fileUrl.startsWith('data:')) {
@@ -349,6 +353,7 @@ export async function POST(request: NextRequest) {
       status: 'unassigned',
       uploaded_by_party_id: resolved.party?.id ?? null,
       target_date: targetDate ?? null,
+      carousel_group_id: carouselGroupId ?? null,
     };
 
     let upload: any = null;

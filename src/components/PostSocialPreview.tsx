@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ImageIcon } from 'lucide-react';
+import { ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   FacebookIcon,
   InstagramIcon,
@@ -27,12 +27,18 @@ interface PostSocialPreviewProps {
   caption: string;
   businessName?: string;
   logoUrl?: string | null;
+  mediaUrls?: string[] | null;
 }
 
-export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, businessName = '', logoUrl }: PostSocialPreviewProps) {
+export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, businessName = '', logoUrl, mediaUrls }: PostSocialPreviewProps) {
   const isVideo = fileType?.startsWith('video/') && !!fileUrl;
   const mediaUrl = isVideo ? fileUrl! : (imageUrl || null);
   const [platform, setPlatform] = useState('facebook');
+
+  // Carousel state
+  const allMedia = mediaUrls && mediaUrls.length > 1 ? mediaUrls : null;
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const activeMediaUrl = allMedia ? allMedia[carouselIndex] : mediaUrl;
 
   const isStory = platform === 'fb-stories' || platform === 'ig-stories';
 
@@ -119,11 +125,29 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
         </div>
       </div>
       {caption && <div className="px-4 pb-3"><p style={{ color: '#050505', fontSize: '15px' }} className="whitespace-pre-wrap break-words">{caption}</p></div>}
-      {mediaUrl ? (
-        <div className="flex items-center justify-center bg-gray-50" style={{ maxHeight: '360px' }}>
+      {activeMediaUrl ? (
+        <div className="relative flex items-center justify-center bg-gray-50" style={{ maxHeight: '360px' }}>
           {isVideo
-            ? <video src={mediaUrl} controls className="w-full object-contain bg-black" style={{ maxHeight: '360px' }} />
-            : <img src={mediaUrl} alt="Post" className="w-full object-contain" style={{ maxHeight: '360px' }} />}
+            ? <video src={activeMediaUrl} controls className="w-full object-contain bg-black" style={{ maxHeight: '360px' }} />
+            : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" className="w-full object-contain" style={{ maxHeight: '360px' }} />}
+          {allMedia && allMedia.length > 1 && (
+            <>
+              <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 z-10">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button onClick={() => setCarouselIndex(i => (i + 1) % allMedia.length)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 z-10">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+                {allMedia.map((_, i) => (
+                  <button key={i} onClick={() => setCarouselIndex(i)}
+                    className={`w-1.5 h-1.5 rounded-full ${i === carouselIndex ? 'bg-white' : 'bg-white/50'}`} />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="h-44 bg-gray-100 flex items-center justify-center border-y-2 border-dashed border-gray-200">
@@ -175,11 +199,29 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
         </div>
         <div className="text-gray-400 text-lg">⋯</div>
       </div>
-      {mediaUrl ? (
-        <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+      {activeMediaUrl ? (
+        <div className="relative aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
           {isVideo
-            ? <video src={mediaUrl} controls className="w-full h-full object-contain bg-black" />
-            : <img src={mediaUrl} alt="Post" className="w-full h-full object-cover" />}
+            ? <video src={activeMediaUrl} controls className="w-full h-full object-contain bg-black" />
+            : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" className="w-full h-full object-cover" />}
+          {allMedia && allMedia.length > 1 && (
+            <>
+              <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 z-10">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button onClick={() => setCarouselIndex(i => (i + 1) % allMedia.length)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 z-10">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+                {allMedia.map((_, i) => (
+                  <button key={i} onClick={() => setCarouselIndex(i)}
+                    className={`w-1.5 h-1.5 rounded-full ${i === carouselIndex ? 'bg-white' : 'bg-white/50'}`} />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="aspect-square bg-gray-100 flex items-center justify-center border-y border-gray-200">
@@ -212,11 +254,23 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
             <span className="text-xs text-gray-500">{handle}</span>
           </div>
           {caption && <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap break-words mt-1">{caption}</p>}
-          {mediaUrl ? (
-            <div className="mt-2 rounded-2xl overflow-hidden border border-gray-200">
+          {activeMediaUrl ? (
+            <div className="mt-2 rounded-2xl overflow-hidden border border-gray-200 relative">
               {isVideo
-                ? <video src={mediaUrl} controls className="w-full max-h-52 object-contain bg-black" />
-                : <img src={mediaUrl} alt="Post" className="w-full max-h-52 object-cover" />}
+                ? <video src={activeMediaUrl} controls className="w-full max-h-52 object-contain bg-black" />
+                : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" className="w-full max-h-52 object-cover" />}
+              {allMedia && allMedia.length > 1 && (
+                <>
+                  <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}
+                    className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 z-10">
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => setCarouselIndex(i => (i + 1) % allMedia.length)}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 z-10">
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <div className="mt-2 rounded-2xl bg-gray-100 flex items-center justify-center border border-dashed border-gray-200" style={{ minHeight: '140px' }}>
@@ -247,10 +301,10 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
   // ── TikTok ────────────────────────────────────────────────────────────────────
   const renderTikTok = () => (
     <div className="relative max-w-[240px] mx-auto rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '9/16', maxHeight: '420px' }}>
-      {mediaUrl ? (
+      {activeMediaUrl ? (
         isVideo
-          ? <video src={mediaUrl} controls className="absolute inset-0 w-full h-full object-contain" />
-          : <img src={mediaUrl} alt="Post" className="absolute inset-0 w-full h-full object-cover" />
+          ? <video src={activeMediaUrl} controls className="absolute inset-0 w-full h-full object-contain" />
+          : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" className="absolute inset-0 w-full h-full object-cover" />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-b from-gray-800 to-gray-900 flex items-center justify-center">
           <div className="text-center text-gray-500"><ImageIcon className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-xs opacity-50">Image preview</p></div>

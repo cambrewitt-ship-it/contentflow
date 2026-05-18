@@ -1,6 +1,7 @@
 'use client'
 
-import { ImageIcon } from 'lucide-react'
+import { useState } from 'react'
+import { ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   FacebookIcon,
   InstagramIcon,
@@ -18,6 +19,7 @@ interface SocialPreviewCardProps {
   username?: string
   caption: string
   imageUrl?: string
+  mediaUrls?: string[]
   scheduledDate?: string
   scheduledTime?: string
   approvalStatus?: 'pending' | 'approved' | 'rejected'
@@ -32,12 +34,17 @@ export function SocialPreviewCard({
   username,
   caption,
   imageUrl,
+  mediaUrls,
   scheduledDate,
   scheduledTime,
   approvalStatus,
   clientComments,
   showApprovalInfo = false,
 }: SocialPreviewCardProps) {
+  // Carousel state — mediaUrls overrides single imageUrl when present
+  const allMedia = mediaUrls && mediaUrls.length > 1 ? mediaUrls : null
+  const [carouselIndex, setCarouselIndex] = useState(0)
+  const activeImageUrl = allMedia ? allMedia[carouselIndex] : imageUrl
 
   const displayName = accountName || (
     platform === 'facebook'  ? 'Your Facebook Page'
@@ -145,10 +152,28 @@ export function SocialPreviewCard({
       )}
 
       {/* Image */}
-      {imageUrl ? (
-        <div className="flex items-center justify-center bg-gray-50" style={{ maxHeight: '360px' }}>
+      {activeImageUrl ? (
+        <div className="relative flex items-center justify-center bg-gray-50" style={{ maxHeight: '360px' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageUrl} alt="Post" className="w-full object-contain" style={{ maxHeight: '360px' }} />
+          <img src={activeImageUrl} alt="Post" className="w-full object-contain" style={{ maxHeight: '360px' }} />
+          {allMedia && allMedia.length > 1 && (
+            <>
+              <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button onClick={() => setCarouselIndex(i => (i + 1) % allMedia.length)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+                {allMedia.map((_, i) => (
+                  <button key={i} onClick={() => setCarouselIndex(i)}
+                    className={`w-1.5 h-1.5 rounded-full transition-colors ${i === carouselIndex ? 'bg-white' : 'bg-white/50'}`} />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="h-44 bg-gray-100 flex items-center justify-center border-y-2 border-dashed border-gray-200">
@@ -230,10 +255,28 @@ export function SocialPreviewCard({
         <div className="text-gray-400 text-lg">⋯</div>
       </div>
 
-      {imageUrl ? (
-        <div className="bg-black w-full">
+      {activeImageUrl ? (
+        <div className="relative bg-black w-full">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageUrl} alt="Post" className="w-full h-auto block" />
+          <img src={activeImageUrl} alt="Post" className="w-full h-auto block" />
+          {allMedia && allMedia.length > 1 && (
+            <>
+              <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button onClick={() => setCarouselIndex(i => (i + 1) % allMedia.length)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+                {allMedia.map((_, i) => (
+                  <button key={i} onClick={() => setCarouselIndex(i)}
+                    className={`w-1.5 h-1.5 rounded-full transition-colors ${i === carouselIndex ? 'bg-white' : 'bg-white/50'}`} />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="aspect-square bg-gray-100 flex items-center justify-center border-y border-gray-200">
@@ -278,10 +321,22 @@ export function SocialPreviewCard({
           {caption && (
             <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap break-words mt-1">{caption}</p>
           )}
-          {imageUrl ? (
-            <div className="mt-2 rounded-2xl overflow-hidden border border-gray-200">
+          {activeImageUrl ? (
+            <div className="mt-2 rounded-2xl overflow-hidden border border-gray-200 relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt="Post" className="w-full max-h-52 object-cover" />
+              <img src={activeImageUrl} alt="Post" className="w-full max-h-52 object-cover" />
+              {allMedia && allMedia.length > 1 && (
+                <>
+                  <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}
+                    className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10">
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => setCarouselIndex(i => (i + 1) % allMedia.length)}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10">
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <div className="mt-2 rounded-2xl bg-gray-100 flex items-center justify-center border border-dashed border-gray-200" style={{ minHeight: '140px' }}>

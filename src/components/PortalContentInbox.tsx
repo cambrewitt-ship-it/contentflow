@@ -37,6 +37,7 @@ interface QueueItem {
   created_at: string;
   target_date: string | null;
   status?: string;
+  carousel_group_id?: string | null;
 }
 
 function queueStatusBadge(status: string | undefined) {
@@ -67,7 +68,7 @@ type PortalViewMode = "column" | "month" | "kanban" | "strip";
 interface Props {
   token: string;
   onCalendarSuccess?: () => void;
-  onQueueItemClick?: (item: QueueItem) => void;
+  onQueueItemClick?: (items: QueueItem[]) => void;
   statusSummary?: StatusSummary;
   viewMode?: PortalViewMode;
   onViewModeChange?: (mode: PortalViewMode) => void;
@@ -155,7 +156,7 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
     setErrorMsg(null);
   };
 
-  const uploadFiles = async (targetDateValue: string | null): Promise<QueueItem[]> => {
+  const uploadFiles = async (targetDateValue: string | null, groupId?: string | null): Promise<QueueItem[]> => {
     const notes = caption.trim() || null;
     const created: QueueItem[] = [];
 
@@ -198,6 +199,7 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
           fileUrl: publicUrl,
           notes,
           targetDate: targetDateValue,
+          carouselGroupId: groupId ?? null,
         }),
       });
       if (!metaRes.ok) {
@@ -218,7 +220,9 @@ const handleAddToQueue = async () => {
     setIsAddingQueue(true);
     setErrorMsg(null);
     try {
-      const created = await uploadFiles(null);
+      // Group all files uploaded together as a carousel when there are multiple files
+      const groupId = files.length > 1 ? crypto.randomUUID() : null;
+      const created = await uploadFiles(null, groupId);
       resetForm();
       setSuccessMsg("Added to queue!");
       setTimeout(() => setSuccessMsg(null), 4000);
@@ -261,6 +265,23 @@ const handleAddToQueue = async () => {
 
   const isLoading = isAddingQueue;
   const hasFiles = files.length > 0;
+
+  // Group queue items: items sharing a carousel_group_id appear as one card
+  const groupQueueItems = (items: QueueItem[]): QueueItem[][] => {
+    const groups: QueueItem[][] = [];
+    const seen = new Set<string>();
+    for (const item of items) {
+      if (item.carousel_group_id) {
+        if (!seen.has(item.carousel_group_id)) {
+          seen.add(item.carousel_group_id);
+          groups.push(items.filter(i => i.carousel_group_id === item.carousel_group_id));
+        }
+      } else {
+        groups.push([item]);
+      }
+    }
+    return groups;
+  };
 
   return (
     <div className="space-y-3">
@@ -521,7 +542,7 @@ const handleAddToQueue = async () => {
               <span className="text-sm font-semibold text-gray-700">Queue</span>
               {displayQueueItems.length > 0 && (
                 <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-medium">
-                  {displayQueueItems.length}
+                  {groupQueueItems(displayQueueItems).length}
                 </span>
               )}
             </div>
@@ -546,40 +567,63 @@ const handleAddToQueue = async () => {
                 ))}
               </>
             ) : null}
-            {displayQueueItems.map((item) => {
+            {groupQueueItems(displayQueueItems).map((group) => {
+              const item = group[0];
+              const isCarousel = group.length > 1;
               const isImage = item.file_type?.startsWith("image/");
               const isVideo = item.file_type?.startsWith("video/");
               const notePreview = item.notes?.substring(0, 60);
 
               return (
                 <div
-                  key={item.id}
+                  key={isCarousel ? (item.carousel_group_id ?? item.id) : item.id}
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData("text/portal-upload", JSON.stringify(item));
+                    // Pass all items in the group so the calendar can receive the full carousel
+                    e.dataTransfer.setData("text/portal-upload", JSON.stringify(isCarousel ? group : item));
                   }}
-                  onClick={() => onQueueItemClick?.(item)}
+                  onClick={() => onQueueItemClick?.(group)}
                   className="flex-shrink-0 w-52 rounded-xl border border-gray-100 bg-gray-50 overflow-hidden flex flex-col relative group cursor-grab active:cursor-grabbing hover:shadow-md hover:border-gray-200 transition-all"
                 >
-                  <div className="h-28 bg-gray-200 flex items-center justify-center overflow-hidden">
-                    {isImage ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.file_url} alt={item.file_name} className="w-full h-full object-cover" />
-                    ) : isVideo ? (
-                      <VideoThumbnail src={item.file_url} className="w-full h-full" objectFit="cover" />
-                    ) : (
-                      <div className="flex flex-col items-center gap-1 text-gray-400">
-                        <FileText className="w-7 h-7" />
-                        <span className="text-xs">{item.file_type?.split("/")[1]?.toUpperCase() ?? "File"}</span>
+                  {/* Thumbnail — stacked effect for carousels */}
+                  <div className="h-28 bg-gray-200 flex items-center justify-center overflow-hidden relative">
+                    {isCarousel && group[1] && (
+                      /* Second image peeking behind */
+                      <div className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl overflow-hidden opacity-60">
+                        {group[1].file_type?.startsWith("image/") ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={group[1].file_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-gray-300" />
+                        )}
+                      </div>
+                    )}
+                    <div className={`absolute inset-0 ${isCarousel ? "-translate-x-1 -translate-y-1" : ""} rounded-xl overflow-hidden`}>
+                      {isImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.file_url} alt={item.file_name} className="w-full h-full object-cover" />
+                      ) : isVideo ? (
+                        <VideoThumbnail src={item.file_url} className="w-full h-full" objectFit="cover" />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-gray-400 bg-gray-100">
+                          <FileText className="w-7 h-7" />
+                          <span className="text-xs">{item.file_type?.split("/")[1]?.toUpperCase() ?? "File"}</span>
+                        </div>
+                      )}
+                    </div>
+                    {isCarousel && (
+                      <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full z-10">
+                        <GalleryHorizontal className="w-3 h-3" />
+                        {group.length}
                       </div>
                     )}
                   </div>
 
                   <div className="p-2.5 flex flex-col gap-1 flex-1">
                     <div className="flex items-start justify-between gap-1">
-                      <p className="text-xs font-semibold text-gray-700 truncate flex-1" title={item.file_name}>
-                        {item.file_name}
+                      <p className="text-xs font-semibold text-gray-700 truncate flex-1" title={isCarousel ? `Carousel (${group.length} items)` : item.file_name}>
+                        {isCarousel ? `Carousel (${group.length})` : item.file_name}
                       </p>
                       {queueStatusBadge(item.status)}
                     </div>
@@ -592,11 +636,15 @@ const handleAddToQueue = async () => {
                   </div>
 
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleDeleteQueueItem(item.id); }}
-                    disabled={deletingId === item.id}
-                    className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Delete all items in the carousel group
+                      group.forEach(g => handleDeleteQueueItem(g.id));
+                    }}
+                    disabled={group.some(g => deletingId === g.id)}
+                    className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
                   >
-                    {deletingId === item.id ? (
+                    {group.some(g => deletingId === g.id) ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
                     ) : (
                       <X className="w-3 h-3" />

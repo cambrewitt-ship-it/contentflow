@@ -96,6 +96,7 @@ export interface Post {
   project_id?: string;
   caption: string;
   image_url?: string;
+  media_urls?: string[];
   media_type?: string;
   status: 'draft' | 'ready' | 'scheduled' | 'published';
   notes?: string;

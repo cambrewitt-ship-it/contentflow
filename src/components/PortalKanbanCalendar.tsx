@@ -220,14 +220,14 @@ export function PortalKanbanCalendar({
               ) : (
                 (() => {
                   // Group posts by date
-                  const postsByDate = weekPosts.reduce((acc, post) => {
+                  const postsByDate = weekPosts.reduce((acc: Record<string, any[]>, post) => {
                     const dateKey = post.scheduled_date;
                     if (!acc[dateKey]) {
                       acc[dateKey] = [];
                     }
                     acc[dateKey].push(post);
                     return acc;
-                  }, {} as Record<string, typeof weekPosts>);
+                  }, {});
 
                   return Object.entries(postsByDate).map(([dateKey, datePosts]) => {
                     const firstPost = datePosts[0];
@@ -423,8 +423,7 @@ export function PortalKanbanCalendar({
                       </div>
                     );
                   });
-                })()}
-              </div>
+                })())}
             </div>
           </div>
         );

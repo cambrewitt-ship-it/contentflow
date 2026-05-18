@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertCircle, CheckCircle, XCircle, AlertTriangle, Minus, Eye, EyeOff } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle, XCircle, AlertTriangle, Minus, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import logger from '@/lib/logger';
 import { PostSocialPreview } from '@/components/PostSocialPreview';
 
@@ -89,6 +89,7 @@ export default function PublicApprovalPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [socialPreviewEnabled, setSocialPreviewEnabled] = useState<Set<string>>(new Set());
+  const [carouselIndexes, setCarouselIndexes] = useState<{ [postKey: string]: number }>({});
 
   // Fetch approval data using the token
   const fetchApprovalData = useCallback(async () => {
@@ -558,43 +559,69 @@ export default function PublicApprovalPage() {
                           </div>
 
                           {/* Image/Video or Social Preview */}
-                          {socialPreviewEnabled.has(postKey) ? (
-                            <div className="mb-3">
-                              <PostSocialPreview
-                                imageUrl={post.image_url}
-                                fileUrl={post.file_url}
-                                fileType={post.file_type}
-                                caption={editedCaptions[postKey] || post.caption}
-                                businessName={session?.client_name || ''}
-                                logoUrl={session?.client_logo_url || null}
-                              />
-                            </div>
-                          ) : post.file_type?.startsWith('video/') && post.file_url ? (
-                            <div className="relative w-full mb-3">
-                              <video
-                                src={post.file_url}
-                                controls
-                                className="w-full max-h-96 rounded-lg object-contain bg-black"
-                              />
-                            </div>
-                          ) : post.image_url ? (
-                            <div className="relative w-full mb-3">
-                              {isVideoUrl(post.image_url) ? (
-                                <video
-                                  src={post.image_url}
-                                  controls
-                                  playsInline
-                                  className="w-full max-h-96 rounded-lg bg-black"
-                                />
-                              ) : (
-                                <LazyApprovalImage
-                                  src={post.image_url}
-                                  alt="Post"
-                                  className="w-full h-auto max-h-96 object-contain"
-                                />
-                              )}
-                            </div>
-                          ) : null}
+                          {(() => {
+                            const mediaUrls: string[] | null =
+                              post.media_urls && post.media_urls.length > 1 ? post.media_urls : null;
+                            const carouselIdx = carouselIndexes[postKey] ?? 0;
+                            const activeImageUrl = mediaUrls
+                              ? mediaUrls[carouselIdx]
+                              : post.image_url;
+
+                            if (socialPreviewEnabled.has(postKey)) {
+                              return (
+                                <div className="mb-3">
+                                  <PostSocialPreview
+                                    imageUrl={post.image_url}
+                                    fileUrl={post.file_url}
+                                    fileType={post.file_type}
+                                    caption={editedCaptions[postKey] || post.caption}
+                                    businessName={session?.client_name || ''}
+                                    logoUrl={session?.client_logo_url || null}
+                                    mediaUrls={mediaUrls ?? undefined}
+                                  />
+                                </div>
+                              );
+                            }
+
+                            if (post.file_type?.startsWith('video/') && post.file_url) {
+                              return (
+                                <div className="relative w-full mb-3">
+                                  <video src={post.file_url} controls className="w-full max-h-96 rounded-lg object-contain bg-black" />
+                                </div>
+                              );
+                            }
+
+                            if (activeImageUrl) {
+                              return (
+                                <div className="relative w-full mb-3">
+                                  {isVideoUrl(activeImageUrl) ? (
+                                    <video src={activeImageUrl} controls playsInline className="w-full max-h-96 rounded-lg bg-black" />
+                                  ) : (
+                                    <LazyApprovalImage src={activeImageUrl} alt="Post" className="w-full h-auto max-h-96 object-contain" />
+                                  )}
+                                  {mediaUrls && mediaUrls.length > 1 && (
+                                    <div className="flex items-center justify-center gap-3 mt-2">
+                                      <button
+                                        onClick={() => setCarouselIndexes(prev => ({ ...prev, [postKey]: (carouselIdx - 1 + mediaUrls.length) % mediaUrls.length }))}
+                                        className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
+                                      >
+                                        <ChevronLeft className="w-4 h-4 text-gray-700" />
+                                      </button>
+                                      <span className="text-xs text-gray-500 font-medium">{carouselIdx + 1} / {mediaUrls.length}</span>
+                                      <button
+                                        onClick={() => setCarouselIndexes(prev => ({ ...prev, [postKey]: (carouselIdx + 1) % mediaUrls.length }))}
+                                        className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
+                                      >
+                                        <ChevronRight className="w-4 h-4 text-gray-700" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+
+                            return null;
+                          })()}
 
                           {/* Editable Caption */}
                           <div className="mb-3">
