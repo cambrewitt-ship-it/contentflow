@@ -699,46 +699,48 @@ export default function PortalCalendarPage() {
   // Drag and drop handlers removed with week view; column view handles its own interactions
 
   // Delete handlers
-  const handleDeleteUpload = async (uploadId: string, uploadDate: string) => {
-    if (!confirm('Are you sure you want to delete this upload? This action cannot be undone.')) {
+  const handleDeleteUpload = async (uploadIds: string[], uploadDate: string) => {
+    const label = uploadIds.length > 1 ? `these ${uploadIds.length} carousel images` : 'this upload';
+    if (!confirm(`Are you sure you want to delete ${label}? This action cannot be undone.`)) {
       return;
     }
 
-    const itemKey = `upload-${uploadId}`;
-    setDeletingItems(prev => ({ ...prev, [itemKey]: true }));
+    uploadIds.forEach(id => {
+      setDeletingItems(prev => ({ ...prev, [`upload-${id}`]: true }));
+    });
 
     try {
-      const response = await fetch('/api/portal/upload', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token,
-          uploadId
+      await Promise.all(uploadIds.map(uploadId =>
+        fetch('/api/portal/upload', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, uploadId }),
         })
-      });
+      ));
 
-      if (!response.ok) {
-        throw new Error('Failed to delete upload');
-      }
-
-      // Remove from local state
+      // Remove all deleted IDs from local state
       setUploads(prev => {
         const newUploads = { ...prev };
+        const idSet = new Set(uploadIds);
         if (newUploads[uploadDate]) {
-          newUploads[uploadDate] = newUploads[uploadDate].filter(upload => upload.id !== uploadId);
+          newUploads[uploadDate] = newUploads[uploadDate].filter(upload => !idSet.has(upload.id));
           if (newUploads[uploadDate].length === 0) {
             delete newUploads[uploadDate];
           }
         }
         return newUploads;
       });
+      setAllUploads(prev => {
+        const idSet = new Set(uploadIds);
+        return prev.filter(u => !idSet.has(u.id));
+      });
     } catch (err) {
       logger.error('Error deleting upload:', err);
       alert('Failed to delete upload. Please try again.');
     } finally {
-      setDeletingItems(prev => ({ ...prev, [itemKey]: false }));
+      uploadIds.forEach(id => {
+        setDeletingItems(prev => ({ ...prev, [`upload-${id}`]: false }));
+      });
     }
   };
 
@@ -755,7 +757,12 @@ export default function PortalCalendarPage() {
       return;
     }
 
-    void handleDeleteUpload(upload.id, uploadDateKey);
+    // Delete all members of the carousel group if applicable
+    const groupIds = upload.carousel_group_id
+      ? allUploads.filter(u => u.carousel_group_id === upload.carousel_group_id).map(u => u.id)
+      : [upload.id];
+
+    void handleDeleteUpload(groupIds, uploadDateKey);
   };
 
   // Inbox: fetch all uploads as a flat list
@@ -2043,6 +2050,7 @@ export default function PortalCalendarPage() {
                   (post as any).isClientUpload;
                 if (isUpload) {
                   const uploadData = (post as any).client_upload || (post as any).upload || post;
+                  const carouselUploads = (post as any).carouselUploads as any[] | undefined;
                   setModalItem({
                     type: 'upload',
                     data: {
@@ -2057,6 +2065,19 @@ export default function PortalCalendarPage() {
                       status: uploadData.status ?? (post as any).status,
                       one_time_approval: uploadData.one_time_approval ?? null,
                     },
+                    carouselItems: carouselUploads && carouselUploads.length > 1
+                      ? carouselUploads.map(u => ({
+                          id: u.id,
+                          file_name: u.file_name || '',
+                          file_type: u.file_type || '',
+                          file_url: u.file_url || '',
+                          notes: u.notes ?? null,
+                          review_notes: u.review_notes ?? null,
+                          created_at: u.created_at || new Date().toISOString(),
+                          target_date: u.target_date ?? null,
+                          status: u.status,
+                        }))
+                      : undefined,
                   });
                 } else {
                   setModalItem({
@@ -2065,6 +2086,7 @@ export default function PortalCalendarPage() {
                       id: post.id,
                       caption: post.caption,
                       image_url: post.image_url,
+                      media_urls: (post as any).media_urls ?? null,
                       scheduled_date: post.scheduled_date,
                       scheduled_time: post.scheduled_time ?? null,
                       approval_status: post.approval_status,
@@ -2084,14 +2106,21 @@ export default function PortalCalendarPage() {
               onEventAdd={(dateKey) => setPortalEventModal({ date: dateKey })}
               onEventClick={(event) => setPortalEventModal({ date: event.date, event })}
               onQueueItemDrop={async (uploadId, dateKey) => {
+                // Move all members of a carousel group together
+                const upload = allUploads.find(u => u.id === uploadId);
+                const groupIds = upload?.carousel_group_id
+                  ? allUploads.filter(u => u.carousel_group_id === upload.carousel_group_id).map(u => u.id)
+                  : [uploadId];
                 setMovingUploadId(uploadId);
                 setMovingToDate(dateKey);
                 try {
-                  await fetch('/api/portal/upload', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token, uploadId, targetDate: dateKey }),
-                  });
+                  await Promise.all(groupIds.map(id =>
+                    fetch('/api/portal/upload', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ token, uploadId: id, targetDate: dateKey }),
+                    })
+                  ));
                   fetchUploads();
                   setKanbanRefreshKey(k => k + 1);
                   setQueueRefreshKey(k => k + 1);
@@ -2160,6 +2189,7 @@ export default function PortalCalendarPage() {
                 (post as any).isClientUpload;
               if (isUpload) {
                 const uploadData = (post as any).client_upload || (post as any).upload || post;
+                const carouselUploads = (post as any).carouselUploads as any[] | undefined;
                 setModalItem({
                   type: 'upload',
                   data: {
@@ -2174,6 +2204,19 @@ export default function PortalCalendarPage() {
                     status: uploadData.status,
                     one_time_approval: uploadData.one_time_approval ?? null,
                   },
+                  carouselItems: carouselUploads && carouselUploads.length > 1
+                    ? carouselUploads.map(u => ({
+                        id: u.id,
+                        file_name: u.file_name || '',
+                        file_type: u.file_type || '',
+                        file_url: u.file_url || '',
+                        notes: u.notes ?? null,
+                        review_notes: u.review_notes ?? null,
+                        created_at: u.created_at || new Date().toISOString(),
+                        target_date: u.target_date ?? null,
+                        status: u.status,
+                      }))
+                    : undefined,
                 });
               } else {
                 setModalItem({
@@ -2182,6 +2225,7 @@ export default function PortalCalendarPage() {
                     id: post.id,
                     caption: post.caption,
                     image_url: post.image_url,
+                    media_urls: (post as any).media_urls ?? null,
                     scheduled_date: post.scheduled_date,
                     scheduled_time: post.scheduled_time,
                     approval_status: post.approval_status,
@@ -2279,12 +2323,15 @@ export default function PortalCalendarPage() {
             setQueueRefreshKey(k => k + 1);
           }}
           onTagsChange={handleTagsChange}
-          onDeleteUpload={(uploadId) => {
+          onDeleteUpload={(uploadIds) => {
+            const primaryId = uploadIds[0];
             const existingEntry = Object.entries(uploads).find(([, items]) =>
-              items.some(item => item.id === uploadId)
+              items.some(item => uploadIds.includes(item.id))
             );
-            const uploadDateKey = existingEntry?.[0] ?? null;
-            if (uploadDateKey) void handleDeleteUpload(uploadId, uploadDateKey);
+            const uploadDateKey = existingEntry?.[0]
+              ?? allUploads.find(u => u.id === primaryId)?.target_date
+              ?? null;
+            if (uploadDateKey) void handleDeleteUpload(uploadIds, uploadDateKey);
           }}
         />
       )}

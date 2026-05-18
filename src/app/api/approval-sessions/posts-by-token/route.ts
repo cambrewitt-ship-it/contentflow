@@ -115,6 +115,7 @@ export async function GET(request: NextRequest) {
           id,
           caption,
           image_url,
+          media_urls,
           scheduled_time,
           scheduled_date,
           project_id,
@@ -140,7 +141,7 @@ export async function GET(request: NextRequest) {
 
       selectedUploadIds.length > 0 ? supabase
         .from('client_uploads')
-        .select('id, notes, file_url, file_type, target_date, created_at, client_id')
+        .select('id, notes, file_url, file_type, target_date, created_at, client_id, carousel_group_id')
         .eq('client_id', session.client_id)
         .in('id', selectedUploadIds) : { data: [], error: null },
     ]);
@@ -160,6 +161,26 @@ export async function GET(request: NextRequest) {
       logger.error('❌ Error fetching portal uploads:', uploadsError);
     }
 
+    // Build carousel media_urls for portal uploads that belong to a group
+    const carouselGroupIds = (uploadPosts || [])
+      .map((u: any) => u.carousel_group_id)
+      .filter(Boolean) as string[];
+
+    let carouselUrlsByGroupId: Record<string, string[]> = {};
+    if (carouselGroupIds.length > 0) {
+      const { data: siblings } = await supabase
+        .from('client_uploads')
+        .select('carousel_group_id, file_url')
+        .eq('client_id', session.client_id)
+        .in('carousel_group_id', carouselGroupIds);
+      for (const sibling of siblings || []) {
+        if (!carouselUrlsByGroupId[sibling.carousel_group_id]) {
+          carouselUrlsByGroupId[sibling.carousel_group_id] = [];
+        }
+        carouselUrlsByGroupId[sibling.carousel_group_id].push(sibling.file_url);
+      }
+    }
+
     // Combine and format posts
     const allPosts: ApprovalBoardPost[] = [
       ...(scheduledPosts || []).map(post => ({
@@ -174,18 +195,24 @@ export async function GET(request: NextRequest) {
         scheduled_date: post.scheduled_time?.split('T')[0] || '',
         approval: approvals?.find(a => a.post_id === post.id && a.post_type === 'scheduled')
       })),
-      ...(uploadPosts || []).map(upload => ({
-        id: upload.id,
-        caption: upload.notes || 'Portal Upload',
-        image_url: upload.file_type?.startsWith('image/') ? upload.file_url : '',
-        file_url: upload.file_url,
-        file_type: upload.file_type,
-        scheduled_time: '',
-        scheduled_date: upload.target_date || upload.created_at?.split('T')[0] || '',
-        post_type: 'portal_upload' as const,
-        client_id: upload.client_id,
-        approval: approvals?.find(a => a.post_id === upload.id && a.post_type === 'portal_upload')
-      })),
+      ...(uploadPosts || []).map((upload: any) => {
+        const groupUrls = upload.carousel_group_id
+          ? carouselUrlsByGroupId[upload.carousel_group_id]
+          : null;
+        return {
+          id: upload.id,
+          caption: upload.notes || 'Portal Upload',
+          image_url: upload.file_type?.startsWith('image/') ? upload.file_url : '',
+          media_urls: groupUrls && groupUrls.length > 1 ? groupUrls : null,
+          file_url: upload.file_url,
+          file_type: upload.file_type,
+          scheduled_time: '',
+          scheduled_date: upload.target_date || upload.created_at?.split('T')[0] || '',
+          post_type: 'portal_upload' as const,
+          client_id: upload.client_id,
+          approval: approvals?.find(a => a.post_id === upload.id && a.post_type === 'portal_upload')
+        };
+      }),
     ];
 
     // Group posts by week

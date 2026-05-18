@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
         id,
         caption,
         image_url,
+        media_urls,
         post_notes,
         scheduled_date,
         scheduled_time,

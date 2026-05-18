@@ -112,7 +112,7 @@ interface Props {
   onClose: () => void;
   onActioned: () => void;
   onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
-  onDeleteUpload?: (uploadId: string) => void;
+  onDeleteUpload?: (uploadIds: string[]) => void;
   brandName?: string;
   brandLogoUrl?: string;
 }
@@ -656,11 +656,17 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                 {onDeleteUpload && (
                   <button
                     type="button"
-                    onClick={() => { onDeleteUpload((item.data as ModalUpload).id); onClose(); }}
+                    onClick={() => {
+                      const ids = carouselItems && carouselItems.length > 1
+                        ? carouselItems.map(c => c.id)
+                        : [(item.data as ModalUpload).id];
+                      onDeleteUpload(ids);
+                      onClose();
+                    }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    Delete
+                    {carouselItems && carouselItems.length > 1 ? `Delete all ${carouselItems.length}` : 'Delete'}
                   </button>
                 )}
               </>

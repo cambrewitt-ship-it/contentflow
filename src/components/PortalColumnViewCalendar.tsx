@@ -492,7 +492,12 @@ function SortablePostCard({
           )}
         </div>
         {uploadData.file_url && (
-          <div className="w-full mb-2 rounded overflow-hidden border border-gray-200">
+          <div className="relative w-full mb-2 rounded overflow-hidden border border-gray-200">
+            {(post.carousel_count ?? 0) > 1 && (
+              <div className="absolute top-1 left-1 z-10 bg-black/60 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                {post.carousel_count} images
+              </div>
+            )}
             {uploadData.file_type?.startsWith('video/') ? (
               <VideoThumbnail src={uploadData.file_url} className="w-full min-h-24" objectFit="cover" />
             ) : (
@@ -603,7 +608,12 @@ function SortablePostCard({
 
       {/* Post Image */}
       {post.image_url && (
-        <div className="w-full mb-2 rounded overflow-hidden">
+        <div className="relative w-full mb-2 rounded overflow-hidden">
+          {(post.media_urls?.length ?? 0) > 1 && (
+            <div className="absolute top-1 left-1 z-10 bg-black/60 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+              {post.media_urls.length} images
+            </div>
+          )}
           {isVideoUrl(post.image_url) ? (
             <VideoThumbnail src={post.image_url} className="w-full min-h-24" objectFit="cover" />
           ) : (
@@ -1143,23 +1153,45 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
           scheduled_date: post.scheduled_date || dateKey,
         }));
 
-        const uploadsForDay = clientUploadsMap?.[dateKey] ?? [];
-        const uploadEntries = uploadsForDay.map((upload: ClientUpload) => {
-          const isImage =
-            typeof upload.file_type === 'string'
+        const uploadsForDay: ClientUpload[] = clientUploadsMap?.[dateKey] ?? [];
+
+        // Group carousel uploads (same carousel_group_id) into a single card
+        const seenCarouselGroups = new Set<string>();
+        const uploadEntries: Post[] = [];
+        for (const upload of uploadsForDay) {
+          if (upload.carousel_group_id) {
+            if (seenCarouselGroups.has(upload.carousel_group_id)) continue;
+            seenCarouselGroups.add(upload.carousel_group_id);
+            const group = uploadsForDay.filter((u: ClientUpload) => u.carousel_group_id === upload.carousel_group_id);
+            const isImage = typeof group[0].file_type === 'string'
+              ? group[0].file_type.startsWith('image/')
+              : /\.(png|jpe?g|gif|webp|svg)$/i.test(group[0].file_name || '');
+            uploadEntries.push({
+              id: group[0].id,
+              post_type: 'client-upload',
+              caption: group[0].notes || 'Portal Upload',
+              image_url: isImage ? group[0].file_url : undefined,
+              scheduled_date: dateKey,
+              client_upload: group[0],
+              isClientUpload: true,
+              carouselUploads: group,
+              carousel_count: group.length,
+            });
+          } else {
+            const isImage = typeof upload.file_type === 'string'
               ? upload.file_type.startsWith('image/')
               : /\.(png|jpe?g|gif|webp|svg)$/i.test(upload.file_name || '');
-
-          return {
-            id: upload.id,
-            post_type: 'client-upload',
-            caption: upload.notes || 'Portal Upload',
-            image_url: isImage ? upload.file_url : undefined,
-            scheduled_date: dateKey,
-            client_upload: upload,
-            isClientUpload: true,
-          };
-        });
+            uploadEntries.push({
+              id: upload.id,
+              post_type: 'client-upload',
+              caption: upload.notes || 'Portal Upload',
+              image_url: isImage ? upload.file_url : undefined,
+              scheduled_date: dateKey,
+              client_upload: upload,
+              isClientUpload: true,
+            });
+          }
+        }
 
         dayRows.push({
           dayName: getDayName(dayDate),
