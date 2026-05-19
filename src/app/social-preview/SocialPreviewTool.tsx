@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
-import { Menu, X, Upload, ImageIcon, ChevronDown } from 'lucide-react'
+import { Menu, X, Upload, ImageIcon, ChevronDown, Share2, Copy, Check, Loader2 } from 'lucide-react'
 import {
   FacebookIcon,
   InstagramIcon,
@@ -32,6 +33,7 @@ const CTA_OPTIONS = [
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function SocialPreviewTool() {
   const { user } = useAuth()
+  const searchParams = useSearchParams()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Business profile
@@ -54,8 +56,76 @@ export default function SocialPreviewTool() {
   // Drag state
   const [isDraggingImage, setIsDraggingImage] = useState(false)
 
+  // Share state
+  const [shareLoading, setShareLoading] = useState(false)
+  const [shareUrl, setShareUrl]         = useState<string | null>(null)
+  const [shareCopied, setShareCopied]   = useState(false)
+  const [loadingShared, setLoadingShared] = useState(false)
+
   const logoInputRef  = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+
+  // Load shared preview on mount
+  useEffect(() => {
+    const token = searchParams.get('share')
+    if (!token) return
+    setLoadingShared(true)
+    fetch(`/api/preview-share?token=${token}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) return
+        if (data.businessName) setBusinessName(data.businessName)
+        if (data.caption)      setCaption(data.caption)
+        if (data.headline)     setHeadline(data.headline)
+        if (data.isAdvert != null) setIsAdvert(data.isAdvert)
+        if (data.ctaText)      setCtaText(data.ctaText)
+        if (data.selectedPlatform) setSelectedPlatform(data.selectedPlatform)
+        if (data.imageUrl)     setPostImage(data.imageUrl)
+        if (data.logoUrl)      setLogoPreview(data.logoUrl)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingShared(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleShare = async () => {
+    setShareLoading(true)
+    setShareUrl(null)
+    setShareCopied(false)
+    try {
+      const res = await fetch('/api/preview-share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessName,
+          caption,
+          headline,
+          isAdvert,
+          ctaText,
+          selectedPlatform,
+          postImage,
+          logoPreview,
+        }),
+      })
+      const data = await res.json()
+      if (data.token) {
+        const url = `${window.location.origin}/social-preview?share=${data.token}`
+        setShareUrl(url)
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
+  const handleCopyLink = () => {
+    if (!shareUrl) return
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
+    })
+  }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
   const handleLogoUpload = (file: File) => {
@@ -795,10 +865,45 @@ export default function SocialPreviewTool() {
             <div className="bg-card border border-border rounded-xl p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-base">Preview</h2>
-                {isAdvert && (
-                  <span className="text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">Ad format</span>
-                )}
+                <div className="flex items-center gap-2">
+                  {isAdvert && (
+                    <span className="text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">Ad format</span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleShare}
+                    disabled={shareLoading || loadingShared}
+                    className="gap-1.5 text-xs h-7 px-2.5"
+                  >
+                    {shareLoading
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : <Share2 className="w-3 h-3" />}
+                    Share
+                  </Button>
+                </div>
               </div>
+
+              {/* Share link box */}
+              {shareUrl && (
+                <div className="flex items-center gap-2 bg-muted/60 border border-border rounded-lg px-3 py-2">
+                  <p className="flex-1 text-xs text-muted-foreground truncate">{shareUrl}</p>
+                  <button
+                    onClick={handleCopyLink}
+                    className="flex-shrink-0 flex items-center gap-1 text-xs font-medium text-foreground hover:text-primary transition-colors"
+                  >
+                    {shareCopied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    {shareCopied ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+              )}
+
+              {loadingShared && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Loading shared preview…
+                </div>
+              )}
               <div>
                 <p className="text-xs text-muted-foreground font-medium mb-1.5 uppercase tracking-wide">Feed</p>
                 <div className="grid grid-cols-4 rounded-lg border border-border overflow-hidden">

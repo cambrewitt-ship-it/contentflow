@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Script from 'next/script'
+import { Suspense } from 'react'
 import SocialPreviewTool from './SocialPreviewTool'
 
 export const metadata: Metadata = {
@@ -51,7 +52,9 @@ export default function SocialPreviewPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}
       />
-      <SocialPreviewTool />
+      <Suspense>
+        <SocialPreviewTool />
+      </Suspense>
     </>
   )
 }

@@ -293,13 +293,13 @@ export default function PortalCalendarPage() {
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingScheduledPosts, setIsLoadingScheduledPosts] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
   
   // Upload states
   const [uploading, setUploading] = useState(false);
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [tempNotes, setTempNotes] = useState<string>('');
   const [isLoadingUploads, setIsLoadingUploads] = useState(false);
+  const isLoadingUploadsRef = useRef(false);
   const fileInputRefs = useRef<{[key: string]: HTMLInputElement | null}>({});
   const columnUploadInputRef = useRef<HTMLInputElement | null>(null);
   const [pendingColumnUploadDate, setPendingColumnUploadDate] = useState<string | null>(null);
@@ -498,7 +498,6 @@ export default function PortalCalendarPage() {
       setCalendarEvents(data.events || {});
       setLastFetchTime(Date.now());
       setIsLoadingScheduledPosts(false);
-      setRefreshKey(prev => prev + 1);
       logger.debug('Scheduled posts loaded - dates:', Object.keys(postsByDate).length);
       
     } catch (error) {
@@ -521,19 +520,20 @@ export default function PortalCalendarPage() {
 
   // Fetch uploads for the current date range
   const fetchUploads = useCallback(async () => {
-    if (!token || isLoadingUploads) return; // Prevent multiple simultaneous calls
-    
+    if (!token || isLoadingUploadsRef.current) return; // Prevent multiple simultaneous calls
+
+    isLoadingUploadsRef.current = true;
     setIsLoadingUploads(true);
     try {
       const response = await fetch(`/api/portal/upload?token=${encodeURIComponent(token)}`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch uploads');
       }
 
       const data = await response.json();
       const uploadsList = data.uploads || [];
-      
+
       // Group uploads by target_date — only include on calendar if explicitly placed there
       const uploadsByDate: {[key: string]: Upload[]} = {};
       uploadsList.forEach((upload: Upload) => {
@@ -543,15 +543,16 @@ export default function PortalCalendarPage() {
         }
         uploadsByDate[upload.target_date].push(upload);
       });
-      
+
       setUploads(uploadsByDate);
       setAllUploads(uploadsList);
     } catch (err) {
       logger.error('Error fetching uploads:', err);
     } finally {
+      isLoadingUploadsRef.current = false;
       setIsLoadingUploads(false);
     }
-  }, [token, isLoadingUploads]);
+  }, [token]);
 
   // Handle file upload
   const handleFileUpload = async (files: FileList, targetDate: string) => {
@@ -1794,7 +1795,7 @@ export default function PortalCalendarPage() {
 
       {/* Calendar — Column View (sidebar + calendar, no overflow-hidden so sticky works) */}
       {viewMode === 'column' && (
-        <div key={refreshKey} className="flex gap-4 items-start">
+        <div className="flex gap-4 items-start">
 
           {/* ── Queue Sidebar — sticky, never scrolls past top of content area ── */}
           {(() => {
@@ -2180,7 +2181,7 @@ export default function PortalCalendarPage() {
 
       {/* Calendar — Strip View */}
       {viewMode === 'strip' && (
-        <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: '500px' }}>
+        <div className="bg-white rounded-lg shadow overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: '500px' }}>
           <StripCalendar
             ref={portalStripRef}
             scheduledPosts={scheduledPosts}
@@ -2249,7 +2250,7 @@ export default function PortalCalendarPage() {
 
       {/* Calendar — Month View */}
       {viewMode === 'month' && (
-        <div key={refreshKey} className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
           <MonthViewCalendar
             posts={Object.values(scheduledPosts).flat()}
             uploads={uploads}
