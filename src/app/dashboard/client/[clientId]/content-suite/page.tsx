@@ -537,33 +537,34 @@ export default function ContentSuitePage({ params }: PageProps) {
       // Get the active image
       const activeImage = uploadedImages[0] // Use first image for now
       
-      // Get the proper image URL - prefer blobUrl (Vercel Blob) over preview
-      // This prevents storing huge base64 data in the database
+      // Get the proper image URL — prefer blobUrl (Supabase Storage) over preview
       let imageUrl = activeImage.blobUrl || activeImage.preview
-      
+
       // Validate that we have a proper URL, not base64 data
       if (!imageUrl) {
         throw new Error('No image URL available. Please wait for the image to finish uploading.')
       }
-      
-      // Check if we have a valid HTTPS URL (either from blobUrl or preview)
+
+      // Show a clear error if the upload failed
+      if ((activeImage as any).uploadFailed) {
+        throw new Error('The image failed to upload. Please remove it and try uploading again.')
+      }
+
+      // Check if we have a valid HTTPS URL
       const isValidUrl = imageUrl.startsWith('https://')
-      
+
       if (!isValidUrl) {
-        // Image hasn't been uploaded to blob storage yet
         if (imageUrl.startsWith('data:')) {
-          console.error('❌ Image is base64 data - blob upload may have failed or is pending')
-          // Calculate approximate size for user feedback
+          console.error('❌ Image is base64 data - upload may have failed or is pending')
           const base64Size = Math.round((imageUrl.length * 3) / 4 / (1024 * 1024))
-          throw new Error(`Image is still processing (${base64Size}MB). Large images take longer to upload. Please wait a moment and try again.`)
+          throw new Error(`Image is still processing (${base64Size}MB). Please wait a moment and try again.`)
         }
-        
+
         if (imageUrl.startsWith('blob:')) {
-          console.error('❌ Image is still a temporary blob URL - waiting for Vercel Blob upload')
-          throw new Error('Image is still uploading to cloud storage. For large images (10MB+), this may take 10-30 seconds. Please wait and try again.')
+          console.error('❌ Image is still a temporary blob URL')
+          throw new Error('Image is still uploading to cloud storage. Please wait and try again.')
         }
-        
-        // Unknown format - reject for safety
+
         console.error('❌ Unknown image URL format:', imageUrl.substring(0, 50))
         throw new Error('Invalid image format. Please re-upload the image.')
       }
@@ -1918,16 +1919,19 @@ function ContentSuiteContent({
                     {/* Uploaded Media Thumbnails - To the right of upload box */}
                     <div className="flex gap-3 flex-wrap items-start min-w-0">
                       {uploadedImages.map((media) => {
-                        // Check if image is still uploading (no blobUrl yet and preview is temporary)
-                        const isUploading = !media.blobUrl && (media.preview?.startsWith('blob:') || media.preview?.startsWith('data:'))
-                        
+                        // Only show spinner while actively uploading — not if upload failed
+                        const isUploading = !media.blobUrl && !media.uploadFailed && (media.preview?.startsWith('blob:') || media.preview?.startsWith('data:'))
+                        const hasUploadError = !!media.uploadFailed
+
                         return (
                           <div
                             key={media.id}
                             className={`relative w-24 h-24 border-2 rounded-lg cursor-pointer transition-all flex-shrink-0 ${
-                              activeImageId === media.id
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300'
+                              hasUploadError
+                                ? 'border-red-400 bg-red-50'
+                                : activeImageId === media.id
+                                  ? 'border-blue-500 bg-blue-50'
+                                  : 'border-gray-200 hover:border-gray-300'
                             } ${isUploading ? 'opacity-70' : ''}`}
                             onClick={() => setActiveImageId(media.id)}
                           >
@@ -1937,6 +1941,16 @@ function ContentSuiteContent({
                                 <div className="flex flex-col items-center">
                                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                   <span className="text-white text-xs mt-1">Uploading...</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Upload Error Indicator */}
+                            {hasUploadError && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-red-500/80 rounded-md z-20">
+                                <div className="flex flex-col items-center px-1 text-center">
+                                  <AlertCircle className="w-5 h-5 text-white mb-1" />
+                                  <span className="text-white text-xs leading-tight">Upload failed</span>
                                 </div>
                               </div>
                             )}

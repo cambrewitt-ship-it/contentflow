@@ -187,6 +187,43 @@ async function compressImageFile(file: File | Blob): Promise<Blob> {
   });
 }
 
+// Convert a File/Blob to a base64 data URL using FileReader
+async function fileToBase64(file: File | Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Server-side fallback upload — sends base64 to /api/upload-media route
+async function uploadViaServerApi(
+  fileToUpload: File | Blob,
+  filename: string,
+  mediaType: 'image' | 'video',
+  mimeType: string
+): Promise<{ url: string; mediaType: 'image' | 'video'; mimeType: string }> {
+  logger.info('🔄 Falling back to server-side upload...', { filename, mediaType });
+
+  const mediaData = await fileToBase64(fileToUpload);
+
+  const res = await fetch('/api/upload-media', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mediaData, filename, mediaType }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Server-side upload failed (${res.status})`);
+  }
+
+  const result = await res.json();
+  logger.info('✅ Server-side upload successful', { url: result.url });
+  return { url: result.url, mediaType: result.mediaType ?? mediaType, mimeType: result.mimeType ?? mimeType };
+}
+
 // Upload media (images or videos) to Supabase Storage via signed URL
 export async function uploadMediaToBlob(
   mediaFile: File | Blob,
@@ -196,35 +233,52 @@ export async function uploadMediaToBlob(
   const isVideo = mediaFile.type.startsWith('video/');
   const mediaType = isVideo ? 'video' : 'image';
   const fileToUpload = isVideo ? mediaFile : await compressImageFile(mediaFile);
+  const effectiveMime = fileToUpload.type || mediaFile.type || (isVideo ? 'video/mp4' : 'image/jpeg');
 
   try {
     // Step 1: Get a Supabase signed upload URL from our server
     const params = new URLSearchParams({
       fileName: filename,
-      fileType: fileToUpload.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+      fileType: effectiveMime,
       fileSize: String(fileToUpload.size),
     });
 
-    const urlRes = await retryWithBackoff(async () => {
-      const res = await fetch(`/api/upload-presigned-url?${params}`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Failed to get upload URL (${res.status})`);
-      }
-      return res.json();
-    }, 'get signed upload URL');
+    let signedUrl: string;
+    let publicUrl: string;
 
-    const { signedUrl, publicUrl } = urlRes;
+    try {
+      const urlRes = await retryWithBackoff(async () => {
+        const res = await fetch(`/api/upload-presigned-url?${params}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Failed to get upload URL (${res.status})`);
+        }
+        return res.json();
+      }, 'get signed upload URL');
+
+      signedUrl = urlRes.signedUrl;
+      publicUrl = urlRes.publicUrl;
+    } catch (presignedError) {
+      // Presigned URL failed — fall back to server-side upload
+      logger.warn('⚠️ Presigned URL failed, using server-side upload:', presignedError);
+      return await uploadViaServerApi(fileToUpload, filename, mediaType, effectiveMime);
+    }
 
     // Step 2: PUT the file directly to Supabase Storage (bypasses Vercel function limits)
-    await retryWithBackoff(async () => {
-      const res = await fetch(signedUrl, {
-        method: 'PUT',
-        body: fileToUpload,
-        headers: { 'Content-Type': fileToUpload.type },
-      });
-      if (!res.ok) throw new Error(`Storage upload failed (${res.status})`);
-    }, 'Supabase direct upload');
+    try {
+      await retryWithBackoff(async () => {
+        const res = await fetch(signedUrl, {
+          method: 'PUT',
+          body: fileToUpload,
+          headers: { 'Content-Type': effectiveMime },
+        });
+        if (!res.ok) throw new Error(`Storage upload failed (${res.status})`);
+      }, 'Supabase direct upload');
+    } catch (putError) {
+      // Direct PUT failed (likely CORS) — fall back to server-side upload
+      logger.warn('⚠️ Direct Supabase PUT failed, using server-side upload:', putError);
+      return await uploadViaServerApi(fileToUpload, filename, mediaType, effectiveMime);
+    }
 
     logger.info('✅ Upload successful', {
       url: publicUrl,

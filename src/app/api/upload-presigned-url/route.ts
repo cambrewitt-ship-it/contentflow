@@ -41,9 +41,25 @@ export async function GET(request: NextRequest) {
     const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `uploads/${Date.now()}-${safeName}`;
 
-    const { data, error } = await admin.storage
+    let { data, error } = await admin.storage
       .from('media')
       .createSignedUploadUrl(storagePath);
+
+    // If the bucket doesn't exist, create it and retry once
+    if (error) {
+      const { error: bucketError } = await admin.storage.createBucket('media', {
+        public: true,
+        fileSizeLimit: 524288000, // 500MB
+        allowedMimeTypes: ['image/*', 'video/*'],
+      });
+      if (bucketError && !bucketError.message.toLowerCase().includes('already exists')) {
+        logger.error('Failed to create storage bucket:', bucketError);
+        return NextResponse.json({ error: 'Failed to initialize storage bucket' }, { status: 500 });
+      }
+      ({ data, error } = await admin.storage
+        .from('media')
+        .createSignedUploadUrl(storagePath));
+    }
 
     if (error || !data) {
       logger.error('Failed to create signed upload URL:', error);

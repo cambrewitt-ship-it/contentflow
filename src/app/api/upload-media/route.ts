@@ -10,9 +10,9 @@ const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gi
 const SUPPORTED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm', 'video/mpeg'];
 
 // File size limits
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_IMAGE_SIZE = 50 * 1024 * 1024; // 50MB (already compressed by client before reaching here)
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
-const MAX_REQUEST_SIZE = 50 * 1024 * 1024; // 50MB - reasonable limit for API requests
+const MAX_REQUEST_SIZE = 150 * 1024 * 1024; // 150MB request body limit
 
 export async function POST(request: NextRequest) {
   try {

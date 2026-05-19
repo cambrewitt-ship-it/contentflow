@@ -146,6 +146,7 @@ export interface UploadedImage {
   mediaType?: 'image' | 'video'
   mimeType?: string
   videoThumbnail?: string // Thumbnail image for videos (first frame)
+  uploadFailed?: boolean
 }
 
 // Serializable version for localStorage
@@ -492,7 +493,10 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
 
     } catch (error) {
       logger.error('❌ Failed to upload media to blob storage:', error)
-      // Keep the temporary preview if upload fails
+      // Mark the image as failed so the UI can show an error instead of spinning forever
+      setUploadedImages(prev =>
+        prev.map(img => (img.id === id ? { ...img, uploadFailed: true } : img))
+      )
     }
   }
 
