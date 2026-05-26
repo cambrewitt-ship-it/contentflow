@@ -1026,10 +1026,10 @@ export default function PortalCalendarPage() {
       const idsToDelete = new Set(calendarSelectedPostIds);
       const results = await Promise.allSettled(
         Array.from(idsToDelete).map(postId =>
-          fetch('/api/calendar/scheduled', {
+          fetch('/api/portal/delete-post', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ postId }),
+            body: JSON.stringify({ portal_token: token, post_id: postId }),
           })
         )
       );

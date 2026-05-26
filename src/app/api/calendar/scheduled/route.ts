@@ -239,7 +239,7 @@ export async function GET(request: Request) {
     // Fetch client uploads (content from portal) - also using admin client
     const { data: uploadsData, error: uploadsError } = await adminSupabase
       .from('client_uploads')
-      .select('id, client_id, project_id, file_name, file_type, file_size, file_url, status, notes, created_at, updated_at')
+      .select('id, client_id, project_id, file_name, file_type, file_size, file_url, status, notes, target_date, carousel_group_id, carousel_order, created_at, updated_at')
       .eq('client_id', clientId)
       .order('created_at', { ascending: false });
 
@@ -248,22 +248,37 @@ export async function GET(request: Request) {
       // Don't fail the whole request, just log the error
     }
 
-    // Fetch tags for uploads using the same post_tags table (upload IDs are stored as post_id)
+    // Fetch tags and approvals for uploads in parallel
     const uploadIds = (uploadsData || []).map((u: Record<string, unknown>) => u.id as string);
     const tagsByUploadId: Record<string, Array<{ id: string; name: string; color: string }>> = {};
+    const approvalByUploadId: Record<string, { approval_status: string; client_comments: string | null }> = {};
 
     if (uploadIds.length > 0) {
-      const { data: uploadTagsData, error: uploadTagsError } = await adminSupabase
-        .from('post_tags')
-        .select('post_id, tags(id, name, color)')
-        .in('post_id', uploadIds);
+      const [uploadTagsResult, uploadApprovalsResult] = await Promise.allSettled([
+        adminSupabase
+          .from('post_tags')
+          .select('post_id, tags(id, name, color)')
+          .in('post_id', uploadIds),
+        adminSupabase
+          .from('post_approvals')
+          .select('post_id, approval_status, client_comments')
+          .in('post_id', uploadIds)
+          .eq('post_type', 'portal_upload')
+          .order('updated_at', { ascending: false }),
+      ]);
 
-      if (uploadTagsError) {
-        logger.error('⚠️ Error fetching upload tags:', uploadTagsError);
-      } else {
-        for (const row of (uploadTagsData || []) as Array<{ post_id: string; tags: { id: string; name: string; color: string } }>) {
+      if (uploadTagsResult.status === 'fulfilled' && !uploadTagsResult.value.error) {
+        for (const row of (uploadTagsResult.value.data || []) as Array<{ post_id: string; tags: { id: string; name: string; color: string } }>) {
           if (!tagsByUploadId[row.post_id]) tagsByUploadId[row.post_id] = [];
           if (row.tags) tagsByUploadId[row.post_id].push(row.tags);
+        }
+      } else {
+        logger.error('⚠️ Error fetching upload tags:', uploadTagsResult.status === 'fulfilled' ? uploadTagsResult.value.error : uploadTagsResult.reason);
+      }
+
+      if (uploadApprovalsResult.status === 'fulfilled' && !uploadApprovalsResult.value.error) {
+        for (const row of (uploadApprovalsResult.value.data || []) as Array<{ post_id: string; approval_status: string; client_comments: string | null }>) {
+          if (!approvalByUploadId[row.post_id]) approvalByUploadId[row.post_id] = row;
         }
       }
     }
@@ -271,6 +286,7 @@ export async function GET(request: Request) {
     const uploads = (uploadsData || []).map((upload: Record<string, unknown>) => ({
       ...upload,
       tags: tagsByUploadId[upload.id as string] ?? [],
+      one_time_approval: approvalByUploadId[upload.id as string] ?? null,
     }));
 
     return NextResponse.json({

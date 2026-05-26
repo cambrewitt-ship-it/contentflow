@@ -65,6 +65,9 @@ interface ClientUpload {
   file_url?: string;
   notes?: string | null;
   created_at?: string;
+  carousel_group_id?: string | null;
+  carousel_order?: number | null;
+  one_time_approval?: { approval_status: string; client_comments: string | null } | null;
   [key: string]: any;
 }
 
@@ -532,12 +535,21 @@ function SortablePostCard({
       ? createdAt.toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit' })
       : '';
 
+    const carouselCount = (post.carousel_count as number | undefined) ?? 0;
+    const oneTimeApprovalStatus = uploadData.one_time_approval?.approval_status as string | undefined;
     const approvalTag = (() => {
+      if (oneTimeApprovalStatus === 'approved')
+        return { label: 'Approved', className: 'bg-green-100 text-green-700' };
+      if (oneTimeApprovalStatus === 'rejected')
+        return { label: 'Rejected', className: 'bg-red-100 text-red-700' };
+      if (oneTimeApprovalStatus === 'needs_attention')
+        return { label: 'Improve', className: 'bg-orange-100 text-orange-700' };
+      if (oneTimeApprovalStatus === 'pending')
+        return { label: 'Pending', className: 'bg-gray-100 text-gray-600' };
+      // Fall back to upload status
       const s = uploadData.status as string | undefined;
       if (s === 'completed' || s === 'in_use' || s === 'published')
-        return { label: 'Approved', className: 'bg-green-100 text-green-700' };
-      if (s === 'failed')
-        return { label: 'Rejected', className: 'bg-red-100 text-red-700' };
+        return { label: 'In Use', className: 'bg-blue-100 text-blue-700' };
       return { label: 'Pending', className: 'bg-gray-100 text-gray-600' };
     })();
 
@@ -575,7 +587,12 @@ function SortablePostCard({
           </div>
         </div>
         {uploadData.file_url && (
-          <div className="w-full mb-2 rounded overflow-hidden border border-gray-200">
+          <div className="relative w-full mb-2 rounded overflow-hidden border border-gray-200">
+            {carouselCount > 1 && (
+              <div className="absolute top-1 left-1 z-10 bg-black/60 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                {carouselCount} images
+              </div>
+            )}
             {uploadData.file_type?.startsWith('video/') ? (
               <VideoThumbnail src={uploadData.file_url} className="w-full min-h-24" objectFit="cover" />
             ) : (
@@ -1303,24 +1320,49 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
           scheduled_date: post.scheduled_date || dateKey,
         }));
 
-        const uploadsForDay = clientUploadsMap?.[dateKey] ?? [];
-        const uploadEntries = uploadsForDay.map((upload: ClientUpload) => {
-          const isImage =
-            typeof upload.file_type === 'string'
+        const uploadsForDay: ClientUpload[] = clientUploadsMap?.[dateKey] ?? [];
+
+        // Group carousel uploads (same carousel_group_id) into a single card
+        const seenCarouselGroups = new Set<string>();
+        const uploadEntries: Post[] = [];
+        for (const upload of uploadsForDay) {
+          if (upload.carousel_group_id) {
+            if (seenCarouselGroups.has(upload.carousel_group_id)) continue;
+            seenCarouselGroups.add(upload.carousel_group_id);
+            const group = uploadsForDay
+              .filter((u: ClientUpload) => u.carousel_group_id === upload.carousel_group_id)
+              .sort((a: ClientUpload, b: ClientUpload) => (a.carousel_order ?? 0) - (b.carousel_order ?? 0));
+            const isImage = typeof group[0].file_type === 'string'
+              ? group[0].file_type.startsWith('image/')
+              : /\.(png|jpe?g|gif|webp|svg)$/i.test(group[0].file_name || '');
+            uploadEntries.push({
+              id: group[0].id,
+              post_type: 'client-upload',
+              caption: group[0].notes || 'Client Upload',
+              image_url: isImage ? group[0].file_url : undefined,
+              scheduled_date: dateKey,
+              client_upload: group[0],
+              isClientUpload: true,
+              carouselUploads: group,
+              carousel_count: group.length,
+              tags: group[0].tags ?? [],
+            });
+          } else {
+            const isImage = typeof upload.file_type === 'string'
               ? upload.file_type.startsWith('image/')
               : /\.(png|jpe?g|gif|webp|svg)$/i.test(upload.file_name || '');
-
-          return {
-            id: upload.id,
-            post_type: 'client-upload',
-            caption: upload.notes || 'Client Upload',
-            image_url: isImage ? upload.file_url : undefined,
-            scheduled_date: dateKey,
-            client_upload: upload,
-            isClientUpload: true,
-            tags: upload.tags ?? [],
-          };
-        });
+            uploadEntries.push({
+              id: upload.id,
+              post_type: 'client-upload',
+              caption: upload.notes || 'Client Upload',
+              image_url: isImage ? upload.file_url : undefined,
+              scheduled_date: dateKey,
+              client_upload: upload,
+              isClientUpload: true,
+              tags: upload.tags ?? [],
+            });
+          }
+        }
 
         dayRows.push({
           dayName: getDayName(dayDate),

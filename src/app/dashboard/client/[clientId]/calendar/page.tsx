@@ -135,6 +135,10 @@ interface ClientUpload {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  target_date?: string | null;
+  carousel_group_id?: string | null;
+  carousel_order?: number | null;
+  one_time_approval?: { approval_status: string; client_comments: string | null } | null;
   tags?: Array<{ id: string; name: string; color: string }>;
 }
 
@@ -613,12 +617,12 @@ export default function CalendarPage() {
         if (dateKey) mapped[dateKey].push(post);
       });
       
-      // Map uploads by date (using created_at date)
+      // Map uploads by target_date (only include uploads explicitly placed on the calendar)
       const uploadsMapped: {[key: string]: ClientUpload[]} = {};
       uploads.forEach((upload: ClientUpload) => {
-        const uploadDate = new Date(upload.created_at).toLocaleDateString('en-CA');
-        if (!uploadsMapped[uploadDate]) uploadsMapped[uploadDate] = [];
-        uploadsMapped[uploadDate].push(upload);
+        if (!upload.target_date) return; // queue-only items stay off the calendar
+        if (!uploadsMapped[upload.target_date]) uploadsMapped[upload.target_date] = [];
+        uploadsMapped[upload.target_date].push(upload);
       });
       
       setScheduledPosts(mapped);
