@@ -662,6 +662,14 @@ function SortablePostCard({
         </div>
       )}
 
+      {/* Client feedback comment */}
+      {post.client_feedback && (
+        <div className="mt-1 mb-2 rounded-md border border-orange-200 bg-orange-50 px-2 py-1.5">
+          <p className="text-[10px] font-semibold text-orange-500 uppercase tracking-wide mb-0.5">Feedback</p>
+          <p className="text-xs text-orange-800 whitespace-pre-wrap leading-relaxed">{post.client_feedback}</p>
+        </div>
+      )}
+
       {/* Platform */}
       {post.platform && (
         <div className="mt-1 mb-2">
@@ -1527,7 +1535,7 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
       <DragOverlay>
         {activeId ? (
           <div className="bg-white rounded-lg border-2 border-blue-400 p-3 shadow-xl opacity-95 transform rotate-2">
-            <div className="text-sm text-gray-600 font-medium">📝 Dragging post...</div>
+            <div className="text-sm text-gray-600 font-medium">Dragging post...</div>
           </div>
         ) : null}
       </DragOverlay>

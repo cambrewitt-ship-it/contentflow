@@ -219,6 +219,13 @@ export async function POST(request: NextRequest) {
     // Update the post status
     const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
 
+    // Fetch current values so we can write a before/after history entry
+    const { data: currentPost } = await supabase
+      .from(tableName)
+      .select('approval_status, client_feedback')
+      .eq('id', post_id)
+      .single();
+
     const statusUpdate: any = {
       approval_status,
       updated_at: new Date().toISOString(),
@@ -244,6 +251,22 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Write history row (fire-and-forget — don't fail the request if this errors)
+    supabase
+      .from('post_approval_history')
+      .insert({
+        post_id,
+        changed_by: 'portal_client',
+        previous_approval_status: currentPost?.approval_status ?? null,
+        new_approval_status: approval_status,
+        previous_client_feedback: currentPost?.client_feedback ?? null,
+        new_client_feedback: statusUpdate.client_feedback ?? null,
+        metadata: { token_prefix: token?.substring(0, 8), post_type },
+      })
+      .then(({ error }) => {
+        if (error) logger.warn('Failed to write approval history', error);
+      });
 
     return NextResponse.json({
       success: true,

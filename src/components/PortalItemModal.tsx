@@ -238,6 +238,9 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
 
+  // Download state
+  const [isDownloading, setIsDownloading] = useState(false);
+
   // Action state
   const [isActioning, setIsActioning] = useState(false);
   const [actionDone, setActionDone] = useState<string | null>(null);
@@ -252,6 +255,18 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
+
+  // Approval version history (posts only)
+  const [approvalHistory, setApprovalHistory] = useState<Array<{
+    id: string;
+    changed_at: string;
+    changed_by: string | null;
+    previous_approval_status: string | null;
+    new_approval_status: string | null;
+    previous_client_feedback: string | null;
+    new_client_feedback: string | null;
+  }>>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Upload review notes (shown as update notifications)
   const [localReviewNotes] = useState<string | null>(
@@ -329,10 +344,27 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     }
   }, [itemId, portalToken, commentPostType]);
 
+  const fetchApprovalHistory = useCallback(async () => {
+    if (!isPost) return;
+    const postId = (item.data as ModalPost).id;
+    try {
+      const res = await fetch(
+        `/api/portal/approval-history?token=${encodeURIComponent(portalToken)}&postId=${postId}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setApprovalHistory(data.history ?? []);
+      }
+    } catch {
+      // non-fatal
+    }
+  }, [isPost, item.data, portalToken]);
+
   useEffect(() => {
     fetchPipeline();
     fetchComments();
-  }, [fetchPipeline, fetchComments]);
+    fetchApprovalHistory();
+  }, [fetchPipeline, fetchComments, fetchApprovalHistory]);
 
   useEffect(() => {
     if (!isLoadingComments && comments.length > 0) scrollToBottom();
@@ -557,6 +589,39 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     }
   };
 
+  // ── Download ─────────────────────────────────────────────────────────────
+
+  const handleDownload = async () => {
+    if (!isUpload) return;
+    const items = carouselItems ?? [(item.data as ModalUpload)];
+    setIsDownloading(true);
+    try {
+      for (let i = 0; i < items.length; i++) {
+        const upload = items[i];
+        if (!upload.file_url) continue;
+        try {
+          const res = await fetch(upload.file_url);
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = upload.file_name || `file-${i + 1}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          if (i < items.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 400));
+          }
+        } catch {
+          window.open(upload.file_url, "_blank");
+        }
+      }
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   // ── Close on escape ──────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -641,18 +706,22 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
           <div className="flex items-center gap-1.5">
             {isUpload && (
               <>
-                {(item.data as ModalUpload).file_url && (
-                  <a
-                    href={(item.data as ModalUpload).file_url}
-                    download={(item.data as ModalUpload).file_name || undefined}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors"
+                {(carouselItems ?? [(item.data as ModalUpload)]).some(u => u.file_url) && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+                    disabled={isDownloading}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors disabled:opacity-50"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    Download
-                  </a>
+                    {isDownloading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5" />
+                    )}
+                    {carouselItems && carouselItems.length > 1
+                      ? `Download all (${carouselItems.length})`
+                      : "Download"}
+                  </button>
                 )}
                 {onDeleteUpload && (
                   <button
@@ -991,6 +1060,47 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                   </div>
                 );
               })()}
+
+              {/* ── APPROVAL HISTORY ── */}
+              {isPost && approvalHistory.length > 0 && (
+                <div className="border-t border-gray-100 pt-4">
+                  <button
+                    onClick={() => setShowHistory(h => !h)}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide hover:text-gray-600 transition-colors w-full text-left"
+                  >
+                    <span>Approval History ({approvalHistory.length})</span>
+                    <span className="ml-auto text-gray-300">{showHistory ? '▲' : '▼'}</span>
+                  </button>
+                  {showHistory && (
+                    <ol className="mt-2 space-y-2">
+                      {approvalHistory.map((entry) => (
+                        <li key={entry.id} className="flex gap-2 text-xs">
+                          <div className="mt-0.5 w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <StatusBadge status={entry.new_approval_status ?? undefined} />
+                              {entry.previous_approval_status && (
+                                <span className="text-gray-400 line-through text-[10px]">
+                                  {entry.previous_approval_status === 'needs_attention' ? 'Improve' : entry.previous_approval_status}
+                                </span>
+                              )}
+                              <span className="text-gray-400 ml-auto flex-shrink-0">
+                                {new Date(entry.changed_at).toLocaleString(undefined, {
+                                  day: 'numeric', month: 'short',
+                                  hour: '2-digit', minute: '2-digit',
+                                })}
+                              </span>
+                            </div>
+                            {entry.new_client_feedback && (
+                              <p className="mt-1 text-gray-500 italic truncate">{entry.new_client_feedback}</p>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              )}
 
               {/* ── COMMENTS ── */}
               <div className="border-t border-gray-100 pt-4 space-y-4">

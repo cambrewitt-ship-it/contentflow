@@ -149,6 +149,14 @@ function PostCardContent({ post, onClick }: { post: Post; onClick: () => void })
           {caption || 'No caption'}
         </p>
 
+        {/* Client feedback */}
+        {post.client_feedback && (
+          <div className="rounded-md border border-orange-200 bg-orange-50 px-2 py-1.5">
+            <p className="text-[10px] font-semibold text-orange-500 uppercase tracking-wide mb-0.5">Feedback</p>
+            <p className="text-xs text-orange-800 whitespace-pre-wrap leading-relaxed line-clamp-3">{post.client_feedback}</p>
+          </div>
+        )}
+
         {/* Time */}
         {time && (
           <div className="flex items-center gap-1 text-[11px] text-gray-500">

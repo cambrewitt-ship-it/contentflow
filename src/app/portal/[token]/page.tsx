@@ -290,7 +290,9 @@ export default function PortalCalendarPage() {
   const [uploads, setUploads] = useState<{[key: string]: Upload[]}>({});
   const [allUploads, setAllUploads] = useState<Upload[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<{[key: string]: CalendarEvent[]}>({});
-  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+  // useRef instead of useState so the cache check inside fetchScheduledPosts
+  // (a useCallback) always reads the current value without a stale closure.
+  const lastFetchTimeRef = useRef<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingScheduledPosts, setIsLoadingScheduledPosts] = useState(false);
   
@@ -303,6 +305,11 @@ export default function PortalCalendarPage() {
   const fileInputRefs = useRef<{[key: string]: HTMLInputElement | null}>({});
   const columnUploadInputRef = useRef<HTMLInputElement | null>(null);
   const [pendingColumnUploadDate, setPendingColumnUploadDate] = useState<string | null>(null);
+  // Monotonically-increasing counter — each fetch increments this, and only the
+  // response matching the latest count is applied. Discards stale in-flight responses
+  // that can arrive out of order and clobber newer state (the root cause of the
+  // approval_status / client_feedback "disappearing" glitch).
+  const fetchScheduledPostsIdRef = useRef(0);
   
   // Ref to track currently dragged queue item(s) — avoids DataTransfer.getData() issues
   // Holds an array to support carousel groups (multiple uploads treated as one post)
@@ -428,13 +435,16 @@ export default function PortalCalendarPage() {
 
   const fetchScheduledPosts = useCallback(async (retryCount = 0, forceRefresh = false) => {
     if (!token) return;
-    
-    // Check cache first (unless force refresh)
+
+    // Cache guard — use a ref so this is always the current value (avoids stale closure).
     const now = Date.now();
-    if (!forceRefresh && now - lastFetchTime < 30000 && Object.keys(scheduledPosts).length > 0) {
+    if (!forceRefresh && now - lastFetchTimeRef.current < 30000) {
       logger.debug('📦 Using cached scheduled posts data');
       return;
     }
+
+    // Stale-response guard: only apply the response from the most-recent fetch.
+    const fetchId = ++fetchScheduledPostsIdRef.current;
     
     const maxRetries = 1;
     
@@ -467,8 +477,10 @@ export default function PortalCalendarPage() {
         
         if (response.status === 404) {
           logger.debug('📭 No scheduled posts found for this period');
-          setScheduledPosts({});
-          setIsLoadingScheduledPosts(false);
+          if (fetchId === fetchScheduledPostsIdRef.current) {
+            setScheduledPosts({});
+            setIsLoadingScheduledPosts(false);
+          }
           return;
         }
         
@@ -477,9 +489,15 @@ export default function PortalCalendarPage() {
 
       const data = await response.json();
       const postsByDate = data.posts || {};
-      
+
+      // Discard this response if a newer fetch has already resolved.
+      if (fetchId !== fetchScheduledPostsIdRef.current) {
+        logger.debug('📦 Discarding stale fetch response');
+        return;
+      }
+
       logger.debug(`✅ Retrieved posts for ${Object.keys(postsByDate).length} dates`);
-      
+
       // Set client timezone from response (for calendar display)
       if (data.timezone) {
         setClientTimezone(data.timezone);
@@ -492,11 +510,11 @@ export default function PortalCalendarPage() {
         setBrandName(data.client.name || '');
         setBrandLogoUrl(data.client.logo_url || '');
       }
-      
+
       // The API already returns posts grouped by date, so we can use it directly
       setScheduledPosts(postsByDate);
       setCalendarEvents(data.events || {});
-      setLastFetchTime(Date.now());
+      lastFetchTimeRef.current = Date.now();
       setIsLoadingScheduledPosts(false);
       logger.debug('Scheduled posts loaded - dates:', Object.keys(postsByDate).length);
       
@@ -1334,6 +1352,8 @@ export default function PortalCalendarPage() {
       if (!response.ok) {
         throw new Error('Failed to move post');
       }
+      // Re-sync from DB so approval_status/comments are never lost after an optimistic move.
+      fetchScheduledPosts(0, true);
     } catch (err) {
       logger.error('Error moving post in column view:', err);
       setScheduledPosts(previousState);
@@ -2128,6 +2148,8 @@ export default function PortalCalendarPage() {
                     })
                   ));
                   fetchUploads();
+                  // Refresh scheduled posts so approval_status/comments stay visible
+                  fetchScheduledPosts(0, true);
                   setKanbanRefreshKey(k => k + 1);
                   setQueueRefreshKey(k => k + 1);
                 } catch {
@@ -2165,6 +2187,8 @@ export default function PortalCalendarPage() {
                     })
                   ));
                   await fetchUploads();
+                  // Refresh scheduled posts so approval_status/comments stay visible
+                  fetchScheduledPosts(0, true);
                   setKanbanRefreshKey(k => k + 1);
                   setQueueRefreshKey(k => k + 1);
                 } catch {
@@ -2285,6 +2309,8 @@ export default function PortalCalendarPage() {
                   })
                 ));
                 fetchUploads();
+                // Refresh scheduled posts so approval_status/comments stay visible
+                fetchScheduledPosts(0, true);
                 setQueueRefreshKey(k => k + 1);
               } catch {
                 // silent fail
