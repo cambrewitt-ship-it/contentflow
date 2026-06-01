@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, ChangeEvent, useImperativeHandle, forwardRef } from 'react';
-import { Calendar, CheckCircle, AlertTriangle, XCircle, Minus, Tag, FileText, CalendarDays, Loader2, Plus } from 'lucide-react';
+import { Calendar, CheckCircle, AlertTriangle, XCircle, Minus, Tag, FileText, CalendarDays, Loader2, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { VideoThumbnail } from '@/components/VideoThumbnail';
 import { isVideoUrl } from '@/lib/videoUtils';
 import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
@@ -264,6 +264,9 @@ function SortablePostCard({
   const hasCaptionChanged = captionValue !== (post.caption || '');
   const isDeletingUpload = isClientUpload ? deletingUploadIds?.has(post.id) ?? false : false;
 
+  // Carousel navigation state
+  const [imgIndex, setImgIndex] = useState(0);
+
   // Tags state — initialise from post.tags (pre-loaded by portal calendar API)
   const [postTags, setPostTags] = useState<Array<{ id: string; name: string; color: string }>>(
     post.tags ?? []
@@ -491,24 +494,43 @@ function SortablePostCard({
             </button>
           )}
         </div>
-        {uploadData.file_url && (
-          <div className="relative w-full mb-2 rounded overflow-hidden border border-gray-200">
-            {(post.carousel_count ?? 0) > 1 && (
-              <div className="absolute top-1 left-1 z-10 bg-black/60 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
-                {post.carousel_count} images
-              </div>
-            )}
-            {uploadData.file_type?.startsWith('video/') ? (
-              <VideoThumbnail src={uploadData.file_url} className="w-full min-h-24" objectFit="cover" />
-            ) : (
-              <LazyImage
-                src={uploadData.file_url}
-                alt={fileName || 'Client upload'}
-                className="w-full"
-              />
-            )}
-          </div>
-        )}
+        {uploadData.file_url && (() => {
+          const carouselGroup: any[] = (post.carouselUploads?.length ?? 0) > 1 ? post.carouselUploads : null;
+          const activeUpload = carouselGroup ? carouselGroup[imgIndex] ?? carouselGroup[0] : uploadData;
+          const activeUrl = activeUpload.file_url || uploadData.file_url;
+          const activeType = activeUpload.file_type || uploadData.file_type;
+          const total = carouselGroup ? carouselGroup.length : 1;
+          return (
+            <div className="relative w-full mb-2 rounded overflow-hidden border border-gray-200">
+              {activeType?.startsWith('video/') ? (
+                <VideoThumbnail src={activeUrl} className="w-full min-h-24" objectFit="cover" />
+              ) : (
+                <LazyImage src={activeUrl} alt={fileName || 'Client upload'} className="w-full" />
+              )}
+              {total > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setImgIndex(i => (i - 1 + total) % total); }}
+                    className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setImgIndex(i => (i + 1) % total); }}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/50 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full z-10">
+                    {imgIndex + 1} / {total}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
         {(() => {
           const filtered = uploadNotes
             .split('\n')
@@ -607,24 +629,41 @@ function SortablePostCard({
       </div>
 
       {/* Post Image */}
-      {post.image_url && (
-        <div className="relative w-full mb-2 rounded overflow-hidden">
-          {(post.media_urls?.length ?? 0) > 1 && (
-            <div className="absolute top-1 left-1 z-10 bg-black/60 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
-              {post.media_urls.length} images
-            </div>
-          )}
-          {isVideoUrl(post.image_url) ? (
-            <VideoThumbnail src={post.image_url} className="w-full min-h-24" objectFit="cover" />
-          ) : (
-            <LazyImage
-              src={post.image_url}
-              alt="Post"
-              className="w-full"
-            />
-          )}
-        </div>
-      )}
+      {post.image_url && (() => {
+        const allMedia: string[] = (post.media_urls?.length ?? 0) > 1 ? post.media_urls : [post.image_url];
+        const activeUrl = allMedia[imgIndex] ?? post.image_url;
+        const total = allMedia.length;
+        return (
+          <div className="relative w-full mb-2 rounded overflow-hidden">
+            {isVideoUrl(activeUrl) ? (
+              <VideoThumbnail src={activeUrl} className="w-full min-h-24" objectFit="cover" />
+            ) : (
+              <LazyImage src={activeUrl} alt="Post" className="w-full" />
+            )}
+            {total > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setImgIndex(i => (i - 1 + total) % total); }}
+                  className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setImgIndex(i => (i + 1) % total); }}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/50 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full z-10">
+                  {imgIndex + 1} / {total}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Editable Caption */}
       <div className="mb-3">
