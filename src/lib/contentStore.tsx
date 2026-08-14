@@ -806,8 +806,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         throw readError instanceof Error ? readError : new Error(`Failed to generate captions: ${response.status}`)
       }
 
-      // Check for insufficient credits error (may come from withAICreditCheck middleware with 403 status)
-      const is403Error = !response.ok && response.status === 403
+      // Check for insufficient credits error. Note: a 403 alone is NOT sufficient evidence -
+      // requireClientOwnership also returns 403 ("Forbidden") for unrelated auth/ownership
+      // failures, so we only classify as a credit error when the response actually says so.
       const hasInsufficientCreditsError = data &&
         typeof data.error === 'object' &&
         data.error !== null &&
@@ -817,17 +818,22 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         typeof data.error === 'string' &&
         (data.error.includes('credit') || data.error.includes('Credit') || data.error.includes('AI credit'))
 
-      const insufficientCredits = is403Error || hasInsufficientCreditsError || hasCreditErrorMessage
+      const insufficientCredits = hasInsufficientCreditsError || hasCreditErrorMessage
 
       if (insufficientCredits) {
+        const serverMessage = hasInsufficientCreditsError
+          ? (data.error as { message?: string }).message
+          : (typeof data.error === 'string' ? data.error : undefined)
         const error = new Error('INSUFFICIENT_CREDITS')
         error.name = 'InsufficientCreditsError'
+        ;(error as Error & { details?: string }).details = serverMessage
         throw error
       }
 
       if (!response.ok) {
         logger.error('API response error:', response.status, data)
-        throw new Error(`Failed to generate captions: ${response.status}`)
+        const serverMessage = typeof data?.error === 'string' ? data.error : undefined
+        throw new Error(serverMessage || `Failed to generate captions: ${response.status}`)
       }
 
       if (data.captions && Array.isArray(data.captions) && data.captions.length > 0) {

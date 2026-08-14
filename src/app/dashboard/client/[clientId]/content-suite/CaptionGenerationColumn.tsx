@@ -38,6 +38,7 @@ export function CaptionGenerationColumn() {
   const [generatingCaptions, setGeneratingCaptions] = useState(false)
   const [remixingCaption, setRemixingCaption] = useState<string | null>(null)
   const [showCreditDialog, setShowCreditDialog] = useState(false)
+  const [creditDialogMessage, setCreditDialogMessage] = useState<string | null>(null)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [rulesLoading, setRulesLoading] = useState(false)
   const [savingRules, setSavingRules] = useState(false)
@@ -238,6 +239,8 @@ export function CaptionGenerationColumn() {
       
       // Check for insufficient credits error
       if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
+        const details = (error as Error & { details?: string }).details
+        setCreditDialogMessage(details || null)
         setShowCreditDialog(true)
       } else {
         alert(`Failed to generate captions: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -594,7 +597,7 @@ export function CaptionGenerationColumn() {
               Out of Credits
             </DialogTitle>
             <DialogDescription>
-              Failed to generate captions: Insufficient AI credits. You have 0 credits remaining - Please upgrade your plan or wait until next month.
+              {creditDialogMessage || 'Insufficient AI credits. Please upgrade your plan or wait until next month.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
