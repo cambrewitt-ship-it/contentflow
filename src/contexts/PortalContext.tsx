@@ -66,7 +66,16 @@ export function PortalProvider({
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/portal/validate?token=${encodeURIComponent(tokenValue)}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      let response: Response;
+      try {
+        response = await fetch(`/api/portal/validate?token=${encodeURIComponent(tokenValue)}`, {
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
       const data = await response.json();
 
       if (data.success) {
@@ -88,7 +97,8 @@ export function PortalProvider({
       }
     } catch (err) {
       logger.error('PortalContext: Validation error:', err);
-      setError('Network error during validation');
+      const isTimeout = err instanceof Error && err.name === 'AbortError';
+      setError(isTimeout ? 'Connection timed out. Please refresh and try again.' : 'Network error during validation');
       return false;
     } finally {
       setIsLoading(false);

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { use } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ContentStoreProvider, ContentFocus, CopyTone } from '@/lib/contentStore'
 import { useAuth } from '@/contexts/AuthContext'
 import { SchedulePostModal, Platform } from '@/components/SchedulePostModal'
+
+type ChatCaption = { id: string; text: string }
+type ChatMessage = {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  captions?: ChatCaption[]
+  isLoading?: boolean
+}
 
 interface Project {
   id: string
@@ -901,11 +910,19 @@ function ContentSuiteContent({
   // State for refreshing content ideas
   const [refreshingIdeas, setRefreshingIdeas] = useState(false)
   const [showCreditDialog, setShowCreditDialog] = useState(false)
+  const [creditDialogMessage, setCreditDialogMessage] = useState<string | null>(null)
   
   // State for caption generation
   const [generatingCaptions, setGeneratingCaptions] = useState(false)
   const [remixingCaption, setRemixingCaption] = useState<string | null>(null)
   const [bounceHelperText, setBounceHelperText] = useState(false)
+
+  // Chat mode state
+  const [chatMode, setChatMode] = useState(true)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
   
   // State for scheduling
   const [isScheduling, setIsScheduling] = useState(false)
@@ -1142,8 +1159,10 @@ function ContentSuiteContent({
         const errorData = await response.json().catch(() => ({ error: 'Network error' }))
         const errorMessage = errorData.error || `Server error (${response.status})`
         
-        // Check if it's an insufficient credits error
-        if (errorMessage.includes('Insufficient AI credits') || errorMessage.includes('credit')) {
+        // Check if it's an insufficient credits error (only classify on an actual
+        // credit-related server message, not any 403 — see handleGenerateCaptions)
+        if (errorMessage.includes('AI credit')) {
+          setCreditDialogMessage(errorMessage)
           setShowCreditDialog(true)
           setRefreshingIdeas(false)
           return
@@ -1255,6 +1274,8 @@ function ContentSuiteContent({
     } catch (error) {
       console.error('Failed to generate captions:', error)
       if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
+        const details = (error as Error & { details?: string }).details
+        setCreditDialogMessage(details || null)
         setShowCreditDialog(true)
       } else {
         alert(`Failed to generate captions: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -1435,6 +1456,237 @@ function ContentSuiteContent({
       setRulesSuccess(null)
     }
   }, [showSettingsModal])
+
+  // Auto-scroll chat to bottom when messages change
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+  }, [chatMessages])
+
+  // Compress a base64 image to stay under the 3MB target (matches contentStore logic)
+  const compressBase64 = useCallback(async (dataUrl: string, targetBytes = 3 * 1024 * 1024): Promise<string> => {
+    if (!dataUrl.startsWith('data:image/')) return dataUrl
+    const base64 = dataUrl.split(',')[1] || ''
+    const size = Math.floor((base64.length * 3) / 4) - (base64.match(/=/g) || []).length
+    if (size <= targetBytes) return dataUrl
+
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const attempts = [
+          { maxDim: 1920, quality: 0.75 },
+          { maxDim: 1600, quality: 0.65 },
+          { maxDim: 1280, quality: 0.55 },
+          { maxDim: 1024, quality: 0.45 },
+        ]
+        const mimeType = dataUrl.match(/data:([^;]+)/)?.[1] || 'image/jpeg'
+        for (const { maxDim, quality } of attempts) {
+          const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
+          const w = Math.round(img.width * scale)
+          const h = Math.round(img.height * scale)
+          const canvas = document.createElement('canvas')
+          canvas.width = w
+          canvas.height = h
+          const ctx = canvas.getContext('2d')
+          if (!ctx) break
+          ctx.drawImage(img, 0, 0, w, h)
+          const compressed = canvas.toDataURL(mimeType, quality)
+          const b64 = compressed.split(',')[1] || ''
+          const compressedSize = Math.floor((b64.length * 3) / 4) - (b64.match(/=/g) || []).length
+          if (compressedSize <= targetBytes) { resolve(compressed); return }
+        }
+        resolve(dataUrl) // best effort
+      }
+      img.onerror = () => resolve(dataUrl)
+      img.src = dataUrl
+    })
+  }, [])
+
+  // Get image data for chat API calls — converts URLs to base64 and compresses (mirrors contentStore.generateAICaptions)
+  const getImageDataForChat = useCallback(async (): Promise<string | undefined> => {
+    if (!activeImage) return undefined
+    const img = activeImage as { blobUrl?: string; preview: string; mediaType?: string }
+    if (img.mediaType === 'video') return 'VIDEO_PLACEHOLDER'
+    const url = img.blobUrl || img.preview
+    if (!url) return undefined
+
+    // Already base64 — still compress if too large
+    if (url.startsWith('data:')) return compressBase64(url)
+
+    // Fetch URL → base64 → compress
+    try {
+      const res = await fetch(url)
+      const blob = await res.blob()
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+      return compressBase64(dataUrl)
+    } catch {
+      return url // fallback — server handles HTTPS URLs natively
+    }
+  }, [activeImage, compressBase64])
+
+  // Auto-generate the first chat message when entering chat mode
+  const initializeChat = useCallback(async () => {
+    if (!activeImage) return
+    const accessToken = getAccessToken()
+    if (!accessToken) return
+
+    const imageData = await getImageDataForChat()
+    if (!imageData) return
+
+    const loadingId = `msg-${Date.now()}`
+    setChatMessages([{ id: loadingId, role: 'assistant', content: '', isLoading: true }])
+    setChatLoading(true)
+
+    try {
+      const aiContext = isVideoSelected
+        ? postNotes.trim()
+        : (postNotes?.trim() || 'Generate engaging social media captions for this content.')
+
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ action: 'generate_captions', imageData, aiContext, clientId, copyType }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        const errMsg = (data.error as string) || `Error ${response.status}`
+        if (errMsg.includes('AI credit')) {
+          setCreditDialogMessage(errMsg)
+          setShowCreditDialog(true)
+          setChatMessages([])
+          return
+        }
+        throw new Error(errMsg)
+      }
+
+      const data = await response.json()
+      const captionTexts: string[] = data.captions || []
+      const ts = Date.now()
+      const newCaptions: ChatCaption[] = captionTexts.map((text, i) => ({ id: `chat-init-${ts}-${i}`, text }))
+
+      setCaptions(newCaptions)
+      setChatMessages([{ id: loadingId, role: 'assistant', content: '', captions: newCaptions, isLoading: false }])
+    } catch (error) {
+      setChatMessages([{
+        id: loadingId,
+        role: 'assistant',
+        content: error instanceof Error ? error.message : 'Failed to generate captions. Please try again.',
+        isLoading: false,
+      }])
+    } finally {
+      setChatLoading(false)
+    }
+  }, [activeImage, isVideoSelected, postNotes, clientId, copyType, getAccessToken, getImageDataForChat, setCaptions])
+
+  // Send a follow-up instruction in chat mode
+  const sendChatMessage = useCallback(async () => {
+    const instruction = chatInput.trim()
+    if (!instruction || chatLoading || !activeImage) return
+
+    const userMsgId = `msg-user-${Date.now()}`
+    const aiMsgId = `msg-ai-${Date.now()}`
+    const snapshot = [...chatMessages]
+
+    setChatMessages(prev => [
+      ...prev,
+      { id: userMsgId, role: 'user' as const, content: instruction },
+      { id: aiMsgId, role: 'assistant' as const, content: '', isLoading: true },
+    ])
+    setChatInput('')
+    setChatLoading(true)
+
+    try {
+      const accessToken = getAccessToken()
+      const imageData = await getImageDataForChat()
+
+      const history = snapshot
+        .filter(m => !m.isLoading)
+        .map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.role === 'assistant'
+            ? (m.captions?.map(c => c.text).join('\n\n') || m.content)
+            : m.content,
+        }))
+
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          action: 'chat_caption',
+          imageData,
+          userInstruction: instruction,
+          conversationHistory: history,
+          aiContext: postNotes?.trim() || undefined,
+          clientId,
+          copyType,
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error((data.error as string) || `Error ${response.status}`)
+
+      const captionTexts: string[] = data.captions || []
+      const ts = Date.now()
+      const newCaptions: ChatCaption[] = captionTexts.map((text, i) => ({ id: `chat-${aiMsgId}-${i}-${ts}`, text }))
+
+      setChatMessages(prev => prev.map(m =>
+        m.id === aiMsgId ? { ...m, captions: newCaptions, isLoading: false } : m
+      ))
+    } catch (error) {
+      setChatMessages(prev => prev.map(m =>
+        m.id === aiMsgId
+          ? { ...m, content: error instanceof Error ? error.message : 'Failed to generate. Please try again.', isLoading: false }
+          : m
+      ))
+    } finally {
+      setChatLoading(false)
+    }
+  }, [chatInput, chatLoading, activeImage, chatMessages, postNotes, clientId, copyType, getAccessToken, getImageDataForChat])
+
+  // Enter chat mode — auto-generates first captions if none yet
+  const handleEnterChatMode = useCallback(async () => {
+    setChatMode(true)
+    if (chatMessages.length === 0 && activeImage) {
+      if (isVideoSelected && !postNotes.trim()) {
+        setChatMessages([{
+          id: `msg-${Date.now()}`,
+          role: 'assistant',
+          content: 'This is a video. Please add Post Notes describing your video content, then switch back to Chat mode.',
+          isLoading: false,
+        }])
+        return
+      }
+      await initializeChat()
+    }
+  }, [chatMessages.length, activeImage, isVideoSelected, postNotes, initializeChat])
+
+  // Chat mode is on by default — auto-initialize once an image becomes active
+  useEffect(() => {
+    if (chatMode && activeImage && chatMessages.length === 0) {
+      handleEnterChatMode()
+    }
+  }, [chatMode, activeImage, chatMessages.length, handleEnterChatMode])
+
+  // Select a caption from a chat message — syncs to the store so SocialPreview updates
+  const selectChatCaption = useCallback((caption: ChatCaption) => {
+    if (!captions.some(c => c.id === caption.id)) {
+      setCaptions([...captions, { id: caption.id, text: caption.text }])
+    }
+    selectCaption(caption.id)
+  }, [captions, setCaptions, selectCaption])
 
   // Helper functions for Content Focus and Copy Tone
   const getContentFocusDisplayText = (focus: ContentFocus): string => {
@@ -2129,243 +2381,364 @@ function ContentSuiteContent({
                     </p>
                   )}
 
-                  {/* ChatGPT-style Input: Post Notes + Generate Button */}
-                  <div className="border-t border-gray-200 pt-6">
-                    {/* Video Notice */}
-                    {isVideoSelected && (
-                      <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="flex items-start gap-2">
-                          <VideoIcon className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                          <div className="text-xs text-blue-800">
-                            <p className="font-medium mb-1">Video Selected</p>
-                            <p>AI will generate captions based on your <strong>Post Notes only</strong>. Video visual analysis is not available. Please ensure your Post Notes describe the video content.</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Warning if video but no notes */}
-                    {isVideoSelected && !postNotes.trim() && (
-                      <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                          <div className="text-xs text-amber-800">
-                            <p className="font-medium">Post Notes Required</p>
-                            <p>Add Post Notes below to describe your video before generating captions.</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                  {/* ── Caption Mode Toggle ── */}
+                  <div className="flex items-center justify-between border-t border-gray-200 pt-4 pb-1">
+                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Caption Mode</span>
+                    <div className="flex items-center bg-gray-100 rounded-full p-1 gap-0.5">
+                      <button
+                        onClick={() => setChatMode(false)}
+                        className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+                          !chatMode
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Standard
+                      </button>
+                      <button
+                        onClick={handleEnterChatMode}
+                        disabled={!activeImage}
+                        className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
+                          chatMode
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        ✦ Chat
+                      </button>
+                    </div>
+                  </div>
 
-                    {/* ChatGPT-style unified input container */}
-                    <div className="relative flex items-end gap-2 border-2 border-gray-300 rounded-3xl bg-white focus-within:border-blue-500 focus-within:shadow-lg transition-all">
-                      <Textarea
-                        value={postNotes}
-                        onChange={(e) => setPostNotes(e.target.value)}
-                        placeholder="Add notes, context, or instructions for your post..."
-                        className="h-14 min-h-[56px] max-h-[200px] resize-none border-0 focus:outline-none focus:ring-0 shadow-none rounded-3xl pr-36 pt-[18px] pb-[18px] pl-4 leading-5"
-                        rows={1}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                            e.preventDefault()
-                            if (!generatingCaptions && activeImage && !(isVideoSelected && !postNotes.trim())) {
-                              handleGenerateCaptions()
-                            }
-                          }
-                        }}
-                      />
-                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
-                        <Button
-                          onClick={() => {
-                            const isDisabled = generatingCaptions || !activeImage || (isVideoSelected && !postNotes.trim())
-                            if (isDisabled && !activeImage) {
-                              // Trigger bounce animation
-                              setBounceHelperText(true)
-                              setTimeout(() => setBounceHelperText(false), 600)
-                            } else if (!isDisabled) {
-                              handleGenerateCaptions()
+                  {/* ── Standard Mode: notes input + generate button ── */}
+                  {!chatMode && (
+                    <>
+                      <div className="border-t border-gray-200 pt-6">
+                        {/* Video Notice */}
+                        {isVideoSelected && (
+                          <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <VideoIcon className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                              <div className="text-xs text-blue-800">
+                                <p className="font-medium mb-1">Video Selected</p>
+                                <p>AI will generate captions based on your <strong>Post Notes only</strong>. Video visual analysis is not available. Please ensure your Post Notes describe the video content.</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Warning if video but no notes */}
+                        {isVideoSelected && !postNotes.trim() && (
+                          <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                              <div className="text-xs text-amber-800">
+                                <p className="font-medium">Post Notes Required</p>
+                                <p>Add Post Notes below to describe your video before generating captions.</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Unified input container */}
+                        <div className="relative flex items-end gap-2 border-2 border-gray-300 rounded-3xl bg-white focus-within:border-blue-500 focus-within:shadow-lg transition-all">
+                          <Textarea
+                            value={postNotes}
+                            onChange={(e) => setPostNotes(e.target.value)}
+                            placeholder="Add notes, context, or instructions for your post..."
+                            className="h-14 min-h-[56px] max-h-[200px] resize-none border-0 focus:outline-none focus:ring-0 shadow-none rounded-3xl pr-36 pt-[18px] pb-[18px] pl-4 leading-5"
+                            rows={1}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                e.preventDefault()
+                                if (!generatingCaptions && activeImage && !(isVideoSelected && !postNotes.trim())) {
+                                  handleGenerateCaptions()
+                                }
+                              }
+                            }}
+                          />
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                            <Button
+                              onClick={() => {
+                                const isDisabled = generatingCaptions || !activeImage || (isVideoSelected && !postNotes.trim())
+                                if (isDisabled && !activeImage) {
+                                  setBounceHelperText(true)
+                                  setTimeout(() => setBounceHelperText(false), 600)
+                                } else if (!isDisabled) {
+                                  handleGenerateCaptions()
+                                }
+                              }}
+                              disabled={generatingCaptions || !activeImage || (isVideoSelected && !postNotes.trim())}
+                              className="h-9 px-6 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white disabled:bg-blue-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-2 font-semibold text-sm"
+                              title={generatingCaptions ? 'Generating...' : `Generate ${copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy`}
+                            >
+                              {generatingCaptions ? (
+                                <>
+                                  <RefreshCw className="w-4 h-4 animate-spin" />
+                                  Generating...
+                                </>
+                              ) : (
+                                <>
+                                  <Brain className="w-4 h-4 text-white" />
+                                  Generate Text
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Helper text */}
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-500 text-center">
+                            AI will analyze your image and Post Notes to generate captions
+                          </p>
+                          {isVideoSelected && postNotes.trim() && (
+                            <p className="text-xs text-gray-500 text-center">
+                              Captions will be generated from your Post Notes
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* OR divider */}
+                      <div className="flex items-center my-6">
+                        <div className="flex-1 border-t border-gray-300"></div>
+                        <span className="px-4 text-sm font-bold text-gray-700">OR</span>
+                        <div className="flex-1 border-t border-gray-300"></div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── Chat Mode: scrollable conversation window ── */}
+                  {chatMode && (
+                    <div className="pt-3">
+                      {/* Messages window */}
+                      <div
+                        ref={chatContainerRef}
+                        className="h-[440px] overflow-y-auto rounded-2xl bg-gray-50 border border-gray-200 p-4 space-y-5"
+                      >
+                        {/* Empty state */}
+                        {chatMessages.length === 0 && (
+                          <div className="flex flex-col items-center justify-center h-full text-center gap-3">
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                              <Brain className="w-7 h-7 text-white" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-700">Chat Mode</p>
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {activeImage ? 'Auto-generating captions…' : 'Upload an image first'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Message list */}
+                        {chatMessages.map((msg, msgIdx) => (
+                          <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            {/* AI avatar */}
+                            {msg.role === 'assistant' && (
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
+                                <Brain className="w-4 h-4 text-white" />
+                              </div>
+                            )}
+
+                            <div className={`max-w-[87%] ${msg.role === 'user' ? '' : 'flex-1'}`}>
+                              {/* User bubble */}
+                              {msg.role === 'user' && (
+                                <div className="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed shadow-sm">
+                                  {msg.content}
+                                </div>
+                              )}
+
+                              {/* AI loading dots */}
+                              {msg.role === 'assistant' && msg.isLoading && (
+                                <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm inline-flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '160ms' }} />
+                                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '320ms' }} />
+                                </div>
+                              )}
+
+                              {/* AI captions */}
+                              {msg.role === 'assistant' && !msg.isLoading && msg.captions && msg.captions.length > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-xs text-gray-400 font-medium px-0.5 mb-1">
+                                    {msgIdx === 0 ? 'Here are your captions — click to select:' : 'Updated captions:'}
+                                  </p>
+                                  {msg.captions.map((caption) => {
+                                    const isSelected = selectedCaptions.includes(caption.id)
+                                    return (
+                                      <div
+                                        key={caption.id}
+                                        onClick={() => selectChatCaption(caption)}
+                                        className={`group relative bg-white rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-md ${
+                                          isSelected
+                                            ? 'border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-500/20'
+                                            : 'border-gray-200 hover:border-blue-300'
+                                        }`}
+                                      >
+                                        <p className="text-sm text-gray-800 leading-relaxed p-3 pr-24 whitespace-pre-wrap">{caption.text}</p>
+                                        <div className={`absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
+                                          isSelected
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-gray-100 text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-700'
+                                        }`}>
+                                          {isSelected ? (
+                                            <><Check className="w-3 h-3" /> Selected</>
+                                          ) : 'Select'}
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+
+                              {/* AI error message */}
+                              {msg.role === 'assistant' && !msg.isLoading && !msg.captions && msg.content && (
+                                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600 leading-relaxed">
+                                  {msg.content}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Chat input */}
+                      <div className="mt-3 relative flex items-end border-2 border-gray-300 rounded-2xl bg-white focus-within:border-blue-500 focus-within:shadow-lg transition-all">
+                        <Textarea
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          placeholder='Try "make it shorter", "add a CTA", "more casual and fun"…'
+                          className="min-h-[48px] max-h-[120px] resize-none border-0 focus:outline-none focus:ring-0 shadow-none rounded-2xl pr-14 pt-3 pb-3 pl-4 leading-5 text-sm flex-1"
+                          rows={1}
+                          disabled={chatLoading}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              sendChatMessage()
                             }
                           }}
-                          disabled={generatingCaptions || !activeImage || (isVideoSelected && !postNotes.trim())}
-                          className="h-9 px-6 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white disabled:bg-blue-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-2 font-semibold text-sm"
-                          title={generatingCaptions ? 'Generating...' : `Generate ${copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy`}
-                        >
-                          {generatingCaptions ? (
-                            <>
+                        />
+                        <div className="absolute right-2 bottom-2">
+                          <Button
+                            onClick={sendChatMessage}
+                            disabled={!chatInput.trim() || chatLoading || !activeImage}
+                            className="h-9 w-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-200 disabled:text-gray-400 p-0 flex items-center justify-center shadow-sm transition-all"
+                          >
+                            {chatLoading ? (
                               <RefreshCw className="w-4 h-4 animate-spin" />
-                              Generating...
-                            </>
-                          ) : (
-                            <>
-                              <Brain className="w-4 h-4 text-white" />
-                              Generate Text
-                            </>
-                          )}
-                        </Button>
+                            ) : (
+                              <Send className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-center text-gray-400 mt-2">Enter to send · Shift+Enter for new line</p>
+                    </div>
+                  )}
+                  </div>
+
+                  {/* ── Standard Mode: caption cards ── */}
+                  {!chatMode && (
+                    <div>
+                      {/* Caption boxes */}
+                      <div className="w-full flex justify-center">
+                        {(() => {
+                          const firstCaption = captions.length > 0 ? captions[0] : { id: 'custom-caption-1', text: '' }
+                          const displayCaptions = captions.length > 0 ? captions.slice(0, 3) : [firstCaption]
+                          const isEmptyBox = captions.length === 0
+                          const isSingleCaption = displayCaptions.length === 1
+
+                          return (
+                            <div className={`grid gap-3 w-full ${isSingleCaption ? 'grid-cols-1 max-w-md' : 'grid-cols-1 md:grid-cols-3 max-w-5xl'}`}>
+                              {displayCaptions.map((caption, index) => {
+                                const isFirstEmpty = isEmptyBox && index === 0
+
+                                return (
+                                  <div
+                                    key={caption.id}
+                                    className={`border rounded-lg p-3 transition-all ${
+                                      selectedCaptions.includes(caption.id)
+                                        ? 'border-blue-500 bg-blue-50'
+                                        : 'border-gray-200'
+                                    }`}
+                                  >
+                                    {isFirstEmpty || caption.id === 'custom-caption-1' ? (
+                                      <div className="flex flex-col items-center justify-center py-8">
+                                        <Textarea
+                                          value={caption.text}
+                                          onChange={(e) => {
+                                            const newText = e.target.value
+                                            if (isFirstEmpty) {
+                                              const newCaption = { id: 'custom-caption-1', text: newText }
+                                              setCaptions([newCaption])
+                                              if (newText.trim()) selectCaption('custom-caption-1')
+                                            } else {
+                                              updateCaption(caption.id, newText)
+                                              if (newText.trim() && !selectedCaptions.includes(caption.id)) selectCaption(caption.id)
+                                            }
+                                          }}
+                                          placeholder="Type your own caption..."
+                                          className="min-h-[60px] resize-none border-2 border-blue-500 bg-white focus:outline-none focus:ring-0 focus:shadow-lg focus:border-blue-500 p-2 text-sm text-gray-700 rounded-md break-words w-full"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <div className="flex items-center justify-center mt-4">
+                                          <Button
+                                            size="sm"
+                                            variant={selectedCaptions.includes(caption.id) ? 'default' : 'outline'}
+                                            onClick={(e) => { e.stopPropagation(); selectCaption(caption.id) }}
+                                            disabled={!caption.text.trim() || isFirstEmpty}
+                                            className={`text-xs ${selectedCaptions.includes(caption.id) ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-blue-300 text-blue-700 hover:bg-blue-50'}`}
+                                          >
+                                            {selectedCaptions.includes(caption.id) ? (<><Check className="w-3 h-3 mr-1" />Selected</>) : 'Select'}
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        <Textarea
+                                          value={caption.text}
+                                          onChange={(e) => {
+                                            const newText = e.target.value
+                                            updateCaption(caption.id, newText)
+                                            if (newText.trim() && !selectedCaptions.includes(caption.id)) selectCaption(caption.id)
+                                          }}
+                                          placeholder={`Type your ${copyType === 'social-media' ? 'caption' : 'email copy'} here...`}
+                                          className="min-h-[60px] resize-none border-2 border-blue-500 bg-white focus:outline-none focus:ring-0 focus:shadow-lg focus:border-blue-500 p-2 text-sm text-gray-700 rounded-md break-words w-full"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <div className="flex items-center justify-between">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={(e) => { e.stopPropagation(); handleRemixCaption(caption.id) }}
+                                            disabled={remixingCaption === caption.id || !caption.text.trim()}
+                                            className="text-xs"
+                                          >
+                                            <RefreshCw className={`w-3 h-3 mr-1 ${remixingCaption === caption.id ? 'animate-spin' : ''}`} />
+                                            {remixingCaption === caption.id ? 'Remixing...' : 'Remix'}
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant={selectedCaptions.includes(caption.id) ? 'default' : 'outline'}
+                                            onClick={(e) => { e.stopPropagation(); selectCaption(caption.id) }}
+                                            disabled={!caption.text.trim()}
+                                            className={`text-xs ${selectedCaptions.includes(caption.id) ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'border-blue-300 text-blue-700 hover:bg-blue-50'}`}
+                                          >
+                                            {selectedCaptions.includes(caption.id) ? (<><Check className="w-3 h-3 mr-1" />Selected</>) : 'Select'}
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )
+                        })()}
                       </div>
                     </div>
-
-                    {/* Helper text */}
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-500 text-center">
-                        AI will analyze your image and Post Notes to generate captions
-                      </p>
-                      {isVideoSelected && postNotes.trim() && (
-                        <p className="text-xs text-gray-500 text-center">
-                          Captions will be generated from your Post Notes
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* OR divider */}
-                    <div className="flex items-center my-6">
-                      <div className="flex-1 border-t border-gray-300"></div>
-                      <span className="px-4 text-sm font-bold text-gray-700">OR</span>
-                      <div className="flex-1 border-t border-gray-300"></div>
-                    </div>
-                  </div>
-
-                  {/* Bottom Section - Caption Cards */}
-                  <div>
-                    {/* Caption boxes */}
-                    <div className="w-full flex justify-center">
-                      {(() => {
-                        const firstCaption = captions.length > 0 ? captions[0] : { id: 'custom-caption-1', text: '' }
-                        const displayCaptions = captions.length > 0 ? captions.slice(0, 3) : [firstCaption]
-                        const isEmptyBox = captions.length === 0
-                        const isSingleCaption = displayCaptions.length === 1
-                        
-                        return (
-                          <div className={`grid gap-3 w-full ${isSingleCaption ? 'grid-cols-1 max-w-md' : 'grid-cols-1 md:grid-cols-3 max-w-5xl'}`}>
-                            {displayCaptions.map((caption, index) => {
-                              const isFirstEmpty = isEmptyBox && index === 0
-                              
-                              return (
-                                <div
-                                  key={caption.id}
-                                  className={`border rounded-lg p-3 transition-all ${
-                                    selectedCaptions.includes(caption.id)
-                                      ? 'border-blue-500 bg-blue-50'
-                                      : 'border-gray-200'
-                                  }`}
-                                >
-                                  {isFirstEmpty || caption.id === 'custom-caption-1' ? (
-                                    <div className="flex flex-col items-center justify-center py-8">
-                                      <Textarea
-                                        value={caption.text}
-                                        onChange={(e) => {
-                                          const newText = e.target.value
-                                          
-                                          if (isFirstEmpty) {
-                                            const newCaption = {
-                                              id: 'custom-caption-1',
-                                              text: newText
-                                            }
-                                            setCaptions([newCaption])
-                                            if (newText.trim()) {
-                                              selectCaption('custom-caption-1')
-                                            }
-                                          } else {
-                                            updateCaption(caption.id, newText)
-                                            if (newText.trim() && !selectedCaptions.includes(caption.id)) {
-                                              selectCaption(caption.id)
-                                            }
-                                          }
-                                        }}
-                                        placeholder="Type your own caption..."
-                                        className="min-h-[60px] resize-none border-2 border-blue-500 bg-white focus:outline-none focus:ring-0 focus:shadow-lg focus:border-blue-500 p-2 text-sm text-gray-700 rounded-md break-words w-full"
-                                        onClick={(e) => e.stopPropagation()}
-                                      />
-                                      <div className="flex items-center justify-center mt-4">
-                                        <Button
-                                          size="sm"
-                                          variant={selectedCaptions.includes(caption.id) ? "default" : "outline"}
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            selectCaption(caption.id)
-                                          }}
-                                          disabled={!caption.text.trim() || isFirstEmpty}
-                                          className={`text-xs ${
-                                            selectedCaptions.includes(caption.id)
-                                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                              : 'border-blue-300 text-blue-700 hover:bg-blue-50'
-                                          }`}
-                                        >
-                                          {selectedCaptions.includes(caption.id) ? (
-                                            <>
-                                              <Check className="w-3 h-3 mr-1" />
-                                              Selected
-                                            </>
-                                          ) : (
-                                            'Select'
-                                          )}
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      <Textarea
-                                        value={caption.text}
-                                        onChange={(e) => {
-                                          const newText = e.target.value
-                                          updateCaption(caption.id, newText)
-                                          if (newText.trim() && !selectedCaptions.includes(caption.id)) {
-                                            selectCaption(caption.id)
-                                          }
-                                        }}
-                                        placeholder={`Type your ${copyType === 'social-media' ? 'caption' : 'email copy'} here...`}
-                                        className="min-h-[60px] resize-none border-2 border-blue-500 bg-white focus:outline-none focus:ring-0 focus:shadow-lg focus:border-blue-500 p-2 text-sm text-gray-700 rounded-md break-words w-full"
-                                        onClick={(e) => e.stopPropagation()}
-                                      />
-                                      <div className="flex items-center justify-between">
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleRemixCaption(caption.id)
-                                          }}
-                                          disabled={remixingCaption === caption.id || !caption.text.trim()}
-                                          className="text-xs"
-                                        >
-                                          <RefreshCw className={`w-3 h-3 mr-1 ${remixingCaption === caption.id ? 'animate-spin' : ''}`} />
-                                          {remixingCaption === caption.id ? 'Remixing...' : 'Remix'}
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant={selectedCaptions.includes(caption.id) ? "default" : "outline"}
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            selectCaption(caption.id)
-                                          }}
-                                          disabled={!caption.text.trim()}
-                                          className={`text-xs ${
-                                            selectedCaptions.includes(caption.id)
-                                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                              : 'border-blue-300 text-blue-700 hover:bg-blue-50'
-                                          }`}
-                                        >
-                                          {selectedCaptions.includes(caption.id) ? (
-                                            <>
-                                              <Check className="w-3 h-3 mr-1" />
-                                              Selected
-                                            </>
-                                          ) : (
-                                            'Select'
-                                          )}
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -2466,7 +2839,7 @@ function ContentSuiteContent({
               Out of Credits
             </DialogTitle>
             <DialogDescription>
-              Failed to refresh content ideas: Insufficient AI credits. You have 0 credits remaining - Please upgrade your plan or wait until next month.
+              {creditDialogMessage || 'Insufficient AI credits. Please upgrade your plan or wait until next month.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

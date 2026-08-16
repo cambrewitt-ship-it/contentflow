@@ -454,10 +454,18 @@ export default function PortalCalendarPage() {
       setError(null);
       }
       logger.debug(`🔍 FETCHING - Scheduled posts for portal (attempt ${retryCount + 1})`);
-      
-      const response = await fetch(
-        `/api/portal/calendar?token=${encodeURIComponent(token)}`
-      );
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/portal/calendar?token=${encodeURIComponent(token)}`,
+          { signal: controller.signal }
+        );
+      } finally {
+        clearTimeout(timeoutId);
+      }
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -523,15 +531,20 @@ export default function PortalCalendarPage() {
         setIsLoadingScheduledPosts(false);
       }
       logger.error('❌ Error fetching scheduled posts:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (retryCount < maxRetries && errorMessage.includes('fetch')) {
+
+      const isTimeout = error instanceof Error && error.name === 'AbortError';
+      const errorMessage = isTimeout ? 'Request timed out' : (error instanceof Error ? error.message : String(error));
+
+      if (!isTimeout && retryCount < maxRetries && errorMessage.includes('fetch')) {
         logger.debug(`🔄 Network error, retrying... (attempt ${retryCount + 1})`);
         setTimeout(() => fetchScheduledPosts(retryCount + 1), 2000);
         return;
       }
-      
-      setError(`Failed to load scheduled posts: ${errorMessage}`);
+
+      setError(isTimeout
+        ? 'Loading timed out. Please try refreshing the page.'
+        : `Failed to load scheduled posts: ${errorMessage}`
+      );
       setIsLoadingScheduledPosts(false);
     }
   }, [token]); // Fetch all posts once — no date range restriction

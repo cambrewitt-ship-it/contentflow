@@ -55,9 +55,11 @@ export async function GET(req: NextRequest) {
           const tier = getTierByPriceId(priceId) || 'starter';
           const limits = getTierLimits(tier);
 
-          // Get period dates
-          const periodStart = (stripeSubscription as any).current_period_start as number;
-          const periodEnd = (stripeSubscription as any).current_period_end as number;
+          // Get period dates. As of the 2025-09-30 API version, these live on
+          // the subscription item, not the subscription itself.
+          const item = stripeSubscription.items.data[0];
+          const periodStart = item?.current_period_start;
+          const periodEnd = item?.current_period_end;
 
           // Upsert the subscription in our database
           try {

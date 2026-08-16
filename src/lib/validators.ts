@@ -244,7 +244,7 @@ export const aiRequestSchema = z.discriminatedUnion('action', [
     action: z.literal('generate_captions'),
     imageData: z.string().min(1, 'Image data is required'),
     existingCaptions: z.array(sanitizedString(5000)).max(10).optional(),
-    aiContext: sanitizedString(2000).optional(),
+    aiContext: optionalSanitizedString(2000),
     clientId: uuidSchema.optional(),
     copyType: copyTypeSchema.optional(),
     copyTone: copyToneSchema.optional(),
@@ -258,7 +258,7 @@ export const aiRequestSchema = z.discriminatedUnion('action', [
     imageData: z.string().optional(), // Optional - remix can work without image
     prompt: sanitizedString(2000),
     existingCaptions: z.array(sanitizedString(5000)).max(10).optional(),
-    aiContext: sanitizedString(2000).optional(),
+    aiContext: optionalSanitizedString(2000),
     clientId: uuidSchema.optional(),
   }),
   
@@ -266,6 +266,22 @@ export const aiRequestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('generate_content_ideas'),
     clientId: uuidSchema,
+  }),
+
+  // Chat-based caption iteration
+  z.object({
+    action: z.literal('chat_caption'),
+    imageData: z.string().optional(),
+    clientId: uuidSchema.optional(),
+    copyType: copyTypeSchema.optional(),
+    userInstruction: sanitizedString(2000),
+    aiContext: optionalSanitizedString(2000),
+    conversationHistory: z.array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string().max(5000),
+      })
+    ).max(30).optional(),
   }),
 ]);
 

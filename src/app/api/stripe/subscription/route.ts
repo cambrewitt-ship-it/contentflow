@@ -27,8 +27,10 @@ export async function GET(req: NextRequest) {
         );
 
         const priceId = stripeSubscription.items.data[0]?.price.id;
-        const periodStart = stripeSubscription.current_period_start;
-        const periodEnd = stripeSubscription.current_period_end;
+        // As of the 2025-09-30 API version, period dates live on the
+        // subscription item, not the subscription itself.
+        const periodStart = stripeSubscription.items.data[0]?.current_period_start;
+        const periodEnd = stripeSubscription.items.data[0]?.current_period_end;
 
         if (priceId) {
           const tier = getTierByPriceId(priceId);

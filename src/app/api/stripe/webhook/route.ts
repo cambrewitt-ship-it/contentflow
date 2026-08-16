@@ -148,9 +148,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         }
       }
 
-      // Get period dates
-      const periodStart = (stripeSubscription as any).current_period_start as number;
-      const periodEnd = (stripeSubscription as any).current_period_end as number;
+      // Get period dates. As of the 2025-09-30 API version, these live on the
+      // subscription item, not the subscription itself.
+      const item = stripeSubscription.items.data[0];
+      const periodStart = item?.current_period_start;
+      const periodEnd = item?.current_period_end;
       if (periodStart) {
         currentPeriodStart = new Date(periodStart * 1000);
       }
@@ -205,9 +207,11 @@ async function handleSubscriptionChange(subscription: Stripe.Subscription) {
   const tier = getTierByPriceId(priceId) || 'starter';
   const limits = getTierLimits(tier);
 
-  // Stripe.Subscription should have these properties, but we explicitly cast to ensure TypeScript recognizes them
-  const currentPeriodStart = (subscription as any).current_period_start as number;
-  const currentPeriodEnd = (subscription as any).current_period_end as number;
+  // As of the 2025-09-30 API version, period dates live on the subscription
+  // item, not the subscription itself.
+  const item = subscription.items.data[0];
+  const currentPeriodStart = item?.current_period_start;
+  const currentPeriodEnd = item?.current_period_end;
 
   await upsertSubscription({
     user_id: dbSubscription.user_id,
@@ -216,8 +220,8 @@ async function handleSubscriptionChange(subscription: Stripe.Subscription) {
     stripe_price_id: priceId,
     subscription_tier: tier,
     subscription_status: subscription.status,
-    current_period_start: new Date(currentPeriodStart * 1000).toISOString(),
-    current_period_end: new Date(currentPeriodEnd * 1000).toISOString(),
+    current_period_start: currentPeriodStart ? new Date(currentPeriodStart * 1000).toISOString() : undefined,
+    current_period_end: currentPeriodEnd ? new Date(currentPeriodEnd * 1000).toISOString() : undefined,
     cancel_at_period_end: subscription.cancel_at_period_end,
     max_clients: limits.maxClients,
     max_posts_per_month: limits.maxPostsPerMonth,

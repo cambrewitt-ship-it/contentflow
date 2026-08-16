@@ -83,18 +83,8 @@ export async function checkSocialMediaPostingPermission(
       };
     }
 
-    // Check if user is on freemium tier (legacy users)
-    if (subscription.subscription_tier === 'freemium') {
-      return {
-        allowed: false,
-        subscription,
-        error: 'Social media posting is not available on the free plan. Please upgrade to post to social media.'
-      };
-    }
-
-    // Check if user is on trial tier
+    // Check if user is on trial tier and it has expired
     if (subscription.subscription_tier === 'trial') {
-      // Check if trial has expired
       if (subscription.trial_end_date && new Date(subscription.trial_end_date) < new Date()) {
         return {
           allowed: false,
@@ -114,12 +104,15 @@ export async function checkSocialMediaPostingPermission(
       };
     }
 
-    // Check monthly post limit
+    // Check monthly post limit (also handles free/legacy plans with max_posts_per_month === 0)
     if (subscription.max_posts_per_month !== -1 && subscription.posts_used_this_month >= subscription.max_posts_per_month) {
+      const isNoPostPlan = subscription.max_posts_per_month === 0;
       return {
         allowed: false,
         subscription,
-        error: `You have reached your monthly post limit of ${subscription.max_posts_per_month} posts. Please upgrade your plan or wait until next month.`
+        error: isNoPostPlan
+          ? 'Social media posting is not available on your current plan. Please upgrade to post to social media.'
+          : `You have reached your monthly post limit of ${subscription.max_posts_per_month} posts. Please upgrade your plan or wait until next month.`
       };
     }
 

@@ -414,6 +414,18 @@ export async function POST(request: NextRequest) {
       case 'generate_content_ideas':
         result = await generateContentIdeas(openai, supabase, clientId, userId);
         break;
+      case 'chat_caption':
+        result = await chatCaption(
+          openai,
+          supabase,
+          body.imageData as string | undefined,
+          body.userInstruction as string,
+          (body.conversationHistory as { role: 'user' | 'assistant'; content: string }[] | undefined) ?? [],
+          body.aiContext as string | undefined,
+          (body.clientId as string | undefined) ?? clientId,
+          body.copyType as 'social-media' | 'email-marketing' | undefined
+        );
+        break;
       default:
         return NextResponse.json(
           { error: 'Invalid action specified' },
@@ -1030,6 +1042,132 @@ async function remixCaption(
         hasContext: !!aiContext,
         hasExistingCaptions: existingCaptions.length > 0,
       },
+    });
+  }
+}
+
+async function chatCaption(
+  openai: OpenAI,
+  supabase: SupabaseClient,
+  imageData: string | undefined,
+  userInstruction: string,
+  conversationHistory: { role: 'user' | 'assistant'; content: string }[],
+  aiContext: string | undefined,
+  clientId: string | undefined,
+  copyType: 'social-media' | 'email-marketing' | undefined
+) {
+  try {
+    let brandContext: Awaited<ReturnType<typeof getBrandContext>> | null = null;
+    if (clientId) {
+      brandContext = await getBrandContext(supabase, clientId);
+    }
+
+    let brandContextSection = '';
+    if (brandContext) {
+      if (brandContext.company) brandContextSection += `💼 Company: ${brandContext.company}\n`;
+      if (brandContext.tone) brandContextSection += `🎭 Tone: ${brandContext.tone}\n`;
+      if (brandContext.audience) brandContextSection += `👥 Audience: ${brandContext.audience}\n`;
+      if (brandContext.voice_examples) {
+        brandContextSection += `\n🎤 Brand Voice (match this style exactly):\n${brandContext.voice_examples}\n`;
+      }
+      if (brandContext.dos || brandContext.donts) {
+        if (brandContext.dos) brandContextSection += `\n✅ Always include: ${brandContext.dos}\n`;
+        if (brandContext.donts) brandContextSection += `❌ Never include: ${brandContext.donts}\n`;
+      }
+    }
+
+    const systemPrompt = `You are a social media copywriter iterating on captions through a conversation.
+
+CRITICAL OUTPUT RULES:
+- Output ONLY 1-3 captions separated by blank lines
+- No headers, numbering, labels, or any explanations
+- Start directly with the first caption text
+- Each caption is separated by one blank line
+
+${brandContextSection ? `BRAND CONTEXT:\n${brandContextSection}` : ''}
+
+Apply the user's instruction precisely while keeping captions on-brand. Write only caption text now.`;
+
+    const messages: { role: 'system' | 'user' | 'assistant'; content: any }[] = [
+      { role: 'system', content: systemPrompt },
+    ];
+
+    const isVideo = !imageData || imageData === '' || imageData === 'VIDEO_PLACEHOLDER';
+    const firstUserParts: any[] = [];
+
+    if (!isVideo && imageData) {
+      const isUrl = imageData.startsWith('https://') || imageData.startsWith('http://');
+      const isBase64 = imageData.startsWith('data:');
+      if (isUrl || isBase64) {
+        firstUserParts.push({
+          type: 'image_url',
+          image_url: { url: imageData, detail: 'low' as const },
+        });
+      }
+    }
+
+    firstUserParts.push({
+      type: 'text',
+      text: aiContext
+        ? `Generate 3 ${copyType === 'email-marketing' ? 'email marketing' : 'social media'} captions. Notes: "${aiContext}"`
+        : `Generate 3 ${copyType === 'email-marketing' ? 'email marketing' : 'social media'} captions for this content.`,
+    });
+
+    if (conversationHistory.length > 0) {
+      messages.push({ role: 'user', content: firstUserParts });
+      for (const msg of conversationHistory) {
+        messages.push({ role: msg.role, content: msg.content });
+      }
+      messages.push({ role: 'user', content: userInstruction });
+    } else {
+      messages.push({
+        role: 'user',
+        content: [
+          ...firstUserParts,
+          { type: 'text', text: `\nInstruction: ${userInstruction}` },
+        ],
+      });
+    }
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      messages,
+      max_tokens: 600,
+      temperature: 0.8,
+    });
+
+    const content = response.choices[0]?.message?.content || '';
+
+    let potentialCaptions = content.trim().split(/\n\n+/);
+    if (potentialCaptions.length < 2) {
+      potentialCaptions = content.trim().split(/\n/);
+    }
+
+    let captions = potentialCaptions
+      .map((c) => c.trim())
+      .filter((c) => {
+        const lower = c.toLowerCase();
+        return (
+          c.length > 15 &&
+          !lower.startsWith('here are') &&
+          !lower.startsWith("here's") &&
+          !lower.startsWith('caption ') &&
+          !lower.match(/^(option|variation|version)\s+\d+/i) &&
+          !lower.match(/^(##?|###)\s/)
+        );
+      })
+      .slice(0, 3);
+
+    if (captions.length === 0 && content.trim().length > 15) {
+      captions = [content.trim()];
+    }
+
+    return NextResponse.json({ success: true, captions });
+  } catch (error: any) {
+    return handleApiError(error, {
+      route: '/api/ai',
+      operation: 'chat_caption',
+      clientId,
     });
   }
 }
