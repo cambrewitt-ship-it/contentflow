@@ -43,9 +43,9 @@ export async function POST(
 
     // Upload to Supabase Storage
     const admin = createSupabaseAdmin();
-    const storagePath = `client-logos/${clientId}-${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const storagePath = `${clientId}-${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const { error: storageError } = await admin.storage
-      .from('logos')
+      .from('client-logos')
       .upload(storagePath, buffer, { contentType: mimeType, upsert: false });
 
     if (storageError) {
@@ -53,7 +53,7 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to upload logo' }, { status: 500 });
     }
 
-    const { data: { publicUrl } } = admin.storage.from('logos').getPublicUrl(storagePath);
+    const { data: { publicUrl } } = admin.storage.from('client-logos').getPublicUrl(storagePath);
 
     // Update the client record with the logo URL
     const { data: updatedClient, error: updateError } = await supabase

@@ -57,6 +57,12 @@ export interface AutopilotSettings {
   auto_publish_hours: number;
 }
 
+export interface AdCopySettings {
+  enabled: boolean;
+  platform: 'meta' | 'google';
+  variants_per_run: number;
+}
+
 // Client Types
 export interface Client {
   id: string;
@@ -85,6 +91,7 @@ export interface Client {
   business_context?: BusinessContext;
   autopilot_enabled?: boolean;
   autopilot_settings?: AutopilotSettings;
+  ad_copy_settings?: AdCopySettings;
   created_at: string;
   updated_at: string;
 }

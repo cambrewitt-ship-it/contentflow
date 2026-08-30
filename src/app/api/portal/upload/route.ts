@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get('content-type') ?? '';
     let token: string, fileName: string, fileType: string, fileSize: number,
-        fileUrl: string, notes: string | null, targetDate: string | null;
+        fileUrl: string, notes: string | null, targetDate: string | null, targetTime: string | null = null;
 
     let carouselGroupId: string | null = null;
     let carouselOrder: number = 0;
@@ -268,6 +268,7 @@ export async function POST(request: NextRequest) {
       fileSize = Number(formData.get('fileSize') ?? 0);
       notes = (formData.get('notes') as string) || null;
       targetDate = (formData.get('targetDate') as string) || null;
+      targetTime = (formData.get('targetTime') as string) || null;
       carouselGroupId = (formData.get('carouselGroupId') as string) || null;
       const file = formData.get('file') as File | null;
       if (!file) {
@@ -282,7 +283,7 @@ export async function POST(request: NextRequest) {
       const { data: { publicUrl } } = supabase.storage.from('portal-uploads').getPublicUrl(storagePath);
       fileUrl = publicUrl;
     } else {
-      ({ token, fileName, fileType, fileSize, fileUrl, notes, targetDate, carouselGroupId, carouselOrder } = await request.json());
+      ({ token, fileName, fileType, fileSize, fileUrl, notes, targetDate, targetTime = null, carouselGroupId, carouselOrder } = await request.json());
 
       // If the client sent raw base64, upload it to Blob storage first
       if (fileUrl && fileUrl.startsWith('data:')) {
@@ -333,7 +334,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build upload record — try with new columns first, fall back if they don't exist yet
+    // Build upload record — try with new columns first, fall back if they don't exist yet.
+    // target_date is included even in the fallback so a missing column elsewhere (e.g.
+    // target_time) never silently drops the scheduled date and strands the post in the queue.
     const baseUploadData: any = {
       client_id: resolved.clientId,
       project_id: null,
@@ -343,6 +346,7 @@ export async function POST(request: NextRequest) {
       file_url: fileUrl,
       status: 'pending',
       notes: notes || null,
+      target_date: targetDate ?? null,
     };
 
     if (targetDate) {
@@ -355,6 +359,7 @@ export async function POST(request: NextRequest) {
       status: 'unassigned',
       uploaded_by_party_id: resolved.party?.id ?? null,
       target_date: targetDate ?? null,
+      target_time: targetTime ?? null,
       carousel_group_id: carouselGroupId ?? null,
       carousel_order: carouselOrder ?? 0,
     };
@@ -402,7 +407,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { token, uploadId, notes, review_notes, newDate, status, targetDate } = await request.json();
+    const { token, uploadId, notes, review_notes, newDate, status, targetDate, targetTime } = await request.json();
 
     if (!token || !uploadId) {
       return NextResponse.json(
@@ -450,6 +455,10 @@ export async function PATCH(request: NextRequest) {
         const targetDateTime = new Date(targetDate + 'T00:00:00.000Z');
         updateData.created_at = targetDateTime.toISOString();
       }
+    }
+
+    if (targetTime !== undefined) {
+      updateData.target_time = targetTime || null;
     }
 
     const { data: upload, error: updateError } = await supabase

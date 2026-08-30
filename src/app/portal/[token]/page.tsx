@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, ChangeEvent, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns, Inbox, Upload, Image as ImageIcon, Film, Trash2, Sparkles, File, ListOrdered, FileDown, Link as LinkIcon, Copy, CheckCheck, Settings2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,9 @@ import { type CalendarEvent } from '@/components/CalendarEventModal';
 import { PDFExportModal } from '@/components/PDFExportModal';
 import { usePortal } from '@/contexts/PortalContext';
 import logger from '@/lib/logger';
+import { WeekDayChooser } from '@/components/WeekDayChooser';
+import { PortalQuickAddModal } from '@/components/PortalQuickAddModal';
+import { QuickScheduleDayTimePicker } from '@/components/QuickScheduleDayTimePicker';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -126,6 +129,7 @@ function PortalCalendarEventModal({
   date,
   event,
   token,
+  weekStart,
   onSave,
   onDelete,
   onClose,
@@ -133,11 +137,13 @@ function PortalCalendarEventModal({
   date: string;
   event?: import('@/components/CalendarEventModal').CalendarEvent | null;
   token: string;
+  weekStart?: Date;
   onSave: (event: import('@/components/CalendarEventModal').CalendarEvent) => void;
   onDelete: (eventId: string) => void;
   onClose: () => void;
 }) {
   const isEditing = !!event;
+  const [selectedDate, setSelectedDate] = useState(date);
   const [title, setTitle] = useState(event?.title ?? '');
   const [notes, setNotes] = useState(event?.notes ?? '');
   const [type, setType] = useState<'event' | 'note'>(event?.type ?? 'note');
@@ -145,7 +151,7 @@ function PortalCalendarEventModal({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const displayDate = new Date(date + 'T12:00:00').toLocaleDateString('en-NZ', {
+  const displayDate = new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-NZ', {
     weekday: 'long', day: 'numeric', month: 'long',
   });
 
@@ -156,7 +162,7 @@ function PortalCalendarEventModal({
       const method = isEditing ? 'PATCH' : 'POST';
       const body = isEditing
         ? { token, id: event!.id, title: title.trim(), notes: notes || null, type, color }
-        : { token, date, title: title.trim(), notes: notes || null, type, color };
+        : { token, date: selectedDate, title: title.trim(), notes: notes || null, type, color };
 
       const res = await fetch('/api/portal/events', {
         method,
@@ -207,6 +213,13 @@ function PortalCalendarEventModal({
         </div>
 
         <div className="px-5 py-4 space-y-4">
+          {!isEditing && weekStart && (
+            <div>
+              <p className="text-xs text-gray-500 mb-2">Day</p>
+              <WeekDayChooser weekStart={weekStart} selectedDateKey={selectedDate} onSelect={setSelectedDate} />
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button type="button" onClick={() => setType('event')}
               className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === 'event' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
@@ -297,14 +310,11 @@ export default function PortalCalendarPage() {
   const [isLoadingScheduledPosts, setIsLoadingScheduledPosts] = useState(false);
   
   // Upload states
-  const [uploading, setUploading] = useState(false);
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [tempNotes, setTempNotes] = useState<string>('');
   const [isLoadingUploads, setIsLoadingUploads] = useState(false);
   const isLoadingUploadsRef = useRef(false);
   const fileInputRefs = useRef<{[key: string]: HTMLInputElement | null}>({});
-  const columnUploadInputRef = useRef<HTMLInputElement | null>(null);
-  const [pendingColumnUploadDate, setPendingColumnUploadDate] = useState<string | null>(null);
   // Monotonically-increasing counter — each fetch increments this, and only the
   // response matching the latest count is applied. Discards stale in-flight responses
   // that can arrive out of order and clobber newer state (the root cause of the
@@ -368,6 +378,17 @@ export default function PortalCalendarPage() {
 
   // Calendar event modal state (for Note feature)
   const [portalEventModal, setPortalEventModal] = useState<{date: string; event?: CalendarEvent | null} | null>(null);
+  const [portalEventModalWeekStart, setPortalEventModalWeekStart] = useState<Date | null>(null);
+
+  // Trello-style "+" add-card: click opens the quick-add modal, drag-drop opens a quick
+  // day/time picker for the dropped queue photo.
+  const [quickAddModal, setQuickAddModal] = useState<{ open: boolean; weekStart: Date } | null>(null);
+  const [quickScheduleQueueDrop, setQuickScheduleQueueDrop] = useState<{
+    weekStart: Date;
+    uploadIds: string[];
+    imageUrl?: string;
+  } | null>(null);
+  const [quickScheduleSubmitting, setQuickScheduleSubmitting] = useState(false);
 
   // Inbox-specific states
   const [inboxUploading, setInboxUploading] = useState(false);
@@ -584,83 +605,6 @@ export default function PortalCalendarPage() {
       setIsLoadingUploads(false);
     }
   }, [token]);
-
-  // Handle file upload
-  const handleFileUpload = async (files: FileList, targetDate: string) => {
-    if (files.length === 0) return;
-
-    setUploading(true);
-    logger.debug(`📤 Uploading files to date: ${targetDate}`);
-
-    try {
-      for (const file of Array.from(files)) {
-        // Convert file to base64
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-
-        // Upload to portal
-        const response = await fetch('/api/portal/upload', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            token,
-            fileName: file.name,
-            fileType: file.type,
-            fileSize: file.size,
-            fileUrl: base64,
-            notes: '',
-            targetDate: targetDate // Pass the target date
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to upload ${file.name}`);
-        }
-      }
-
-      // Refresh uploads list
-      await fetchUploads();
-    } catch (err) {
-      logger.error('Error uploading files:', err);
-      alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleColumnAddUpload = (dateKey: string) => {
-    setPendingColumnUploadDate(dateKey);
-    if (columnUploadInputRef.current) {
-      columnUploadInputRef.current.value = '';
-    }
-    requestAnimationFrame(() => {
-      columnUploadInputRef.current?.click();
-    });
-  };
-
-  const handleColumnUploadChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    const targetDate = pendingColumnUploadDate;
-
-    if (!files || files.length === 0 || !targetDate) {
-      setPendingColumnUploadDate(null);
-      event.target.value = '';
-      return;
-    }
-
-    try {
-      await handleFileUpload(files, targetDate);
-    } finally {
-      setPendingColumnUploadDate(null);
-      event.target.value = '';
-    }
-  };
 
   // Handle notes editing
   const handleEditNotes = (uploadId: string, currentNotes: string) => {
@@ -992,6 +936,29 @@ export default function PortalCalendarPage() {
     });
   };
 
+  const handleNotesChange = (uploadId: string, notes: string | null) => {
+    setUploads(prev => {
+      const next = { ...prev };
+      for (const [dateKey, items] of Object.entries(next)) {
+        const idx = items.findIndex(u => u.id === uploadId);
+        if (idx !== -1) {
+          const updated = [...items];
+          updated[idx] = { ...updated[idx], notes };
+          next[dateKey] = updated;
+          break;
+        }
+      }
+      return next;
+    });
+    setAllUploads(prev => {
+      const idx = prev.findIndex(u => u.id === uploadId);
+      if (idx === -1) return prev;
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], notes };
+      return updated;
+    });
+  };
+
   const handleCalendarExportToPDF = () => {
     if (calendarSelectedPostIds.size === 0) return;
     setShowPDFExportModal(true);
@@ -1132,6 +1099,7 @@ export default function PortalCalendarPage() {
       return updated;
     });
     setPortalEventModal(null);
+    setPortalEventModalWeekStart(null);
   };
 
   const handlePortalEventDelete = (eventId: string) => {
@@ -1144,6 +1112,7 @@ export default function PortalCalendarPage() {
       return updated;
     });
     setPortalEventModal(null);
+    setPortalEventModalWeekStart(null);
   };
 
   const handleSubmitApprovals = async () => {
@@ -2070,7 +2039,28 @@ export default function PortalCalendarPage() {
               formatWeekCommencing={formatWeekCommencing}
               formatTimeTo12Hour={formatTimeTo12Hour}
               portalToken={token}
-              onAddUploadClick={handleColumnAddUpload}
+              onAddCardClick={(weekStart) => setQuickAddModal({ open: true, weekStart })}
+              onAddButtonDrop={(e: React.DragEvent, weekStart: Date) => {
+                const refData = draggingQueueItemRef.current;
+                const parsedData = (() => {
+                  try {
+                    const raw = e.dataTransfer.getData('text/portal-upload');
+                    return raw ? JSON.parse(raw) : null;
+                  } catch { return null; }
+                })();
+                draggingQueueItemRef.current = null;
+                const uploadsDropped: Upload[] = refData ?? (Array.isArray(parsedData) ? parsedData : (parsedData ? [parsedData] : []));
+                if (uploadsDropped.length === 0) return;
+                setQuickScheduleQueueDrop({
+                  weekStart,
+                  uploadIds: uploadsDropped.map(u => u.id),
+                  imageUrl: uploadsDropped[0]?.file_url,
+                });
+              }}
+              onAddNoteForWeek={(weekStart) => {
+                setPortalEventModalWeekStart(weekStart);
+                setPortalEventModal({ date: weekStart.toLocaleDateString('en-CA') });
+              }}
               selectedPosts={selectedPosts}
               onPostSelection={handlePostSelection}
               comments={comments}
@@ -2079,8 +2069,6 @@ export default function PortalCalendarPage() {
               onCaptionChange={handleCaptionChange}
               onDeleteClientUpload={handleDeleteUploadFromCalendar}
               deletingUploadIds={deletingUploadIds}
-              uploading={uploading}
-              uploadingForDate={pendingColumnUploadDate}
               onPostClick={(post) => {
                 const isUpload =
                   post.post_type === 'client-upload' ||
@@ -2333,15 +2321,6 @@ export default function PortalCalendarPage() {
         </div>
       )}
 
-      <input
-        ref={columnUploadInputRef}
-        type="file"
-        className="hidden"
-        multiple
-        accept="image/*,.pdf,.doc,.docx,.txt"
-        onChange={handleColumnUploadChange}
-      />
-
       {/* Success Message */}
       {successMessage && (
         <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
@@ -2369,6 +2348,7 @@ export default function PortalCalendarPage() {
             setQueueRefreshKey(k => k + 1);
           }}
           onTagsChange={handleTagsChange}
+          onNotesChange={handleNotesChange}
           onDeleteUpload={(uploadIds) => {
             const primaryId = uploadIds[0];
             const existingEntry = Object.entries(uploads).find(([, items]) =>
@@ -2388,9 +2368,57 @@ export default function PortalCalendarPage() {
           date={portalEventModal.date}
           event={portalEventModal.event}
           token={token}
+          weekStart={portalEventModalWeekStart ?? undefined}
           onSave={handlePortalEventSave}
           onDelete={handlePortalEventDelete}
-          onClose={() => setPortalEventModal(null)}
+          onClose={() => { setPortalEventModal(null); setPortalEventModalWeekStart(null); }}
+        />
+      )}
+
+      {/* Trello-style "+" add-card modals */}
+      {quickAddModal && (
+        <PortalQuickAddModal
+          open={quickAddModal.open}
+          onClose={() => setQuickAddModal(null)}
+          token={token}
+          weekStart={quickAddModal.weekStart}
+          clientUploads={allUploads.filter(u => !u.target_date)}
+          onScheduled={() => {
+            fetchUploads();
+            fetchScheduledPosts(0, true);
+            setKanbanRefreshKey(k => k + 1);
+            setQueueRefreshKey(k => k + 1);
+            setQuickAddModal(null);
+          }}
+        />
+      )}
+
+      {quickScheduleQueueDrop && (
+        <QuickScheduleDayTimePicker
+          open={!!quickScheduleQueueDrop}
+          onOpenChange={(open) => { if (!open) setQuickScheduleQueueDrop(null); }}
+          weekStart={quickScheduleQueueDrop.weekStart}
+          imageUrl={quickScheduleQueueDrop.imageUrl}
+          isSubmitting={quickScheduleSubmitting}
+          onConfirm={async (dateKey, time) => {
+            setQuickScheduleSubmitting(true);
+            try {
+              await Promise.all(quickScheduleQueueDrop.uploadIds.map(id =>
+                fetch('/api/portal/upload', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token, uploadId: id, targetDate: dateKey, targetTime: `${time}:00` }),
+                })
+              ));
+              await fetchUploads();
+              fetchScheduledPosts(0, true);
+              setKanbanRefreshKey(k => k + 1);
+              setQueueRefreshKey(k => k + 1);
+              setQuickScheduleQueueDrop(null);
+            } finally {
+              setQuickScheduleSubmitting(false);
+            }
+          }}
         />
       )}
 

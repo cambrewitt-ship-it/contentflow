@@ -33,6 +33,7 @@ import type {
   PostingPreferences,
   BusinessContext,
   AutopilotSettings,
+  AdCopySettings,
   ContentMix,
 } from '@/types/api';
 import type { StylePreferences } from '@/types/autopilot';
@@ -114,7 +115,13 @@ const DEFAULT_AUTOPILOT_SETTINGS: AutopilotSettings = {
   auto_publish_hours: 48,
 };
 
-type Section = 'operating-hours' | 'posting-preferences' | 'business-context' | 'autopilot-control' | 'style-preferences';
+const DEFAULT_AD_COPY_SETTINGS: AdCopySettings = {
+  enabled: false,
+  platform: 'meta',
+  variants_per_run: 3,
+};
+
+type Section = 'operating-hours' | 'posting-preferences' | 'business-context' | 'autopilot-control' | 'ad-copy' | 'style-preferences';
 
 interface SaveState {
   loading: boolean;
@@ -800,6 +807,100 @@ function AutopilotControlSection({
   );
 }
 
+// ── Section E: Paid Ad Copy ───────────────────────────────────────────────────
+
+function AdCopySection({
+  clientId,
+  initial,
+  onSaved,
+}: {
+  clientId: string;
+  initial?: AdCopySettings;
+  onSaved: (client: Client) => void;
+}) {
+  const { getAccessToken } = useAuth();
+  const { saveState, save } = useSectionSave(clientId, getAccessToken);
+  const [settings, setSettings] = useState<AdCopySettings>(initial ?? DEFAULT_AD_COPY_SETTINGS);
+
+  const handleSave = async () => {
+    const client = await save({ ad_copy_settings: settings });
+    if (client) onSaved(client);
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className={`flex items-center justify-between p-3 rounded-lg border-2 transition-colors ${
+        settings.enabled ? 'border-amber-400 bg-amber-50' : 'border-gray-200 bg-gray-50'
+      }`}>
+        <div>
+          <p className={`text-sm font-semibold ${settings.enabled ? 'text-amber-900' : 'text-gray-700'}`}>
+            Generate paid ad copy
+          </p>
+          <p className={`text-xs mt-0.5 ${settings.enabled ? 'text-amber-700' : 'text-gray-500'}`}>
+            {settings.enabled
+              ? 'Autopilot will also draft ad copy variants alongside each organic plan'
+              : 'Off — only organic posts are generated'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setSettings(prev => ({ ...prev, enabled: !prev.enabled }))}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+            settings.enabled ? 'bg-amber-500' : 'bg-gray-300'
+          }`}
+        >
+          <span
+            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+              settings.enabled ? 'translate-x-5' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
+
+      {settings.enabled && (
+        <div className="space-y-4 pl-1">
+          <div>
+            <label className="text-xs font-medium text-gray-700 block mb-1.5">Ad platform</label>
+            <Select
+              value={settings.platform}
+              onValueChange={v => setSettings(prev => ({ ...prev, platform: v as 'meta' | 'google' }))}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="meta" className="text-xs">Meta Ads (Facebook / Instagram)</SelectItem>
+                <SelectItem value="google" className="text-xs">Google Ads</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-700 block mb-1.5">Variants per run</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={settings.variants_per_run}
+                onChange={e => setSettings(prev => ({ ...prev, variants_per_run: parseInt(e.target.value) }))}
+                className="flex-1 accent-amber-500"
+              />
+              <span className="text-sm font-semibold text-gray-900 w-6 text-center">{settings.variants_per_run}</span>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-gray-400">
+            Text only — headline, primary text, and description for you to paste into Ads Manager. No campaign is created or published automatically.
+          </p>
+        </div>
+      )}
+
+      <SaveButton state={saveState} onClick={handleSave} />
+    </div>
+  );
+}
+
 // ── Main Panel ────────────────────────────────────────────────────────────────
 
 function PreferenceStatsSection({ clientId }: { clientId: string }) {
@@ -1045,7 +1146,25 @@ export default function AutopilotSettingsPanel({ clientId, client, onUpdate }: A
           )}
         </div>
 
-        {/* Section E — Style Preferences */}
+        {/* Section E — Paid Ad Copy */}
+        <div className="px-4">
+          <SectionHeader
+            title="Paid Ad Copy"
+            open={openSection === 'ad-copy'}
+            onToggle={() => toggle('ad-copy')}
+          />
+          {openSection === 'ad-copy' && (
+            <div className="pb-4">
+              <AdCopySection
+                clientId={clientId}
+                initial={localClient.ad_copy_settings}
+                onSaved={handleSaved}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Section F — Style Preferences */}
         <div className="px-4">
           <SectionHeader
             title="Style Preferences"

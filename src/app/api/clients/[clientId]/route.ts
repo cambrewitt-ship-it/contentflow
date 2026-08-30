@@ -231,6 +231,7 @@ export async function PUT(
       business_context?: Record<string, unknown>;
       autopilot_enabled?: boolean;
       autopilot_settings?: Record<string, unknown>;
+      ad_copy_settings?: Record<string, unknown>;
       updated_at?: string;
     } = {};
 
@@ -252,7 +253,8 @@ export async function PUT(
     if (body.business_context !== undefined) updateData.business_context = body.business_context;
     if (body.autopilot_enabled !== undefined) updateData.autopilot_enabled = body.autopilot_enabled;
     if (body.autopilot_settings !== undefined) updateData.autopilot_settings = body.autopilot_settings;
-    
+    if (body.ad_copy_settings !== undefined) updateData.ad_copy_settings = body.ad_copy_settings;
+
     // Add updated_at timestamp
     updateData.updated_at = new Date().toISOString();
 

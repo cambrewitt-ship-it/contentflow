@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { Calendar, Clock, Plus, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Copy, Pencil, Check, X, Tag, FileText, CalendarDays, Sparkles } from 'lucide-react';
+import { Calendar, Clock, ArrowLeft, ArrowRight, Trash2, Loader2, MessageCircle, Copy, Pencil, Check, X, Tag, FileText, CalendarDays, Sparkles } from 'lucide-react';
 import { VideoThumbnail } from '@/components/VideoThumbnail';
 import { isVideoUrl } from '@/lib/videoUtils';
 import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
-import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
 import { TagDropdownModal } from '@/components/TagDropdownModal';
+import { AddPostCardButton } from '@/components/AddPostCardButton';
 import { supabase } from '@/lib/supabaseClient';
 import { 
   FacebookIcon, 
@@ -90,12 +90,12 @@ interface Post {
   [key: string]: any; // Allow additional properties
 }
 
-interface DayRow {
-  dayName: string;
-  dayDate: Date;
-  dateKey: string;
-  posts: Post[];
-}
+// Trello-style flat card model: a week column renders one entry per date-with-content
+// (a "divider" carrying the day header/events) followed by one entry per post scheduled
+// that date — instead of a fixed row per calendar day.
+type WeekEntry =
+  | { type: 'divider'; dateKey: string; dayDate: Date; dayName: string }
+  | { type: 'post'; dateKey: string; post: Post };
 
 interface Project {
   id: string;
@@ -120,7 +120,9 @@ interface ColumnViewCalendarProps {
   editingTimePostIds?: Set<string>;
   formatTimeTo12Hour?: (time24: string) => string;
   projects?: Project[];
-  onAddUploadClick?: (dateKey: string) => void;
+  onAddCardClick?: (weekStart: Date) => void;
+  onAddButtonDrop?: (e: React.DragEvent, weekStart: Date) => void;
+  onAddNoteForWeek?: (weekStart: Date) => void;
   onDeletePost?: (post: Post) => void | Promise<void>;
   onDuplicatePost?: (post: Post) => void | Promise<void>;
   deletingPostIds?: Set<string>;
@@ -279,6 +281,7 @@ function SortablePostCard({
   isSavingCaption,
   clientId,
   onPostClick,
+  onNativeDrop,
 }: {
   post: Post;
   postKey: string;
@@ -299,11 +302,14 @@ function SortablePostCard({
   isSavingCaption: boolean;
   clientId?: string;
   onPostClick?: (post: Post) => void;
+  onNativeDrop?: (e: React.DragEvent, dateKey: string) => void;
 }) {
   const isClientUpload =
     post.post_type === 'client-upload' ||
     post.post_type === 'client_upload' ||
     post.isClientUpload;
+
+  const dateKey = post.scheduled_date || '';
 
   const {
     attributes,
@@ -312,11 +318,36 @@ function SortablePostCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: postKey, disabled: isClientUpload });
+  } = useSortable({ id: postKey, disabled: isClientUpload, data: { dateKey } });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+  };
+
+  const [isNativeDragOver, setIsNativeDragOver] = useState(false);
+  const nativeDropHandlers = {
+    onDragOver: (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsNativeDragOver(true);
+    },
+    onDragEnter: (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsNativeDragOver(true);
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      const relatedTarget = e.relatedTarget as Node;
+      const currentTarget = e.currentTarget as Node;
+      if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
+        setIsNativeDragOver(false);
+      }
+    },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsNativeDragOver(false);
+      onNativeDrop?.(e, dateKey);
+    },
   };
 
   // Use passed formatTimeTo12Hour or fallback to local function
@@ -565,10 +596,11 @@ function SortablePostCard({
         style={style}
         {...attributes}
         {...listeners}
+        {...nativeDropHandlers}
         onClick={() => onPostClick?.(post)}
-        className={`relative rounded-lg border-2 border-gray-200 bg-white p-3 mb-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
-          isDragging ? 'opacity-50 cursor-grabbing' : ''
-        } ${isDeleting ? 'opacity-60 pointer-events-none' : ''}`}
+        className={`relative rounded-lg border-2 bg-white p-3 mb-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
+          isNativeDragOver ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : 'border-gray-200'
+        } ${isDragging ? 'opacity-50 cursor-grabbing' : ''} ${isDeleting ? 'opacity-60 pointer-events-none' : ''}`}
       >
         <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
           <div>
@@ -637,10 +669,11 @@ function SortablePostCard({
       style={style}
       {...attributes}
       {...listeners}
+      {...nativeDropHandlers}
       onClick={() => onPostClick?.(post)}
-      className={`rounded-lg border-2 border-gray-200 bg-white overflow-hidden mb-2 shadow-sm hover:shadow-md transition-all duration-200 ${
-        isDragging ? 'opacity-50 scale-105' : ''
-      } ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''} ${
+      className={`rounded-lg border-2 bg-white overflow-hidden mb-2 shadow-sm hover:shadow-md transition-all duration-200 ${
+        isNativeDragOver ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : 'border-gray-200'
+      } ${isDragging ? 'opacity-50 scale-105' : ''} ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''} ${
         isDeleting ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer active:cursor-grabbing'
       } ${isSelected ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200' : ''}`}
     >
@@ -954,270 +987,244 @@ function SortablePostCard({
 }
 
 // Droppable Day Row Component
-function DroppableDayRow({
-  dayRow,
+// Slim date header — rendered only for dates that have posts and/or events, replacing the
+// old always-rendered 120px-tall empty day box. Doubles as a native-HTML5 drop target so
+// dropping an unscheduled photo directly onto a date with an event (but no posts yet) still
+// schedules it there, matching the old per-day drop behavior.
+export function DateDivider({
+  dateKey,
+  dayDate,
+  dayName,
   isTodayDay,
-  isDragOver,
+  isDragOver = false,
   getDayNumber,
   onNativeDrop,
-  onNativeDragOver,
-  onNativeDragEnter,
-  onNativeDragLeave,
-  clientId,
-  handleEditScheduledPost,
-  editingPostId,
-  setEditingPostId,
-  editingTimePostIds,
-  formatTimeTo12Hour,
-  projects,
-  onAddUploadClick,
-  onDeletePost,
-  onDuplicatePost,
-  deletingPostIds,
-  duplicatingPostIds,
-  deletingUploadIds,
-  selectedPosts,
-  onTogglePostSelection,
-  onDeleteClientUpload,
-  isCurrentWeek,
-  onUpdateCaption,
-  savingCaptionPostIds,
   dayEvents = [],
   onEventAdd,
   onEventClick,
   contentEventIndicators,
-  onPostClick,
 }: {
-  dayRow: DayRow;
+  dateKey: string;
+  dayDate: Date;
+  dayName: string;
   isTodayDay: boolean;
-  isDragOver: boolean;
+  isDragOver?: boolean;
   getDayNumber: (date: Date) => number;
   onNativeDrop?: (e: React.DragEvent, dateKey: string) => void;
-  onNativeDragOver?: (e: React.DragEvent) => void;
-  onNativeDragEnter?: (e: React.DragEvent) => void;
-  onNativeDragLeave?: (e: React.DragEvent) => void;
-  clientId?: string;
-  handleEditScheduledPost?: (post: any, newTime: string) => Promise<void>;
-  editingPostId?: string | null;
-  setEditingPostId?: (postId: string | null) => void;
-  editingTimePostIds?: Set<string>;
-  formatTimeTo12Hour?: (time24: string) => string;
-  projects?: Project[];
-  onAddUploadClick?: (dateKey: string) => void;
-  onDeletePost?: (post: Post) => void | Promise<void>;
-  onDuplicatePost?: (post: Post) => void | Promise<void>;
-  deletingPostIds?: Set<string>;
-  duplicatingPostIds?: Set<string>;
-  deletingUploadIds?: Set<string>;
-  selectedPosts?: Set<string>;
-  onTogglePostSelection?: (postId: string) => void;
-  onDeleteClientUpload?: (upload: ClientUpload) => void | Promise<void>;
-  isCurrentWeek?: boolean;
-  onUpdateCaption?: (post: Post, newCaption: string) => Promise<void>;
-  savingCaptionPostIds?: Set<string>;
   dayEvents?: CalendarEvent[];
   onEventAdd?: (dateKey: string) => void;
   onEventClick?: (event: CalendarEvent) => void;
   contentEventIndicators?: import('@/components/EventsCalendarLayer').ContentEvent[];
-  onPostClick?: (post: Post) => void;
 }) {
-  const router = useRouter();
   const { setNodeRef } = useDroppable({
-    id: dayRow.dateKey,
-    data: {
-      dateKey: dayRow.dateKey,
-      dayDate: dayRow.dayDate,
-    },
+    id: `divider-${dateKey}`,
+    data: { dateKey },
   });
 
   const [isNativeDragOver, setIsNativeDragOver] = useState(false);
 
-  const handleNativeDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsNativeDragOver(true);
-    if (onNativeDragOver) {
-      onNativeDragOver(e);
-    }
-  };
-
-  const handleNativeDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsNativeDragOver(true);
-    if (onNativeDragEnter) {
-      onNativeDragEnter(e);
-    }
-  };
-
-  const handleNativeDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Only clear drag-over state if we're actually leaving the container
-    // (not just entering a child element)
-    const relatedTarget = e.relatedTarget as Node;
-    const currentTarget = e.currentTarget as Node;
-    
-    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
-      setIsNativeDragOver(false);
-      if (onNativeDragLeave) {
-        onNativeDragLeave(e);
-      }
-    }
-  };
-
-  const handleNativeDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsNativeDragOver(false);
-    if (onNativeDrop) {
-      onNativeDrop(e, dayRow.dateKey);
-    }
-  };
-
   return (
     <div
       ref={setNodeRef}
-      onDrop={handleNativeDrop}
-      onDragOver={handleNativeDragOver}
-      onDragEnter={handleNativeDragEnter}
-      onDragLeave={handleNativeDragLeave}
-      className={`rounded-lg border-2 p-3 min-h-[120px] transition-all duration-200 ${
-        isDragOver || isNativeDragOver
-          ? 'border-blue-400 bg-blue-100 ring-2 ring-blue-300' 
-          : isTodayDay
-          ? 'border-blue-300 bg-blue-50'
-          : isCurrentWeek
-          ? 'border-gray-200 bg-gray-100'
-          : 'border-gray-200 bg-white'
+      onDragOver={(e) => { e.preventDefault(); setIsNativeDragOver(true); }}
+      onDragEnter={(e) => { e.preventDefault(); setIsNativeDragOver(true); }}
+      onDragLeave={(e) => {
+        const relatedTarget = e.relatedTarget as Node;
+        const currentTarget = e.currentTarget as Node;
+        if (!relatedTarget || !currentTarget.contains(relatedTarget)) setIsNativeDragOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsNativeDragOver(false);
+        onNativeDrop?.(e, dateKey);
+      }}
+      className={`mt-3 mb-1.5 pb-1 border-b rounded-t px-1 transition-colors ${
+        isNativeDragOver || isDragOver ? 'border-blue-400 bg-blue-50' : isTodayDay ? 'border-blue-200' : 'border-gray-200'
       }`}
     >
-      {/* Day Header */}
-      <div className="mb-2 pb-1 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className={`text-xs font-semibold uppercase ${
-              isTodayDay ? 'text-blue-700' : 'text-gray-700'
-            }`}>
-              {dayRow.dayName}
-            </span>
-            <span className={`text-xs ${
-              isTodayDay ? 'text-blue-600 font-bold' : 'text-gray-600'
-            }`}>
-              {getDayNumber(dayRow.dayDate)}
-            </span>
-          </div>
-          {onEventAdd && (
-            <button
-              type="button"
-              onClick={() => onEventAdd(dayRow.dateKey)}
-              className="px-2 py-0.5 text-xs font-medium text-purple-600 border border-purple-300 rounded hover:bg-purple-50 transition-colors"
-              title="Mark event or note"
-            >
-              Note
-</button>
-          )}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-semibold uppercase ${isTodayDay ? 'text-blue-700' : 'text-gray-700'}`}>
+            {dayName}
+          </span>
+          <span className={`text-xs ${isTodayDay ? 'text-blue-600 font-bold' : 'text-gray-600'}`}>
+            {getDayNumber(dayDate)}
+          </span>
         </div>
-
-        {/* Content event indicators (holidays, sports, etc.) */}
-        {contentEventIndicators && contentEventIndicators.length > 0 && (
-          <div className="mt-1">
-            <EventIndicatorsInline events={contentEventIndicators} />
-          </div>
-        )}
-
-        {/* Events & Notes for this day */}
-        {dayEvents.length > 0 && (
-          <div className="mt-1.5 space-y-1">
-            {dayEvents.map(evt => {
-              const cls = EVENT_COLOR_CLASSES[evt.color] ?? EVENT_COLOR_CLASSES['purple'];
-              return (
-                <button
-                  key={evt.id}
-                  type="button"
-                  onClick={() => onEventClick?.(evt)}
-                  className={`w-full text-left px-2 py-0.5 rounded text-xs font-medium truncate border ${cls.bg} ${cls.text} ${cls.border} hover:opacity-80 transition-opacity`}
-                  title={evt.notes ?? evt.title}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {evt.type === 'note'
-                      ? <FileText className="w-2.5 h-2.5 flex-shrink-0" />
-                      : <CalendarDays className="w-2.5 h-2.5 flex-shrink-0" />
-                    }
-                    <span className="truncate">{evt.title}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        {onEventAdd && (
+          <button
+            type="button"
+            onClick={() => onEventAdd(dateKey)}
+            className="px-2 py-0.5 text-xs font-medium text-purple-600 border border-purple-300 rounded hover:bg-purple-50 transition-colors"
+            title="Mark event or note"
+          >
+            Note
+          </button>
         )}
       </div>
 
-      {/* Posts in Day Row */}
-      <SortableContext
-        id={dayRow.dateKey}
-        items={dayRow.posts.map((post) => `${post.post_type || 'post'}-${post.id}`)}
-        strategy={verticalListSortingStrategy}
-      >
-        <div className="space-y-2">
-          {dayRow.posts.length === 0 ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (onAddUploadClick) {
-                  onAddUploadClick(dayRow.dateKey);
-                } else if (clientId) {
-                  router.push(`/dashboard/client/${clientId}/content-suite?scheduledDate=${dayRow.dateKey}`);
-                }
-              }}
-              style={{ height: '60px' }}
-              className="w-full flex items-center justify-center border border-dashed border-gray-200 rounded-md hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 group"
-            >
-              <Plus className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition-colors" />
-            </button>
-          ) : (
-            dayRow.posts.map((post) => {
-              const postKey = `${post.post_type || 'post'}-${post.id}`;
-              const isClientUpload =
-                post.post_type === 'client-upload' ||
-                post.post_type === 'client_upload' ||
-                (post as any).isClientUpload;
-              const isDeletingPost = deletingPostIds?.has(post.id) || false;
-              const isDeletingUpload = deletingUploadIds?.has(post.id) || false;
-              const isDeleting = isClientUpload ? isDeletingUpload : isDeletingPost;
-              const isDuplicating = duplicatingPostIds?.has(post.id) || false;
-              
-              const isSavingCaption = savingCaptionPostIds?.has(post.id) || false;
-              
-              return (
-                <SortablePostCard
-                  key={postKey}
-                  post={post}
-                  postKey={postKey}
-                  handleEditScheduledPost={handleEditScheduledPost}
-                  editingPostId={editingPostId}
-                  setEditingPostId={setEditingPostId}
-                  editingTimePostIds={editingTimePostIds}
-                  formatTimeTo12Hour={formatTimeTo12Hour}
-                  projects={projects}
-                  onDeletePost={onDeletePost}
-                  onDuplicatePost={isClientUpload ? undefined : onDuplicatePost}
-                  isDeleting={isDeleting}
-                  isDuplicating={isDuplicating}
-                  selectedPosts={selectedPosts}
-                  onTogglePostSelection={onTogglePostSelection}
-                  onDeleteClientUpload={onDeleteClientUpload}
-                  onUpdateCaption={isClientUpload ? undefined : onUpdateCaption}
-                  isSavingCaption={isSavingCaption}
-                  clientId={clientId}
-                  onPostClick={onPostClick}
-                />
-              );
-            })
-          )}
+      {contentEventIndicators && contentEventIndicators.length > 0 && (
+        <div className="mt-1">
+          <EventIndicatorsInline events={contentEventIndicators} />
         </div>
+      )}
+
+      {dayEvents.length > 0 && (
+        <div className="mt-1.5 space-y-1">
+          {dayEvents.map(evt => {
+            const cls = EVENT_COLOR_CLASSES[evt.color] ?? EVENT_COLOR_CLASSES['purple'];
+            return (
+              <button
+                key={evt.id}
+                type="button"
+                onClick={() => onEventClick?.(evt)}
+                className={`w-full text-left px-2 py-0.5 rounded text-xs font-medium truncate border ${cls.bg} ${cls.text} ${cls.border} hover:opacity-80 transition-opacity`}
+                title={evt.notes ?? evt.title}
+              >
+                <span className="inline-flex items-center gap-1">
+                  {evt.type === 'note'
+                    ? <FileText className="w-2.5 h-2.5 flex-shrink-0" />
+                    : <CalendarDays className="w-2.5 h-2.5 flex-shrink-0" />
+                  }
+                  <span className="truncate">{evt.title}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Subtle, hover-revealed control for adding a note/event to any day in the week — including
+// bare days that render no divider at all. CalendarEventModal's own day-picker (via its
+// weekStart prop) resolves which exact date the note ends up on, so this doesn't need to know.
+export function AddNoteAffordance({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group w-full flex items-center gap-1.5 py-1 mb-1 text-gray-300 hover:text-purple-600 transition-colors"
+      title="Add a note or event to a day in this week"
+    >
+      <span className="flex-1 border-t border-dashed border-transparent group-hover:border-purple-200 transition-colors" />
+      <span className="text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity">+ Note</span>
+      <span className="flex-1 border-t border-dashed border-transparent group-hover:border-purple-200 transition-colors" />
+    </button>
+  );
+}
+
+// Renders one week column's flat entry list (dividers + cards) inside a week-scoped
+// SortableContext, plus a fallback droppable zone so dnd-kit has a valid (no-op) target when
+// a card is dropped into empty space rather than onto a specific card/divider.
+function WeekColumnBody({
+  weekStart,
+  entries,
+  isToday,
+  getDayNumber,
+  onDrop,
+  events,
+  contentEvents,
+  onEventAdd,
+  onEventClick,
+  onAddCardClick,
+  onAddButtonDrop,
+  onAddNoteForWeek,
+  deletingPostIds,
+  duplicatingPostIds,
+  deletingUploadIds,
+  savingCaptionPostIds,
+  dragOverDateKey,
+  cardProps,
+}: {
+  weekStart: Date;
+  entries: WeekEntry[];
+  isToday: (date: Date) => boolean;
+  getDayNumber: (date: Date) => number;
+  onDrop?: (e: React.DragEvent, dateKey: string) => void;
+  events: { [key: string]: CalendarEvent[] };
+  contentEvents?: Record<string, import('@/components/EventsCalendarLayer').ContentEvent[]>;
+  onEventAdd?: (dateKey: string) => void;
+  onEventClick?: (event: CalendarEvent) => void;
+  dragOverDateKey?: string | null;
+  onAddCardClick?: (weekStart: Date) => void;
+  onAddButtonDrop?: (e: React.DragEvent, weekStart: Date) => void;
+  onAddNoteForWeek?: (weekStart: Date) => void;
+  deletingPostIds?: Set<string>;
+  duplicatingPostIds?: Set<string>;
+  deletingUploadIds?: Set<string>;
+  savingCaptionPostIds?: Set<string>;
+  cardProps: Omit<React.ComponentProps<typeof SortablePostCard>, 'post' | 'postKey' | 'onNativeDrop' | 'isDeleting' | 'isDuplicating' | 'isSavingCaption'>;
+}) {
+  const { setNodeRef } = useDroppable({
+    id: `week-fallback-${weekStart.toISOString()}`,
+    data: { dateKey: null },
+  });
+
+  const postItems = entries
+    .filter((entry): entry is Extract<WeekEntry, { type: 'post' }> => entry.type === 'post')
+    .map((entry) => `${entry.post.post_type || 'post'}-${entry.post.id}`);
+
+  return (
+    <div ref={setNodeRef} className="min-h-[40px]">
+      {onAddNoteForWeek && <AddNoteAffordance onClick={() => onAddNoteForWeek(weekStart)} />}
+      <SortableContext id={weekStart.toISOString()} items={postItems} strategy={verticalListSortingStrategy}>
+        {entries.map((entry) => {
+          if (entry.type === 'divider') {
+            return (
+              <DateDivider
+                key={`divider-${entry.dateKey}`}
+                dateKey={entry.dateKey}
+                dayDate={entry.dayDate}
+                dayName={entry.dayName}
+                isTodayDay={isToday(entry.dayDate)}
+                isDragOver={dragOverDateKey === entry.dateKey}
+                getDayNumber={getDayNumber}
+                onNativeDrop={onDrop}
+                dayEvents={events[entry.dateKey] ?? []}
+                onEventAdd={onEventAdd}
+                onEventClick={onEventClick}
+                contentEventIndicators={contentEvents?.[entry.dateKey]}
+              />
+            );
+          }
+
+          const post = entry.post;
+          const postKey = `${post.post_type || 'post'}-${post.id}`;
+          const isClientUpload =
+            post.post_type === 'client-upload' ||
+            post.post_type === 'client_upload' ||
+            (post as any).isClientUpload;
+          const isDeletingPost = deletingPostIds?.has(post.id) || false;
+          const isDeletingUpload = deletingUploadIds?.has(post.id) || false;
+          const isDeleting = isClientUpload ? isDeletingUpload : isDeletingPost;
+          const isDuplicating = duplicatingPostIds?.has(post.id) || false;
+          const isSavingCaption = savingCaptionPostIds?.has(post.id) || false;
+
+          return (
+            <SortablePostCard
+              key={postKey}
+              {...cardProps}
+              post={post}
+              postKey={postKey}
+              onNativeDrop={onDrop}
+              onDuplicatePost={isClientUpload ? undefined : cardProps.onDuplicatePost}
+              onUpdateCaption={isClientUpload ? undefined : cardProps.onUpdateCaption}
+              isDeleting={isDeleting}
+              isDuplicating={isDuplicating}
+              isSavingCaption={isSavingCaption}
+            />
+          );
+        })}
       </SortableContext>
+      <div className="mt-1">
+        <AddPostCardButton
+          onClick={() => onAddCardClick?.(weekStart)}
+          onNativeDrop={(e) => onAddButtonDrop?.(e, weekStart)}
+        />
+      </div>
     </div>
   );
 }
@@ -1242,7 +1249,9 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
   editingTimePostIds,
   formatTimeTo12Hour,
   projects,
-  onAddUploadClick,
+  onAddCardClick,
+  onAddButtonDrop,
+  onAddNoteForWeek,
   onDeletePost,
   onDuplicatePost,
   deletingPostIds,
@@ -1301,13 +1310,13 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
   }, [weeks]);
 
   const columns = useMemo(() => {
-    const weekColumns: Array<{weekStart: Date; dayRows: DayRow[]}> = [];
+    const weekColumns: Array<{ weekStart: Date; entries: WeekEntry[] }> = [];
 
     for (let weekIndex = 0; weekIndex < VISIBLE_WEEK_COUNT; weekIndex++) {
       const weekStartDate = new Date(startWeek);
       weekStartDate.setDate(startWeek.getDate() + weekIndex * 7);
 
-      const dayRows: DayRow[] = [];
+      const entries: WeekEntry[] = [];
 
       for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
         const dayDate = new Date(weekStartDate);
@@ -1364,22 +1373,28 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
           }
         }
 
-        dayRows.push({
-          dayName: getDayName(dayDate),
-          dayDate,
-          dateKey,
-          posts: [...postsForDay, ...uploadEntries],
-        });
+        const postsForDate = [...postsForDay, ...uploadEntries];
+        const hasEvents = (events[dateKey]?.length ?? 0) > 0 || (contentEvents?.[dateKey]?.length ?? 0) > 0;
+
+        // Decluttering: only render a date's header when it actually has something to show.
+        // A bare date (no posts, no events) contributes nothing — it's reachable only via the
+        // "+" add-card button or the week-wide "Add note" hover affordance.
+        if (postsForDate.length > 0 || hasEvents) {
+          entries.push({ type: 'divider', dateKey, dayDate, dayName: getDayName(dayDate) });
+          for (const post of postsForDate) {
+            entries.push({ type: 'post', dateKey, post });
+          }
+        }
       }
 
       weekColumns.push({
         weekStart: weekStartDate,
-        dayRows,
+        entries,
       });
     }
 
     return weekColumns;
-  }, [startWeek, scheduledPosts, clientUploads]);
+  }, [startWeek, scheduledPosts, clientUploads, events, contentEvents]);
 
   const handleDragStart = (event: DragStartEvent) => {
     logger.debug('🔵 ColumnView DragStart:', event.active.id);
@@ -1388,9 +1403,9 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    
+
     setDragOverDay(null);
-    
+
     logger.debug('🔵 ColumnView DragEnd:', { activeId: active.id, overId: over?.id });
 
     const activeIdStr = String(active.id);
@@ -1405,121 +1420,24 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
       return;
     }
 
-    const activeId = active.id as string;
-    const overId = over.id as string;
-
-    logger.debug('🔵 Looking for drop target:', { activeId, overId });
-
-    // Find which day row the post is being dropped into
-    // The overId could be either:
-    // 1. A day row dateKey (when dropping on empty area or the droppable container)
-    // 2. Another post ID (when dropping on a post in a different day row)
-    // 3. A SortableContext id (which is also the dateKey)
-    let targetDateKey: string | null = null;
-    
-    // First, check if overId is directly a day row dateKey (handles both droppable and SortableContext)
-    // Break early when found to avoid overwriting with wrong matches
-    outerLoop: for (const column of columns) {
-      for (const dayRow of column.dayRows) {
-        if (dayRow.dateKey === overId) {
-          targetDateKey = dayRow.dateKey;
-          logger.debug('🔵 Found target date (direct match):', targetDateKey);
-          break outerLoop;
-        }
-      }
-    }
-
-    // If not found, check if overId is a post ID and find which day row it belongs to
-    // Break early when found to avoid overwriting with wrong matches
-    if (!targetDateKey) {
-      outerLoop2: for (const column of columns) {
-        for (const dayRow of column.dayRows) {
-          const postInDay = dayRow.posts.find(post => `${post.post_type || 'post'}-${post.id}` === overId);
-          if (postInDay) {
-            targetDateKey = dayRow.dateKey;
-            logger.debug('🔵 Found target date (via post):', targetDateKey);
-            break outerLoop2;
-          }
-        }
-      }
-    }
-    
-    // Additional validation: if we still don't have a target, check if over.data contains dateKey
-    if (!targetDateKey && over.data.current) {
-      const data = over.data.current as any;
-      if (data.dateKey && typeof data.dateKey === 'string') {
-        // Validate that this dateKey actually exists in our columns
-        for (const column of columns) {
-          for (const dayRow of column.dayRows) {
-            if (dayRow.dateKey === data.dateKey) {
-              targetDateKey = data.dateKey;
-              logger.debug('🔵 Found target date (via data):', targetDateKey);
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    // Get the current post's date to avoid moving to the same location
-    let currentDateKey: string | null = null;
-    columns.forEach((column) => {
-      column.dayRows.forEach((dayRow) => {
-        const postInDay = dayRow.posts.find(post => `${post.post_type || 'post'}-${post.id}` === activeId);
-        if (postInDay) {
-          currentDateKey = dayRow.dateKey;
-        }
-      });
-    });
+    // Every drop target (a post card, a date divider, or the week-fallback zone) carries its
+    // own dateKey via useSortable/useDroppable `data` — no need to re-search the columns.
+    const targetDateKey = (over.data.current as { dateKey?: string } | undefined)?.dateKey ?? null;
+    const currentDateKey = (active.data.current as { dateKey?: string } | undefined)?.dateKey ?? null;
 
     if (targetDateKey && targetDateKey !== currentDateKey) {
       logger.debug('🔵 Moving post from', currentDateKey, 'to:', targetDateKey);
-      onPostMove(activeId, targetDateKey);
+      onPostMove(activeIdStr, targetDateKey);
     } else {
       logger.debug('🔵 No valid target found or same location', { targetDateKey, currentDateKey });
     }
-    
+
     setActiveId(null);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
     const { over } = event;
-    
-    if (!over) {
-      setDragOverDay(null);
-      return;
-    }
-
-    const overId = over.id as string;
-    
-    // Find which day row this corresponds to
-    let targetDateKey: string | null = null;
-    
-    // Check if overId is directly a day row dateKey
-    // Break early when found to avoid overwriting with wrong matches
-    outerLoop: for (const column of columns) {
-      for (const dayRow of column.dayRows) {
-        if (dayRow.dateKey === overId) {
-          targetDateKey = dayRow.dateKey;
-          break outerLoop;
-        }
-      }
-    }
-
-    // If not found, check if overId is a post ID and find which day row it belongs to
-    // Break early when found to avoid overwriting with wrong matches
-    if (!targetDateKey) {
-      outerLoop2: for (const column of columns) {
-        for (const dayRow of column.dayRows) {
-          const postInDay = dayRow.posts.find(post => `${post.post_type || 'post'}-${post.id}` === overId);
-          if (postInDay) {
-            targetDateKey = dayRow.dateKey;
-            break outerLoop2;
-          }
-        }
-      }
-    }
-    
+    const targetDateKey = (over?.data.current as { dateKey?: string } | undefined)?.dateKey ?? null;
     setDragOverDay(targetDateKey);
   };
 
@@ -1596,48 +1514,42 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
                   </div>
                 </div>
 
-                {/* Day Rows */}
-                <div className="space-y-3">
-                  {column.dayRows.map((dayRow) => {
-                    const isTodayDay = isToday(dayRow.dayDate);
-                    const isDragOver = dragOverDay === dayRow.dateKey;
-                    
-                    return (
-                      <DroppableDayRow
-                        key={dayRow.dateKey}
-                        dayRow={dayRow}
-                        isTodayDay={isTodayDay}
-                        isDragOver={isDragOver}
-                        getDayNumber={getDayNumber}
-                        onNativeDrop={onDrop}
-                        clientId={clientId}
-                        handleEditScheduledPost={handleEditScheduledPost}
-                        editingPostId={editingPostId}
-                        setEditingPostId={setEditingPostId}
-                        editingTimePostIds={editingTimePostIds}
-                        formatTimeTo12Hour={formatTimeTo12Hour}
-                        projects={projects}
-                        onAddUploadClick={onAddUploadClick}
-                        onDeletePost={onDeletePost}
-                        onDuplicatePost={onDuplicatePost}
-                        deletingPostIds={deletingPostIds}
-                        duplicatingPostIds={duplicatingPostIds}
-                        deletingUploadIds={deletingUploadIds}
-                        selectedPosts={selectedPosts}
-                        onTogglePostSelection={onTogglePostSelection}
-                        onDeleteClientUpload={onDeleteClientUpload}
-                        isCurrentWeek={isCurrent}
-                        onUpdateCaption={onUpdateCaption}
-                        savingCaptionPostIds={savingCaptionPostIds}
-                        dayEvents={events[dayRow.dateKey] ?? []}
-                        onEventAdd={onEventAdd}
-                        onEventClick={onEventClick}
-                        contentEventIndicators={contentEvents?.[dayRow.dateKey]}
-                        onPostClick={onPostClick}
-                      />
-                    );
-                  })}
-                </div>
+                {/* Flat card list — dividers only for dates with content, "+" to add a card */}
+                <WeekColumnBody
+                  weekStart={column.weekStart}
+                  entries={column.entries}
+                  isToday={isToday}
+                  getDayNumber={getDayNumber}
+                  onDrop={onDrop}
+                  events={events}
+                  contentEvents={contentEvents}
+                  onEventAdd={onEventAdd}
+                  onEventClick={onEventClick}
+                  onAddCardClick={onAddCardClick}
+                  onAddButtonDrop={onAddButtonDrop}
+                  onAddNoteForWeek={onAddNoteForWeek}
+                  deletingPostIds={deletingPostIds}
+                  duplicatingPostIds={duplicatingPostIds}
+                  deletingUploadIds={deletingUploadIds}
+                  savingCaptionPostIds={savingCaptionPostIds}
+                  dragOverDateKey={dragOverDay}
+                  cardProps={{
+                    clientId,
+                    handleEditScheduledPost,
+                    editingPostId,
+                    setEditingPostId,
+                    editingTimePostIds,
+                    formatTimeTo12Hour,
+                    projects,
+                    onDeletePost,
+                    onDuplicatePost,
+                    selectedPosts,
+                    onTogglePostSelection,
+                    onDeleteClientUpload,
+                    onUpdateCaption,
+                    onPostClick,
+                  }}
+                />
               </div>
             );
           })}

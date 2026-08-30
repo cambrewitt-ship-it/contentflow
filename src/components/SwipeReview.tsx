@@ -87,7 +87,86 @@ function EventTag({ candidate }: { candidate: AutopilotCandidate }) {
   return null;
 }
 
+function AdCopyCardContent({ candidate }: { candidate: AutopilotCandidate }) {
+  return (
+    <div className="flex-1 flex flex-col gap-2.5 px-4 pt-3 pb-4 overflow-y-auto">
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Headline</p>
+        <p className="text-sm font-semibold text-gray-900">{candidate.ad_headline}</p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Primary text</p>
+        <p className="text-sm text-gray-800 leading-relaxed">{candidate.ad_primary_text}</p>
+      </div>
+      {candidate.ad_description && (
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Description</p>
+          <p className="text-sm text-gray-600">{candidate.ad_description}</p>
+        </div>
+      )}
+      {candidate.ai_reasoning && (
+        <p className="text-xs text-gray-400 italic flex items-start gap-1 border-t border-gray-100 pt-2 mt-auto">
+          <Lightbulb className="h-3 w-3 flex-shrink-0 mt-0.5" />
+          <span className="line-clamp-2">{candidate.ai_reasoning}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function OrganicCardContent({ candidate }: { candidate: AutopilotCandidate }) {
+  return (
+    <div className="flex-1 flex flex-col gap-2 px-4 pt-2 pb-4 overflow-hidden">
+      {/* Caption */}
+      <div
+        className="flex-1 text-sm text-gray-800 leading-relaxed overflow-y-auto"
+        style={{ maxHeight: '100px' }}
+      >
+        {candidate.caption}
+      </div>
+
+      {/* Hashtags */}
+      {candidate.hashtags && candidate.hashtags.length > 0 && (
+        <p className="text-xs text-blue-500 font-medium flex-shrink-0 truncate">
+          {candidate.hashtags.join(' ')}
+        </p>
+      )}
+
+      <div className="border-t border-gray-100 pt-2 flex-shrink-0 space-y-1">
+        <p className="text-xs text-gray-400 flex items-center gap-1">
+          <Calendar className="h-3 w-3 flex-shrink-0" />
+          {formatSuggestedDate(candidate.suggested_date, candidate.suggested_time)}
+        </p>
+
+        {candidate.ai_reasoning && (
+          <p className="text-xs text-gray-400 italic flex items-start gap-1">
+            <Lightbulb className="h-3 w-3 flex-shrink-0 mt-0.5" />
+            <span className="line-clamp-2">{candidate.ai_reasoning}</span>
+          </p>
+        )}
+
+        {candidate.platforms && candidate.platforms.length > 0 && (
+          <div className="flex gap-1 flex-wrap">
+            {candidate.platforms.map(p => (
+              <span
+                key={p}
+                className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
+                  PLATFORM_STYLES[p.toLowerCase()] ?? 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                {p}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CandidateCard({ candidate }: { candidate: AutopilotCandidate }) {
+  const isAd = candidate.post_type === 'paid_ad';
+
   return (
     <div className="bg-white rounded-2xl shadow-xl overflow-hidden h-full flex flex-col select-none border border-gray-100">
       {/* Image */}
@@ -98,66 +177,25 @@ function CandidateCard({ candidate }: { candidate: AutopilotCandidate }) {
           className="w-full h-full object-cover"
           draggable={false}
         />
-        <div className="absolute top-2 right-2">
-          <EventTag candidate={candidate} />
-        </div>
-        {candidate.post_type && (
-          <div className="absolute top-2 left-2">
-            <span className="bg-black/50 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full capitalize">
-              {candidate.post_type}
-            </span>
+        {!isAd && (
+          <div className="absolute top-2 right-2">
+            <EventTag candidate={candidate} />
           </div>
         )}
+        <div className="absolute top-2 left-2">
+          <span
+            className={`text-xs px-2 py-1 rounded-full capitalize backdrop-blur-sm ${
+              isAd ? 'bg-amber-500/90 text-white font-semibold' : 'bg-black/50 text-white'
+            }`}
+          >
+            {isAd ? `Paid ad · ${candidate.ad_platform === 'google' ? 'Google' : 'Meta'}` : candidate.post_type}
+          </span>
+        </div>
         {/* Gradient overlay on image bottom */}
         <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-white to-transparent" />
       </div>
 
-      {/* Content */}
-      <div className="flex-1 flex flex-col gap-2 px-4 pt-2 pb-4 overflow-hidden">
-        {/* Caption */}
-        <div
-          className="flex-1 text-sm text-gray-800 leading-relaxed overflow-y-auto"
-          style={{ maxHeight: '100px' }}
-        >
-          {candidate.caption}
-        </div>
-
-        {/* Hashtags */}
-        {candidate.hashtags && candidate.hashtags.length > 0 && (
-          <p className="text-xs text-blue-500 font-medium flex-shrink-0 truncate">
-            {candidate.hashtags.join(' ')}
-          </p>
-        )}
-
-        <div className="border-t border-gray-100 pt-2 flex-shrink-0 space-y-1">
-          <p className="text-xs text-gray-400 flex items-center gap-1">
-            <Calendar className="h-3 w-3 flex-shrink-0" />
-            {formatSuggestedDate(candidate.suggested_date, candidate.suggested_time)}
-          </p>
-
-          {candidate.ai_reasoning && (
-            <p className="text-xs text-gray-400 italic flex items-start gap-1">
-              <Lightbulb className="h-3 w-3 flex-shrink-0 mt-0.5" />
-              <span className="line-clamp-2">{candidate.ai_reasoning}</span>
-            </p>
-          )}
-
-          {candidate.platforms && candidate.platforms.length > 0 && (
-            <div className="flex gap-1 flex-wrap">
-              {candidate.platforms.map(p => (
-                <span
-                  key={p}
-                  className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
-                    PLATFORM_STYLES[p.toLowerCase()] ?? 'bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  {p}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      {isAd ? <AdCopyCardContent candidate={candidate} /> : <OrganicCardContent candidate={candidate} />}
     </div>
   );
 }

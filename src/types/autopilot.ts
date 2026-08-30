@@ -131,6 +131,15 @@ export interface AutopilotCandidate {
   display_order: number;
   created_at: string;
   updated_at: string;
+  // Paid ad copy — null for organic candidates. suggested_date/suggested_time
+  // are also null in the DB for paid_ad candidates (they're never scheduled),
+  // but kept typed as non-null strings above since every existing consumer of
+  // this type only ever handles organic candidates via those fields.
+  ad_headline: string | null;
+  ad_primary_text: string | null;
+  ad_description: string | null;
+  ad_platform: string | null;
+  ad_status: 'pending' | 'ready' | 'copied' | null;
 }
 
 // ── Autopilot Post ────────────────────────────────────────────────────────────

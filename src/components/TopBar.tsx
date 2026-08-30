@@ -10,6 +10,7 @@ import { useUIThemeStyles } from "@/hooks/useUITheme";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import NotificationBell from "@/components/NotificationBell";
 // import CreditBadge from "@/components/CreditBadge"; // Temporarily hidden - can be restored later
 
 interface TopBarProps {
@@ -95,6 +96,7 @@ export default function TopBar({ className = "" }: TopBarProps) {
       {/* Right side - Profile Menu */}
       <div className="flex items-center space-x-4 flex-1 justify-end">
         {/* <CreditBadge className="hidden sm:inline-flex" /> */} {/* Temporarily hidden - can be restored later */}
+        <NotificationBell />
         {/* Profile Info */}
         <div className="flex items-center space-x-3">
           <div className={getThemeClasses(

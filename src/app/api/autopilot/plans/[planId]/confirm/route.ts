@@ -53,14 +53,32 @@ export async function POST(
       );
     }
 
+    // Ad copy never becomes a calendar post — it has no scheduled_date/time
+    // and isn't published via LATE. It doesn't need a "confirm" step at all:
+    // decision='kept' from the swipe is already the approval signal, and the
+    // Ad Copy panel operates on kept candidates directly (see AdCopyPanel.tsx).
+    const organicCandidates = keptCandidates.filter(c => c.post_type !== 'paid_ad');
+    const adCandidates = keptCandidates.filter(c => c.post_type === 'paid_ad');
+
+    if (organicCandidates.length === 0) {
+      // All kept candidates were ad copy — nothing to schedule.
+      const { data: updatedPlan } = await admin
+        .from('autopilot_plans')
+        .update({ status: 'approved', approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('id', planId)
+        .select('*')
+        .single();
+      return NextResponse.json({ success: true, posts: [], adCandidates: adCandidates.length, plan: updatedPlan });
+    }
+
     // Resolve project for this plan
     const projectId = plan.project_id ?? (await getOrCreateDefaultProject(plan.client_id, user.id)).id;
 
-    // Create calendar_scheduled_posts from each kept candidate
+    // Create calendar_scheduled_posts from each kept organic candidate
     const createdPosts: unknown[] = [];
     let firstInsertError: string | null = null;
 
-    for (const candidate of keptCandidates) {
+    for (const candidate of organicCandidates) {
       // Normalise time to HH:MM:SS — Postgres TIME returns HH:MM:SS already,
       // so only append :00 when the value is in HH:MM format (2 parts).
       const timeParts = (candidate.suggested_time ?? '').split(':');
@@ -112,9 +130,10 @@ export async function POST(
       );
     }
 
-    // Update gallery freshness for used media
+    // Update gallery freshness for used media (organic only — ad copy using a
+    // photo shouldn't cool it down for future organic candidates)
     const usedGalleryIds = new Set(
-      keptCandidates
+      organicCandidates
         .map(c => c.media_gallery_id)
         .filter(Boolean) as string[]
     );
@@ -154,9 +173,10 @@ export async function POST(
     logger.info('Autopilot v2: plan confirmed', {
       planId,
       postsCreated: createdPosts.length,
+      adCandidatesConfirmed: adCandidates.length,
     });
 
-    return NextResponse.json({ success: true, posts: createdPosts, plan: updatedPlan });
+    return NextResponse.json({ success: true, posts: createdPosts, adCandidates: adCandidates.length, plan: updatedPlan });
   } catch (error) {
     logger.error('POST /api/autopilot/plans/[planId]/confirm error:', error);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });

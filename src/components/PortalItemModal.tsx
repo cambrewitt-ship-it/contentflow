@@ -16,6 +16,7 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -113,6 +114,7 @@ interface Props {
   onClose: () => void;
   onActioned: () => void;
   onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
+  onNotesChange?: (uploadId: string, notes: string | null) => void;
   onDeleteUpload?: (uploadIds: string[]) => void;
   brandName?: string;
   brandLogoUrl?: string;
@@ -208,9 +210,14 @@ function PipelineSteps({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function PortalItemModal({ item, portalToken, party, onClose, onActioned, onTagsChange, onDeleteUpload, brandName, brandLogoUrl }: Props) {
+export function PortalItemModal({ item, portalToken, party, onClose, onActioned, onTagsChange, onNotesChange, onDeleteUpload, brandName, brandLogoUrl }: Props) {
   const isPost = item.type === "post";
   const isUpload = item.type === "upload";
+
+  const dateStr = isPost
+    ? (item.data as ModalPost).scheduled_date
+    : (item.data as ModalUpload).target_date ?? (item.data as ModalUpload).created_at;
+  const initialDateKey = dateStr ? new Date(dateStr).toLocaleDateString("en-CA") : "";
 
   // Carousel state — for upload groups and posts with multiple media URLs
   const carouselItems: ModalUpload[] | null =
@@ -297,6 +304,12 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   );
   const [isTagOpen, setIsTagOpen] = useState(false);
   const tagButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Editable scheduled date (posts and uploads)
+  const [isEditingDate, setIsEditingDate] = useState(false);
+  const [editDateValue, setEditDateValue] = useState(initialDateKey);
+  const [isSavingDate, setIsSavingDate] = useState(false);
+  const [dateSaveError, setDateSaveError] = useState<string | null>(null);
 
   // Scroll comments into view on load
   const scrollToBottom = () => {
@@ -548,12 +561,65 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
         setNotesSaveError(data.error ?? "Failed to save");
         return;
       }
+      const savedNotes = editedNotes.trim() || null;
+      onNotesChange?.((item.data as ModalUpload).id, savedNotes);
       setNotesSaved(true);
       setTimeout(() => setNotesSaved(false), 2000);
     } catch {
       setNotesSaveError("Failed to save notes");
     } finally {
       setIsSavingNotes(false);
+    }
+  };
+
+  // ── Save scheduled date ──────────────────────────────────────────────────
+
+  const handleSaveDate = async () => {
+    if (!editDateValue || editDateValue === initialDateKey) {
+      setIsEditingDate(false);
+      return;
+    }
+    setIsSavingDate(true);
+    setDateSaveError(null);
+    try {
+      if (isPost) {
+        const res = await fetch("/api/portal/calendar", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: portalToken,
+            postId: (item.data as ModalPost).id,
+            scheduled_date: editDateValue,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setDateSaveError(data.error ?? "Failed to update date");
+          return;
+        }
+      } else {
+        // Carousel items must move together so they stay grouped under one day.
+        const idsToUpdate = carouselItems && carouselItems.length > 1
+          ? carouselItems.map(c => c.id)
+          : [(item.data as ModalUpload).id];
+        const results = await Promise.all(idsToUpdate.map(uploadId =>
+          fetch("/api/portal/upload", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: portalToken, uploadId, targetDate: editDateValue }),
+          })
+        ));
+        if (results.some(r => !r.ok)) {
+          setDateSaveError("Failed to update date");
+          return;
+        }
+      }
+      setIsEditingDate(false);
+      onActioned();
+    } catch {
+      setDateSaveError("Failed to update date");
+    } finally {
+      setIsSavingDate(false);
     }
   };
 
@@ -669,10 +735,6 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
         .trim() || null
     : rawCopyText;
 
-  const dateStr = isPost
-    ? (item.data as ModalPost).scheduled_date
-    : (item.data as ModalUpload).target_date ?? (item.data as ModalUpload).created_at;
-
   const approvalStatus = isPost
     ? (item.data as ModalPost).approval_status
     : ((item.data as ModalUpload).one_time_approval?.approval_status ?? mapUploadStatus((item.data as ModalUpload).status));
@@ -692,15 +754,52 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
             <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
               {isPost ? "Calendar Post" : "Queue Item"}
             </span>
-            {dateStr && (
-              <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
+            {isEditingDate ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={editDateValue}
+                  onChange={(e) => setEditDateValue(e.target.value)}
+                  disabled={isSavingDate}
+                  className="text-xs border border-gray-200 rounded-full px-2 py-0.5 text-gray-700 disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveDate}
+                  disabled={isSavingDate || !editDateValue}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-white bg-gray-900 rounded-full px-2 py-0.5 hover:bg-gray-700 transition-colors disabled:opacity-40"
+                >
+                  {isSavingDate ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIsEditingDate(false); setEditDateValue(initialDateKey); setDateSaveError(null); }}
+                  disabled={isSavingDate}
+                  className="text-xs text-gray-400 hover:text-gray-600 px-1 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsEditingDate(true)}
+                className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-full px-2 py-0.5 transition-colors"
+                title="Change date"
+              >
                 <Calendar className="w-3 h-3" />
-                {new Date(dateStr).toLocaleDateString("en-GB", {
-                  weekday: "short",
-                  day: "numeric",
-                  month: "short",
-                })}
-              </span>
+                {dateStr
+                  ? new Date(dateStr).toLocaleDateString("en-GB", {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                    })
+                  : "Set date"}
+                <Pencil className="w-2.5 h-2.5 opacity-60" />
+              </button>
+            )}
+            {dateSaveError && (
+              <span className="text-xs text-red-600">{dateSaveError}</span>
             )}
           </div>
           <div className="flex items-center gap-1.5">

@@ -4,6 +4,7 @@ import { use, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import SwipeReview from '@/components/SwipeReview';
 import CalendarConfirm from '@/components/CalendarConfirm';
+import AdCopyPanel from '@/components/AdCopyPanel';
 import {
   Loader2,
   Sparkles,
@@ -238,12 +239,10 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
     setGenerateError(null);
     const token = getAccessToken();
     try {
-      const edgeFnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-plan`;
-      const res = await fetch(edgeFnUrl, {
+      const res = await fetch('/api/autopilot/generate-plan', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token ?? ''}`,
-          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ clientId, force: true }),
@@ -287,6 +286,13 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
   function handleConfirmComplete() {
     setPageView('published');
     fetchPlans(); // refresh history
+  }
+
+  // Ad-copy-only plans have nothing scheduled, so they shouldn't land on the
+  // "Your posts are scheduled!" published view.
+  function handleAdCopyOnlyDone() {
+    setPageView('idle');
+    fetchPlans();
   }
 
   // ── History plans (all except the currently active one) ────────────────────
@@ -386,7 +392,7 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
             className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white shadow-md"
           >
             <Sparkles className="h-4 w-4 mr-1.5" />
-            Generate Plan
+            Run agent
           </Button>
         )}
       </div>
@@ -442,7 +448,7 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
                 title={creditInfo != null && creditInfo.max - creditInfo.used < 13 ? 'Insufficient AI credits' : undefined}
               >
                 <Sparkles className="h-4 w-4 mr-1.5" />
-                Generate
+                Run agent
               </Button>
             </div>
           </div>
@@ -468,8 +474,8 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
                 <Loader2 className="absolute inset-0 m-auto h-16 w-16 animate-spin text-purple-300" />
               </div>
               <div className="text-center">
-                <p className="font-medium text-gray-700">Generating 12 content candidates…</p>
-                <p className="text-sm text-gray-400 mt-1">This takes 30–60 seconds</p>
+                <p className="font-medium text-gray-700">Your AI agent is researching and drafting…</p>
+                <p className="text-sm text-gray-400 mt-1">This can take a couple of minutes — it's checking brand voice, photos, and upcoming dates</p>
               </div>
               <div className="w-48 h-1 bg-gray-100 rounded-full overflow-hidden">
                 <div
@@ -488,7 +494,7 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
               </div>
               <h3 className="text-base font-medium text-gray-700">No plans yet</h3>
               <p className="text-sm text-gray-400 max-w-xs mx-auto">
-                Click "Generate Plan" and AI will create 12 post candidates for you to swipe through.
+                Click "Run agent" and AI will create 12 post candidates for you to swipe through.
               </p>
               <Button
                 onClick={() => {
@@ -498,7 +504,7 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
                 className="mt-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white"
               >
                 <Sparkles className="h-4 w-4 mr-1.5" />
-                Generate Plan
+                Run agent
               </Button>
             </div>
           )}
@@ -525,16 +531,36 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
           )}
 
           {/* ── CONFIRM ── */}
-          {pageView === 'confirm' && activePlan && (
-            <CalendarConfirm
-              planId={activePlan.id}
-              clientId={clientId}
-              keptCandidates={keptCandidates}
-              planWeekStart={activePlan.plan_week_start}
-              onConfirm={handleConfirmComplete}
-              onBack={() => setPageView('swipe')}
-            />
-          )}
+          {pageView === 'confirm' && activePlan && (() => {
+            const organicKept = keptCandidates.filter(c => c.post_type !== 'paid_ad');
+            const adKept = keptCandidates.filter(c => c.post_type === 'paid_ad');
+
+            return (
+              <div className="space-y-6">
+                {organicKept.length > 0 ? (
+                  <CalendarConfirm
+                    planId={activePlan.id}
+                    clientId={clientId}
+                    keptCandidates={organicKept}
+                    planWeekStart={activePlan.plan_week_start}
+                    onConfirm={handleConfirmComplete}
+                    onBack={() => setPageView('swipe')}
+                  />
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => setPageView('swipe')}
+                      className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      ← Back to review
+                    </button>
+                    <Button onClick={handleAdCopyOnlyDone}>Done</Button>
+                  </div>
+                )}
+                <AdCopyPanel candidates={adKept} />
+              </div>
+            );
+          })()}
 
           {/* ── PUBLISHED ── */}
           {pageView === 'published' && (
@@ -557,7 +583,6 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
                   onClick={() => {
                     setShowGenerateModal(true);
                     setGenerateError(null);
-                    setExistingPlanConflict(null);
                   }}
                   className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white"
                 >

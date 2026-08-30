@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { WeekDayChooser } from '@/components/WeekDayChooser';
 
 export interface CalendarEvent {
   id: string;
@@ -35,18 +36,22 @@ export const EVENT_COLOR_CLASSES: Record<string, { bg: string; text: string; bor
 };
 
 interface Props {
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD — default/pre-filled date
   event?: CalendarEvent | null;
   clientId: string;
   onSave: (event: CalendarEvent) => void;
   onDelete: (eventId: string) => void;
   onClose: () => void;
+  // When set, the modal was opened without one specific day already in mind (e.g. a hover
+  // affordance between cards) — show a day picker scoped to this week instead of a fixed date.
+  weekStart?: Date;
 }
 
-export function CalendarEventModal({ date, event, clientId, onSave, onDelete, onClose }: Props) {
+export function CalendarEventModal({ date, event, clientId, onSave, onDelete, onClose, weekStart }: Props) {
   const isEditing = !!event;
   const { getAccessToken } = useAuth();
 
+  const [selectedDate, setSelectedDate] = useState(date);
   const [title, setTitle]   = useState(event?.title ?? '');
   const [notes, setNotes]   = useState(event?.notes ?? '');
   const [type, setType]     = useState<'event' | 'note'>(event?.type ?? 'event');
@@ -54,7 +59,7 @@ export function CalendarEventModal({ date, event, clientId, onSave, onDelete, on
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const displayDate = new Date(date + 'T12:00:00').toLocaleDateString('en-NZ', {
+  const displayDate = new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-NZ', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
@@ -78,7 +83,7 @@ export function CalendarEventModal({ date, event, clientId, onSave, onDelete, on
         const res = await fetch('/api/calendar/events', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ client_id: clientId, date, title: title.trim(), notes: notes || null, type, color }),
+          body: JSON.stringify({ client_id: clientId, date: selectedDate, title: title.trim(), notes: notes || null, type, color }),
         });
         if (!res.ok) throw new Error('Failed to create');
         const data = await res.json();
@@ -133,6 +138,18 @@ export function CalendarEventModal({ date, event, clientId, onSave, onDelete, on
 
         {/* Body */}
         <div className="px-5 py-4 space-y-4">
+          {/* Day picker — only shown when opened without one specific day already in mind */}
+          {!isEditing && weekStart && (
+            <div>
+              <p className="text-xs text-gray-500 mb-2">Day</p>
+              <WeekDayChooser
+                weekStart={weekStart}
+                selectedDateKey={selectedDate}
+                onSelect={setSelectedDate}
+              />
+            </div>
+          )}
+
           {/* Type Toggle */}
           <div className="flex gap-2">
             <button

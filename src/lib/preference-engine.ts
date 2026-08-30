@@ -18,22 +18,22 @@ export interface StylePreferences {
   toneNotes: string;
 }
 
-const CORPORATE_WORDS = [
+export const CORPORATE_WORDS = [
   'discover', 'leverage', 'solutions', 'elevate', 'unlock',
   'synergy', 'innovative', 'seamless', 'holistic', 'empower',
 ];
 
 const EMOJI_REGEX = /\p{Emoji_Presentation}|\p{Extended_Pictographic}/gu;
 
-function countWords(text: string): number {
+export function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-function countHashtags(text: string): number {
+export function countHashtags(text: string): number {
   return (text.match(/#\w+/g) || []).length;
 }
 
-function countEmojis(text: string): number {
+export function countEmojis(text: string): number {
   return (text.match(EMOJI_REGEX) || []).length;
 }
 
@@ -206,39 +206,4 @@ export async function recordPreference(params: {
     emoji_count: countEmojis(params.caption),
     autopilot_plan_id: params.autopilotPlanId,
   });
-}
-
-export function formatPreferencesForPrompt(prefs: StylePreferences): string {
-  if (!prefs.hasEnoughData) {
-    return '## Style Preferences\nNo preference data yet — generating with default brand voice.';
-  }
-
-  const total = prefs.totalLiked + prefs.totalDisliked;
-
-  const likedExamplesText = prefs.topLikedExamples
-    .map(e => `"${e.caption.substring(0, 200)}" [Type: ${e.post_type}]`)
-    .join('\n');
-
-  const dislikedExamplesText = prefs.topDislikedExamples
-    .map(e => `"${e.caption.substring(0, 200)}" [Type: ${e.post_type}] — Why avoided: ${e.reason_inferred}`)
-    .join('\n');
-
-  const preferredTypes =
-    prefs.preferredPostTypes.length > 0 ? prefs.preferredPostTypes.join(', ') : 'no strong preference yet';
-
-  return `## Style Preferences (from ${total} previous reviews)
-
-CAPTIONS THE CLIENT LIKED — match this style:
-
-${likedExamplesText}
-
-CAPTIONS THE CLIENT DISLIKED — avoid this style:
-
-${dislikedExamplesText}
-
-STYLE PATTERNS:
-Preferred caption length: ~${prefs.avgLikedCaptionLength} words
-Preferred hashtag count: ${prefs.avgLikedHashtagCount} per post
-Post types that resonate: ${preferredTypes}
-${prefs.toneNotes}`;
 }

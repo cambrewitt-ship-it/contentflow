@@ -8,16 +8,22 @@ import { recordPreference } from '@/lib/preference-engine';
 export const dynamic = 'force-dynamic';
 
 const swipeSchema = z.object({ decision: z.enum(['kept', 'skipped']) });
+const markCopiedSchema = z.object({ ad_status: z.literal('copied') });
 
 const fieldSchema = z
   .object({
     suggested_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     suggested_time: z.string().optional(),
     caption: z.string().min(1).max(5000).optional(),
+    ad_headline: z.string().min(1).max(200).optional(),
+    ad_primary_text: z.string().min(1).max(2000).optional(),
+    ad_description: z.string().min(1).max(500).optional(),
   })
-  .refine(b => b.suggested_date || b.suggested_time || b.caption, {
-    message: 'At least one field is required',
-  });
+  .refine(
+    b =>
+      b.suggested_date || b.suggested_time || b.caption || b.ad_headline || b.ad_primary_text || b.ad_description,
+    { message: 'At least one field is required' }
+  );
 
 export async function PATCH(
   request: NextRequest,
@@ -105,7 +111,24 @@ export async function PATCH(
       return NextResponse.json({ success: true, candidate: updated });
     }
 
-    // ── Field update (date / caption) ─────────────────────────────────────────
+    // ── Mark ad copy as copied ──────────────────────────────────────────────────
+    const copiedParsed = markCopiedSchema.safeParse(body);
+    if (copiedParsed.success) {
+      const { data: updated, error: updateErr } = await admin
+        .from('autopilot_candidates')
+        .update({ ad_status: 'copied', updated_at: new Date().toISOString() })
+        .eq('id', candidateId)
+        .select('*')
+        .single();
+
+      if (updateErr) {
+        logger.error('PATCH candidate ad_status error:', updateErr);
+        return NextResponse.json({ success: false, error: 'Failed to update candidate' }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, candidate: updated });
+    }
+
+    // ── Field update (date / caption / ad copy text) ────────────────────────────
     const fieldParsed = fieldSchema.safeParse(body);
     if (!fieldParsed.success) {
       return NextResponse.json(
@@ -118,6 +141,9 @@ export async function PATCH(
     if (fieldParsed.data.suggested_date) updates.suggested_date = fieldParsed.data.suggested_date;
     if (fieldParsed.data.suggested_time) updates.suggested_time = fieldParsed.data.suggested_time;
     if (fieldParsed.data.caption) updates.caption = fieldParsed.data.caption;
+    if (fieldParsed.data.ad_headline) updates.ad_headline = fieldParsed.data.ad_headline;
+    if (fieldParsed.data.ad_primary_text) updates.ad_primary_text = fieldParsed.data.ad_primary_text;
+    if (fieldParsed.data.ad_description) updates.ad_description = fieldParsed.data.ad_description;
 
     const { data: updated, error: updateErr } = await admin
       .from('autopilot_candidates')

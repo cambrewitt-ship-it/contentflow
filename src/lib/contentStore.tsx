@@ -137,6 +137,19 @@ export interface ContentIdea {
   holidayConnection?: string
 }
 
+export interface ChatCaption {
+  id: string
+  text: string
+}
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  captions?: ChatCaption[]
+  isLoading?: boolean
+}
+
 export interface UploadedImage {
   id: string
   file: File
@@ -199,6 +212,18 @@ export interface ContentStore {
   remixCaption: (captionId: string, accessToken?: string) => Promise<void>
   clearAll: () => void
   clearStorageOnly: () => void
+  // Chat-based caption iteration (shared so any AI creation UI gets one consistent implementation)
+  chatMode: boolean
+  chatMessages: ChatMessage[]
+  chatInput: string
+  chatLoading: boolean
+  setChatMode: (mode: boolean) => void
+  setChatMessages: (messages: ChatMessage[]) => void
+  setChatInput: (input: string) => void
+  initializeChat: (accessToken?: string) => Promise<void>
+  sendChatMessage: (accessToken?: string) => Promise<void>
+  handleEnterChatMode: (accessToken?: string) => Promise<void>
+  selectChatCaption: (caption: ChatCaption) => void
 }
 
 const ContentStoreContext = createContext<ContentStore | null>(null)
@@ -273,6 +298,12 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
   const [copyTone, setCopyTone] = useState<CopyTone>('promotional')
   const [copyType, setCopyType] = useState<'social-media' | 'email-marketing'>('social-media')
   const [contentIdeas, setContentIdeas] = useState<ContentIdea[]>([])
+
+  // Chat-based caption iteration state
+  const [chatMode, setChatMode] = useState(true)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
 
   // Track if we've hydrated from localStorage
   const [hasHydrated, setHasHydrated] = useState(false)
@@ -947,6 +978,206 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     }
   }
 
+  // Get image data for chat API calls — converts URLs to base64 and compresses (shares compressImageIfNeeded with generateAICaptions)
+  const getImageDataForChat = async (): Promise<string | undefined> => {
+    const activeImage = uploadedImages.find(img => img.id === activeImageId)
+    if (!activeImage) return undefined
+    if (activeImage.mediaType === 'video') return 'VIDEO_PLACEHOLDER'
+    const url = activeImage.blobUrl || activeImage.preview
+    if (!url) return undefined
+
+    if (url.startsWith('data:')) return compressImageIfNeeded(url)
+
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+      return compressImageIfNeeded(dataUrl)
+    } catch {
+      return url // fallback — server handles HTTPS URLs natively
+    }
+  }
+
+  // A 403 alone is not sufficient evidence of an insufficient-credits error (auth/ownership
+  // failures also return 403) — only classify as a credit error when the response says so.
+  const classifyCreditError = (data: unknown): string | undefined => {
+    if (!data || typeof data !== 'object') return undefined
+    const error = (data as { error?: unknown }).error
+    if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'INSUFFICIENT_CREDITS') {
+      return (error as { message?: string }).message || 'Insufficient AI credits.'
+    }
+    if (typeof error === 'string' && (error.includes('credit') || error.includes('Credit'))) {
+      return error
+    }
+    return undefined
+  }
+
+  // Auto-generate the first chat message when entering chat mode
+  const initializeChat = async (accessToken?: string) => {
+    const activeImage = uploadedImages.find(img => img.id === activeImageId)
+    if (!activeImage || !accessToken) return
+
+    const isVideo = activeImage.mediaType === 'video'
+    const imageData = await getImageDataForChat()
+    if (!imageData) return
+
+    const loadingId = `msg-${Date.now()}`
+    setChatMessages([{ id: loadingId, role: 'assistant', content: '', isLoading: true }])
+    setChatLoading(true)
+
+    try {
+      const aiContext = isVideo
+        ? postNotes.trim()
+        : (postNotes?.trim() || 'Generate engaging social media captions for this content.')
+
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ action: 'generate_captions', imageData, aiContext, clientId, copyType }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        const creditError = classifyCreditError(data)
+        if (creditError) {
+          setChatMessages([])
+          const error = new Error('INSUFFICIENT_CREDITS')
+          error.name = 'InsufficientCreditsError'
+          ;(error as Error & { details?: string }).details = creditError
+          throw error
+        }
+        throw new Error((data.error as string) || `Error ${response.status}`)
+      }
+
+      const captionTexts: string[] = data.captions || []
+      const ts = Date.now()
+      const newCaptions: ChatCaption[] = captionTexts.map((text, i) => ({ id: `chat-init-${ts}-${i}`, text }))
+
+      setCaptions(newCaptions)
+      setChatMessages([{ id: loadingId, role: 'assistant', content: '', captions: newCaptions, isLoading: false }])
+    } catch (error) {
+      if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
+        throw error
+      }
+      setChatMessages([{
+        id: loadingId,
+        role: 'assistant',
+        content: error instanceof Error ? error.message : 'Failed to generate captions. Please try again.',
+        isLoading: false,
+      }])
+    } finally {
+      setChatLoading(false)
+    }
+  }
+
+  // Send a follow-up instruction in chat mode
+  const sendChatMessage = async (accessToken?: string) => {
+    const activeImage = uploadedImages.find(img => img.id === activeImageId)
+    const instruction = chatInput.trim()
+    if (!instruction || chatLoading || !activeImage) return
+
+    const userMsgId = `msg-user-${Date.now()}`
+    const aiMsgId = `msg-ai-${Date.now()}`
+    const snapshot = [...chatMessages]
+
+    setChatMessages(prev => [
+      ...prev,
+      { id: userMsgId, role: 'user' as const, content: instruction },
+      { id: aiMsgId, role: 'assistant' as const, content: '', isLoading: true },
+    ])
+    setChatInput('')
+    setChatLoading(true)
+
+    try {
+      const imageData = await getImageDataForChat()
+
+      const history = snapshot
+        .filter(m => !m.isLoading)
+        .map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.role === 'assistant'
+            ? (m.captions?.map(c => c.text).join('\n\n') || m.content)
+            : m.content,
+        }))
+
+      const response = await fetch('/api/ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          action: 'chat_caption',
+          imageData,
+          userInstruction: instruction,
+          conversationHistory: history,
+          aiContext: postNotes?.trim() || undefined,
+          clientId,
+          copyType,
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        const creditError = classifyCreditError(data)
+        throw new Error(creditError || (data.error as string) || `Error ${response.status}`)
+      }
+
+      const captionTexts: string[] = data.captions || []
+      const ts = Date.now()
+      const newCaptions: ChatCaption[] = captionTexts.map((text, i) => ({ id: `chat-${aiMsgId}-${i}-${ts}`, text }))
+
+      setChatMessages(prev => prev.map(m =>
+        m.id === aiMsgId ? { ...m, captions: newCaptions, isLoading: false } : m
+      ))
+    } catch (error) {
+      setChatMessages(prev => prev.map(m =>
+        m.id === aiMsgId
+          ? { ...m, content: error instanceof Error ? error.message : 'Failed to generate. Please try again.', isLoading: false }
+          : m
+      ))
+    } finally {
+      setChatLoading(false)
+    }
+  }
+
+  // Enter chat mode — auto-generates first captions if none yet
+  const handleEnterChatMode = async (accessToken?: string) => {
+    const activeImage = uploadedImages.find(img => img.id === activeImageId)
+    const isVideo = activeImage?.mediaType === 'video'
+    setChatMode(true)
+    if (chatMessages.length === 0 && activeImage) {
+      if (isVideo && !postNotes.trim()) {
+        setChatMessages([{
+          id: `msg-${Date.now()}`,
+          role: 'assistant',
+          content: 'This is a video. Please add Post Notes describing your video content, then switch back to Chat mode.',
+          isLoading: false,
+        }])
+        return
+      }
+      await initializeChat(accessToken)
+    }
+  }
+
+  // Select a caption from a chat message — syncs to the store so previews update
+  const selectChatCaption = (caption: ChatCaption) => {
+    if (!captions.some(c => c.id === caption.id)) {
+      setCaptions([...captions, { id: caption.id, text: caption.text }])
+    }
+    selectCaption(caption.id)
+  }
+
   const clearAll = () => {
     // Clean up blob URLs before clearing
     uploadedImages.forEach(image => {
@@ -978,7 +1209,12 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     
     // Reset copy tone to default
     setCopyTone('promotional')
-    
+
+    // Reset chat state so a freshly-opened session doesn't inherit a previous client's conversation
+    setChatMode(true)
+    setChatMessages([])
+    setChatInput('')
+
     // Also clear localStorage to prevent hydration from restoring old data
     if (typeof window !== "undefined") {
       localStorage.removeItem(getStorageKey("imageMetadata"))
@@ -1036,6 +1272,17 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     remixCaption,
     clearAll,
     clearStorageOnly,
+    chatMode,
+    chatMessages,
+    chatInput,
+    chatLoading,
+    setChatMode,
+    setChatMessages,
+    setChatInput,
+    initializeChat,
+    sendChatMessage,
+    handleEnterChatMode,
+    selectChatCaption,
   }
 
   return (

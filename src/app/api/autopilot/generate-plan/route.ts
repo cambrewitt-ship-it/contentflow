@@ -5,9 +5,11 @@ import { requireClientOwnership } from '@/lib/authHelpers';
 import { withAICreditCheck } from '@/lib/subscriptionMiddleware';
 import { generateContentPlan } from '@/lib/autopilot-engine';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
+import { estimateWorstCaseCredits } from '@/lib/autopilot-agent/constants';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+export const maxDuration = 300; // agentic loop can run several turns — mirrors the cron route's budget
 
 const bodySchema = z.object({
   clientId: z.string().uuid(),
@@ -98,12 +100,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Credit check: 1 base + candidateCount (v2 generates 10-12 candidates)
-    const postsPerWeek =
-      (clientRow?.posting_preferences as { posts_per_week?: number })?.posts_per_week ?? 3;
-    const candidateCount = Math.min(12, Math.max(10, postsPerWeek * 3));
-    const estimatedCredits = 1 + candidateCount;
-    const creditCheck = await withAICreditCheck(request, estimatedCredits);
+    // Credit check: conservative worst-case for the agentic loop (bounded
+    // iteration count x a per-iteration token estimate). The loop typically
+    // finalizes well before the iteration cap, so real usage — tracked via
+    // trackAICreditUsage after the run — is usually well under this ceiling.
+    const creditCheck = await withAICreditCheck(request, estimateWorstCaseCredits());
     if (!creditCheck.allowed) {
       return NextResponse.json(
         { success: false, error: creditCheck.error || 'Insufficient AI credits' },

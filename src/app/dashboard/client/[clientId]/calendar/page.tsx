@@ -21,6 +21,8 @@ import { useContentEvents } from '@/components/EventsCalendarLayer';
 import EventsPanel from '@/components/EventsPanel';
 import { ClientPostDetailModal, type ClientPostDetailItem } from '@/components/ClientPostDetailModal';
 import { ClientUploadDetailModal, type ClientUploadDetailItem } from '@/components/ClientUploadDetailModal';
+import { CreatePostModal } from '@/components/CreatePostModal';
+import { QuickScheduleDayTimePicker } from '@/components/QuickScheduleDayTimePicker';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -221,7 +223,17 @@ export default function CalendarPage() {
   // Calendar events / notes
   const [calendarEvents, setCalendarEvents] = useState<{[dateKey: string]: CalendarEvent[]}>({});
   const [eventModalDate, setEventModalDate] = useState<string | null>(null);
+  const [eventModalWeekStart, setEventModalWeekStart] = useState<Date | null>(null);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+
+  // Trello-style "+" add-card: click opens the AI creation modal, drag-drop opens a quick
+  // day/time picker for the dropped photo.
+  const [createPostModal, setCreatePostModal] = useState<{ open: boolean; weekStart: Date } | null>(null);
+  const [quickSchedule, setQuickSchedule] = useState<{
+    weekStart: Date;
+    post: Post;
+  } | null>(null);
+  const [quickScheduleSubmitting, setQuickScheduleSubmitting] = useState(false);
   const clientPortalRef = useRef<HTMLDivElement>(null);
   const [showPlanRestrictionDialog, setShowPlanRestrictionDialog] = useState(false);
   const [planRestrictionMessage, setPlanRestrictionMessage] = useState(
@@ -321,6 +333,7 @@ export default function CalendarPage() {
       return updated;
     });
     setEventModalDate(null);
+    setEventModalWeekStart(null);
     setEditingEvent(null);
   };
 
@@ -334,16 +347,27 @@ export default function CalendarPage() {
       return updated;
     });
     setEventModalDate(null);
+    setEventModalWeekStart(null);
     setEditingEvent(null);
   };
 
   const handleOpenEventModal = (dateKey: string) => {
     setEditingEvent(null);
+    setEventModalWeekStart(null);
     setEventModalDate(dateKey);
+  };
+
+  // Triggered by the week-wide "+ Note" hover affordance — no single date is known yet, so
+  // the modal opens its own day picker scoped to weekStart (defaulting to the Monday).
+  const handleOpenEventModalForWeek = (weekStart: Date) => {
+    setEditingEvent(null);
+    setEventModalWeekStart(weekStart);
+    setEventModalDate(weekStart.toLocaleDateString('en-CA'));
   };
 
   const handleEditEvent = (event: CalendarEvent) => {
     setEditingEvent(event);
+    setEventModalWeekStart(null);
     setEventModalDate(event.date);
   };
 
@@ -1332,6 +1356,67 @@ export default function CalendarPage() {
       setError(`Failed to move post: ${errorMessage}`);
     } finally {
       // Clear loading state for this post
+      setMovingPostId(null);
+    }
+  };
+
+  // Shared by both drop paths: dropping an unscheduled photo directly onto an existing card
+  // (dateKey known already), and dropping it onto the "+" button then confirming a day+time
+  // via QuickScheduleDayTimePicker.
+  const scheduleUnscheduledPost = async (post: Post, dateKey: string, time: string) => {
+    const scheduledDate = dateKey;
+    const scheduledTime = time.length === 5 ? `${time}:00` : time;
+
+    setMovingPostId(post.id);
+    try {
+      const requestBody = {
+        unscheduledId: post.id,
+        scheduledPost: {
+          project_id: post.project_id,
+          client_id: clientId,
+          caption: post.caption,
+          image_url: post.image_url,
+          post_notes: post.post_notes,
+          scheduled_date: scheduledDate,
+          scheduled_time: scheduledTime
+        }
+      };
+
+      const accessToken = requireAccessToken();
+      const response = await fetch('/api/calendar/scheduled', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error: ${response.status} - ${errorText}`);
+      }
+
+      const responseData = await response.json();
+
+      setProjectPosts(prevPosts => prevPosts.filter(p => p.id !== post.id));
+
+      const newScheduledPost: Post = {
+        ...post,
+        id: responseData.post.id,
+        post_type: post.post_type || 'post',
+        scheduled_date: scheduledDate,
+        scheduled_time: scheduledTime
+      };
+
+      setScheduledPosts(prevScheduled => ({
+        ...prevScheduled,
+        [scheduledDate]: [...(prevScheduled[scheduledDate] || []), newScheduledPost]
+      }));
+    } catch (error) {
+      console.error('Error dropping post:', error);
+      setError(error instanceof Error ? error.message : 'Failed to plan post');
+    } finally {
       setMovingPostId(null);
     }
   };
@@ -2854,72 +2939,21 @@ export default function CalendarPage() {
                     }
                   }}
                   onDrop={async (e: React.DragEvent, dateKey: string) => {
-                    // Handle native HTML5 drag from unscheduled posts
+                    // Handle native HTML5 drag from unscheduled posts, dropped directly onto an existing card
                     const postData = e.dataTransfer.getData('post');
                     if (!postData) return;
-
                     const post = JSON.parse(postData);
-                    
-                    // Use the dateKey directly - it already contains the exact date in 'YYYY-MM-DD' format
-                    const scheduledDate = dateKey;
-                    const time = '12:00';
-                    const scheduledTime = `${time}:00`;
-
-                    setMovingPostId(post.id);
-
-                    try {
-                      const requestBody = {
-                        unscheduledId: post.id,
-                        scheduledPost: {
-                          project_id: post.project_id,
-                          client_id: clientId,
-                          caption: post.caption,
-                          image_url: post.image_url,
-                          post_notes: post.post_notes,
-                          scheduled_date: scheduledDate,
-                          scheduled_time: scheduledTime
-                        }
-                      };
-
-                      const accessToken = requireAccessToken();
-                      const response = await fetch('/api/calendar/scheduled', {
-                        method: 'POST',
-                        headers: { 
-                          'Authorization': `Bearer ${accessToken}`,
-                          'Content-Type': 'application/json' 
-                        },
-                        body: JSON.stringify(requestBody)
-                      });
-
-                      if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(`API Error: ${response.status} - ${errorText}`);
-                      }
-
-                      const responseData = await response.json();
-
-                      setProjectPosts(prevPosts => prevPosts.filter(p => p.id !== post.id));
-
-                      const newScheduledPost: Post = {
-                        ...post,
-                        id: responseData.post.id,
-                        post_type: post.post_type || 'post',
-                        scheduled_date: scheduledDate,
-                        scheduled_time: scheduledTime
-                      };
-
-                      setScheduledPosts(prevScheduled => ({
-                        ...prevScheduled,
-                        [scheduledDate]: [...(prevScheduled[scheduledDate] || []), newScheduledPost]
-                      }));
-                    } catch (error) {
-                      console.error('Error dropping post:', error);
-                      setError(error instanceof Error ? error.message : 'Failed to plan post');
-                    } finally {
-                      setMovingPostId(null);
-                    }
+                    await scheduleUnscheduledPost(post, dateKey, '12:00');
                   }}
                   onPostMove={handleColumnPostMove}
+                  onAddCardClick={(weekStart) => setCreatePostModal({ open: true, weekStart })}
+                  onAddButtonDrop={(e: React.DragEvent, weekStart: Date) => {
+                    const postData = e.dataTransfer.getData('post');
+                    if (!postData) return;
+                    const post = JSON.parse(postData);
+                    setQuickSchedule({ weekStart, post });
+                  }}
+                  onAddNoteForWeek={handleOpenEventModalForWeek}
                 />
                 </div>
                 {showEventsPanel && (
@@ -3075,9 +3109,50 @@ export default function CalendarPage() {
           date={eventModalDate}
           event={editingEvent}
           clientId={clientId}
+          weekStart={eventModalWeekStart ?? undefined}
           onSave={handleEventSave}
           onDelete={handleEventDelete}
-          onClose={() => { setEventModalDate(null); setEditingEvent(null); }}
+          onClose={() => { setEventModalDate(null); setEventModalWeekStart(null); setEditingEvent(null); }}
+        />
+      )}
+
+      {/* Trello-style "+" add-card modals */}
+      {createPostModal && (
+        <CreatePostModal
+          open={createPostModal.open}
+          onClose={() => setCreatePostModal(null)}
+          clientId={clientId}
+          weekStart={createPostModal.weekStart}
+          projects={projects}
+          onCreated={(post) => {
+            const dateKey = post.scheduled_date;
+            if (dateKey) {
+              setScheduledPosts(prevScheduled => ({
+                ...prevScheduled,
+                [dateKey]: [...(prevScheduled[dateKey] || []), { ...post, post_type: post.post_type || 'post' } as Post],
+              }));
+            }
+            setCreatePostModal(null);
+          }}
+        />
+      )}
+
+      {quickSchedule && (
+        <QuickScheduleDayTimePicker
+          open={!!quickSchedule}
+          onOpenChange={(open) => { if (!open) setQuickSchedule(null); }}
+          weekStart={quickSchedule.weekStart}
+          imageUrl={quickSchedule.post.image_url}
+          isSubmitting={quickScheduleSubmitting}
+          onConfirm={async (dateKey, time) => {
+            setQuickScheduleSubmitting(true);
+            try {
+              await scheduleUnscheduledPost(quickSchedule.post, dateKey, time);
+              setQuickSchedule(null);
+            } finally {
+              setQuickScheduleSubmitting(false);
+            }
+          }}
         />
       )}
 

@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
 
     const admin = createSupabaseAdmin();
     const { error: storageError } = await admin.storage
-      .from('logos')
+      .from('client-logos')
       .upload(storagePath, buffer, { contentType: mimeType, upsert: false });
 
     if (storageError) {
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to upload logo' }, { status: 500 });
     }
 
-    const { data: { publicUrl } } = admin.storage.from('logos').getPublicUrl(storagePath);
+    const { data: { publicUrl } } = admin.storage.from('client-logos').getPublicUrl(storagePath);
 
     // Update the user profile with the logo URL
     const { data: updatedProfile, error: updateError } = await supabase

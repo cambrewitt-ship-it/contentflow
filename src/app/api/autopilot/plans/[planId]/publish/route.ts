@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/authHelpers';
 import { checkSocialMediaPostingPermission, trackPostCreation } from '@/lib/subscriptionMiddleware';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { sendAutopilotPublishedEmail } from '@/lib/email';
+import { createNotification } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -215,7 +216,7 @@ export async function POST(
       .select('*')
       .single();
 
-    // Send published notification email (non-fatal)
+    // Send published notification (in-app + email, non-fatal)
     if (published > 0) {
       try {
         const { data: userProfile } = await admin
@@ -229,6 +230,16 @@ export async function POST(
           .select('name, autopilot_plans!inner(plan_week_start)')
           .eq('id', plan.client_id)
           .maybeSingle();
+
+        await createNotification({
+          userId: user.id,
+          clientId: plan.client_id,
+          type: 'autopilot_published',
+          title: `${published} post${published === 1 ? '' : 's'} published for ${(clientRow as { name?: string } | null)?.name || 'this client'}`,
+          body: failed > 0 ? `${failed} post${failed === 1 ? '' : 's'} failed to publish — check the autopilot dashboard.` : null,
+          link: `/dashboard/client/${plan.client_id}/autopilot`,
+          metadata: { planId, published, failed },
+        });
 
         if (userProfile?.email) {
           const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://content-manager.io';

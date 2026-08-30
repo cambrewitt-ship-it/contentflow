@@ -19,15 +19,6 @@ import { ContentStoreProvider, ContentFocus, CopyTone } from '@/lib/contentStore
 import { useAuth } from '@/contexts/AuthContext'
 import { SchedulePostModal, Platform } from '@/components/SchedulePostModal'
 
-type ChatCaption = { id: string; text: string }
-type ChatMessage = {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  captions?: ChatCaption[]
-  isLoading?: boolean
-}
-
 interface Project {
   id: string
   name: string
@@ -872,7 +863,16 @@ function ContentSuiteContent({
     generateAICaptions,
     remixCaption,
     selectCaption,
-    updateCaption
+    updateCaption,
+    chatMode,
+    chatMessages,
+    chatInput,
+    chatLoading,
+    setChatMode,
+    setChatInput,
+    sendChatMessage,
+    handleEnterChatMode,
+    selectChatCaption
   } = useContentStore()
   const { contentIdeas, setContentIdeas } = useContentStore()
   
@@ -917,11 +917,7 @@ function ContentSuiteContent({
   const [remixingCaption, setRemixingCaption] = useState<string | null>(null)
   const [bounceHelperText, setBounceHelperText] = useState(false)
 
-  // Chat mode state
-  const [chatMode, setChatMode] = useState(true)
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
-  const [chatInput, setChatInput] = useState('')
-  const [chatLoading, setChatLoading] = useState(false)
+  // Chat mode UI-only state (chatMode/chatMessages/chatInput/chatLoading now live in the shared store)
   const chatContainerRef = useRef<HTMLDivElement>(null)
   
   // State for scheduling
@@ -1464,229 +1460,22 @@ function ContentSuiteContent({
     }
   }, [chatMessages])
 
-  // Compress a base64 image to stay under the 3MB target (matches contentStore logic)
-  const compressBase64 = useCallback(async (dataUrl: string, targetBytes = 3 * 1024 * 1024): Promise<string> => {
-    if (!dataUrl.startsWith('data:image/')) return dataUrl
-    const base64 = dataUrl.split(',')[1] || ''
-    const size = Math.floor((base64.length * 3) / 4) - (base64.match(/=/g) || []).length
-    if (size <= targetBytes) return dataUrl
-
-    return new Promise((resolve) => {
-      const img = new Image()
-      img.onload = () => {
-        const attempts = [
-          { maxDim: 1920, quality: 0.75 },
-          { maxDim: 1600, quality: 0.65 },
-          { maxDim: 1280, quality: 0.55 },
-          { maxDim: 1024, quality: 0.45 },
-        ]
-        const mimeType = dataUrl.match(/data:([^;]+)/)?.[1] || 'image/jpeg'
-        for (const { maxDim, quality } of attempts) {
-          const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
-          const w = Math.round(img.width * scale)
-          const h = Math.round(img.height * scale)
-          const canvas = document.createElement('canvas')
-          canvas.width = w
-          canvas.height = h
-          const ctx = canvas.getContext('2d')
-          if (!ctx) break
-          ctx.drawImage(img, 0, 0, w, h)
-          const compressed = canvas.toDataURL(mimeType, quality)
-          const b64 = compressed.split(',')[1] || ''
-          const compressedSize = Math.floor((b64.length * 3) / 4) - (b64.match(/=/g) || []).length
-          if (compressedSize <= targetBytes) { resolve(compressed); return }
-        }
-        resolve(dataUrl) // best effort
-      }
-      img.onerror = () => resolve(dataUrl)
-      img.src = dataUrl
-    })
-  }, [])
-
-  // Get image data for chat API calls — converts URLs to base64 and compresses (mirrors contentStore.generateAICaptions)
-  const getImageDataForChat = useCallback(async (): Promise<string | undefined> => {
-    if (!activeImage) return undefined
-    const img = activeImage as { blobUrl?: string; preview: string; mediaType?: string }
-    if (img.mediaType === 'video') return 'VIDEO_PLACEHOLDER'
-    const url = img.blobUrl || img.preview
-    if (!url) return undefined
-
-    // Already base64 — still compress if too large
-    if (url.startsWith('data:')) return compressBase64(url)
-
-    // Fetch URL → base64 → compress
-    try {
-      const res = await fetch(url)
-      const blob = await res.blob()
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = reject
-        reader.readAsDataURL(blob)
-      })
-      return compressBase64(dataUrl)
-    } catch {
-      return url // fallback — server handles HTTPS URLs natively
-    }
-  }, [activeImage, compressBase64])
-
-  // Auto-generate the first chat message when entering chat mode
-  const initializeChat = useCallback(async () => {
-    if (!activeImage) return
-    const accessToken = getAccessToken()
-    if (!accessToken) return
-
-    const imageData = await getImageDataForChat()
-    if (!imageData) return
-
-    const loadingId = `msg-${Date.now()}`
-    setChatMessages([{ id: loadingId, role: 'assistant', content: '', isLoading: true }])
-    setChatLoading(true)
-
-    try {
-      const aiContext = isVideoSelected
-        ? postNotes.trim()
-        : (postNotes?.trim() || 'Generate engaging social media captions for this content.')
-
-      const response = await fetch('/api/ai', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ action: 'generate_captions', imageData, aiContext, clientId, copyType }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        const errMsg = (data.error as string) || `Error ${response.status}`
-        if (errMsg.includes('AI credit')) {
-          setCreditDialogMessage(errMsg)
-          setShowCreditDialog(true)
-          setChatMessages([])
-          return
-        }
-        throw new Error(errMsg)
-      }
-
-      const data = await response.json()
-      const captionTexts: string[] = data.captions || []
-      const ts = Date.now()
-      const newCaptions: ChatCaption[] = captionTexts.map((text, i) => ({ id: `chat-init-${ts}-${i}`, text }))
-
-      setCaptions(newCaptions)
-      setChatMessages([{ id: loadingId, role: 'assistant', content: '', captions: newCaptions, isLoading: false }])
-    } catch (error) {
-      setChatMessages([{
-        id: loadingId,
-        role: 'assistant',
-        content: error instanceof Error ? error.message : 'Failed to generate captions. Please try again.',
-        isLoading: false,
-      }])
-    } finally {
-      setChatLoading(false)
-    }
-  }, [activeImage, isVideoSelected, postNotes, clientId, copyType, getAccessToken, getImageDataForChat, setCaptions])
-
-  // Send a follow-up instruction in chat mode
-  const sendChatMessage = useCallback(async () => {
-    const instruction = chatInput.trim()
-    if (!instruction || chatLoading || !activeImage) return
-
-    const userMsgId = `msg-user-${Date.now()}`
-    const aiMsgId = `msg-ai-${Date.now()}`
-    const snapshot = [...chatMessages]
-
-    setChatMessages(prev => [
-      ...prev,
-      { id: userMsgId, role: 'user' as const, content: instruction },
-      { id: aiMsgId, role: 'assistant' as const, content: '', isLoading: true },
-    ])
-    setChatInput('')
-    setChatLoading(true)
-
-    try {
-      const accessToken = getAccessToken()
-      const imageData = await getImageDataForChat()
-
-      const history = snapshot
-        .filter(m => !m.isLoading)
-        .map(m => ({
-          role: m.role as 'user' | 'assistant',
-          content: m.role === 'assistant'
-            ? (m.captions?.map(c => c.text).join('\n\n') || m.content)
-            : m.content,
-        }))
-
-      const response = await fetch('/api/ai', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          action: 'chat_caption',
-          imageData,
-          userInstruction: instruction,
-          conversationHistory: history,
-          aiContext: postNotes?.trim() || undefined,
-          clientId,
-          copyType,
-        }),
-      })
-
-      const data = await response.json()
-      if (!response.ok) throw new Error((data.error as string) || `Error ${response.status}`)
-
-      const captionTexts: string[] = data.captions || []
-      const ts = Date.now()
-      const newCaptions: ChatCaption[] = captionTexts.map((text, i) => ({ id: `chat-${aiMsgId}-${i}-${ts}`, text }))
-
-      setChatMessages(prev => prev.map(m =>
-        m.id === aiMsgId ? { ...m, captions: newCaptions, isLoading: false } : m
-      ))
-    } catch (error) {
-      setChatMessages(prev => prev.map(m =>
-        m.id === aiMsgId
-          ? { ...m, content: error instanceof Error ? error.message : 'Failed to generate. Please try again.', isLoading: false }
-          : m
-      ))
-    } finally {
-      setChatLoading(false)
-    }
-  }, [chatInput, chatLoading, activeImage, chatMessages, postNotes, clientId, copyType, getAccessToken, getImageDataForChat])
-
-  // Enter chat mode — auto-generates first captions if none yet
-  const handleEnterChatMode = useCallback(async () => {
-    setChatMode(true)
-    if (chatMessages.length === 0 && activeImage) {
-      if (isVideoSelected && !postNotes.trim()) {
-        setChatMessages([{
-          id: `msg-${Date.now()}`,
-          role: 'assistant',
-          content: 'This is a video. Please add Post Notes describing your video content, then switch back to Chat mode.',
-          isLoading: false,
-        }])
-        return
-      }
-      await initializeChat()
-    }
-  }, [chatMessages.length, activeImage, isVideoSelected, postNotes, initializeChat])
-
-  // Chat mode is on by default — auto-initialize once an image becomes active
+  // Chat mode is on by default — auto-initialize once an image becomes active.
+  // initializeChat/sendChatMessage/handleEnterChatMode/selectChatCaption now live in the
+  // shared content store so the new calendar creation modal can reuse the same implementation
+  // (including credit-error classification) instead of duplicating it.
   useEffect(() => {
     if (chatMode && activeImage && chatMessages.length === 0) {
-      handleEnterChatMode()
+      const accessToken = getAccessToken()
+      handleEnterChatMode(accessToken || undefined).catch((error: unknown) => {
+        if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
+          const details = (error as Error & { details?: string }).details
+          setCreditDialogMessage(details || null)
+          setShowCreditDialog(true)
+        }
+      })
     }
-  }, [chatMode, activeImage, chatMessages.length, handleEnterChatMode])
-
-  // Select a caption from a chat message — syncs to the store so SocialPreview updates
-  const selectChatCaption = useCallback((caption: ChatCaption) => {
-    if (!captions.some(c => c.id === caption.id)) {
-      setCaptions([...captions, { id: caption.id, text: caption.text }])
-    }
-    selectCaption(caption.id)
-  }, [captions, setCaptions, selectCaption])
+  }, [chatMode, activeImage, chatMessages.length, getAccessToken, handleEnterChatMode])
 
   // Helper functions for Content Focus and Copy Tone
   const getContentFocusDisplayText = (focus: ContentFocus): string => {
@@ -2396,7 +2185,16 @@ function ContentSuiteContent({
                         Standard
                       </button>
                       <button
-                        onClick={handleEnterChatMode}
+                        onClick={() => {
+                          const accessToken = getAccessToken()
+                          handleEnterChatMode(accessToken || undefined).catch((error: unknown) => {
+                            if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
+                              const details = (error as Error & { details?: string }).details
+                              setCreditDialogMessage(details || null)
+                              setShowCreditDialog(true)
+                            }
+                          })
+                        }}
                         disabled={!activeImage}
                         className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
                           chatMode
@@ -2615,13 +2413,13 @@ function ContentSuiteContent({
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                               e.preventDefault()
-                              sendChatMessage()
+                              sendChatMessage(getAccessToken() || undefined)
                             }
                           }}
                         />
                         <div className="absolute right-2 bottom-2">
                           <Button
-                            onClick={sendChatMessage}
+                            onClick={() => sendChatMessage(getAccessToken() || undefined)}
                             disabled={!chatInput.trim() || chatLoading || !activeImage}
                             className="h-9 w-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-200 disabled:text-gray-400 p-0 flex items-center justify-center shadow-sm transition-all"
                           >

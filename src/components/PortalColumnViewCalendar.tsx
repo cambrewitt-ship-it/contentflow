@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, ChangeEvent, useImperativeHandle, forwardRef } from 'react';
-import { Calendar, CheckCircle, AlertTriangle, XCircle, Minus, Tag, FileText, CalendarDays, Loader2, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, CheckCircle, AlertTriangle, XCircle, Minus, Tag, FileText, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { VideoThumbnail } from '@/components/VideoThumbnail';
 import { isVideoUrl } from '@/lib/videoUtils';
-import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
-import { useRouter } from 'next/navigation';
+import { type CalendarEvent } from './CalendarEventModal';
 import logger from '@/lib/logger';
 import { PortalTagDropdown } from '@/components/PortalTagDropdown';
+import { DateDivider, AddNoteAffordance } from '@/components/ColumnViewCalendar';
+import { AddPostCardButton } from '@/components/AddPostCardButton';
 import {
   DndContext,
   DragEndEvent,
@@ -50,12 +51,13 @@ interface Post {
   [key: string]: any; // Allow additional properties
 }
 
-interface DayRow {
-  dayName: string;
-  dayDate: Date;
-  dateKey: string;
-  posts: Post[];
-}
+// Trello-style flat card model — see ColumnViewCalendar.tsx for the internal-planner
+// equivalent this mirrors. A week column renders one entry per date-with-content (a
+// "divider" carrying the day header/events) followed by one entry per post/upload for
+// that date, instead of a fixed row per calendar day.
+type WeekEntry =
+  | { type: 'divider'; dateKey: string; dayDate: Date; dayName: string }
+  | { type: 'post'; dateKey: string; post: Post };
 
 interface Project {
   id: string;
@@ -82,7 +84,9 @@ interface PortalColumnViewCalendarProps {
   editingTimePostIds?: Set<string>;
   formatTimeTo12Hour?: (time24: string) => string;
   projects?: Project[];
-  onAddUploadClick?: (dateKey: string) => void;
+  onAddCardClick?: (weekStart: Date) => void;
+  onAddButtonDrop?: (e: React.DragEvent, weekStart: Date) => void;
+  onAddNoteForWeek?: (weekStart: Date) => void;
   selectedPosts: {[key: string]: 'approved' | 'rejected' | 'needs_attention'};
   onPostSelection: (postKey: string, status: 'approved' | 'rejected' | 'needs_attention' | null) => void;
   comments: {[key: string]: string};
@@ -91,8 +95,6 @@ interface PortalColumnViewCalendarProps {
   onCaptionChange: (postKey: string, caption: string) => void;
   onDeleteClientUpload?: (upload: ClientUpload) => void;
   deletingUploadIds?: Set<string>;
-  uploading?: boolean;
-  uploadingForDate?: string | null;
   onPostClick?: (post: Post) => void;
   onEventAdd?: (dateKey: string) => void;
   onEventClick?: (event: CalendarEvent) => void;
@@ -187,6 +189,7 @@ function SortablePostCard({
   onToggleCalendarPostSelection,
   onTagsChange,
   movingUploadId,
+  onNativeDrop,
 }: {
   post: Post;
   postKey: string;
@@ -211,11 +214,14 @@ function SortablePostCard({
   onToggleCalendarPostSelection?: (postId: string) => void;
   onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
   movingUploadId?: string | null;
+  onNativeDrop?: (e: React.DragEvent, dateKey: string) => void;
 }) {
   const isClientUpload =
     post.post_type === 'client-upload' ||
     post.post_type === 'client_upload' ||
     post.isClientUpload;
+
+  const dateKey = post.scheduled_date || '';
 
   const {
     attributes,
@@ -224,11 +230,35 @@ function SortablePostCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: postKey });
+  } = useSortable({ id: postKey, data: { dateKey } });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+  };
+
+  const [isNativeDragOver, setIsNativeDragOver] = useState(false);
+  const nativeDropHandlers = {
+    onDragOver: (e: React.DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setIsNativeDragOver(true);
+    },
+    onDragEnter: (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsNativeDragOver(true);
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      const relatedTarget = e.relatedTarget as Node;
+      const currentTarget = e.currentTarget as Node;
+      if (!relatedTarget || !currentTarget.contains(relatedTarget)) setIsNativeDragOver(false);
+    },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsNativeDragOver(false);
+      onNativeDrop?.(e, dateKey);
+    },
   };
 
   const formatTime = (time24?: string) => {
@@ -451,11 +481,13 @@ function SortablePostCard({
     return (
       <div
         ref={setNodeRef}
+        data-date-key={dateKey}
         style={style}
         {...attributes}
         {...listeners}
+        {...nativeDropHandlers}
         onClick={() => onPostClick?.(post)}
-        className={`relative rounded-lg border-2 ${approvalTag.card} p-3 mb-2 transition-all duration-200 cursor-grab hover:shadow-md ${
+        className={`relative rounded-lg border-2 ${isNativeDragOver ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : approvalTag.card} p-3 mb-2 transition-all duration-200 cursor-grab hover:shadow-md ${
           isDragging ? 'opacity-50 cursor-grabbing' : ''
         } ${isDeletingUpload ? 'opacity-60 pointer-events-none' : ''}`}
       >
@@ -589,12 +621,14 @@ function SortablePostCard({
   return (
     <div
       ref={setNodeRef}
+      data-date-key={dateKey}
       style={style}
       {...attributes}
       {...listeners}
+      {...nativeDropHandlers}
       onClick={() => onPostClick?.(post)}
       className={`rounded-lg border-2 p-3 mb-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
-        isCalendarSelected ? 'border-indigo-500 bg-indigo-50 shadow-lg shadow-indigo-200/50' : getCardStyling()
+        isNativeDragOver ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : isCalendarSelected ? 'border-indigo-500 bg-indigo-50 shadow-lg shadow-indigo-200/50' : getCardStyling()
       } ${isDragging ? 'opacity-50 scale-105 cursor-grabbing' : ''} ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''}`}
     >
       {/* Header with Date, Status and Select button */}
@@ -766,314 +800,122 @@ function SortablePostCard({
 }
 
 // Droppable Day Row Component
-function DroppableDayRow({
-  dayRow,
-  isTodayDay,
-  isDragOver,
+// Renders one week column's flat entry list (dividers + cards) — mirrors WeekColumnBody in
+// ColumnViewCalendar.tsx, adapted for the portal's queue-drop payload format and moving-state
+// overlay instead of delete/duplicate/AI caption editing (clients can't do those).
+function WeekColumnBody({
+  weekStart,
+  entries,
+  isToday,
   getDayNumber,
-  onNativeDrop,
-  onNativeDragOver,
-  onNativeDragEnter,
-  onNativeDragLeave,
-  clientId,
-  portalToken,
-  handleEditScheduledPost,
-  editingPostId,
-  setEditingPostId,
-  editingTimePostIds,
-  formatTimeTo12Hour,
-  projects,
-  onAddUploadClick,
-  selectedPosts,
-  onPostSelection,
-  comments,
-  onCommentChange,
-  editedCaptions,
-  onCaptionChange,
-  onDeleteClientUpload,
-  deletingUploadIds,
-  isCurrentWeek,
-  uploading,
-  uploadingForDate,
-  dayEvents = [],
-  onPostClick,
+  onDrop,
   onQueueItemDrop,
+  events,
   onEventAdd,
   onEventClick,
+  onAddCardClick,
+  onAddButtonDrop,
+  onAddNoteForWeek,
   movingToDate,
-  movingUploadId,
-  calendarSelectedPostIds,
-  onToggleCalendarPostSelection,
-  onTagsChange,
+  dragOverDateKey,
+  cardProps,
 }: {
-  dayRow: DayRow;
-  isTodayDay: boolean;
-  isDragOver: boolean;
+  weekStart: Date;
+  entries: WeekEntry[];
+  isToday: (date: Date) => boolean;
   getDayNumber: (date: Date) => number;
-  onNativeDrop?: (e: React.DragEvent, dateKey: string) => void;
-  onNativeDragOver?: (e: React.DragEvent) => void;
-  onNativeDragEnter?: (e: React.DragEvent) => void;
-  onNativeDragLeave?: (e: React.DragEvent) => void;
-  clientId?: string;
-  portalToken?: string;
-  handleEditScheduledPost?: (post: any, newTime: string) => Promise<void>;
-  editingPostId?: string | null;
-  setEditingPostId?: (postId: string | null) => void;
-  editingTimePostIds?: Set<string>;
-  formatTimeTo12Hour?: (time24: string) => string;
-  projects?: Project[];
-  onAddUploadClick?: (dateKey: string) => void;
-  selectedPosts: {[key: string]: 'approved' | 'rejected' | 'needs_attention'};
-  onPostSelection: (postKey: string, status: 'approved' | 'rejected' | 'needs_attention' | null) => void;
-  comments: {[key: string]: string};
-  onCommentChange: (postKey: string, comment: string) => void;
-  editedCaptions: {[key: string]: string};
-  onCaptionChange: (postKey: string, caption: string) => void;
-  onDeleteClientUpload?: (upload: ClientUpload) => void;
-  deletingUploadIds?: Set<string>;
-  isCurrentWeek?: boolean;
-  uploading?: boolean;
-  uploadingForDate?: string | null;
-  dayEvents?: CalendarEvent[];
-  onPostClick?: (post: Post) => void;
+  onDrop?: (e: React.DragEvent, dateKey: string) => void;
   onQueueItemDrop?: (uploadId: string, dateKey: string) => void;
+  events: { [key: string]: CalendarEvent[] };
   onEventAdd?: (dateKey: string) => void;
   onEventClick?: (event: CalendarEvent) => void;
+  onAddCardClick?: (weekStart: Date) => void;
+  onAddButtonDrop?: (e: React.DragEvent, weekStart: Date) => void;
+  onAddNoteForWeek?: (weekStart: Date) => void;
   movingToDate?: string | null;
-  movingUploadId?: string | null;
-  calendarSelectedPostIds?: Set<string>;
-  onToggleCalendarPostSelection?: (postId: string) => void;
-  onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
+  dragOverDateKey?: string | null;
+  cardProps: Omit<React.ComponentProps<typeof SortablePostCard>, 'post' | 'postKey' | 'onNativeDrop'>;
 }) {
-  const router = useRouter();
-  const isUploadingToThisDate = uploading && uploadingForDate === dayRow.dateKey;
-  const isMovingToThisDate = movingToDate === dayRow.dateKey;
   const { setNodeRef } = useDroppable({
-    id: dayRow.dateKey,
-    data: {
-      dateKey: dayRow.dateKey,
-      dayDate: dayRow.dayDate,
-    },
+    id: `week-fallback-${weekStart.toISOString()}`,
+    data: { dateKey: null },
   });
 
-  const [isNativeDragOver, setIsNativeDragOver] = useState(false);
-
-  const handleNativeDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'move';
-    setIsNativeDragOver(true);
-    if (onNativeDragOver) {
-      onNativeDragOver(e);
-    }
-  };
-
-  const handleNativeDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsNativeDragOver(true);
-    if (onNativeDragEnter) {
-      onNativeDragEnter(e);
-    }
-  };
-
-  const handleNativeDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Only clear drag-over state if we're actually leaving the container
-    // (not just entering a child element)
-    const relatedTarget = e.relatedTarget as Node;
-    const currentTarget = e.currentTarget as Node;
-    
-    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
-      setIsNativeDragOver(false);
-      if (onNativeDragLeave) {
-        onNativeDragLeave(e);
-      }
-    }
-  };
-
-  const handleNativeDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsNativeDragOver(false);
-
-    // Prefer page-level onDrop handler (mirrors main app pattern, avoids DataTransfer.getData issues)
-    if (onNativeDrop) {
-      onNativeDrop(e, dayRow.dateKey);
+  // Prefer the page-level onDrop handler; fall back to onQueueItemDrop's raw dataTransfer
+  // payload if the caller didn't wire onDrop (mirrors the old DroppableDayRow's fallback).
+  const handleNativeDrop = (e: React.DragEvent, dateKey: string) => {
+    if (onDrop) {
+      onDrop(e, dateKey);
       return;
     }
-
-    // Fallback: internal queue upload handling
-    const queueData = e.dataTransfer.getData("text/portal-upload");
+    const queueData = e.dataTransfer.getData('text/portal-upload');
     if (queueData) {
       try {
         const upload = JSON.parse(queueData);
-        if (upload?.id && onQueueItemDrop) {
-          onQueueItemDrop(upload.id, dayRow.dateKey);
-        }
+        if (upload?.id && onQueueItemDrop) onQueueItemDrop(upload.id, dateKey);
       } catch {
         // ignore
       }
     }
   };
 
+  const postItems = entries
+    .filter((entry): entry is Extract<WeekEntry, { type: 'post' }> => entry.type === 'post')
+    .map((entry) => `${entry.post.post_type || 'post'}-${entry.post.id}`);
+
   return (
-    <div
-      ref={setNodeRef}
-      data-date-key={dayRow.dateKey}
-      onDrop={handleNativeDrop}
-      onDragOver={handleNativeDragOver}
-      onDragEnter={handleNativeDragEnter}
-      onDragLeave={handleNativeDragLeave}
-      className={`relative rounded-lg border-2 p-3 min-h-[120px] transition-all duration-200 ${
-        isDragOver || isNativeDragOver
-          ? 'border-blue-400 bg-blue-100 ring-2 ring-blue-300'
-          : isMovingToThisDate
-          ? 'border-blue-300 bg-blue-50'
-          : isTodayDay
-          ? 'border-blue-300 bg-blue-50'
-          : isCurrentWeek
-          ? 'border-gray-200 bg-gray-100'
-          : 'border-gray-200 bg-white'
-      }`}
-    >
-      {isMovingToThisDate && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-lg z-10">
-          <div className="flex flex-col items-center gap-1.5">
-            <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-            <span className="text-xs text-blue-600 font-medium">Loading…</span>
-          </div>
-        </div>
-      )}
-      {/* Day Header */}
-      <div className="mb-2 pb-1 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className={`text-xs font-semibold uppercase ${
-              isTodayDay ? 'text-blue-700' : 'text-gray-700'
-            }`}>
-              {dayRow.dayName}
-            </span>
-            <span className={`text-xs ${
-              isTodayDay ? 'text-blue-600 font-bold' : 'text-gray-600'
-            }`}>
-              {getDayNumber(dayRow.dayDate)}
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            {onEventAdd && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onEventAdd(dayRow.dateKey); }}
-                className="px-2 py-0.5 text-xs font-medium text-purple-600 border border-purple-300 rounded hover:bg-purple-50 transition-colors"
-                title="Add note or event"
-              >
-                Note
-              </button>
-            )}
-          </div>
-        </div>
+    <div ref={setNodeRef} className="min-h-[40px]">
+      {onAddNoteForWeek && <AddNoteAffordance onClick={() => onAddNoteForWeek(weekStart)} />}
+      <SortableContext id={weekStart.toISOString()} items={postItems} strategy={verticalListSortingStrategy}>
+        {entries.map((entry) => {
+          if (entry.type === 'divider') {
+            return (
+              <DateDivider
+                key={`divider-${entry.dateKey}`}
+                dateKey={entry.dateKey}
+                dayDate={entry.dayDate}
+                dayName={entry.dayName}
+                isTodayDay={isToday(entry.dayDate)}
+                isDragOver={dragOverDateKey === entry.dateKey}
+                getDayNumber={getDayNumber}
+                onNativeDrop={handleNativeDrop}
+                dayEvents={events[entry.dateKey] ?? []}
+                onEventAdd={onEventAdd}
+                onEventClick={onEventClick}
+              />
+            );
+          }
 
-        {/* Events & Notes */}
-        {dayEvents.length > 0 && (
-          <div className="mt-1.5 space-y-1">
-            {dayEvents.map(evt => {
-              const cls = EVENT_COLOR_CLASSES[evt.color] ?? EVENT_COLOR_CLASSES['purple'];
-              return (
-                <button
-                  key={evt.id}
-                  type="button"
-                  onClick={() => onEventClick?.(evt)}
-                  className={`w-full text-left px-2 py-0.5 rounded text-xs font-medium border ${cls.bg} ${cls.text} ${cls.border} ${onEventClick ? 'hover:opacity-80 cursor-pointer transition-opacity' : 'cursor-default'}`}
-                  title={evt.notes ?? evt.title}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {evt.type === 'note'
-                      ? <FileText className="w-2.5 h-2.5 flex-shrink-0" />
-                      : <CalendarDays className="w-2.5 h-2.5 flex-shrink-0" />
-                    }
-                    <span className="truncate">{evt.title}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+          const post = entry.post;
+          const postKey = `${post.post_type || 'post'}-${post.id}`;
+          const isMovingToThisDate = movingToDate === entry.dateKey;
 
-      {/* Posts in Day Row */}
-      <SortableContext
-        id={dayRow.dateKey}
-        items={dayRow.posts.map((post) => `${post.post_type || 'post'}-${post.id}`)}
-        strategy={verticalListSortingStrategy}
-      >
-        <div className="space-y-2" onDragOver={(e) => e.preventDefault()}>
-          {dayRow.posts.length === 0 ? (
-            isUploadingToThisDate ? (
-              <div style={{ height: '60px' }} className="w-full flex items-center justify-center border-2 border-dashed border-blue-400 bg-blue-50 rounded-md">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm text-blue-600 font-medium">Uploading...</span>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onAddUploadClick?.(dayRow.dateKey)}
-                style={{ height: '60px' }}
-                className="w-full flex items-center justify-center border border-dashed border-gray-200 rounded-md hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 group"
-              >
-                <Plus className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition-colors" />
-              </button>
-            )
-          ) : (
-            <>
-              {dayRow.posts.map((post) => {
-                const postKey = `${post.post_type || 'post'}-${post.id}`;
-                
-                return (
-                  <SortablePostCard
-                    key={postKey}
-                    post={post}
-                    postKey={postKey}
-                    handleEditScheduledPost={handleEditScheduledPost}
-                    editingPostId={editingPostId}
-                    setEditingPostId={setEditingPostId}
-                    editingTimePostIds={editingTimePostIds}
-                    formatTimeTo12Hour={formatTimeTo12Hour}
-                    projects={projects}
-                    selectedPosts={selectedPosts}
-                    onPostSelection={onPostSelection}
-                    comments={comments}
-                    onCommentChange={onCommentChange}
-                    editedCaptions={editedCaptions}
-                    onCaptionChange={onCaptionChange}
-                    onDeleteClientUpload={onDeleteClientUpload}
-                    deletingUploadIds={deletingUploadIds}
-                    clientId={clientId}
-                    portalToken={portalToken}
-                    onPostClick={onPostClick}
-                    calendarSelectedPostIds={calendarSelectedPostIds}
-                    onToggleCalendarPostSelection={onToggleCalendarPostSelection}
-                    onTagsChange={onTagsChange}
-                    movingUploadId={movingUploadId}
-                  />
-                );
-              })}
-              {isUploadingToThisDate && (
-                <div className="w-full flex items-center justify-center py-3 border-2 border-dashed border-blue-400 bg-blue-50 rounded">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-sm text-blue-600 font-medium">Uploading...</span>
+          return (
+            <div key={postKey} className="relative">
+              {isMovingToThisDate && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-lg z-10">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                    <span className="text-xs text-blue-600 font-medium">Loading…</span>
                   </div>
                 </div>
               )}
-            </>
-          )}
-        </div>
+              <SortablePostCard
+                post={post}
+                postKey={postKey}
+                onNativeDrop={handleNativeDrop}
+                {...cardProps}
+              />
+            </div>
+          );
+        })}
       </SortableContext>
+      <div className="mt-1">
+        <AddPostCardButton
+          onClick={() => onAddCardClick?.(weekStart)}
+          onNativeDrop={(e) => onAddButtonDrop?.(e, weekStart)}
+        />
+      </div>
     </div>
   );
 }
@@ -1101,7 +943,9 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
   editingTimePostIds,
   formatTimeTo12Hour,
   projects,
-  onAddUploadClick,
+  onAddCardClick,
+  onAddButtonDrop,
+  onAddNoteForWeek,
   selectedPosts,
   onPostSelection,
   comments,
@@ -1110,8 +954,6 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
   onCaptionChange,
   onDeleteClientUpload,
   deletingUploadIds,
-  uploading,
-  uploadingForDate,
   onPostClick,
   onEventAdd,
   onEventClick,
@@ -1181,13 +1023,13 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
       return [];
     }
 
-    const weekColumns: Array<{weekStart: Date; dayRows: DayRow[]}> = [];
+    const weekColumns: Array<{ weekStart: Date; entries: WeekEntry[] }> = [];
 
     for (let weekIndex = 0; weekIndex < VISIBLE_WEEK_COUNT; weekIndex++) {
       const weekStartDate = new Date(startWeek);
       weekStartDate.setDate(startWeek.getDate() + weekIndex * 7);
 
-      const dayRows: DayRow[] = [];
+      const entries: WeekEntry[] = [];
 
       for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
         const dayDate = new Date(weekStartDate);
@@ -1242,22 +1084,25 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
           }
         }
 
-        dayRows.push({
-          dayName: getDayName(dayDate),
-          dayDate,
-          dateKey,
-          posts: [...postsForDay, ...uploadEntries],
-        });
+        const postsForDate = [...postsForDay, ...uploadEntries];
+        const hasEvents = (events[dateKey]?.length ?? 0) > 0;
+
+        if (postsForDate.length > 0 || hasEvents) {
+          entries.push({ type: 'divider', dateKey, dayDate, dayName: getDayName(dayDate) });
+          for (const post of postsForDate) {
+            entries.push({ type: 'post', dateKey, post });
+          }
+        }
       }
 
       weekColumns.push({
         weekStart: weekStartDate,
-        dayRows,
+        entries,
       });
     }
 
     return weekColumns;
-  }, [startWeek, scheduledPosts, clientUploads]);
+  }, [startWeek, scheduledPosts, clientUploads, events]);
 
   const handleDragStart = (event: DragStartEvent) => {
     logger.debug('🔵 ColumnView DragStart:', event.active.id);
@@ -1266,11 +1111,11 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    
+
     setDragOverDay(null);
-    
+
     logger.debug('🔵 ColumnView DragEnd:', { activeId: active.id, overId: over?.id });
-    
+
     if (!over || !onPostMove) {
       logger.debug('🔵 No over target or onPostMove handler');
       setActiveId(null);
@@ -1278,71 +1123,11 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
     }
 
     const activeId = active.id as string;
-    const overId = over.id as string;
 
-    logger.debug('🔵 Looking for drop target:', { activeId, overId });
-
-    // Find which day row the post is being dropped into
-    // The overId could be either:
-    // 1. A day row dateKey (when dropping on empty area or the droppable container)
-    // 2. Another post ID (when dropping on a post in a different day row)
-    // 3. A SortableContext id (which is also the dateKey)
-    let targetDateKey: string | null = null;
-    
-    // First, check if overId is directly a day row dateKey (handles both droppable and SortableContext)
-    // Break early when found to avoid overwriting with wrong matches
-    outerLoop: for (const column of columns) {
-      for (const dayRow of column.dayRows) {
-        if (dayRow.dateKey === overId) {
-          targetDateKey = dayRow.dateKey;
-          logger.debug('🔵 Found target date (direct match):', targetDateKey);
-          break outerLoop;
-        }
-      }
-    }
-
-    // If not found, check if overId is a post ID and find which day row it belongs to
-    // Break early when found to avoid overwriting with wrong matches
-    if (!targetDateKey) {
-      outerLoop2: for (const column of columns) {
-        for (const dayRow of column.dayRows) {
-          const postInDay = dayRow.posts.find(post => `${post.post_type || 'post'}-${post.id}` === overId);
-          if (postInDay) {
-            targetDateKey = dayRow.dateKey;
-            logger.debug('🔵 Found target date (via post):', targetDateKey);
-            break outerLoop2;
-          }
-        }
-      }
-    }
-    
-    // Additional validation: if we still don't have a target, check if over.data contains dateKey
-    if (!targetDateKey && over.data.current) {
-      const data = over.data.current as any;
-      if (data.dateKey && typeof data.dateKey === 'string') {
-        // Validate that this dateKey actually exists in our columns
-        for (const column of columns) {
-          for (const dayRow of column.dayRows) {
-            if (dayRow.dateKey === data.dateKey) {
-              targetDateKey = data.dateKey;
-              logger.debug('🔵 Found target date (via data):', targetDateKey);
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    // Get the current post's date to avoid moving to the same location
-    let currentDateKey: string | null = null;
-    columns.forEach((column) => {
-      column.dayRows.forEach((dayRow) => {
-        const postInDay = dayRow.posts.find(post => `${post.post_type || 'post'}-${post.id}` === activeId);
-        if (postInDay) {
-          currentDateKey = dayRow.dateKey;
-        }
-      });
-    });
+    // Every drop target (a post card, a date divider, or the week-fallback zone) carries its
+    // own dateKey via useSortable/useDroppable `data` — no need to re-search the columns.
+    const targetDateKey = (over.data.current as { dateKey?: string } | undefined)?.dateKey ?? null;
+    const currentDateKey = (active.data.current as { dateKey?: string } | undefined)?.dateKey ?? null;
 
     if (targetDateKey && targetDateKey !== currentDateKey) {
       if (activeId.startsWith('client-upload-')) {
@@ -1356,48 +1141,13 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
     } else {
       logger.debug('🔵 No valid target found or same location', { targetDateKey, currentDateKey });
     }
-    
+
     setActiveId(null);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
     const { over } = event;
-    
-    if (!over) {
-      setDragOverDay(null);
-      return;
-    }
-
-    const overId = over.id as string;
-    
-    // Find which day row this corresponds to
-    let targetDateKey: string | null = null;
-    
-    // Check if overId is directly a day row dateKey
-    // Break early when found to avoid overwriting with wrong matches
-    outerLoop: for (const column of columns) {
-      for (const dayRow of column.dayRows) {
-        if (dayRow.dateKey === overId) {
-          targetDateKey = dayRow.dateKey;
-          break outerLoop;
-        }
-      }
-    }
-
-    // If not found, check if overId is a post ID and find which day row it belongs to
-    // Break early when found to avoid overwriting with wrong matches
-    if (!targetDateKey) {
-      outerLoop2: for (const column of columns) {
-        for (const dayRow of column.dayRows) {
-          const postInDay = dayRow.posts.find(post => `${post.post_type || 'post'}-${post.id}` === overId);
-          if (postInDay) {
-            targetDateKey = dayRow.dateKey;
-            break outerLoop2;
-          }
-        }
-      }
-    }
-    
+    const targetDateKey = (over?.data.current as { dateKey?: string } | undefined)?.dateKey ?? null;
     setDragOverDay(targetDateKey);
   };
 
@@ -1516,54 +1266,46 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
                   </div>
                 </div>
 
-                {/* Day Rows */}
-                <div className="space-y-3">
-                  {column.dayRows.map((dayRow) => {
-                    const isTodayDay = isToday(dayRow.dayDate);
-                    const isDragOver = dragOverDay === dayRow.dateKey;
-                    
-                    return (
-                      <DroppableDayRow
-                        key={dayRow.dateKey}
-                        dayRow={dayRow}
-                        isTodayDay={isTodayDay}
-                        isDragOver={isDragOver}
-                        getDayNumber={getDayNumber}
-                        onNativeDrop={onDrop}
-                        clientId={clientId}
-                        portalToken={portalToken}
-                        handleEditScheduledPost={handleEditScheduledPost}
-                        editingPostId={editingPostId}
-                        setEditingPostId={setEditingPostId}
-                        editingTimePostIds={editingTimePostIds}
-                        formatTimeTo12Hour={formatTimeTo12Hour}
-                        projects={projects}
-                        onAddUploadClick={onAddUploadClick}
-                        selectedPosts={selectedPosts}
-                        onPostSelection={onPostSelection}
-                        comments={comments}
-                        onCommentChange={onCommentChange}
-                        editedCaptions={editedCaptions}
-                        onCaptionChange={onCaptionChange}
-                        onDeleteClientUpload={onDeleteClientUpload}
-                        deletingUploadIds={deletingUploadIds}
-                        isCurrentWeek={isCurrent}
-                        uploading={uploading}
-                        uploadingForDate={uploadingForDate}
-                        dayEvents={events[dayRow.dateKey] ?? []}
-                        onPostClick={onPostClick}
-                        onQueueItemDrop={onQueueItemDrop}
-                        onEventAdd={onEventAdd}
-                        onEventClick={onEventClick}
-                        movingToDate={movingToDate}
-                        movingUploadId={movingUploadId}
-                        calendarSelectedPostIds={calendarSelectedPostIds}
-                        onToggleCalendarPostSelection={onToggleCalendarPostSelection}
-                        onTagsChange={onTagsChange}
-                      />
-                    );
-                  })}
-                </div>
+                {/* Flat card list — dividers only for dates with content, "+" to add a card */}
+                <WeekColumnBody
+                  weekStart={column.weekStart}
+                  entries={column.entries}
+                  isToday={isToday}
+                  getDayNumber={getDayNumber}
+                  onDrop={onDrop}
+                  onQueueItemDrop={onQueueItemDrop}
+                  events={events}
+                  onEventAdd={onEventAdd}
+                  onEventClick={onEventClick}
+                  onAddCardClick={onAddCardClick}
+                  onAddButtonDrop={onAddButtonDrop}
+                  onAddNoteForWeek={onAddNoteForWeek}
+                  movingToDate={movingToDate}
+                  dragOverDateKey={dragOverDay}
+                  cardProps={{
+                    clientId,
+                    portalToken,
+                    handleEditScheduledPost,
+                    editingPostId,
+                    setEditingPostId,
+                    editingTimePostIds,
+                    formatTimeTo12Hour,
+                    projects,
+                    selectedPosts,
+                    onPostSelection,
+                    comments,
+                    onCommentChange,
+                    editedCaptions,
+                    onCaptionChange,
+                    onDeleteClientUpload,
+                    deletingUploadIds,
+                    onPostClick,
+                    calendarSelectedPostIds,
+                    onToggleCalendarPostSelection,
+                    onTagsChange,
+                    movingUploadId,
+                  }}
+                />
               </div>
             );
           })}
