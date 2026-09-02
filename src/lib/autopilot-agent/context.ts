@@ -148,13 +148,17 @@ export async function getOrCreateDefaultProject(
 export async function fetchBrandContext(clientId: string): Promise<BrandContext> {
   const admin = createSupabaseAdmin();
 
-  const { data: client } = await admin
+  const { data: client, error: clientError } = await admin
     .from('clients')
     .select(
       'name, company_description, website_url, brand_tone, target_audience, value_proposition, caption_dos, caption_donts, brand_voice_examples, region, timezone, business_context, posting_preferences, operating_hours, ad_copy_settings'
     )
     .eq('id', clientId)
     .single();
+
+  if (clientError && clientError.code !== 'PGRST116') {
+    throw new Error(`Failed to fetch client ${clientId}: ${clientError.message}`);
+  }
 
   const { data: documents } = await admin
     .from('brand_documents')
