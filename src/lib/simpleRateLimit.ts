@@ -40,6 +40,21 @@ const routePatterns: Record<string, RateLimitTier> = {
   '/api/late': 'authenticated',
   '/api/calendar': 'authenticated',
   '/api/upload-media': 'authenticated',
+  '/api/autopilot': 'authenticated',
+  // Rest of the logged-in dashboard app — these were previously falling through
+  // to the 'public' tier (10 req/15min, shared across all users) which caused
+  // spurious 429s during normal use (e.g. tagging posts, loading the calendar).
+  '/api/posts-by-id': 'authenticated',
+  '/api/posts': 'authenticated',
+  '/api/tags': 'authenticated',
+  '/api/media-gallery': 'authenticated',
+  '/api/events': 'authenticated',
+  '/api/workflow-templates': 'authenticated',
+  '/api/agency': 'authenticated',
+  '/api/notifications': 'authenticated',
+  '/api/post-approvals': 'authenticated',
+  '/api/onboarding': 'authenticated',
+  '/api/schedulePost': 'authenticated',
   '/api': 'public',
 };
 
@@ -52,20 +67,40 @@ export function getRateLimitTier(pathname: string): RateLimitTier {
   return 'public';
 }
 
+// Decode the `sub` (user id) claim out of a JWT payload without verifying its
+// signature — fine here since this is only used to bucket rate-limit counters
+// per-user; real auth verification still happens in the route handler.
+function decodeJwtUserId(token: string): string | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    let base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4 !== 0) base64 += '=';
+    const data = JSON.parse(atob(base64));
+    return typeof data?.sub === 'string' ? data.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 export function getClientIdentifier(request: NextRequest): string {
-  // Try to get user ID from authorization header
+  // Try to get user ID from authorization header. Almost all API routes in
+  // this app authenticate via a Bearer token (not cookies), so decoding the
+  // token locally lets us bucket every tier per-user without a network call.
   const authHeader = request.headers.get('authorization');
   if (authHeader && authHeader.startsWith('Bearer ')) {
-    return 'auth_user'; // Will be replaced with actual user ID in middleware
+    const token = authHeader.substring(7);
+    const userId = decodeJwtUserId(token);
+    return userId ? `user_${userId}` : 'auth_user';
   }
-  
+
   // For portal requests, try to get token from query params
   const url = new URL(request.url);
   const token = url.searchParams.get('token');
   if (token) {
     return `portal_${token}`;
   }
-  
+
   // Fall back to IP address
   const forwarded = request.headers.get('x-forwarded-for');
   const ip = forwarded ? forwarded.split(',')[0] : 'unknown';
@@ -221,35 +256,10 @@ export async function simpleRateLimitMiddleware(request: NextRequest): Promise<N
 
   try {
     const tier = getRateLimitTier(pathname);
-    let identifier = getClientIdentifier(request);
+    // Resolves to a per-user identifier from the Bearer token's JWT `sub`
+    // claim when present, so every tier gets its own bucket per user.
+    const identifier = getClientIdentifier(request);
 
-    // For authenticated routes, try to get actual user ID
-    // Skip session check for AI routes (they do their own auth in the route handler)
-    if (tier === 'authenticated') {
-      try {
-        const res = NextResponse.next();
-        const { createMiddlewareClient } = await import('@supabase/auth-helpers-nextjs');
-        const supabase = createMiddlewareClient({ req: request, res });
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user?.id) {
-          identifier = `user_${session.user.id}`;
-
-        }
-      } catch (error) {
-
-        // Continue with original identifier
-      }
-    }
-    // For AI routes, just use the bearer token as identifier (faster)
-    else if (tier === 'ai') {
-      const authHeader = request.headers.get('authorization');
-      if (authHeader) {
-        const token = authHeader.replace('Bearer ', '').substring(0, 20); // Use first 20 chars of token
-        identifier = `ai_${token}`;
-      }
-    }
-    
     const result = checkSimpleRateLimit(request, tier, identifier);
 
     if (!result.success) {

@@ -1,14 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  createStripeCustomer,
-  createCheckoutSession,
-  getTierByPriceId,
-} from '@/lib/stripe';
-import {
-  getUserSubscription,
-  upsertSubscription,
-  getTierLimits,
-} from '@/lib/subscriptionHelpers';
+import { startCheckoutForUser } from '@/lib/checkoutHelpers';
 import logger from '@/lib/logger';
 import { requireAuth } from '@/lib/authHelpers';
 
@@ -30,49 +21,6 @@ export async function POST(req: NextRequest) {
     if (auth.error) return auth.error;
     const { user } = auth;
 
-    // Check if user already has a subscription
-    const subscription = await getUserSubscription(user.id);
-    let customerId: string;
-
-    if (subscription && subscription.stripe_customer_id) {
-      // Check if the customer ID is a placeholder (starts with "freemium_" or "trial_")
-      // Free/trial users have placeholder IDs that don't exist in Stripe
-      if (subscription.stripe_customer_id.startsWith('freemium_') ||
-          subscription.stripe_customer_id.startsWith('trial_')) {
-        // Create a new real Stripe customer for trial/freemium users upgrading
-        const customer = await createStripeCustomer(user.email!, user.id);
-        customerId = customer.id;
-        // Update the subscription record with the real Stripe customer ID
-        // Preserve existing subscription fields to avoid NOT NULL constraint violations
-        await upsertSubscription({
-          user_id: user.id,
-          stripe_customer_id: customerId,
-          subscription_tier: subscription.subscription_tier,
-          subscription_status: subscription.subscription_status,
-          max_clients: subscription.max_clients,
-          max_posts_per_month: subscription.max_posts_per_month,
-          max_ai_credits_per_month: subscription.max_ai_credits_per_month,
-        });
-      } else {
-        // Use existing real Stripe customer ID
-        customerId = subscription.stripe_customer_id;
-      }
-    } else {
-      // Create new Stripe customer
-      const customer = await createStripeCustomer(user.email!, user.id);
-      customerId = customer.id;
-    }
-
-    // Determine the tier from the price ID
-    const tier = getTierByPriceId(priceId);
-    if (!tier) {
-      return NextResponse.json(
-        { error: 'Invalid price ID' },
-        { status: 400 }
-      );
-    }
-
-    // Create checkout session
     // Get base URL from request headers to support multiple domains
     const origin = req.headers.get('origin');
     const host = req.headers.get('host') || 'localhost:3000';
@@ -87,15 +35,18 @@ export async function POST(req: NextRequest) {
       baseUrl = `${protocol}://${host}`;
     }
 
-    const session = await createCheckoutSession({
-      customerId,
-      priceId,
+    const result = await startCheckoutForUser({
       userId: user.id,
-      successUrl: `${baseUrl}/api/stripe/callback?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${baseUrl}/pricing?canceled=true`,
+      email: user.email!,
+      priceId,
+      baseUrl,
     });
 
-    return NextResponse.json({ url: session.url });
+    if ('error' in result) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    return NextResponse.json({ url: result.url });
   } catch (error) {
     logger.error('Checkout error:', error);
     return NextResponse.json(

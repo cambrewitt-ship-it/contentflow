@@ -21,21 +21,23 @@ export default function TopBar({ className = "" }: TopBarProps) {
   const { user } = useAuth();
   const { getThemeClasses } = useUIThemeStyles();
   const [subscriptionTier, setSubscriptionTier] = useState<string>('trial');
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
     async function fetchSubscription() {
       if (!user?.id) return;
-      
+
       try {
         const { data, error } = await supabase
           .from('subscriptions')
-          .select('subscription_tier')
+          .select('subscription_tier, subscription_status')
           .eq('user_id', user.id)
           .maybeSingle();
 
         if (data) {
           setSubscriptionTier(data.subscription_tier);
+          setSubscriptionStatus(data.subscription_status);
         }
       } catch (err) {
         console.error('Error fetching subscription:', err);
@@ -54,6 +56,12 @@ export default function TopBar({ className = "" }: TopBarProps) {
     if (tier === 'agency') return 'AGENCY';
     return tier.toUpperCase();
   };
+
+  const planDisplayName = getPlanDisplayName(subscriptionTier);
+  const planBadgeText =
+    subscriptionStatus === 'trialing' && subscriptionTier !== 'trial'
+      ? `${planDisplayName} (TRIAL)`
+      : planDisplayName;
 
   return (
     <div className={getThemeClasses(
@@ -76,7 +84,7 @@ export default function TopBar({ className = "" }: TopBarProps) {
           "px-3 py-1.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs font-bold rounded-full shadow-sm",
           "px-3 py-1.5 glass-card text-xs font-bold rounded-full shadow-sm glass-text-primary border border-white/20"
         )}>
-          {getPlanDisplayName(subscriptionTier)}
+          {planBadgeText}
         </div>
         <span className={getThemeClasses(
           "text-gray-400",

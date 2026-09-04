@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { Film, FileText, Loader2, Check, Clock, Image as ImageIcon, Calendar } from "lucide-react";
+import { VideoThumbnail } from "@/components/VideoThumbnail";
+import { isVideoUrl } from "@/lib/videoUtils";
 
 export interface KanbanItem {
   id: string;
@@ -152,8 +154,12 @@ function CalendarPostCard({ post, onClick }: { post: KanbanCalendarPost; onClick
       className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-all select-none"
     >
       {post.image_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={post.image_url} alt="Post" className="w-full h-28 object-cover" />
+        isVideoUrl(post.image_url) ? (
+          <VideoThumbnail src={post.image_url} className="w-full h-28" objectFit="cover" />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={post.image_url} alt="Post" className="w-full h-28 object-cover" />
+        )
       ) : (
         <div className="h-28 bg-gray-100 flex items-center justify-center">
           <ImageIcon className="w-7 h-7 text-gray-300" />

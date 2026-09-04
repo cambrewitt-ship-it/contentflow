@@ -34,6 +34,7 @@ const LazyPortalImage = ({
   mediaType?: 'image' | 'video' | 'unknown';
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const [isInView, setIsInView] = useState(false);
   const mediaRef = useRef<HTMLDivElement>(null);
 
@@ -43,6 +44,13 @@ const LazyPortalImage = ({
     : mediaType;
 
   const isVideo = detectedMediaType === 'video';
+
+  // Reset load/error state whenever the source changes so a stale failure
+  // from a previous card doesn't stick around.
+  useEffect(() => {
+    setIsLoaded(false);
+    setHasError(false);
+  }, [src]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -64,7 +72,7 @@ const LazyPortalImage = ({
 
   return (
     <div ref={mediaRef} className={className}>
-      {isInView && (
+      {isInView && !hasError && (
         <>
           {isVideo ? (
             <video
@@ -73,7 +81,18 @@ const LazyPortalImage = ({
               muted
               playsInline
               preload="metadata"
-              onLoadedData={() => setIsLoaded(true)}
+              // preload="metadata" doesn't guarantee a decoded frame, so
+              // `loadeddata` can fire late or never — seek instead, which
+              // reliably forces the browser to paint the first frame.
+              onLoadedMetadata={(e) => {
+                try {
+                  e.currentTarget.currentTime = 0.001;
+                } catch {
+                  // ignore — onError/onSeeked cover the rest
+                }
+              }}
+              onSeeked={() => setIsLoaded(true)}
+              onError={() => setHasError(true)}
               className={`w-full h-auto max-h-48 object-contain rounded-lg transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
             >
               <p>Your browser doesn&apos;t support HTML5 video.</p>
@@ -83,6 +102,7 @@ const LazyPortalImage = ({
               src={src}
               alt={alt}
               onLoad={() => setIsLoaded(true)}
+              onError={() => setHasError(true)}
               className={`w-full h-auto max-h-48 object-contain rounded-lg transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
             />
           )}
@@ -93,7 +113,12 @@ const LazyPortalImage = ({
           )}
         </>
       )}
-      {!isInView && (
+      {hasError && (
+        <div className="w-full h-32 bg-gray-100 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-400">
+          <span className="text-xs">{isVideo ? 'Video unavailable' : 'Image unavailable'}</span>
+        </div>
+      )}
+      {!isInView && !hasError && (
         <div className="w-full h-32 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
           <div className="w-4 h-4 animate-spin text-gray-400" />
         </div>

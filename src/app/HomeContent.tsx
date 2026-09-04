@@ -51,7 +51,7 @@ const pricingTiers = [
     id: 'starter',
     price: 50,
     description: 'For marketing managers',
-    trialText: '14-day free trial',
+    trialText: '7-day free trial',
     features: [
       '1 Business profile',
       'AI copy generation',
@@ -68,7 +68,7 @@ const pricingTiers = [
     id: 'professional',
     price: 89,
     description: 'For freelancers and agencies',
-    trialText: '14-day free trial',
+    trialText: '7-day free trial',
     features: [
       'Everything in In-House',
       '5 Business profiles',
@@ -82,7 +82,7 @@ const pricingTiers = [
     id: 'agency',
     price: 199,
     description: 'For larger marketing agencies',
-    trialText: '14-day free trial',
+    trialText: '7-day free trial',
     features: [
       'Everything in Freelancer',
       'Unlimited Client profiles',
@@ -392,7 +392,7 @@ export default function HomeContent() {
                   </Link>
                   <Link href="/auth/signup">
                     <Button size="sm">
-                      Start 14-Day Free Trial
+                      Start 7-Day Free Trial
                     </Button>
                   </Link>
                 </div>
@@ -496,7 +496,7 @@ export default function HomeContent() {
                       <div className="px-3">
                         <Link href="/auth/signup" onClick={() => setMobileMenuOpen(false)}>
                           <Button size="sm" className="w-full">
-                            Start 14-Day Free Trial
+                            Start 7-Day Free Trial
                           </Button>
                         </Link>
                       </div>
@@ -554,7 +554,7 @@ export default function HomeContent() {
                     }
                   }}
                 >
-                  Start 14-Day Free Trial
+                  Start 7-Day Free Trial
                 </Button>
               </div>
               <p className="text-center text-xl font-black text-muted-foreground mt-3">
@@ -1077,7 +1077,7 @@ export default function HomeContent() {
                     }
                   }}
                 >
-                  Start 14-Day Free Trial
+                  Start 7-Day Free Trial
                 </Button>
               </div>
               <p className="text-center text-xl font-black text-muted-foreground mt-3">

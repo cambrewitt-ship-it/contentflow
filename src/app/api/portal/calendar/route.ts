@@ -201,6 +201,71 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { token, caption, image_url, post_notes, scheduled_date, scheduled_time } = body;
+
+    if (!token) {
+      return NextResponse.json({ error: 'Token is required' }, { status: 400 });
+    }
+    if (!scheduled_date || !scheduled_time) {
+      return NextResponse.json(
+        { error: 'scheduled_date and scheduled_time are required' },
+        { status: 400 }
+      );
+    }
+
+    const resolved = await resolvePortalToken(token);
+    if (!resolved) {
+      return NextResponse.json({ error: 'Invalid portal token' }, { status: 401 });
+    }
+
+    const { clientId } = resolved;
+    const postId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const { error: insertError } = await supabase
+      .from('calendar_scheduled_posts')
+      .insert({
+        id: postId,
+        client_id: clientId,
+        caption: caption ?? null,
+        image_url: image_url ?? null,
+        post_notes: post_notes ?? null,
+        scheduled_date,
+        scheduled_time,
+        created_at: now,
+      });
+
+    if (insertError) {
+      logger.error('Error creating portal scheduled post:', insertError);
+      return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      post: {
+        id: postId,
+        client_id: clientId,
+        caption: caption ?? null,
+        image_url: image_url ?? null,
+        post_notes: post_notes ?? null,
+        scheduled_date,
+        scheduled_time,
+        created_at: now,
+      },
+    });
+
+  } catch (error) {
+    logger.error('Portal calendar POST error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();

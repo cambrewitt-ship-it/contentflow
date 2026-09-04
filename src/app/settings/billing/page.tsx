@@ -54,8 +54,8 @@ const tierNames: Record<string, string> = {
 const tierPrices: Record<string, number> = {
   freemium: 0,
   trial: 0,
-  starter: 50,
-  professional: 89,
+  starter: 35,
+  professional: 79,
   agency: 199,
 };
 
@@ -318,11 +318,15 @@ export default function BillingSettingsPage() {
     const tier = subscription.subscription_tier || 'trial';
     if (tier === 'freemium') return 'FREE';
     if (tier === 'trial') return 'TRIAL';
-    return tierNames[tier] ?? tier.toUpperCase();
+    const name = tierNames[tier] ?? tier.toUpperCase();
+    return subscription.subscription_status === 'trialing' ? `${name} (TRIAL)` : name;
   };
 
   const getTrialDaysRemaining = () => {
-    if (!subscription || subscription.subscription_tier !== 'trial') return null;
+    if (!subscription) return null;
+    const isLegacyTrial = subscription.subscription_tier === 'trial';
+    const isStripeTrial = !isLegacyTrial && subscription.subscription_status === 'trialing';
+    if (!isLegacyTrial && !isStripeTrial) return null;
     if (!subscription.current_period_end) return null;
 
     const endDate = new Date(subscription.current_period_end);
@@ -394,6 +398,16 @@ export default function BillingSettingsPage() {
                     </span>
                   )}
                 </span>
+              ) : subscription.subscription_status === 'trialing' ? (
+                <span>
+                  ${tierPrices[subscription.subscription_tier]}
+                  <span className="text-lg text-gray-600 font-normal">/month after trial</span>
+                  {getTrialDaysRemaining() !== null && (
+                    <span className="text-lg text-gray-600 font-normal ml-2">
+                      ({getTrialDaysRemaining()} days remaining)
+                    </span>
+                  )}
+                </span>
               ) : (
                 <>
                   ${tierPrices[subscription.subscription_tier]}
@@ -428,17 +442,24 @@ export default function BillingSettingsPage() {
           </div>
         )}
 
-        {/* Only show renewal date for paid subscriptions */}
+        {/* Only show renewal/trial-end date for paid subscriptions */}
         {subscription.subscription_tier !== 'freemium' && subscription.subscription_tier !== 'trial' && subscription.current_period_end && formatDate(subscription.current_period_end) && (
           <div className="border-t pt-4">
             <div className="flex items-center text-gray-600 mb-2">
               <Calendar className="h-4 w-4 mr-2" />
               <span>
-                {subscription.cancel_at_period_end
+                {subscription.subscription_status === 'trialing'
+                  ? `Your card will be charged on ${formatDate(subscription.current_period_end)}`
+                  : subscription.cancel_at_period_end
                   ? `Cancels on ${formatDate(subscription.current_period_end)}`
                   : `Renews on ${formatDate(subscription.current_period_end)}`}
               </span>
             </div>
+            {subscription.subscription_status === 'trialing' && (
+              <p className="text-sm text-blue-600 mt-2">
+                You&apos;re in your free trial. Cancel any time before this date to avoid being charged.
+              </p>
+            )}
             {subscription.cancel_at_period_end && (
               <p className="text-sm text-yellow-600 mt-2">
                 Your subscription will be canceled at the end of the current billing

@@ -17,7 +17,7 @@ import { PDFExportModal } from '@/components/PDFExportModal';
 import { usePortal } from '@/contexts/PortalContext';
 import logger from '@/lib/logger';
 import { WeekDayChooser } from '@/components/WeekDayChooser';
-import { PortalQuickAddModal } from '@/components/PortalQuickAddModal';
+import { PortalCreatePostModal } from '@/components/PortalCreatePostModal';
 import { QuickScheduleDayTimePicker } from '@/components/QuickScheduleDayTimePicker';
 
 // Lazy loading image component
@@ -293,7 +293,7 @@ function PortalCalendarEventModal({
 export default function PortalCalendarPage() {
   const params = useParams();
   const token = params?.token as string;
-  const { party } = usePortal();
+  const { party, client } = usePortal();
 
   // Modal state
   const [modalItem, setModalItem] = useState<ModalItem | null>(null);
@@ -2376,18 +2376,22 @@ export default function PortalCalendarPage() {
       )}
 
       {/* Trello-style "+" add-card modals */}
-      {quickAddModal && (
-        <PortalQuickAddModal
+      {quickAddModal && client && (
+        <PortalCreatePostModal
           open={quickAddModal.open}
           onClose={() => setQuickAddModal(null)}
           token={token}
+          clientId={client.id}
           weekStart={quickAddModal.weekStart}
-          clientUploads={allUploads.filter(u => !u.target_date)}
-          onScheduled={() => {
-            fetchUploads();
-            fetchScheduledPosts(0, true);
+          onCreated={(post) => {
+            const dateKey = post.scheduled_date;
+            if (dateKey) {
+              setScheduledPosts(prev => ({
+                ...prev,
+                [dateKey]: [...(prev[dateKey] || []), post as unknown as Post],
+              }));
+            }
             setKanbanRefreshKey(k => k + 1);
-            setQueueRefreshKey(k => k + 1);
             setQuickAddModal(null);
           }}
         />

@@ -424,38 +424,38 @@ function SortablePostCard({
     }
   };
 
-  const handleTagToggle = async (tagId: string) => {
+  const handleTagToggle = async (tag: { id: string; name: string; color: string }) => {
     if (!post.id) return;
-    
-    const isCurrentlySelected = postTags.some(t => t.id === tagId);
-    
-    // Optimistically update UI
+
+    const isCurrentlySelected = postTags.some(t => t.id === tag.id);
+
+    // Optimistically update UI immediately — the caller (tag dropdown) shows
+    // its own pending state while this resolves, but the post card itself
+    // should reflect the change right away rather than waiting on the network.
     if (isCurrentlySelected) {
-      setPostTags(prev => prev.filter(t => t.id !== tagId));
+      setPostTags(prev => prev.filter(t => t.id !== tag.id));
     } else {
-      // We need to get the tag details - for now, just add a placeholder
-      // The actual tag details will come from the response
+      setPostTags(prev => [...prev, tag]);
     }
-    
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         console.error('No access token available');
         // Revert optimistic update
-        if (!isCurrentlySelected) {
-          setPostTags(prev => prev.filter(t => t.id !== tagId));
+        if (isCurrentlySelected) {
+          setPostTags(prev => [...prev, tag]);
         } else {
-          // Would need tag details to revert - refetch instead
-          await fetchPostTags();
+          setPostTags(prev => prev.filter(t => t.id !== tag.id));
         }
         return;
       }
 
       let response: Response;
-      
+
       if (isCurrentlySelected) {
         // Remove tag
-        response = await fetch(`/api/posts/${post.id}/tags/${tagId}`, {
+        response = await fetch(`/api/posts/${post.id}/tags/${tag.id}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -469,7 +469,7 @@ function SortablePostCard({
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ tag_id: tagId }),
+          body: JSON.stringify({ tag_id: tag.id }),
         });
       }
 
@@ -481,17 +481,6 @@ function SortablePostCard({
         console.error('Response status:', response.status);
         alert(errorData.error || 'Failed to update tag');
         return;
-      }
-
-      // If adding tag, get the tag details from response and update state
-      if (!isCurrentlySelected) {
-        const data = await response.json();
-        if (data.tag) {
-          setPostTags(prev => [...prev, data.tag]);
-        } else {
-          // Fallback: refetch if response doesn't include tag
-          await fetchPostTags();
-        }
       }
     } catch (error) {
       console.error('Error toggling tag:', error);

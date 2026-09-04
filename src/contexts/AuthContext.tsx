@@ -10,7 +10,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, metadata?: { firstName?: string; lastName?: string }) => Promise<{ user: User | null; session: Session | null; error: AuthError | null }>;
+  signUp: (email: string, password: string, metadata?: { firstName?: string; lastName?: string }, priceId?: string) => Promise<{ user: User | null; session: Session | null; error: AuthError | null }>;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, [clearAuthAndRedirect]);
 
-  const signUp = async (email: string, password: string, metadata?: { firstName?: string; lastName?: string }) => {
+  const signUp = async (email: string, password: string, metadata?: { firstName?: string; lastName?: string }, priceId?: string) => {
     try {
       // Check for stale/invalid JWT and clear it before signup
       try {
@@ -147,9 +147,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userMetadata.full_name = `${metadata.firstName || ''} ${metadata.lastName || ''}`.trim();
       }
 
-      // Encode the current pathname in state to redirect back after OAuth
+      // Encode the current pathname (to redirect back after OAuth) and the
+      // chosen priceId (to resume checkout after email confirmation) in state
       const currentPathname = window.location.pathname;
-      const stateData = { returnUrl: currentPathname };
+      const resolvedPriceId = priceId || process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID;
+      const stateData = { returnUrl: currentPathname, priceId: resolvedPriceId };
       const encodedState = btoa(JSON.stringify(stateData));
       
       const { data, error } = await supabase.auth.signUp({

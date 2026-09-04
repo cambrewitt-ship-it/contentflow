@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import SwipeReview from '@/components/SwipeReview';
 import CalendarConfirm from '@/components/CalendarConfirm';
@@ -78,11 +79,12 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── Page component ────────────────────────────────────────────────────────────
 
-type PageView = 'idle' | 'generating' | 'swipe' | 'confirm' | 'published';
+type PageView = 'idle' | 'generating' | 'swipe' | 'confirm' | 'published' | 'saving';
 
 export default function AutopilotPage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = use(params);
   const { getAccessToken, user } = useAuth();
+  const router = useRouter();
 
   // Subscription gate
   const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
@@ -100,6 +102,7 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
   const [pageView, setPageView] = useState<PageView>('idle');
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [swipeSaveError, setSwipeSaveError] = useState<string | null>(null);
 
   // History expand
   const [expandedHistoryPlanId, setExpandedHistoryPlanId] = useState<string | null>(null);
@@ -275,10 +278,45 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
   }
 
   // ── Swipe complete ─────────────────────────────────────────────────────────
+  // Once every candidate has been swiped, drop the kept organic posts straight
+  // into the calendar's unscheduled bar and jump to the calendar — no manual
+  // "confirm" step. (Kept ad-copy candidates are already persisted via their
+  // swipe decision and remain viewable in plan history.)
 
-  function handleSwipeComplete(keptCount: number, kept: AutopilotCandidate[]) {
+  async function handleSwipeComplete(keptCount: number, kept: AutopilotCandidate[]) {
     setKeptCandidates(kept);
-    setPageView('confirm');
+    setSwipeSaveError(null);
+
+    const organicKept = kept.filter(c => c.post_type !== 'paid_ad');
+    if (organicKept.length === 0) {
+      router.push(`/dashboard/client/${clientId}/calendar`);
+      return;
+    }
+
+    if (!activePlan) {
+      setSwipeSaveError('No active plan found');
+      setPageView('confirm');
+      return;
+    }
+
+    setPageView('saving');
+    const token = getAccessToken();
+    try {
+      const res = await fetch(`/api/autopilot/plans/${activePlan.id}/confirm`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token ?? ''}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ target: 'unscheduled' }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to save posts to calendar');
+      router.push(`/dashboard/client/${clientId}/calendar`);
+    } catch (err) {
+      setSwipeSaveError(err instanceof Error ? err.message : 'Something went wrong');
+      setPageView('confirm');
+    }
   }
 
   // ── Confirm (publish) complete ─────────────────────────────────────────────
@@ -335,7 +373,7 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
 
   // ── Subscription gate ──────────────────────────────────────────────────────
 
-  const AUTOPILOT_TIERS = ['professional', 'agency', 'freelancer'];
+  const AUTOPILOT_TIERS = ['starter', 'professional', 'agency', 'freelancer'];
   const isGated =
     !tierLoading && subscriptionTier !== null && !AUTOPILOT_TIERS.includes(subscriptionTier);
 
@@ -354,7 +392,7 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
           <div className="mx-auto w-16 h-16 rounded-full bg-purple-50 flex items-center justify-center">
             <Lock className="h-8 w-8 text-purple-300" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900">Autopilot requires Freelancer or above</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Autopilot requires In-House or above</h2>
           <p className="text-sm text-gray-500 max-w-sm mx-auto">
             Autopilot uses AI to generate and schedule content plans automatically. Upgrade to unlock.
           </p>
@@ -486,6 +524,14 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
             </div>
           )}
 
+          {/* ── SAVING (auto-redirecting to calendar) ── */}
+          {pageView === 'saving' && (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <Loader2 className="h-10 w-10 animate-spin text-purple-400" />
+              <p className="font-medium text-gray-700">Adding your kept posts to the calendar…</p>
+            </div>
+          )}
+
           {/* ── IDLE / NO PLANS ── */}
           {pageView === 'idle' && !showGenerateModal && (
             <div className="text-center py-16 space-y-3">
@@ -537,6 +583,11 @@ export default function AutopilotPage({ params }: { params: Promise<{ clientId: 
 
             return (
               <div className="space-y-6">
+                {swipeSaveError && (
+                  <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                    Could not auto-add your posts to the calendar: {swipeSaveError}. You can try again below.
+                  </div>
+                )}
                 {organicKept.length > 0 ? (
                   <CalendarConfirm
                     planId={activePlan.id}

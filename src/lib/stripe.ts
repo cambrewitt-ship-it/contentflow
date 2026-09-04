@@ -33,6 +33,16 @@ if (process.env.NODE_ENV === 'production' && stripeSecretKey.startsWith('sk_test
   );
 }
 
+// 4. NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID is now load-bearing for every
+// signup (it's the default plan used when a user signs up without
+// picking one), not just pricing-page paid signups — fail fast if unset.
+if (!process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID) {
+  throw new Error(
+    '❌ NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID is not set in environment variables. ' +
+    'This is required as the default plan for signups that don\'t specify a price.'
+  );
+}
+
 // Initialize Stripe with the validated secret key
 export const stripe = new Stripe(stripeSecretKey, {
   apiVersion: '2025-09-30.clover',
@@ -153,12 +163,14 @@ export async function createCheckoutSession({
   userId,
   successUrl,
   cancelUrl,
+  trialPeriodDays,
 }: {
   customerId: string;
   priceId: string;
   userId: string;
   successUrl: string;
   cancelUrl: string;
+  trialPeriodDays?: number;
 }) {
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
@@ -179,6 +191,14 @@ export async function createCheckoutSession({
       metadata: {
         userId,
       },
+      ...(trialPeriodDays
+        ? {
+            trial_period_days: trialPeriodDays,
+            trial_settings: {
+              end_behavior: { missing_payment_method: 'cancel' },
+            },
+          }
+        : {}),
     },
   });
 

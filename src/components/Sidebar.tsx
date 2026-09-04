@@ -67,7 +67,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
       try {
         const { data, error } = await supabase
           .from('subscriptions')
-          .select('subscription_tier, current_period_end')
+          .select('subscription_tier, subscription_status, current_period_end')
           .eq('user_id', user.id)
           .single();
 
@@ -79,8 +79,9 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
           console.log('📊 Sidebar: User subscription tier:', data.subscription_tier,
             '| Show Home:', !isSingleClientTier(data.subscription_tier));
 
-          // Calculate trial days remaining
-          if (data.subscription_tier === 'trial' && data.current_period_end) {
+          // Calculate trial days remaining (legacy no-CC trial tier, or a
+          // real paid tier currently in its Stripe-managed trial period)
+          if ((data.subscription_tier === 'trial' || data.subscription_status === 'trialing') && data.current_period_end) {
             const end = new Date(data.current_period_end);
             const now = new Date();
             const days = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
@@ -526,8 +527,8 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
           "p-4 border-t border-gray-200 space-y-3",
           "p-4 border-t border-white/20 space-y-3"
         )}>
-          {/* Trial Days Remaining */}
-          {subscriptionTier === 'trial' && trialDaysRemaining !== null && trialDaysRemaining > 0 && (
+          {/* Trial Days Remaining (legacy no-CC trial, or a real tier's Stripe trial) */}
+          {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="h-4 w-4 text-orange-500 flex-shrink-0" />

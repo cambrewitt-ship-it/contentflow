@@ -6,11 +6,13 @@ import { getUpcomingHolidays } from '../../../lib/data/holidays';
 import { handleApiError } from '../../../lib/apiErrorHandler';
 import { validateApiRequest } from '../../../lib/validationMiddleware';
 import { aiRequestSchema } from '../../../lib/validators';
-import { withAICreditCheck, trackAICreditUsage } from '../../../lib/subscriptionMiddleware';
+import { withAICreditCheck, trackAICreditUsage, checkAICreditsPermissionForUser } from '../../../lib/subscriptionMiddleware';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { sanitizeAndValidateContentIdeas } from '@/lib/ai-utils';
 import { detectPromptLeakage, logLeakageIncident } from '@/lib/ai-monitoring';
+import { resolvePortalToken } from '@/lib/portalAuth';
+import { createSupabaseAdmin } from '@/lib/supabaseServer';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -125,6 +127,18 @@ function getImageInstructions(focus: string) {
   };
 
   return instructions[focus] || instructions.supporting;
+}
+
+function getAntiAiSlopGuidelines() {
+  return `
+🚫 AVOID AI-SOUNDING LANGUAGE:
+- Never use: leverage, empower, streamline, paradigm shift, transformative, harness, multifaceted, elevate, unlock, seamless, game-changer, unleash
+- No "It's not X, it's Y" contrast structures
+- No colon-reveal sentences ("The best part: it just works")
+- No rhetorical setups ("What if I told you...", "Here's the thing...")
+- No puffery ("plays a vital role", "marks a pivotal moment")
+- No generic filler that could describe any brand — use specific, concrete details instead
+- Write like a person, not a press release: contractions, plain nouns, no throat-clearing openers`;
 }
 
 function isRefusalResponse(content?: string | null): boolean {
@@ -311,39 +325,75 @@ export async function POST(request: NextRequest) {
     }
 
     const clientId = validatedClientId;
+    const portalToken = typeof bodyRecord.portalToken === 'string' ? bodyRecord.portalToken : undefined;
 
-    // Now perform auth check with the validated clientId
-    const auth = await requireClientOwnership(request, clientId);
-    if (auth.error) return auth.error;
-    let supabase = auth.supabase;
+    let supabase: SupabaseClient;
+    let userId: string;
 
-    const subscriptionCheck = await withAICreditCheck(request, 1);
-    if (!subscriptionCheck.allowed) {
-      logger.error('Subscription check failed:', subscriptionCheck.error);
-      return NextResponse.json(
-        {
-          error: subscriptionCheck.error || 'AI credit limit reached',
-          details: subscriptionCheck.error,
-        },
-        { status: 403 }
-      );
-    }
-    if (!subscriptionCheck.userId) {
-      logger.error('User ID not found in subscription check');
-      return NextResponse.json(
-        {
-          error: 'User identification failed',
-          details: 'Could not identify user for AI request',
-        },
-        { status: 401 }
-      );
-    }
-    const userId = subscriptionCheck.userId;
+    if (portalToken) {
+      // Portal guests have no Supabase session — auth is a per-party/client token instead.
+      // AI generation still draws from and is billed to the owning agency's credit balance.
+      const resolved = await resolvePortalToken(portalToken);
+      if (!resolved || resolved.clientId !== clientId) {
+        return NextResponse.json({ error: 'Invalid portal token' }, { status: 401 });
+      }
 
-    if (validatedClientId !== auth.client.id) {
-      const ownership = await requireClientOwnership(request, validatedClientId);
-      if (ownership.error) return ownership.error;
-      supabase = ownership.supabase;
+      const admin = createSupabaseAdmin();
+      const { data: clientRow, error: clientError } = await admin
+        .from('clients')
+        .select('id, user_id')
+        .eq('id', clientId)
+        .maybeSingle();
+
+      if (clientError || !clientRow) {
+        return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+      }
+
+      const creditCheck = await checkAICreditsPermissionForUser(clientRow.user_id, 1);
+      if (!creditCheck.allowed) {
+        logger.error('Subscription check failed:', creditCheck.error);
+        return NextResponse.json(
+          { error: creditCheck.error || 'AI credit limit reached', details: creditCheck.error },
+          { status: 403 }
+        );
+      }
+
+      supabase = admin;
+      userId = clientRow.user_id;
+    } else {
+      // Now perform auth check with the validated clientId
+      const auth = await requireClientOwnership(request, clientId);
+      if (auth.error) return auth.error;
+      supabase = auth.supabase;
+
+      const subscriptionCheck = await withAICreditCheck(request, 1);
+      if (!subscriptionCheck.allowed) {
+        logger.error('Subscription check failed:', subscriptionCheck.error);
+        return NextResponse.json(
+          {
+            error: subscriptionCheck.error || 'AI credit limit reached',
+            details: subscriptionCheck.error,
+          },
+          { status: 403 }
+        );
+      }
+      if (!subscriptionCheck.userId) {
+        logger.error('User ID not found in subscription check');
+        return NextResponse.json(
+          {
+            error: 'User identification failed',
+            details: 'Could not identify user for AI request',
+          },
+          { status: 401 }
+        );
+      }
+      userId = subscriptionCheck.userId;
+
+      if (validatedClientId !== auth.client.id) {
+        const ownership = await requireClientOwnership(request, validatedClientId);
+        if (ownership.error) return ownership.error;
+        supabase = ownership.supabase;
+      }
     }
 
     try {
@@ -622,6 +672,7 @@ CRITICAL OUTPUT RULES:
 - Start directly with the email content
 
 Brand Context: ${brandContext?.company || 'Not specified'} | Tone: ${brandContext?.tone || 'Professional'} | Audience: ${brandContext?.audience || 'Not specified'}
+${getAntiAiSlopGuidelines()}
 
 Write professional email copy now.`
         : `You are a social media copywriter. Write 3 unique captions based on the image and context provided.
@@ -653,6 +704,7 @@ ${aiContext ? `Post Notes: ${aiContext}\n\nProcessing: ${getPostNotesInstruction
 ${brandContextSection}
 
 ${getImageInstructions(imageFocus || 'supporting')}
+${getAntiAiSlopGuidelines()}
 
 Write the 3 captions now. Output only the caption text, nothing else.`;
 
@@ -976,7 +1028,8 @@ async function remixCaption(
       }
     }
 
-    systemPrompt += '\nWrite the caption variation now. Output only the caption text, nothing else.';
+    systemPrompt += getAntiAiSlopGuidelines();
+    systemPrompt += '\n\nWrite the caption variation now. Output only the caption text, nothing else.';
 
     let originalCaption = prompt;
     // fallback for case: 'Original caption: "..."'
@@ -1085,6 +1138,7 @@ CRITICAL OUTPUT RULES:
 - Each caption is separated by one blank line
 
 ${brandContextSection ? `BRAND CONTEXT:\n${brandContextSection}` : ''}
+${getAntiAiSlopGuidelines()}
 
 Apply the user's instruction precisely while keeping captions on-brand. Write only caption text now.`;
 
@@ -1382,6 +1436,7 @@ Make each idea unique to THIS business - not generic content any competitor coul
 - Output ONLY valid JSON
 - DO NOT include framework questions or meta-commentary
 - No asterisks (**) or prompt artifacts
+${getAntiAiSlopGuidelines()}
 
 REQUIRED JSON STRUCTURE:
 {

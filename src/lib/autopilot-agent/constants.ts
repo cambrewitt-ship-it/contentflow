@@ -3,7 +3,13 @@
 // check in /api/autopilot/generate-plan/route.ts can reference the same
 // numbers without creating an import cycle (engine.ts -> loop.ts -> tools.ts).
 
-export const MAX_ITERATIONS = 15;
+// 15 was too tight in practice: the suggested workflow alone is ~7 distinct
+// context-gathering tool calls, and when the model doesn't batch them into
+// parallel tool_calls per turn it can burn the whole budget before ever
+// calling propose_post once (observed failure: "hit the iteration cap
+// without proposing any candidates"). Raised with headroom for that plus
+// drafting/critiquing/proposing 10-12 candidates.
+export const MAX_ITERATIONS = 24;
 
 // Calibrated against the old v2 one-shot engine's implied cost (1 base + N
 // candidates credits for a ~6-7k token prompt+completion). Not an exact

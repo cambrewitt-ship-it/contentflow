@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, Clock, ArrowRight } from "lucide-react";
+import { Menu, X, Clock, ArrowRight, AlertCircle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
@@ -19,8 +19,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, getAccessToken } = useAuth();
-  const [trialExpired, setTrialExpired] = useState(false);
+  type GateState = 'ok' | 'no-subscription' | 'trial-expired' | 'payment-issue' | 'canceled';
+  const [gateState, setGateState] = useState<GateState>('ok');
   const [trialCheckDone, setTrialCheckDone] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   const isOnNewClientPage = pathname === '/dashboard/clients/new';
 
@@ -47,14 +49,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           .from('subscriptions')
           .select('subscription_tier, subscription_status, current_period_end')
           .eq('user_id', user!.id)
-          .single();
+          .maybeSingle();
 
-        if (!error && data?.subscription_tier === 'trial') {
-          // Expired if status is explicitly 'expired'
+        if (error) {
+          // Genuine query/network error — don't block the user
+          return;
+        }
+
+        if (!data) {
+          // No subscription row at all — signup never completed Checkout
+          setGateState('no-subscription');
+        } else if (data.subscription_tier === 'trial') {
+          // Legacy no-CC trial row — unchanged logic
           const statusExpired = data.subscription_status === 'expired';
-          // OR if the period end date has passed
           const dateExpired = !!data.current_period_end && new Date(data.current_period_end) < new Date();
-          setTrialExpired(statusExpired || dateExpired);
+          setGateState(statusExpired || dateExpired ? 'trial-expired' : 'ok');
+        } else if (data.subscription_status === 'active' || data.subscription_status === 'trialing') {
+          setGateState('ok');
+        } else if (data.subscription_status === 'past_due' || data.subscription_status === 'unpaid') {
+          setGateState('payment-issue');
+        } else if (data.subscription_status === 'canceled' || data.subscription_status === 'incomplete_expired') {
+          setGateState('canceled');
+        } else {
+          // Unrecognized status — don't block defensively
+          setGateState('ok');
         }
       } catch {
         // On unexpected error, don't block the user
@@ -128,8 +146,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  // Trial expired — lock out the entire dashboard
-  if (trialExpired) {
+  // Trial expired (legacy no-CC trial) — lock out the entire dashboard
+  if (gateState === 'trial-expired') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
         <div className="max-w-md w-full text-center">
@@ -138,7 +156,116 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-3">Your Trial Has Ended</h1>
           <p className="text-muted-foreground mb-8">
-            Your 14-day free trial has expired. Choose a plan to continue using Content Manager and keep your business profiles, content, and calendar.
+            Your free trial has expired. Choose a plan to continue using Content Manager and keep your business profiles, content, and calendar.
+          </p>
+          <Link href="/pricing">
+            <Button size="lg" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+              View Pricing Plans
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
+          <p className="text-xs text-muted-foreground mt-4">
+            Need help?{' '}
+            <Link href="/contact" className="text-blue-600 hover:underline">Contact us</Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // No subscription row at all — signup never completed Checkout
+  if (gateState === 'no-subscription') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="h-10 w-10 text-yellow-500" />
+          </div>
+          <h1 className="text-3xl font-bold text-foreground mb-3">No Active Subscription</h1>
+          <p className="text-muted-foreground mb-8">
+            You don&apos;t have an active subscription yet. Choose a plan to get started with your 7-day free trial.
+          </p>
+          <Link href="/pricing">
+            <Button size="lg" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+              View Pricing Plans
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
+          <p className="text-xs text-muted-foreground mt-4">
+            Need help?{' '}
+            <Link href="/contact" className="text-blue-600 hover:underline">Contact us</Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Payment failed (e.g. the card declined when the trial converted) —
+  // send them to the billing portal to fix their payment method
+  if (gateState === 'payment-issue') {
+    const handleManageBilling = async () => {
+      try {
+        setPortalLoading(true);
+        const accessToken = getAccessToken();
+        if (!accessToken) return;
+
+        const response = await fetch('/api/stripe/portal', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        const data = await response.json();
+        if (response.ok && data.url) {
+          window.location.href = data.url;
+        } else {
+          setPortalLoading(false);
+        }
+      } catch {
+        setPortalLoading(false);
+      }
+    };
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CreditCard className="h-10 w-10 text-red-500" />
+          </div>
+          <h1 className="text-3xl font-bold text-foreground mb-3">There&apos;s a Problem With Your Payment</h1>
+          <p className="text-muted-foreground mb-8">
+            We couldn&apos;t process your last payment. Update your payment method to keep using Content Manager.
+          </p>
+          <Button
+            size="lg"
+            onClick={handleManageBilling}
+            disabled={portalLoading}
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {portalLoading ? 'Loading...' : 'Update Payment Method'}
+            {!portalLoading && <ArrowRight className="h-4 w-4" />}
+          </Button>
+          <p className="text-xs text-muted-foreground mt-4">
+            Need help?{' '}
+            <Link href="/contact" className="text-blue-600 hover:underline">Contact us</Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Subscription canceled — send back to pricing to resubscribe
+  if (gateState === 'canceled') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Clock className="h-10 w-10 text-orange-500" />
+          </div>
+          <h1 className="text-3xl font-bold text-foreground mb-3">Your Subscription Has Ended</h1>
+          <p className="text-muted-foreground mb-8">
+            Choose a plan to continue using Content Manager and keep your business profiles, content, and calendar.
           </p>
           <Link href="/pricing">
             <Button size="lg" className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white">

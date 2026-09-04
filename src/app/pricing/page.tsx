@@ -18,7 +18,7 @@ const tiers = [
     description: 'For marketing managers',
     priceId: process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID!,
     longDescription: 'Perfect for marketing managers. Includes higher capacity and the ability to schedule posts.',
-    trialText: '',
+    trialText: '7-day free trial — card required, cancel anytime before you\'re charged.',
     features: [
       '1 Business profile — Store brand info, voice, and tone',
       'AI copy generation — Upload images, get social & email copy instantly',
@@ -39,7 +39,7 @@ const tiers = [
     description: 'For freelancers and agencies',
     priceId: process.env.NEXT_PUBLIC_STRIPE_PROFESSIONAL_PRICE_ID!,
     longDescription: 'Everything in In-House, plus capacity for multiple clients, advanced analytics, and custom branding.',
-    trialText: '',
+    trialText: '7-day free trial — card required, cancel anytime before you\'re charged.',
     features: [
       'Everything in In-House',
       '5 Business profiles — Manage multiple brands',
@@ -57,7 +57,7 @@ const tiers = [
     description: 'For larger marketing agencies',
     priceId: process.env.NEXT_PUBLIC_STRIPE_AGENCY_PRICE_ID!,
     longDescription: 'Everything in Freelancer, plus unlimited business profiles, unlimited posts, and dedicated support.',
-    trialText: '',
+    trialText: '7-day free trial — card required, cancel anytime before you\'re charged.',
     features: [
       'Everything in Freelancer',
       'Unlimited Business profiles',

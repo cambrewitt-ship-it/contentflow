@@ -19,6 +19,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import logger from "@/lib/logger";
+import { isVideoUrl } from "@/lib/videoUtils";
 
 interface PostDetailModalProps {
   post: {
@@ -199,12 +200,21 @@ export function PostDetailModal({
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
           {/* Media */}
           {post.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={post.image_url}
-              alt="Post media"
-              className="w-full max-h-72 object-contain rounded-lg border border-border bg-muted"
-            />
+            isVideoUrl(post.image_url) ? (
+              <video
+                src={post.image_url}
+                controls
+                playsInline
+                className="w-full max-h-72 rounded-lg border border-border bg-muted"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={post.image_url}
+                alt="Post media"
+                className="w-full max-h-72 object-contain rounded-lg border border-border bg-muted"
+              />
+            )
           ) : (
             <div className="w-full h-32 bg-muted rounded-lg flex items-center justify-center">
               <ImageIcon className="h-8 w-8 text-muted-foreground" />

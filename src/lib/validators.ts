@@ -250,8 +250,9 @@ export const aiRequestSchema = z.discriminatedUnion('action', [
     copyTone: copyToneSchema.optional(),
     postNotesStyle: postNotesStyleSchema.optional(),
     imageFocus: imageFocusSchema.optional(),
+    portalToken: z.string().optional(),
   }),
-  
+
   // Caption remixing
   z.object({
     action: z.literal('remix_caption'),
@@ -260,6 +261,7 @@ export const aiRequestSchema = z.discriminatedUnion('action', [
     existingCaptions: z.array(sanitizedString(5000)).max(10).optional(),
     aiContext: optionalSanitizedString(2000),
     clientId: uuidSchema.optional(),
+    portalToken: z.string().optional(),
   }),
   
   // Content ideas generation
@@ -282,6 +284,7 @@ export const aiRequestSchema = z.discriminatedUnion('action', [
         content: z.string().max(5000),
       })
     ).max(30).optional(),
+    portalToken: z.string().optional(),
   }),
 ]);
 

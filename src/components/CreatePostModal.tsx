@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Loader2, Sparkles, Images, Send, RefreshCw, Upload as UploadIcon } from 'lucide-react';
+import { X, Loader2, Sparkles, Images, Send, RefreshCw, Brain, Upload as UploadIcon } from 'lucide-react';
 import { ContentStoreProvider, useContentStore } from '@/lib/contentStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { SocialPreviewCard } from '@/components/SocialPreviewCard';
@@ -34,6 +34,8 @@ interface CreatePostModalProps {
   weekStart: Date;
   projects?: Project[];
   onCreated: (post: CreatedPost) => void;
+  accountName?: string;
+  accountAvatarUrl?: string;
 }
 
 const PREVIEW_PLATFORMS = [
@@ -52,7 +54,7 @@ export function CreatePostModal(props: CreatePostModalProps) {
   );
 }
 
-function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCreated }: CreatePostModalProps) {
+function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCreated, accountName, accountAvatarUrl }: CreatePostModalProps) {
   const { getAccessToken } = useAuth();
   const {
     uploadedImages,
@@ -74,6 +76,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
     chatInput,
     chatLoading,
     setChatMode,
+    setChatMessages,
     setChatInput,
     sendChatMessage,
     handleEnterChatMode,
@@ -192,6 +195,20 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
     }
   };
 
+  // Single "Generate Text" entry point for both Standard and Chat caption modes.
+  // In chat mode, clearing chatMessages lets the existing auto-generate effect
+  // (below) re-run initializeChat with the latest notes — avoids a duplicate call.
+  const isGenerating = chatMode ? chatLoading : generatingCaptions;
+  const isGenerateDisabled = !activeImage || isGenerating;
+  const handleGenerateClick = () => {
+    if (!activeImage) return;
+    if (chatMode) {
+      setChatMessages([]);
+    } else {
+      handleGenerateCaptions();
+    }
+  };
+
   const canSubmit = !!activeImage && !!activeCaptionText.trim() && !!selectedDateKey && !!selectedTime && !isSubmitting;
 
   const handleSubmit = async () => {
@@ -282,7 +299,8 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
             <div className="flex-1 px-3 pb-4">
               <SocialPreviewCard
                 platform={selectedPlatform}
-                accountName="Your Account"
+                accountName={accountName || "Your Account"}
+                accountAvatarUrl={accountAvatarUrl}
                 caption={activeCaptionText}
                 imageUrl={activeImage?.blobUrl || activeImage?.preview}
                 scheduledDate={selectedDateKey ?? undefined}
@@ -302,21 +320,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
             {/* Image */}
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Photo</p>
-              {activeImage ? (
-                <div className="relative w-full h-40 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={activeImage.preview}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="w-full h-24 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center text-xs text-gray-400">
-                  No photo selected
-                </div>
-              )}
-              <div className="flex gap-2 mt-2">
+              <div className="flex gap-2">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -347,16 +351,46 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
               </div>
             </div>
 
-            {/* Notes */}
+            {/* Prompt bar — notes + caption generation, works in both Standard and Chat modes */}
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Post notes (optional)</p>
-              <Textarea
-                value={postNotes}
-                onChange={(e) => setPostNotes(e.target.value)}
-                placeholder="Anything the AI should know about this post..."
-                rows={2}
-                className="text-sm"
-              />
+              <div className="relative flex items-end border-2 border-gray-300 rounded-3xl bg-white focus-within:border-blue-500 focus-within:shadow-lg transition-all">
+                <Textarea
+                  value={postNotes}
+                  onChange={(e) => setPostNotes(e.target.value)}
+                  placeholder="Add notes, context, or instructions for your post..."
+                  rows={1}
+                  className="h-14 min-h-[56px] max-h-[160px] resize-none border-0 focus:outline-none focus:ring-0 shadow-none rounded-3xl pr-32 pt-[18px] pb-[18px] pl-4 text-sm leading-5"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      if (!isGenerateDisabled) handleGenerateClick();
+                    }
+                  }}
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                  <button
+                    type="button"
+                    onClick={handleGenerateClick}
+                    disabled={isGenerateDisabled}
+                    className="h-8 px-4 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white disabled:bg-blue-300 disabled:cursor-not-allowed shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 font-semibold text-xs"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="w-3.5 h-3.5" />
+                        Generate Text
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-500 text-center mt-1.5">
+                AI will analyze your image and your notes to generate captions
+              </p>
             </div>
 
             {/* Caption generation */}
@@ -391,16 +425,12 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
 
               {!chatMode ? (
                 <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={handleGenerateCaptions}
-                    disabled={!activeImage || generatingCaptions}
-                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {generatingCaptions ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                    Generate captions
-                  </button>
                   <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                    {captions.length === 0 && (
+                      <p className="text-xs text-gray-400 text-center py-4">
+                        {activeImage ? 'Click "Generate Text" above to create captions' : 'Select a photo, then generate captions'}
+                      </p>
+                    )}
                     {captions.map((cap) => (
                       <button
                         key={cap.id}

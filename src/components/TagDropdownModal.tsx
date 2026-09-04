@@ -16,7 +16,7 @@ interface TagDropdownModalProps {
   clientId: string;
   postId: string;
   selectedTagIds: string[];
-  onTagToggle: (tagId: string) => void;
+  onTagToggle: (tag: Tag) => void | Promise<void>;
   position?: { top: number; left: number };
 }
 
@@ -52,6 +52,7 @@ export function TagDropdownModal({
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState(TAG_COLORS[0]);
   const [openMenuTagId, setOpenMenuTagId] = useState<string | null>(null);
+  const [pendingTagId, setPendingTagId] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Fetch tags for the client
@@ -391,25 +392,42 @@ export function TagDropdownModal({
                       );
                     }
 
+                    const isPending = pendingTagId === tag.id;
+
                     return (
                       <div
                         key={tag.id}
-                        className="flex items-center rounded-md hover:bg-gray-50 group transition-colors"
+                        className={`flex items-center rounded-md group transition-colors ${
+                          isPending ? 'bg-blue-50' : 'hover:bg-blue-50'
+                        }`}
                       >
                         <button
                           type="button"
-                          onClick={(e) => {
+                          disabled={pendingTagId !== null}
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            onTagToggle(tag.id);
+                            if (pendingTagId) return;
+                            setPendingTagId(tag.id);
+                            try {
+                              await onTagToggle(tag);
+                            } finally {
+                              setPendingTagId(null);
+                            }
                           }}
-                          className="flex-1 flex items-center gap-2 px-2 py-2 text-left"
+                          className="flex-1 flex items-center gap-2 px-2 py-2 text-left rounded-md cursor-pointer disabled:cursor-wait"
                         >
-                          <div
-                            className="w-4 h-4 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: tag.color }}
-                          />
+                          {isPending ? (
+                            <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+                              <div className="w-3 h-3 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+                            </div>
+                          ) : (
+                            <div
+                              className="w-4 h-4 rounded-full flex-shrink-0 ring-0 group-hover:ring-2 group-hover:ring-offset-1 group-hover:ring-blue-300 transition-all"
+                              style={{ backgroundColor: tag.color }}
+                            />
+                          )}
                           <span className="flex-1 text-xs text-gray-700">{tag.name}</span>
-                          {isSelected && <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                          {isSelected && !isPending && <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />}
                         </button>
                         <div
                           className="relative pr-1"

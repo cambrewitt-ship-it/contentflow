@@ -3124,6 +3124,8 @@ export default function CalendarPage() {
           clientId={clientId}
           weekStart={createPostModal.weekStart}
           projects={projects}
+          accountName={clientName || undefined}
+          accountAvatarUrl={clientLogoUrl || undefined}
           onCreated={(post) => {
             const dateKey = post.scheduled_date;
             if (dateKey) {

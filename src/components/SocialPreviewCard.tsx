@@ -11,6 +11,7 @@ import {
   YouTubeIcon,
   ThreadsIcon,
 } from '@/components/social-icons'
+import { isVideoUrl } from '@/lib/videoUtils'
 
 interface SocialPreviewCardProps {
   platform: 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'youtube' | 'threads'
@@ -45,6 +46,7 @@ export function SocialPreviewCard({
   const allMedia = mediaUrls && mediaUrls.length > 1 ? mediaUrls : null
   const [carouselIndex, setCarouselIndex] = useState(0)
   const activeImageUrl = allMedia ? allMedia[carouselIndex] : imageUrl
+  const isActiveVideo = !!activeImageUrl && isVideoUrl(activeImageUrl)
 
   const displayName = accountName || (
     platform === 'facebook'  ? 'Your Facebook Page'
@@ -154,8 +156,12 @@ export function SocialPreviewCard({
       {/* Image */}
       {activeImageUrl ? (
         <div className="relative flex items-center justify-center bg-gray-50" style={{ maxHeight: '360px' }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={activeImageUrl} alt="Post" className="w-full object-contain" style={{ maxHeight: '360px' }} />
+          {isActiveVideo ? (
+            <video src={activeImageUrl} controls playsInline className="w-full object-contain" style={{ maxHeight: '360px' }} />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={activeImageUrl} alt="Post" className="w-full object-contain" style={{ maxHeight: '360px' }} />
+          )}
           {allMedia && allMedia.length > 1 && (
             <>
               <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}
@@ -257,8 +263,12 @@ export function SocialPreviewCard({
 
       {activeImageUrl ? (
         <div className="relative bg-black w-full">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={activeImageUrl} alt="Post" className="w-full h-auto block" />
+          {isActiveVideo ? (
+            <video src={activeImageUrl} controls playsInline className="w-full h-auto block" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={activeImageUrl} alt="Post" className="w-full h-auto block" />
+          )}
           {allMedia && allMedia.length > 1 && (
             <>
               <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}
@@ -323,8 +333,12 @@ export function SocialPreviewCard({
           )}
           {activeImageUrl ? (
             <div className="mt-2 rounded-2xl overflow-hidden border border-gray-200 relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={activeImageUrl} alt="Post" className="w-full max-h-52 object-cover" />
+              {isActiveVideo ? (
+                <video src={activeImageUrl} controls playsInline className="w-full max-h-52 object-cover" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={activeImageUrl} alt="Post" className="w-full max-h-52 object-cover" />
+              )}
               {allMedia && allMedia.length > 1 && (
                 <>
                   <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}

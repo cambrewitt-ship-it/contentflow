@@ -33,6 +33,8 @@ GOAL: build a pool of ${ctx.candidateCount} organic social media post candidates
 
 You have tools to gather everything you need. Don't guess at brand voice, events, or season — call the tools. Don't invent photos — only use media_gallery_id values returned by search_media_gallery.
 
+You have a limited number of turns. Context-gathering tools don't depend on each other's results, so request several of them together in the same turn instead of one at a time (e.g. get_upcoming_events, get_nz_context, get_style_preferences, and get_recent_posts can all be called in one turn). Save your turns for drafting and proposing candidates.
+
 SUGGESTED WORKFLOW:
 1. get_brand_context — brand voice, audience, rules. Do this first.
 2. search_media_gallery — see what's available. Call it more than once with different queries if that helps you find a good mix (don't just take the first page).
@@ -78,6 +80,12 @@ export async function runAutopilotAgentLoop(ctx: RunContext): Promise<AgentRunRe
   let toolCallCount = 0;
   let iterations = 0;
   let autoFinalized = false;
+  const toolCallNames: string[] = [];
+  // If we're most of the way through the budget and nothing's been proposed
+  // yet, the model is stuck exploring — nudge it to commit rather than
+  // silently burning the rest of the cap. Fires once.
+  const stuckNudgeAt = Math.max(1, MAX_ITERATIONS - 8);
+  let stuckNudgeSent = false;
 
   while (iterations < MAX_ITERATIONS && !ctx.finalized) {
     iterations++;
@@ -117,6 +125,7 @@ export async function runAutopilotAgentLoop(ctx: RunContext): Promise<AgentRunRe
     for (const toolCall of msg.tool_calls) {
       if (toolCall.type !== 'function') continue;
       toolCallCount++;
+      toolCallNames.push(toolCall.function.name);
       const result = dispatchTool(toolCall.function.name, toolCall.function.arguments, ctx);
       messages.push({
         role: 'tool',
@@ -124,10 +133,24 @@ export async function runAutopilotAgentLoop(ctx: RunContext): Promise<AgentRunRe
         content: JSON.stringify(result),
       });
     }
+
+    if (!stuckNudgeSent && iterations >= stuckNudgeAt && ctx.scratchpad.posts.length === 0 && !ctx.finalized) {
+      stuckNudgeSent = true;
+      messages.push({
+        role: 'user',
+        content: `You're at iteration ${iterations} of ${MAX_ITERATIONS} and haven't proposed a single candidate yet. Stop gathering more context — you already have enough. Pick a media_gallery_id from a search_media_gallery result you already received and call propose_post right now, then keep calling propose_post until the pool is done.`,
+      });
+    }
   }
 
   if (!ctx.finalized) {
     if (ctx.scratchpad.posts.length === 0) {
+      logger.error('Autopilot agent loop: hit iteration cap with zero candidates', {
+        clientId: ctx.clientId,
+        iterations,
+        toolCallCount,
+        toolCallNames,
+      });
       throw new Error(`Agent loop hit the ${MAX_ITERATIONS}-iteration cap without proposing any candidates.`);
     }
     logger.warn('Autopilot agent loop: auto-finalizing at iteration cap', {

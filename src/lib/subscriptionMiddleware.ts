@@ -134,30 +134,38 @@ export async function checkAICreditsPermission(
   request: NextRequest,
   creditsNeeded: number = 1
 ): Promise<SubscriptionCheckResult> {
+  // Get the authorization header
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return {
+      allowed: false,
+      error: 'Authentication required'
+    };
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  // Get the authenticated user using the token
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+
+  if (authError || !user) {
+    return {
+      allowed: false,
+      error: 'Authentication required'
+    };
+  }
+
+  return checkAICreditsPermissionForUser(user.id, creditsNeeded);
+}
+
+// Same check as checkAICreditsPermission, but for callers that have already resolved a
+// userId through a non-Supabase-session auth path (e.g. a portal token mapped to the
+// owning agency account) instead of a request's Bearer header.
+export async function checkAICreditsPermissionForUser(
+  userId: string,
+  creditsNeeded: number = 1
+): Promise<SubscriptionCheckResult> {
   try {
-    // Get the authorization header
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return {
-        allowed: false,
-        error: 'Authentication required'
-      };
-    }
-
-    const token = authHeader.split(' ')[1];
-
-    // Get the authenticated user using the token
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
-    if (authError || !user) {
-      return {
-        allowed: false,
-        error: 'Authentication required'
-      };
-    }
-
-    const userId = user.id;
-
     // Get user's purchased credits
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')

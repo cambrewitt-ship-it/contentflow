@@ -18,6 +18,18 @@ export async function POST(
     if (auth.error) return auth.error;
     const { user } = auth;
 
+    // Optional body: { target: 'scheduled' | 'unscheduled' }. Defaults to
+    // 'scheduled' (existing behaviour, used by the drag-to-day confirm flow
+    // and Schedule & Publish). 'unscheduled' is used by the auto-redirect
+    // flow that drops kept posts straight into the calendar's unscheduled bar.
+    let target: 'scheduled' | 'unscheduled' = 'scheduled';
+    try {
+      const body = await request.json();
+      if (body?.target === 'unscheduled') target = 'unscheduled';
+    } catch {
+      // No/invalid body — keep default.
+    }
+
     const admin = createSupabaseAdmin();
 
     // Verify plan ownership
@@ -74,45 +86,60 @@ export async function POST(
     // Resolve project for this plan
     const projectId = plan.project_id ?? (await getOrCreateDefaultProject(plan.client_id, user.id)).id;
 
-    // Create calendar_scheduled_posts from each kept organic candidate
+    // Create calendar posts from each kept organic candidate — scheduled
+    // (with a date/time) or unscheduled (dropped in the calendar's
+    // unscheduled bar for the user to place manually), per `target`.
     const createdPosts: unknown[] = [];
     let firstInsertError: string | null = null;
 
     for (const candidate of organicCandidates) {
-      // Normalise time to HH:MM:SS — Postgres TIME returns HH:MM:SS already,
-      // so only append :00 when the value is in HH:MM format (2 parts).
-      const timeParts = (candidate.suggested_time ?? '').split(':');
-      const scheduledTime = timeParts.length >= 3
-        ? timeParts.slice(0, 3).join(':')        // already HH:MM:SS
-        : timeParts.length === 2
-        ? `${candidate.suggested_time}:00`        // HH:MM → HH:MM:00
-        : '12:00:00';
-
       // Build combined caption with hashtags
       const hashtags: string[] = candidate.hashtags ?? [];
       const fullCaption = hashtags.length > 0
         ? `${candidate.caption}\n\n${hashtags.join(' ')}`
         : candidate.caption;
 
-      const { data: post, error: postErr } = await admin
-        .from('calendar_scheduled_posts')
-        .insert({
-          project_id: projectId,
-          client_id: plan.client_id,
-          caption: fullCaption,
-          image_url: candidate.media_url,
-          post_notes: null,
-          scheduled_date: candidate.suggested_date,
-          scheduled_time: scheduledTime,
-          source: 'autopilot',
-          autopilot_plan_id: planId,
-          media_gallery_id: candidate.media_gallery_id ?? null,
-          ai_reasoning: candidate.ai_reasoning ?? null,
-          autopilot_status: 'approved',
-          approval_status: 'draft',
-        })
-        .select('*')
-        .single();
+      const { data: post, error: postErr } = target === 'unscheduled'
+        ? await admin
+            .from('calendar_unscheduled_posts')
+            .insert({
+              project_id: projectId,
+              client_id: plan.client_id,
+              caption: fullCaption,
+              image_url: candidate.media_url,
+              post_notes: null,
+              status: 'draft',
+            })
+            .select('*')
+            .single()
+        : await admin
+            .from('calendar_scheduled_posts')
+            .insert({
+              project_id: projectId,
+              client_id: plan.client_id,
+              caption: fullCaption,
+              image_url: candidate.media_url,
+              post_notes: null,
+              // Normalise time to HH:MM:SS — Postgres TIME returns HH:MM:SS
+              // already, so only append :00 when the value is HH:MM (2 parts).
+              scheduled_date: candidate.suggested_date,
+              scheduled_time: (() => {
+                const timeParts = (candidate.suggested_time ?? '').split(':');
+                return timeParts.length >= 3
+                  ? timeParts.slice(0, 3).join(':')
+                  : timeParts.length === 2
+                  ? `${candidate.suggested_time}:00`
+                  : '12:00:00';
+              })(),
+              source: 'autopilot',
+              autopilot_plan_id: planId,
+              media_gallery_id: candidate.media_gallery_id ?? null,
+              ai_reasoning: candidate.ai_reasoning ?? null,
+              autopilot_status: 'approved',
+              approval_status: 'draft',
+            })
+            .select('*')
+            .single();
 
       if (postErr) {
         logger.error('Confirm: failed to create calendar post from candidate:', postErr);

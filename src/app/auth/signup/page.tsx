@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -28,7 +28,6 @@ function SignupForm() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const { signUp, getAccessToken } = useAuth();
-  const router = useRouter();
 
   // Update email when URL parameter changes
   useEffect(() => {
@@ -67,8 +66,13 @@ function SignupForm() {
       return;
     }
 
-    const { user, session, error } = await signUp(email, password, { firstName, lastName });
-    
+    // Every signup requires a plan to start its 7-day trial on — default to
+    // the cheapest plan when the user arrived without picking one (e.g. a
+    // generic homepage "Get Started" link).
+    const resolvedPriceId = priceId || process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID || '';
+
+    const { user, session, error } = await signUp(email, password, { firstName, lastName }, resolvedPriceId);
+
     if (error) {
       setError(error.message);
       setLoading(false);
@@ -81,51 +85,46 @@ function SignupForm() {
           'signup_method': 'email' // or whatever method they used
         });
       }
-      
+
       if (session) {
-        // User is auto-confirmed and logged in
-        // If priceId is present, start checkout automatically
-        if (priceId) {
-          setMessage('Account created successfully! Starting checkout...');
-          try {
-            const accessToken = getAccessToken();
-            if (!accessToken) {
-              throw new Error('No access token available');
-            }
+        // User is auto-confirmed and logged in — always proceed straight to
+        // Stripe Checkout to collect a card and start the 7-day trial
+        setMessage('Account created successfully! Starting your free trial...');
+        try {
+          const accessToken = getAccessToken();
+          if (!accessToken) {
+            throw new Error('No access token available');
+          }
 
-            const response = await fetch('/api/stripe/checkout', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-              },
-              body: JSON.stringify({ priceId }),
-            });
+          const response = await fetch('/api/stripe/checkout', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ priceId: resolvedPriceId }),
+          });
 
-            const data = await response.json();
+          const data = await response.json();
 
-            if (!response.ok) {
-              throw new Error(data.error || 'Failed to create checkout session');
-            }
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to create checkout session');
+          }
 
-            // Redirect to Stripe Checkout
-            if (data.url) {
-              window.location.href = data.url;
-              return;
-            }
-          } catch (checkoutError) {
-            console.error('Checkout error:', checkoutError);
-            setError('Account created, but failed to start checkout. Please try again from the pricing page.');
-            setLoading(false);
+          // Redirect to Stripe Checkout
+          if (data.url) {
+            window.location.href = data.url;
             return;
           }
-        } else {
-          // No priceId — send new users directly to create their first business profile
-          setMessage('Account created successfully! Redirecting...');
-          router.push('/dashboard/clients/new');
+        } catch (checkoutError) {
+          console.error('Checkout error:', checkoutError);
+          setError('Account created, but failed to start checkout. Please try again from the pricing page.');
+          setLoading(false);
+          return;
         }
       } else {
-        // Email confirmation required
+        // Email confirmation required — checkout resumes automatically from
+        // the confirmation link (see /auth/callback)
         setMessage('Check your email for a confirmation link!');
         setLoading(false);
       }
