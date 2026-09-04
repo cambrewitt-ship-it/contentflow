@@ -936,6 +936,22 @@ export default function PortalCalendarPage() {
     });
   };
 
+  const handleCaptionSaved = (postId: string, caption: string) => {
+    setScheduledPosts(prev => {
+      const next = { ...prev };
+      for (const [dateKey, posts] of Object.entries(next)) {
+        const idx = posts.findIndex(p => p.id === postId);
+        if (idx !== -1) {
+          const updated = [...posts];
+          updated[idx] = { ...updated[idx], caption };
+          next[dateKey] = updated;
+          break;
+        }
+      }
+      return next;
+    });
+  };
+
   const handleNotesChange = (uploadId: string, notes: string | null) => {
     setUploads(prev => {
       const next = { ...prev };
@@ -2349,6 +2365,7 @@ export default function PortalCalendarPage() {
           }}
           onTagsChange={handleTagsChange}
           onNotesChange={handleNotesChange}
+          onCaptionChange={handleCaptionSaved}
           onDeleteUpload={(uploadIds) => {
             const primaryId = uploadIds[0];
             const existingEntry = Object.entries(uploads).find(([, items]) =>

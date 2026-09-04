@@ -52,6 +52,8 @@ interface Props {
   authorName: string;
   accountName?: string;
   accountAvatarUrl?: string;
+  onSaveCaption?: (newCaption: string) => Promise<boolean>;
+  isSavingCaption?: boolean;
 }
 
 type PreviewPlatform = "facebook" | "instagram" | "twitter";
@@ -137,10 +139,40 @@ function PipelineSteps({ steps }: { steps: ApprovalStep[] }) {
   );
 }
 
-export function ClientPostDetailModal({ post, onClose, getAccessToken, authorName, accountName, accountAvatarUrl }: Props) {
+export function ClientPostDetailModal({ post, onClose, getAccessToken, authorName, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption }: Props) {
   const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform>(() =>
     pickDefaultPlatform(post.platforms_scheduled)
   );
+
+  const initialCaption = post.caption || "";
+  const [isEditingCaption, setIsEditingCaption] = useState(false);
+  const [editedCaption, setEditedCaption] = useState<string>(initialCaption);
+  const [captionSaveError, setCaptionSaveError] = useState<string | null>(null);
+  const [captionSaved, setCaptionSaved] = useState(false);
+
+  const handleSaveCaption = async () => {
+    if (!onSaveCaption) return;
+    if (editedCaption === initialCaption) {
+      setIsEditingCaption(false);
+      return;
+    }
+    setCaptionSaveError(null);
+    setCaptionSaved(false);
+    const ok = await onSaveCaption(editedCaption);
+    if (!ok) {
+      setCaptionSaveError("Failed to save caption");
+      return;
+    }
+    setIsEditingCaption(false);
+    setCaptionSaved(true);
+    setTimeout(() => setCaptionSaved(false), 2000);
+  };
+
+  const handleCancelCaptionEdit = () => {
+    setEditedCaption(initialCaption);
+    setIsEditingCaption(false);
+    setCaptionSaveError(null);
+  };
 
   const [steps, setSteps] = useState<ApprovalStep[]>([]);
   const [isLoadingPipeline, setIsLoadingPipeline] = useState(true);
@@ -299,7 +331,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                 platform={selectedPlatform}
                 accountName={accountName || "Your Account"}
                 accountAvatarUrl={accountAvatarUrl}
-                caption={post.caption || ""}
+                caption={editedCaption}
                 imageUrl={post.image_url ?? undefined}
                 scheduledDate={post.scheduled_date ?? undefined}
                 scheduledTime={post.scheduled_time ?? undefined}
@@ -327,16 +359,73 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
               )}
 
               {/* Caption */}
-              {post.caption && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
                     Caption
                   </p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-100">
-                    {post.caption}
-                  </p>
+                  {captionSaved && (
+                    <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" /> Saved
+                    </span>
+                  )}
                 </div>
-              )}
+                {isEditingCaption ? (
+                  <div>
+                    <Textarea
+                      autoFocus
+                      value={editedCaption}
+                      onChange={(e) => setEditedCaption(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault();
+                          handleSaveCaption();
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          handleCancelCaptionEdit();
+                        }
+                      }}
+                      placeholder="Add a caption..."
+                      className="text-sm min-h-[100px] resize-none"
+                      disabled={isSavingCaption}
+                    />
+                    {captionSaveError && (
+                      <p className="text-xs text-red-600 mt-1">{captionSaveError}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveCaption}
+                        disabled={isSavingCaption || editedCaption === initialCaption}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+                      >
+                        {isSavingCaption ? (
+                          <><Loader2 className="w-3 h-3 animate-spin" /> Saving…</>
+                        ) : (
+                          "Save"
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelCaptionEdit}
+                        disabled={isSavingCaption}
+                        className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingCaption(true)}
+                    disabled={!onSaveCaption}
+                    className="w-full text-left text-sm text-gray-700 whitespace-pre-wrap leading-relaxed bg-gray-50 hover:bg-gray-100 rounded-lg p-3 border border-gray-100 transition-colors disabled:hover:bg-gray-50 disabled:cursor-default"
+                  >
+                    {editedCaption || <span className="text-gray-400">Click to add a caption…</span>}
+                  </button>
+                )}
+              </div>
 
               {/* Status + Pipeline */}
               <div className="border-t border-gray-100 pt-4">

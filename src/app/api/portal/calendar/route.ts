@@ -269,11 +269,17 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { token, postId, scheduled_date } = body;
+    const { token, postId, scheduled_date, caption } = body;
 
-    if (!token || !postId || !scheduled_date) {
+    if (!token || !postId) {
       return NextResponse.json(
-        { error: 'token, postId, and scheduled_date are required' },
+        { error: 'token and postId are required' },
+        { status: 400 }
+      );
+    }
+    if (scheduled_date === undefined && caption === undefined) {
+      return NextResponse.json(
+        { error: 'At least one of scheduled_date or caption is required' },
         { status: 400 }
       );
     }
@@ -303,9 +309,13 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (scheduled_date !== undefined) updates.scheduled_date = scheduled_date;
+    if (caption !== undefined) updates.caption = caption;
+
     const { error: updateError } = await supabase
       .from('calendar_scheduled_posts')
-      .update({ scheduled_date })
+      .update(updates)
       .eq('id', postId);
 
     if (updateError) {

@@ -115,6 +115,7 @@ interface Props {
   onActioned: () => void;
   onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
   onNotesChange?: (uploadId: string, notes: string | null) => void;
+  onCaptionChange?: (postId: string, caption: string) => void;
   onDeleteUpload?: (uploadIds: string[]) => void;
   brandName?: string;
   brandLogoUrl?: string;
@@ -210,7 +211,7 @@ function PipelineSteps({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function PortalItemModal({ item, portalToken, party, onClose, onActioned, onTagsChange, onNotesChange, onDeleteUpload, brandName, brandLogoUrl }: Props) {
+export function PortalItemModal({ item, portalToken, party, onClose, onActioned, onTagsChange, onNotesChange, onCaptionChange, onDeleteUpload, brandName, brandLogoUrl }: Props) {
   const isPost = item.type === "post";
   const isUpload = item.type === "upload";
 
@@ -297,6 +298,14 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   const [notesSaveError, setNotesSaveError] = useState<string | null>(null);
   const [notesSaved, setNotesSaved] = useState(false);
   const notesChanged = isUpload && editedNotes !== initialNotes;
+
+  // Editable caption (posts only)
+  const initialCaption = isPost ? (item.data as ModalPost).caption || "" : "";
+  const [isEditingCaption, setIsEditingCaption] = useState(false);
+  const [editedCaption, setEditedCaption] = useState<string>(initialCaption);
+  const [isSavingCaption, setIsSavingCaption] = useState(false);
+  const [captionSaveError, setCaptionSaveError] = useState<string | null>(null);
+  const [captionSaved, setCaptionSaved] = useState(false);
 
   // Tags (posts and uploads)
   const [postTags, setPostTags] = useState<Array<{ id: string; name: string; color: string }>>(
@@ -572,6 +581,49 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     }
   };
 
+  // ── Save caption ─────────────────────────────────────────────────────────
+
+  const handleSaveCaption = async () => {
+    if (!isPost) return;
+    if (editedCaption === initialCaption) {
+      setIsEditingCaption(false);
+      return;
+    }
+    setIsSavingCaption(true);
+    setCaptionSaveError(null);
+    setCaptionSaved(false);
+    try {
+      const res = await fetch("/api/portal/calendar", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: portalToken,
+          postId: (item.data as ModalPost).id,
+          caption: editedCaption,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setCaptionSaveError(data.error ?? "Failed to save");
+        return;
+      }
+      onCaptionChange?.((item.data as ModalPost).id, editedCaption);
+      setIsEditingCaption(false);
+      setCaptionSaved(true);
+      setTimeout(() => setCaptionSaved(false), 2000);
+    } catch {
+      setCaptionSaveError("Failed to save caption");
+    } finally {
+      setIsSavingCaption(false);
+    }
+  };
+
+  const handleCancelCaptionEdit = () => {
+    setEditedCaption(initialCaption);
+    setIsEditingCaption(false);
+    setCaptionSaveError(null);
+  };
+
   // ── Save scheduled date ──────────────────────────────────────────────────
 
   const handleSaveDate = async () => {
@@ -723,18 +775,6 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
 
   const title = isPost ? "Post" : (item.data as ModalUpload).file_name;
 
-  const rawCopyText = isPost
-    ? (item.data as ModalPost).caption
-    : (item.data as ModalUpload).notes;
-
-  const copyText = rawCopyText
-    ? rawCopyText
-        .split('\n')
-        .filter(line => !/^\[.*?—.*?—.*?\]:/.test(line))
-        .join('\n')
-        .trim() || null
-    : rawCopyText;
-
   const approvalStatus = isPost
     ? (item.data as ModalPost).approval_status
     : ((item.data as ModalUpload).one_time_approval?.approval_status ?? mapUploadStatus((item.data as ModalUpload).status));
@@ -884,7 +924,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                     accountAvatarUrl={brandLogoUrl}
                     caption={
                       isPost
-                        ? (item.data as ModalPost).caption || ""
+                        ? editedCaption
                         : (item.data as ModalUpload).notes || ""
                     }
                     imageUrl={imageUrl ?? undefined}
@@ -993,16 +1033,72 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
 
               {/* Copy / Caption */}
               {isPost ? (
-                copyText && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
                       Caption
                     </p>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-100">
-                      {copyText}
-                    </p>
+                    {captionSaved && (
+                      <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> Saved
+                      </span>
+                    )}
                   </div>
-                )
+                  {isEditingCaption ? (
+                    <div>
+                      <Textarea
+                        autoFocus
+                        value={editedCaption}
+                        onChange={(e) => setEditedCaption(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                            e.preventDefault();
+                            handleSaveCaption();
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            handleCancelCaptionEdit();
+                          }
+                        }}
+                        placeholder="Add a caption..."
+                        className="text-sm min-h-[100px] resize-none"
+                        disabled={isSavingCaption}
+                      />
+                      {captionSaveError && (
+                        <p className="text-xs text-red-600 mt-1">{captionSaveError}</p>
+                      )}
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={handleSaveCaption}
+                          disabled={isSavingCaption || editedCaption === initialCaption}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+                        >
+                          {isSavingCaption ? (
+                            <><Loader2 className="w-3 h-3 animate-spin" /> Saving…</>
+                          ) : (
+                            "Save"
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelCaptionEdit}
+                          disabled={isSavingCaption}
+                          className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingCaption(true)}
+                      className="w-full text-left text-sm text-gray-700 whitespace-pre-wrap leading-relaxed bg-gray-50 hover:bg-gray-100 rounded-lg p-3 border border-gray-100 transition-colors"
+                    >
+                      {editedCaption || <span className="text-gray-400">Click to add a caption…</span>}
+                    </button>
+                  )}
+                </div>
               ) : (
                 <div>
                   <div className="flex items-center justify-between mb-1.5">

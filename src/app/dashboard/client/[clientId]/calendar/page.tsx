@@ -1123,8 +1123,8 @@ export default function CalendarPage() {
     }
   };
 
-  const handleUpdateCaption = async (post: Post, newCaption: string) => {
-    if (newCaption === post.caption) return;
+  const handleUpdateCaption = async (post: Post, newCaption: string): Promise<boolean> => {
+    if (newCaption === post.caption) return true;
 
     try {
       // Add to saving caption state
@@ -1165,10 +1165,12 @@ export default function CalendarPage() {
       });
 
       console.log('Caption updated successfully');
+      return true;
     } catch (error) {
       console.error('Error updating caption:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setError(`Failed to update caption: ${errorMessage}`);
+      return false;
     } finally {
       // Remove from saving caption state
       setSavingCaptionPostIds(prev => {
@@ -3081,6 +3083,12 @@ export default function CalendarPage() {
           authorName={user?.user_metadata?.full_name || user?.email || 'Agency'}
           accountName={clientName || undefined}
           accountAvatarUrl={clientLogoUrl || undefined}
+          isSavingCaption={savingCaptionPostIds.has(postDetailModal.id)}
+          onSaveCaption={async (newCaption) => {
+            const ok = await handleUpdateCaption({ id: postDetailModal.id, caption: postDetailModal.caption } as Post, newCaption);
+            if (ok) setPostDetailModal(prev => prev ? { ...prev, caption: newCaption } : prev);
+            return ok;
+          }}
         />
       )}
 
