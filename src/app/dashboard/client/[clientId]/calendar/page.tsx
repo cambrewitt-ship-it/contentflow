@@ -210,6 +210,7 @@ export default function CalendarPage() {
   const [schedulingPostIds, setSchedulingPostIds] = useState<Set<string>>(new Set());
   const [editingTimePostIds, setEditingTimePostIds] = useState<Set<string>>(new Set());
   const [savingCaptionPostIds, setSavingCaptionPostIds] = useState<Set<string>>(new Set());
+  const [resubmittingPostIds, setResubmittingPostIds] = useState<Set<string>>(new Set());
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
@@ -232,6 +233,9 @@ export default function CalendarPage() {
   const [quickSchedule, setQuickSchedule] = useState<{
     weekStart: Date;
     post: Post;
+    // 'schedule' = an unscheduled post/photo dropped in, needs a new scheduled_posts row.
+    // 'move' = an already-scheduled post dragged into a different week, just needs its date updated.
+    mode: 'schedule' | 'move';
   } | null>(null);
   const [quickScheduleSubmitting, setQuickScheduleSubmitting] = useState(false);
   const clientPortalRef = useRef<HTMLDivElement>(null);
@@ -1181,6 +1185,52 @@ export default function CalendarPage() {
     }
   };
 
+  const handleResubmitPost = async (postId: string): Promise<boolean> => {
+    try {
+      setResubmittingPostIds(prev => new Set([...prev, postId]));
+
+      const accessToken = requireAccessToken();
+      const response = await fetch(`/api/posts/${postId}/resubmit`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ post_type: 'calendar_scheduled' })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to resubmit post');
+      }
+
+      // Update local state
+      setScheduledPosts(prevScheduled => {
+        const updated = { ...prevScheduled };
+        Object.keys(updated).forEach(date => {
+          updated[date] = updated[date].map(p =>
+            p.id === postId
+              ? { ...p, approval_status: 'pending', needs_attention: false, client_feedback: undefined }
+              : p
+          );
+        });
+        return updated;
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error resubmitting post:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Failed to resubmit post: ${errorMessage}`);
+      return false;
+    } finally {
+      setResubmittingPostIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(postId);
+        return newSet;
+      });
+    }
+  };
+
   const handleDrop = async (e: React.DragEvent, weekIndex: number, dayIndex: number) => {
     e.preventDefault();
     const postData = e.dataTransfer.getData('post');
@@ -1461,6 +1511,59 @@ export default function CalendarPage() {
       setError(error instanceof Error ? error.message : 'Failed to move post');
     } finally {
       setMovingPostId(null);
+    }
+  };
+
+  // Looks up an already-scheduled post by id (regardless of week) and re-opens the quick-schedule
+  // day picker for it — used when a post is dragged into a different week's empty space/"Add post"
+  // button, where dnd-kit knows the target week but not which day the user wants within it.
+  const handlePostMoveToWeek = (postKey: string, weekStart: Date) => {
+    const firstHyphenIndex = postKey.indexOf('-');
+    if (firstHyphenIndex === -1) return;
+    const postType = postKey.substring(0, firstHyphenIndex);
+    const postId = postKey.substring(firstHyphenIndex + 1);
+
+    let found: Post | null = null;
+    Object.values(scheduledPosts).forEach(posts => {
+      const match = posts.find(p => p.id === postId && (p.post_type || 'post') === postType);
+      if (match) found = match;
+    });
+    if (!found) return;
+    setQuickSchedule({ weekStart, post: found, mode: 'move' });
+  };
+
+  // Changes only the day-of-week for an already-scheduled post, keeping its time — used by the
+  // post detail modal's inline day picker (choosing another day within the post's current week).
+  const handleChangePostDate = async (postId: string, newDateKey: string): Promise<boolean> => {
+    let postToMove: Post | null = null;
+    let oldDateKey: string | null = null;
+    Object.entries(scheduledPosts).forEach(([dateKey, posts]) => {
+      const found = posts.find(p => p.id === postId);
+      if (found) { postToMove = found; oldDateKey = dateKey; }
+    });
+    if (!postToMove || !oldDateKey || oldDateKey === newDateKey) return false;
+
+    try {
+      const accessToken = requireAccessToken();
+      const response = await fetch('/api/calendar/scheduled', {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId, updates: { scheduled_date: newDateKey } }),
+      });
+      if (!response.ok) throw new Error(`Failed to update date: ${response.statusText}`);
+      setScheduledPosts(prev => {
+        const updated = { ...prev };
+        if (updated[oldDateKey!]) {
+          updated[oldDateKey!] = updated[oldDateKey!].filter(p => p.id !== postId);
+          if (updated[oldDateKey!].length === 0) delete updated[oldDateKey!];
+        }
+        updated[newDateKey] = [...(updated[newDateKey] || []), { ...(postToMove as Post), scheduled_date: newDateKey }];
+        return updated;
+      });
+      return true;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to update date');
+      return false;
     }
   };
 
@@ -2948,12 +3051,13 @@ export default function CalendarPage() {
                     await scheduleUnscheduledPost(post, dateKey, '12:00');
                   }}
                   onPostMove={handleColumnPostMove}
+                  onPostMoveToWeek={handlePostMoveToWeek}
                   onAddCardClick={(weekStart) => setCreatePostModal({ open: true, weekStart })}
                   onAddButtonDrop={(e: React.DragEvent, weekStart: Date) => {
                     const postData = e.dataTransfer.getData('post');
                     if (!postData) return;
                     const post = JSON.parse(postData);
-                    setQuickSchedule({ weekStart, post });
+                    setQuickSchedule({ weekStart, post, mode: 'schedule' });
                   }}
                   onAddNoteForWeek={handleOpenEventModalForWeek}
                 />
@@ -3089,6 +3193,17 @@ export default function CalendarPage() {
             if (ok) setPostDetailModal(prev => prev ? { ...prev, caption: newCaption } : prev);
             return ok;
           }}
+          isResubmitting={resubmittingPostIds.has(postDetailModal.id)}
+          onResubmit={async () => {
+            const ok = await handleResubmitPost(postDetailModal.id);
+            if (ok) setPostDetailModal(prev => prev ? { ...prev, approval_status: 'pending' } : prev);
+            return ok;
+          }}
+          onChangeDate={async (newDateKey) => {
+            const ok = await handleChangePostDate(postDetailModal.id, newDateKey);
+            if (ok) setPostDetailModal(prev => prev ? { ...prev, scheduled_date: newDateKey } : prev);
+            return ok;
+          }}
         />
       )}
 
@@ -3153,11 +3268,19 @@ export default function CalendarPage() {
           onOpenChange={(open) => { if (!open) setQuickSchedule(null); }}
           weekStart={quickSchedule.weekStart}
           imageUrl={quickSchedule.post.image_url}
+          showTimeField={quickSchedule.mode === 'schedule'}
+          title={quickSchedule.mode === 'move' ? 'Move this post' : undefined}
+          confirmLabel={quickSchedule.mode === 'move' ? 'Move' : undefined}
+          submittingLabel={quickSchedule.mode === 'move' ? 'Moving...' : undefined}
           isSubmitting={quickScheduleSubmitting}
           onConfirm={async (dateKey, time) => {
             setQuickScheduleSubmitting(true);
             try {
-              await scheduleUnscheduledPost(quickSchedule.post, dateKey, time);
+              if (quickSchedule.mode === 'move') {
+                await handleColumnPostMove(`${quickSchedule.post.post_type || 'post'}-${quickSchedule.post.id}`, dateKey);
+              } else {
+                await scheduleUnscheduledPost(quickSchedule.post, dateKey, time);
+              }
               setQuickSchedule(null);
             } finally {
               setQuickScheduleSubmitting(false);

@@ -390,6 +390,16 @@ export default function PortalCalendarPage() {
   } | null>(null);
   const [quickScheduleSubmitting, setQuickScheduleSubmitting] = useState(false);
 
+  // An already-scheduled post/upload dragged into a different week's empty space (or its "Add
+  // post" button) — dnd-kit knows the target week but not which day, so this opens a day-only
+  // picker rather than moving straight away like a drop onto a specific day/card does.
+  const [moveToWeekModal, setMoveToWeekModal] = useState<{
+    weekStart: Date;
+    kind: 'post' | 'upload';
+    id: string;
+    imageUrl?: string;
+  } | null>(null);
+
   // Inbox-specific states
   const [inboxUploading, setInboxUploading] = useState(false);
   const [inboxDragOver, setInboxDragOver] = useState(false);
@@ -2077,6 +2087,21 @@ export default function PortalCalendarPage() {
                 setPortalEventModalWeekStart(weekStart);
                 setPortalEventModal({ date: weekStart.toLocaleDateString('en-CA') });
               }}
+              onPostMoveToWeek={(postKey, weekStart) => {
+                const firstHyphenIndex = postKey.indexOf('-');
+                const postId = firstHyphenIndex >= 0 ? postKey.substring(firstHyphenIndex + 1) : postKey;
+                let found: Post | undefined;
+                Object.values(scheduledPosts).forEach(posts => {
+                  const match = posts.find(p => p.id === postId);
+                  if (match) found = match;
+                });
+                if (!found) return;
+                setMoveToWeekModal({ weekStart, kind: 'post', id: postId, imageUrl: found.image_url });
+              }}
+              onUploadMoveToWeek={(uploadId, weekStart) => {
+                const upload = allUploads.find(u => u.id === uploadId);
+                setMoveToWeekModal({ weekStart, kind: 'upload', id: uploadId, imageUrl: upload?.file_url });
+              }}
               selectedPosts={selectedPosts}
               onPostSelection={handlePostSelection}
               comments={comments}
@@ -2438,6 +2463,51 @@ export default function PortalCalendarPage() {
               setQuickScheduleQueueDrop(null);
             } finally {
               setQuickScheduleSubmitting(false);
+            }
+          }}
+        />
+      )}
+
+      {moveToWeekModal && (
+        <QuickScheduleDayTimePicker
+          open={!!moveToWeekModal}
+          onOpenChange={(open) => { if (!open) setMoveToWeekModal(null); }}
+          weekStart={moveToWeekModal.weekStart}
+          imageUrl={moveToWeekModal.imageUrl}
+          showTimeField={false}
+          title="Move this post"
+          confirmLabel="Move"
+          submittingLabel="Moving..."
+          isSubmitting={quickScheduleSubmitting}
+          onConfirm={async (dateKey) => {
+            setQuickScheduleSubmitting(true);
+            try {
+              if (moveToWeekModal.kind === 'post') {
+                await handleColumnPostMove(`post-${moveToWeekModal.id}`, dateKey);
+              } else {
+                const upload = allUploads.find(u => u.id === moveToWeekModal.id);
+                const groupIds = upload?.carousel_group_id
+                  ? allUploads.filter(u => u.carousel_group_id === upload.carousel_group_id).map(u => u.id)
+                  : [moveToWeekModal.id];
+                setMovingUploadId(moveToWeekModal.id);
+                setMovingToDate(dateKey);
+                await Promise.all(groupIds.map(id =>
+                  fetch('/api/portal/upload', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, uploadId: id, targetDate: dateKey }),
+                  })
+                ));
+                await fetchUploads();
+                fetchScheduledPosts(0, true);
+                setKanbanRefreshKey(k => k + 1);
+                setQueueRefreshKey(k => k + 1);
+              }
+              setMoveToWeekModal(null);
+            } finally {
+              setQuickScheduleSubmitting(false);
+              setMovingUploadId(null);
+              setMovingToDate(null);
             }
           }}
         />

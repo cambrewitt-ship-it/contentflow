@@ -123,6 +123,7 @@ interface ColumnViewCalendarProps {
   onAddCardClick?: (weekStart: Date) => void;
   onAddButtonDrop?: (e: React.DragEvent, weekStart: Date) => void;
   onAddNoteForWeek?: (weekStart: Date) => void;
+  onPostMoveToWeek?: (postKey: string, weekStart: Date) => void;
   onDeletePost?: (post: Post) => void | Promise<void>;
   onDuplicatePost?: (post: Post) => void | Promise<void>;
   deletingPostIds?: Set<string>;
@@ -1149,7 +1150,7 @@ function WeekColumnBody({
 }) {
   const { setNodeRef } = useDroppable({
     id: `week-fallback-${weekStart.toISOString()}`,
-    data: { dateKey: null },
+    data: { dateKey: null, weekStart: weekStart.toISOString() },
   });
 
   const postItems = entries
@@ -1241,6 +1242,7 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
   onAddCardClick,
   onAddButtonDrop,
   onAddNoteForWeek,
+  onPostMoveToWeek,
   onDeletePost,
   onDuplicatePost,
   deletingPostIds,
@@ -1403,22 +1405,31 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
       return;
     }
 
-    if (!over || !onPostMove) {
-      logger.debug('🔵 No over target or onPostMove handler');
+    if (!over) {
+      logger.debug('🔵 No over target');
       setActiveId(null);
       return;
     }
 
     // Every drop target (a post card, a date divider, or the week-fallback zone) carries its
-    // own dateKey via useSortable/useDroppable `data` — no need to re-search the columns.
-    const targetDateKey = (over.data.current as { dateKey?: string } | undefined)?.dateKey ?? null;
+    // own dateKey via useSortable/useDroppable `data` — no need to re-search the columns. The
+    // week-fallback zone (empty space in a week column, including the "Add post" button) has no
+    // dateKey since it doesn't know which day was intended — it carries the week's start instead,
+    // so the caller can ask the user which day via a picker.
+    const overData = over.data.current as { dateKey?: string | null; weekStart?: string } | undefined;
+    const targetDateKey = overData?.dateKey ?? null;
     const currentDateKey = (active.data.current as { dateKey?: string } | undefined)?.dateKey ?? null;
 
-    if (targetDateKey && targetDateKey !== currentDateKey) {
-      logger.debug('🔵 Moving post from', currentDateKey, 'to:', targetDateKey);
-      onPostMove(activeIdStr, targetDateKey);
-    } else {
-      logger.debug('🔵 No valid target found or same location', { targetDateKey, currentDateKey });
+    if (targetDateKey) {
+      if (targetDateKey !== currentDateKey && onPostMove) {
+        logger.debug('🔵 Moving post from', currentDateKey, 'to:', targetDateKey);
+        onPostMove(activeIdStr, targetDateKey);
+      } else {
+        logger.debug('🔵 No valid target found or same location', { targetDateKey, currentDateKey });
+      }
+    } else if (overData?.weekStart && onPostMoveToWeek) {
+      logger.debug('🔵 Dropped in week-fallback zone, asking which day:', overData.weekStart);
+      onPostMoveToWeek(activeIdStr, new Date(overData.weekStart));
     }
 
     setActiveId(null);

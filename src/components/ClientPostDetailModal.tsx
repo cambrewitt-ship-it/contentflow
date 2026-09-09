@@ -10,9 +10,11 @@ import {
   MessageSquare,
   Calendar,
   ArrowUp,
+  RotateCcw,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
+import { WeekDayChooser } from "@/components/WeekDayChooser";
 import logger from "@/lib/logger";
 
 interface ApprovalStep {
@@ -54,6 +56,19 @@ interface Props {
   accountAvatarUrl?: string;
   onSaveCaption?: (newCaption: string) => Promise<boolean>;
   isSavingCaption?: boolean;
+  onResubmit?: () => Promise<boolean>;
+  isResubmitting?: boolean;
+  onChangeDate?: (newDateKey: string) => Promise<boolean>;
+  isChangingDate?: boolean;
+}
+
+function weekStartForDateKey(dateKey: string): Date {
+  const date = new Date(dateKey + "T12:00:00");
+  const dayOfWeek = date.getDay();
+  const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+  date.setDate(diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
 }
 
 type PreviewPlatform = "facebook" | "instagram" | "twitter";
@@ -139,7 +154,7 @@ function PipelineSteps({ steps }: { steps: ApprovalStep[] }) {
   );
 }
 
-export function ClientPostDetailModal({ post, onClose, getAccessToken, authorName, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption }: Props) {
+export function ClientPostDetailModal({ post, onClose, getAccessToken, authorName, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate }: Props) {
   const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform>(() =>
     pickDefaultPlatform(post.platforms_scheduled)
   );
@@ -172,6 +187,23 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
     setEditedCaption(initialCaption);
     setIsEditingCaption(false);
     setCaptionSaveError(null);
+  };
+
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [dateChangeError, setDateChangeError] = useState<string | null>(null);
+
+  const handleSelectDate = async (newDateKey: string) => {
+    if (!onChangeDate || newDateKey === post.scheduled_date) {
+      setIsDatePickerOpen(false);
+      return;
+    }
+    setDateChangeError(null);
+    const ok = await onChangeDate(newDateKey);
+    if (!ok) {
+      setDateChangeError("Failed to update date");
+      return;
+    }
+    setIsDatePickerOpen(false);
   };
 
   const [steps, setSteps] = useState<ApprovalStep[]>([]);
@@ -229,6 +261,19 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
     fetchComments();
   }, [fetchPipeline, fetchComments]);
 
+  const [resubmitError, setResubmitError] = useState<string | null>(null);
+
+  const handleResubmit = async () => {
+    if (!onResubmit) return;
+    setResubmitError(null);
+    const ok = await onResubmit();
+    if (!ok) {
+      setResubmitError("Failed to resubmit for approval");
+      return;
+    }
+    fetchPipeline();
+  };
+
   useEffect(() => {
     if (!isLoadingComments && comments.length > 0) scrollToBottom();
   }, [isLoadingComments, comments.length]);
@@ -281,20 +326,42 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Calendar Post
-            </span>
-            {post.scheduled_date && (
-              <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
-                <Calendar className="w-3 h-3" />
-                {new Date(post.scheduled_date + "T12:00:00").toLocaleDateString("en-GB", {
-                  weekday: "short",
-                  day: "numeric",
-                  month: "short",
-                })}
+        <div className="flex items-start justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
+          <div className="flex flex-col gap-2 min-w-0 flex-1">
+            <div className="flex items-center gap-2 min-w-0 h-5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Calendar Post
               </span>
+              {post.scheduled_date && (
+                <button
+                  type="button"
+                  onClick={() => onChangeDate && setIsDatePickerOpen((open) => !open)}
+                  disabled={!onChangeDate || isChangingDate}
+                  className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-full px-2 py-0.5 transition-colors disabled:hover:bg-gray-100"
+                  title={onChangeDate ? "Change the day within this week" : undefined}
+                >
+                  <Calendar className="w-3 h-3" />
+                  {new Date(post.scheduled_date + "T12:00:00").toLocaleDateString("en-GB", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                  })}
+                  {isChangingDate && <Loader2 className="w-3 h-3 animate-spin" />}
+                </button>
+              )}
+            </div>
+            {isDatePickerOpen && post.scheduled_date && (
+              <div className="pt-1 max-w-xs">
+                <WeekDayChooser
+                  weekStart={weekStartForDateKey(post.scheduled_date)}
+                  selectedDateKey={post.scheduled_date}
+                  onSelect={handleSelectDate}
+                  disabled={isChangingDate}
+                />
+                {dateChangeError && (
+                  <p className="text-xs text-red-600 mt-1">{dateChangeError}</p>
+                )}
+              </div>
             )}
           </div>
           <button
@@ -429,12 +496,31 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
 
               {/* Status + Pipeline */}
               <div className="border-t border-gray-100 pt-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                    Approval Status
-                  </p>
-                  <StatusBadge status={post.approval_status} />
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      Approval Status
+                    </p>
+                    <StatusBadge status={post.approval_status} />
+                  </div>
+                  {(post.approval_status === "needs_attention" || post.approval_status === "changes_requested") && onResubmit && (
+                    <button
+                      type="button"
+                      onClick={handleResubmit}
+                      disabled={isResubmitting}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+                    >
+                      {isResubmitting ? (
+                        <><Loader2 className="w-3 h-3 animate-spin" /> Resubmitting…</>
+                      ) : (
+                        <><RotateCcw className="w-3 h-3" /> Resubmit for approval</>
+                      )}
+                    </button>
+                  )}
                 </div>
+                {resubmitError && (
+                  <p className="text-xs text-red-600 mb-3">{resubmitError}</p>
+                )}
                 {isLoadingPipeline ? (
                   <div className="flex items-center gap-2 text-sm text-gray-400">
                     <Loader2 className="w-4 h-4 animate-spin" /> Loading...

@@ -22,8 +22,18 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { PortalTagDropdown } from "@/components/PortalTagDropdown";
+import { WeekDayChooser } from "@/components/WeekDayChooser";
 import { PortalParty } from "@/contexts/PortalContext";
 import logger from "@/lib/logger";
+
+function weekStartForDateKey(dateKey: string): Date {
+  const date = new Date(dateKey + "T12:00:00");
+  const dayOfWeek = date.getDay();
+  const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+  date.setDate(diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -219,6 +229,12 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     ? (item.data as ModalPost).scheduled_date
     : (item.data as ModalUpload).target_date ?? (item.data as ModalUpload).created_at;
   const initialDateKey = dateStr ? new Date(dateStr).toLocaleDateString("en-CA") : "";
+  // Whether this item is actually sitting in a week column already (vs. an inbox item that
+  // falls back to its upload timestamp for display only) — determines whether changing the
+  // date offers a week-scoped day picker or a free date input to place it anywhere.
+  const hasAssignedDate = isPost
+    ? !!(item.data as ModalPost).scheduled_date
+    : !!(item.data as ModalUpload).target_date;
 
   // Carousel state — for upload groups and posts with multiple media URLs
   const carouselItems: ModalUpload[] | null =
@@ -626,8 +642,9 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
 
   // ── Save scheduled date ──────────────────────────────────────────────────
 
-  const handleSaveDate = async () => {
-    if (!editDateValue || editDateValue === initialDateKey) {
+  const handleSaveDate = async (dateKeyOverride?: string) => {
+    const nextDateKey = dateKeyOverride ?? editDateValue;
+    if (!nextDateKey || nextDateKey === initialDateKey) {
       setIsEditingDate(false);
       return;
     }
@@ -641,7 +658,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
           body: JSON.stringify({
             token: portalToken,
             postId: (item.data as ModalPost).id,
-            scheduled_date: editDateValue,
+            scheduled_date: nextDateKey,
           }),
         });
         if (!res.ok) {
@@ -658,7 +675,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
           fetch("/api/portal/upload", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token: portalToken, uploadId, targetDate: editDateValue }),
+            body: JSON.stringify({ token: portalToken, uploadId, targetDate: nextDateKey }),
           })
         ));
         if (results.some(r => !r.ok)) {
@@ -666,6 +683,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
           return;
         }
       }
+      setEditDateValue(nextDateKey);
       setIsEditingDate(false);
       onActioned();
     } catch {
@@ -789,57 +807,81 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
 
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-              {isPost ? "Calendar Post" : "Queue Item"}
-            </span>
-            {isEditingDate ? (
-              <div className="flex items-center gap-1">
-                <input
-                  type="date"
-                  value={editDateValue}
-                  onChange={(e) => setEditDateValue(e.target.value)}
+        <div className="flex items-start justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
+          <div className="flex flex-col gap-2 min-w-0 flex-1">
+            <div className="flex items-center gap-2 min-w-0 h-5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                {isPost ? "Calendar Post" : "Queue Item"}
+              </span>
+              {isEditingDate && !hasAssignedDate ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="date"
+                    value={editDateValue}
+                    onChange={(e) => setEditDateValue(e.target.value)}
+                    disabled={isSavingDate}
+                    className="text-xs border border-gray-200 rounded-full px-2 py-0.5 text-gray-700 disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleSaveDate()}
+                    disabled={isSavingDate || !editDateValue}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-white bg-gray-900 rounded-full px-2 py-0.5 hover:bg-gray-700 transition-colors disabled:opacity-40"
+                  >
+                    {isSavingDate ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIsEditingDate(false); setEditDateValue(initialDateKey); setDateSaveError(null); }}
+                    disabled={isSavingDate}
+                    className="text-xs text-gray-400 hover:text-gray-600 px-1 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingDate((open) => !open)}
+                  className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-full px-2 py-0.5 transition-colors"
+                  title={hasAssignedDate ? "Change the day within this week" : "Set date"}
+                >
+                  <Calendar className="w-3 h-3" />
+                  {dateStr
+                    ? new Date(dateStr).toLocaleDateString("en-GB", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                      })
+                    : "Set date"}
+                  {isSavingDate ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Pencil className="w-2.5 h-2.5 opacity-60" />
+                  )}
+                </button>
+              )}
+              {dateSaveError && (
+                <span className="text-xs text-red-600">{dateSaveError}</span>
+              )}
+            </div>
+            {isEditingDate && hasAssignedDate && (
+              <div className="pt-1 max-w-xs">
+                <WeekDayChooser
+                  weekStart={weekStartForDateKey(editDateValue || initialDateKey)}
+                  selectedDateKey={editDateValue || initialDateKey}
+                  onSelect={(dateKey) => handleSaveDate(dateKey)}
                   disabled={isSavingDate}
-                  className="text-xs border border-gray-200 rounded-full px-2 py-0.5 text-gray-700 disabled:opacity-50"
                 />
                 <button
                   type="button"
-                  onClick={handleSaveDate}
-                  disabled={isSavingDate || !editDateValue}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-white bg-gray-900 rounded-full px-2 py-0.5 hover:bg-gray-700 transition-colors disabled:opacity-40"
-                >
-                  {isSavingDate ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setIsEditingDate(false); setEditDateValue(initialDateKey); setDateSaveError(null); }}
+                  onClick={() => { setIsEditingDate(false); setDateSaveError(null); }}
                   disabled={isSavingDate}
-                  className="text-xs text-gray-400 hover:text-gray-600 px-1 disabled:opacity-50"
+                  className="text-xs text-gray-400 hover:text-gray-600 mt-1 disabled:opacity-50"
                 >
                   Cancel
                 </button>
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsEditingDate(true)}
-                className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-full px-2 py-0.5 transition-colors"
-                title="Change date"
-              >
-                <Calendar className="w-3 h-3" />
-                {dateStr
-                  ? new Date(dateStr).toLocaleDateString("en-GB", {
-                      weekday: "short",
-                      day: "numeric",
-                      month: "short",
-                    })
-                  : "Set date"}
-                <Pencil className="w-2.5 h-2.5 opacity-60" />
-              </button>
-            )}
-            {dateSaveError && (
-              <span className="text-xs text-red-600">{dateSaveError}</span>
             )}
           </div>
           <div className="flex items-center gap-1.5">

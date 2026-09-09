@@ -13,6 +13,9 @@ interface QuickScheduleDayTimePickerProps {
   weekStart: Date;
   imageUrl?: string;
   showTimeField?: boolean;
+  title?: string;
+  confirmLabel?: string;
+  submittingLabel?: string;
   onConfirm: (dateKey: string, time: string) => void;
   isSubmitting?: boolean;
 }
@@ -23,6 +26,9 @@ export function QuickScheduleDayTimePicker({
   weekStart,
   imageUrl,
   showTimeField = true,
+  title = 'Schedule this post',
+  confirmLabel = 'Schedule',
+  submittingLabel = 'Scheduling...',
   onConfirm,
   isSubmitting = false,
 }: QuickScheduleDayTimePickerProps) {
@@ -49,7 +55,7 @@ export function QuickScheduleDayTimePicker({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Schedule this post
+            {title}
           </DialogTitle>
         </DialogHeader>
 
@@ -104,10 +110,10 @@ export function QuickScheduleDayTimePicker({
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Scheduling...
+                  {submittingLabel}
                 </>
               ) : (
-                'Schedule'
+                confirmLabel
               )}
             </Button>
           </div>

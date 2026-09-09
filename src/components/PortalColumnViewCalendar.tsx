@@ -87,6 +87,8 @@ interface PortalColumnViewCalendarProps {
   onAddCardClick?: (weekStart: Date) => void;
   onAddButtonDrop?: (e: React.DragEvent, weekStart: Date) => void;
   onAddNoteForWeek?: (weekStart: Date) => void;
+  onPostMoveToWeek?: (postKey: string, weekStart: Date) => void;
+  onUploadMoveToWeek?: (uploadId: string, weekStart: Date) => void;
   selectedPosts: {[key: string]: 'approved' | 'rejected' | 'needs_attention'};
   onPostSelection: (postKey: string, status: 'approved' | 'rejected' | 'needs_attention' | null) => void;
   comments: {[key: string]: string};
@@ -838,7 +840,7 @@ function WeekColumnBody({
 }) {
   const { setNodeRef } = useDroppable({
     id: `week-fallback-${weekStart.toISOString()}`,
-    data: { dateKey: null },
+    data: { dateKey: null, weekStart: weekStart.toISOString() },
   });
 
   // Prefer the page-level onDrop handler; fall back to onQueueItemDrop's raw dataTransfer
@@ -946,6 +948,8 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
   onAddCardClick,
   onAddButtonDrop,
   onAddNoteForWeek,
+  onPostMoveToWeek,
+  onUploadMoveToWeek,
   selectedPosts,
   onPostSelection,
   comments,
@@ -1116,8 +1120,8 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
 
     logger.debug('🔵 ColumnView DragEnd:', { activeId: active.id, overId: over?.id });
 
-    if (!over || !onPostMove) {
-      logger.debug('🔵 No over target or onPostMove handler');
+    if (!over) {
+      logger.debug('🔵 No over target');
       setActiveId(null);
       return;
     }
@@ -1125,21 +1129,37 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
     const activeId = active.id as string;
 
     // Every drop target (a post card, a date divider, or the week-fallback zone) carries its
-    // own dateKey via useSortable/useDroppable `data` — no need to re-search the columns.
-    const targetDateKey = (over.data.current as { dateKey?: string } | undefined)?.dateKey ?? null;
+    // own dateKey via useSortable/useDroppable `data` — no need to re-search the columns. The
+    // week-fallback zone (empty space in a week column, including the "Add post" button) has no
+    // dateKey since it doesn't know which day was intended — it carries the week's start instead,
+    // so the caller can ask which day via a picker.
+    const overData = over.data.current as { dateKey?: string | null; weekStart?: string } | undefined;
+    const targetDateKey = overData?.dateKey ?? null;
     const currentDateKey = (active.data.current as { dateKey?: string } | undefined)?.dateKey ?? null;
 
-    if (targetDateKey && targetDateKey !== currentDateKey) {
+    if (targetDateKey) {
+      if (targetDateKey !== currentDateKey) {
+        if (activeId.startsWith('client-upload-')) {
+          const uploadId = activeId.replace('client-upload-', '');
+          logger.debug('🔵 Moving portal upload', uploadId, 'to:', targetDateKey);
+          onQueueItemDrop?.(uploadId, targetDateKey);
+        } else if (onPostMove) {
+          logger.debug('🔵 Moving post from', currentDateKey, 'to:', targetDateKey);
+          onPostMove(activeId, targetDateKey);
+        }
+      } else {
+        logger.debug('🔵 No valid target found or same location', { targetDateKey, currentDateKey });
+      }
+    } else if (overData?.weekStart) {
+      const weekStart = new Date(overData.weekStart);
       if (activeId.startsWith('client-upload-')) {
         const uploadId = activeId.replace('client-upload-', '');
-        logger.debug('🔵 Moving portal upload', uploadId, 'to:', targetDateKey);
-        onQueueItemDrop?.(uploadId, targetDateKey);
+        logger.debug('🔵 Dropped upload in week-fallback zone, asking which day:', overData.weekStart);
+        onUploadMoveToWeek?.(uploadId, weekStart);
       } else {
-        logger.debug('🔵 Moving post from', currentDateKey, 'to:', targetDateKey);
-        onPostMove(activeId, targetDateKey);
+        logger.debug('🔵 Dropped post in week-fallback zone, asking which day:', overData.weekStart);
+        onPostMoveToWeek?.(activeId, weekStart);
       }
-    } else {
-      logger.debug('🔵 No valid target found or same location', { targetDateKey, currentDateKey });
     }
 
     setActiveId(null);
