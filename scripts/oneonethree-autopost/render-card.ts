@@ -1,0 +1,202 @@
+import sharp from "sharp";
+
+// First-pass branded template renderer for TikTok carousel slides, single
+// IG/FB post cards, and Meta ad statics. Renders real vector text via SVG
+// instead of an AI photo model — gpt-image-1 (used for LinkedIn's scene
+// photos in image.ts) garbles on-image text, so anything that's mostly a
+// headline or slide line needs this path instead, not a workaround of it.
+//
+// Known simplification: uses generic serif/sans-serif font-family fallbacks
+// (no DM Serif Display / DM Sans font files are in this repo). Drop real
+// .ttf/.otf files into scripts/oneonethree-autopost/assets/fonts/ and point
+// FONT_FILES below at them to get the real brand type; until then this
+// renders in the platform's default serif/sans-serif.
+//
+// Content Manager's palette below is a first-pass interpretation of
+// products/content-manager.md's "blue-to-purple gradient" -- no hex values
+// are specified there. Swap PALETTES["content-manager"] once real values
+// are picked.
+
+export type Product = "planpulse" | "content-manager";
+
+interface Palette {
+  kind: "solid" | "gradient";
+  background: string;
+  gradientTo?: string;
+  ink: string;
+  ctaBg: string;
+  ctaInk: string;
+  displayFont: string;
+  bodyFont: string;
+}
+
+const PALETTES: Record<Product, Palette> = {
+  planpulse: {
+    kind: "solid",
+    background: "#F5F3EF",
+    ink: "#1C1917",
+    ctaBg: "#1C1917",
+    ctaInk: "#F5F3EF",
+    displayFont: "Georgia, 'Times New Roman', serif",
+    bodyFont: "Helvetica, Arial, sans-serif",
+  },
+  "content-manager": {
+    kind: "gradient",
+    background: "#4F46E5",
+    gradientTo: "#9333EA",
+    ink: "#FFFFFF",
+    ctaBg: "#FFFFFF",
+    ctaInk: "#4F46E5",
+    displayFont: "Helvetica, Arial, sans-serif",
+    bodyFont: "Helvetica, Arial, sans-serif",
+  },
+};
+
+const BADGE_TEXT = "product by oneonethree";
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+// Rough estimate, not real text measurement -- good enough for a first pass.
+// Average glyph width ~0.55x font size for these fallback font stacks.
+function wrapText(text: string, fontSize: number, maxWidth: number): string[] {
+  const maxCharsPerLine = Math.max(4, Math.floor(maxWidth / (fontSize * 0.55)));
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length > maxCharsPerLine && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function tspanLines(lines: string[], x: number, startY: number, lineHeight: number): string {
+  return lines
+    .map((line, i) => `<tspan x="${x}" y="${startY + i * lineHeight}">${escapeXml(line)}</tspan>`)
+    .join("");
+}
+
+export interface SlideCardOptions {
+  product: Product;
+  text: string;
+  /** Small eyebrow label, e.g. "01" or the product name -- optional. */
+  eyebrow?: string | null;
+}
+
+const SLIDE_WIDTH = 1080;
+const SLIDE_HEIGHT = 1350;
+
+export async function renderSlideCard(opts: SlideCardOptions): Promise<Buffer> {
+  const p = PALETTES[opts.product];
+  const padding = 96;
+  const maxTextWidth = SLIDE_WIDTH - padding * 2;
+  const fontSize = 72;
+  const lineHeight = fontSize * 1.15;
+  const lines = wrapText(opts.text, fontSize, maxTextWidth);
+  const blockHeight = lines.length * lineHeight;
+  const startY = (SLIDE_HEIGHT - blockHeight) / 2 + fontSize * 0.8;
+
+  const bgDef =
+    p.kind === "gradient"
+      ? `<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+           <stop offset="0%" stop-color="${p.background}"/>
+           <stop offset="100%" stop-color="${p.gradientTo}"/>
+         </linearGradient></defs>
+         <rect width="100%" height="100%" fill="url(#bg)"/>`
+      : `<rect width="100%" height="100%" fill="${p.background}"/>`;
+
+  const eyebrow = opts.eyebrow
+    ? `<text x="${padding}" y="${padding + 24}" font-family="${p.bodyFont}" font-size="28" letter-spacing="2" fill="${p.ink}" opacity="0.6">${escapeXml(opts.eyebrow.toUpperCase())}</text>`
+    : "";
+
+  const svg = `
+    <svg width="${SLIDE_WIDTH}" height="${SLIDE_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+      ${bgDef}
+      ${eyebrow}
+      <text font-family="${p.displayFont}" font-size="${fontSize}" font-weight="700" fill="${p.ink}">
+        ${tspanLines(lines, padding, startY, lineHeight)}
+      </text>
+      <text x="${padding}" y="${SLIDE_HEIGHT - 56}" font-family="${p.bodyFont}" font-size="22" letter-spacing="1" fill="${p.ink}" opacity="0.55">${escapeXml(BADGE_TEXT)}</text>
+    </svg>
+  `;
+
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+export interface AdCardOptions {
+  product: Product;
+  headline: string;
+  subhead?: string | null;
+  ctaText: string;
+}
+
+const AD_SIZE = 1080;
+
+export async function renderAdCard(opts: AdCardOptions): Promise<Buffer> {
+  const p = PALETTES[opts.product];
+  const padding = 88;
+  const maxTextWidth = AD_SIZE - padding * 2;
+  const headlineSize = 66;
+  const headlineLineHeight = headlineSize * 1.12;
+  const headlineLines = wrapText(opts.headline, headlineSize, maxTextWidth);
+
+  const subheadSize = 34;
+  const subheadLineHeight = subheadSize * 1.3;
+  const subheadLines = opts.subhead ? wrapText(opts.subhead, subheadSize, maxTextWidth) : [];
+
+  const headlineBlockHeight = headlineLines.length * headlineLineHeight;
+  const subheadBlockHeight = subheadLines.length * subheadLineHeight;
+  const gapBetween = subheadLines.length ? 36 : 0;
+  const totalTextHeight = headlineBlockHeight + gapBetween + subheadBlockHeight;
+  const headlineStartY = (AD_SIZE - totalTextHeight) / 2 + headlineSize * 0.8 - 60;
+  const subheadStartY = headlineStartY + headlineBlockHeight - headlineSize * 0.8 + gapBetween + subheadSize * 0.8;
+
+  const bgDef =
+    p.kind === "gradient"
+      ? `<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+           <stop offset="0%" stop-color="${p.background}"/>
+           <stop offset="100%" stop-color="${p.gradientTo}"/>
+         </linearGradient></defs>
+         <rect width="100%" height="100%" fill="url(#bg)"/>`
+      : `<rect width="100%" height="100%" fill="${p.background}"/>`;
+
+  const ctaLabel = opts.ctaText.toUpperCase();
+  const ctaWidth = Math.min(maxTextWidth, 44 + ctaLabel.length * 22);
+  const ctaX = (AD_SIZE - ctaWidth) / 2;
+  const ctaY = AD_SIZE - 168;
+  const ctaHeight = 84;
+
+  const subheadSvg = subheadLines.length
+    ? `<text font-family="${p.bodyFont}" font-size="${subheadSize}" fill="${p.ink}" opacity="0.85">
+         ${tspanLines(subheadLines, AD_SIZE / 2, subheadStartY, subheadLineHeight)}
+       </text>`
+    : "";
+
+  const svg = `
+    <svg width="${AD_SIZE}" height="${AD_SIZE}" xmlns="http://www.w3.org/2000/svg">
+      ${bgDef}
+      <text font-family="${p.displayFont}" font-size="${headlineSize}" font-weight="700" fill="${p.ink}" text-anchor="middle">
+        ${tspanLines(headlineLines, AD_SIZE / 2, headlineStartY, headlineLineHeight)}
+      </text>
+      ${subheadSvg}
+      <rect x="${ctaX}" y="${ctaY}" width="${ctaWidth}" height="${ctaHeight}" rx="${ctaHeight / 2}" fill="${p.ctaBg}"/>
+      <text x="${AD_SIZE / 2}" y="${ctaY + ctaHeight / 2 + 9}" font-family="${p.bodyFont}" font-size="26" font-weight="600" letter-spacing="1" fill="${p.ctaInk}" text-anchor="middle">${escapeXml(ctaLabel)}</text>
+      <text x="${AD_SIZE / 2}" y="${AD_SIZE - 40}" font-family="${p.bodyFont}" font-size="20" letter-spacing="1" fill="${p.ink}" opacity="0.6" text-anchor="middle">${escapeXml(BADGE_TEXT)}</text>
+    </svg>
+  `;
+
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
