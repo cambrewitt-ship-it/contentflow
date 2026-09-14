@@ -2,9 +2,10 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
+import OpenAI from "openai";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { renderSlideCard, renderAdCard, type Product } from "./render-card.js";
-import { uploadImageToMediaBucket, insertMediaGalleryRow } from "./image.js";
+import { renderSlideCard, renderAdCard, compositePhotoSlide, PRODUCT_STYLE_GUARDRAILS, type Product } from "./render-card.js";
+import { uploadImageToMediaBucket, insertMediaGalleryRow, generateStyledImage } from "./image.js";
 import { computeSlots } from "./schedule.js";
 import { isProductSocialPost, type ProductSocialPost } from "./product-types.js";
 
@@ -14,6 +15,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env.local") });
 const VAULT_PATH = process.env.ONEONETHREE_VAULT_PATH || "/Users/cambrewitt/oneonethree-content";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 const CLIENT_IDS: Record<Product, string | undefined> = {
   planpulse: process.env.PLANPULSE_CLIENT_ID,
@@ -31,6 +33,27 @@ const explicitFiles = filesArg
 
 const LEDGER_PATH = path.join(VAULT_PATH, "runs", "published-ledger.json");
 const DRY_RUN_DIR = path.join(__dirname, "dry-run-preview");
+const ASSET_LIBRARY_PATH = path.join(__dirname, "asset-library.json");
+
+interface AssetLibrary {
+  logos: Record<string, string>;
+  screenshots: Record<string, string>;
+}
+
+async function loadAssetLibrary(): Promise<AssetLibrary> {
+  try {
+    const raw = await fs.readFile(ASSET_LIBRARY_PATH, "utf-8");
+    return JSON.parse(raw) as AssetLibrary;
+  } catch {
+    return { logos: {}, screenshots: {} };
+  }
+}
+
+async function fetchAsset(url: string): Promise<Buffer> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch asset ${url}: HTTP ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
+}
 
 // Matches any product-social format value (the field the switch below
 // actually dispatches on -- more robust than matching "platform", which one
@@ -136,8 +159,49 @@ async function uploadOrPreview(
   return uploadImageToMediaBucket(supabase, buffer, filename);
 }
 
+// Dispatches a single slide's `visual` string to the right renderer:
+// - "photo: <scene>" -> AI-generated photo background (product-aware style
+//   guardrails) with the slide's real vector text composited on top.
+// - "screenshot: <slug>" -> looked up in asset-library.json (populated via
+//   upload-asset.mjs once real product screenshots exist); falls back to a
+//   text card (logged, not silent) if no match is registered yet.
+// - anything else ("text-on-background") -> a flat branded text card.
+async function renderSlideVisual(
+  openai: OpenAI | null,
+  assets: AssetLibrary,
+  vaultFile: string,
+  label: string,
+  product: Product,
+  text: string,
+  visual: string,
+  eyebrow?: string | null
+): Promise<Buffer> {
+  if (visual.startsWith("photo:")) {
+    if (!openai) {
+      console.log(`[note] ${vaultFile} ${label}: wanted "${visual}" but OPENAI_API_KEY is not set -- rendering as a text card instead.`);
+      return renderSlideCard({ product, text, eyebrow });
+    }
+    const scenePrompt = visual.slice("photo:".length).trim();
+    const image = await generateStyledImage(openai, scenePrompt, PRODUCT_STYLE_GUARDRAILS[product], "portrait");
+    return compositePhotoSlide(image.buffer, { product, text, eyebrow });
+  }
+  if (visual.startsWith("screenshot:")) {
+    const slug = visual.slice("screenshot:".length).trim();
+    const assetUrl = assets.screenshots[slug];
+    if (assetUrl) {
+      console.log(`[asset] ${vaultFile} ${label}: using real screenshot for "${slug}"`);
+      const shot = await fetchAsset(assetUrl);
+      return compositePhotoSlide(shot, { product, text, eyebrow });
+    }
+    console.log(`[note] ${vaultFile} ${label}: wanted "${visual}" but no matching screenshot is registered in asset-library.json yet -- rendering as a text card instead.`);
+  }
+  return renderSlideCard({ product, text, eyebrow });
+}
+
 async function publishTikTokCarousel(
   supabase: SupabaseClient,
+  openai: OpenAI | null,
+  assets: AssetLibrary,
   vaultFile: string,
   post: Extract<ProductSocialPost, { format: "tiktok-carousel" }>
 ): Promise<LedgerEntry> {
@@ -150,11 +214,7 @@ async function publishTikTokCarousel(
   const mediaUrls: string[] = [];
   for (let i = 0; i < post.slides.length; i++) {
     const slide = post.slides[i];
-    const usingRealScreenshot = slide.visual.startsWith("screenshot:");
-    if (usingRealScreenshot) {
-      console.log(`[note] ${vaultFile} slide ${i + 1}: wanted "${slide.visual}" but no screenshot library exists yet -- rendering as a text card instead.`);
-    }
-    const buffer = await renderSlideCard({ product: post.product, text: slide.text, eyebrow: `${i + 1}/${post.slides.length}` });
+    const buffer = await renderSlideVisual(openai, assets, vaultFile, `slide ${i + 1}`, post.product, slide.text, slide.visual, `${i + 1}/${post.slides.length}`);
     const filename = `${vaultFile.replace(".json.md", "")}-slide${i + 1}-${Date.now()}.png`;
     const url = await uploadOrPreview(supabase, buffer, filename);
     mediaUrls.push(url);
@@ -189,6 +249,8 @@ async function publishTikTokCarousel(
 
 async function publishSinglePost(
   supabase: SupabaseClient,
+  openai: OpenAI | null,
+  assets: AssetLibrary,
   vaultFile: string,
   post: Extract<ProductSocialPost, { format: "single-post" }>
 ): Promise<LedgerEntry> {
@@ -198,7 +260,7 @@ async function publishSinglePost(
     return { vault_file: vaultFile, calendar_scheduled_posts_id: null, published_at: "", format: post.format, product: post.product };
   }
 
-  const buffer = await renderSlideCard({ product: post.product, text: post.hook });
+  const buffer = await renderSlideVisual(openai, assets, vaultFile, "image", post.product, post.hook, post.visual);
   const filename = `${vaultFile.replace(".json.md", "")}-${Date.now()}.png`;
   const url = await uploadOrPreview(supabase, buffer, filename);
 
@@ -290,6 +352,11 @@ async function main() {
     throw new Error("NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are not set (check .env.local)");
   }
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
+  if (!openai) {
+    console.log("[warn] OPENAI_API_KEY not set -- any \"photo: <scene>\" slide will fall back to a text card.");
+  }
+  const assets = await loadAssetLibrary();
 
   const ledger = await loadLedger();
   const alreadyPublished = new Set(ledger.map((e) => e.vault_file));
@@ -326,10 +393,10 @@ async function main() {
       let entry: LedgerEntry;
       switch (parsed.format) {
         case "tiktok-carousel":
-          entry = await publishTikTokCarousel(supabase, file, parsed);
+          entry = await publishTikTokCarousel(supabase, openai, assets, file, parsed);
           break;
         case "single-post":
-          entry = await publishSinglePost(supabase, file, parsed);
+          entry = await publishSinglePost(supabase, openai, assets, file, parsed);
           break;
         case "ad-static":
           entry = await publishAdStatic(supabase, file, parsed);

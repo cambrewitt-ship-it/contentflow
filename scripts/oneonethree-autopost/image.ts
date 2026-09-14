@@ -3,14 +3,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const MEDIA_BUCKET = "media";
 const IMAGE_MODEL = "gpt-image-1";
-const IMAGE_SIZE = "1536x1024"; // landscape, closest GPT-image size to a LinkedIn feed image
+const IMAGE_SIZE_LANDSCAPE = "1536x1024"; // closest GPT-image size to a LinkedIn feed image
+const IMAGE_SIZE_PORTRAIT = "1024x1536"; // closest GPT-image size to a TikTok carousel slide
 const IMAGE_QUALITY = "medium";
 
-// No visual brand guide exists in the vault yet (voice/text only so far) — these
-// guardrails keep generated images brand-neutral rather than guessing at colors,
-// logos, or a style that hasn't actually been decided. Revisit once that
-// interview happens.
-const STYLE_GUARDRAILS = `Style: clean, natural editorial photography or simple flat illustration — whichever
+// No visual brand guide exists for OneOneThree/LinkedIn (voice/text only so
+// far) — these guardrails keep generated images brand-neutral rather than
+// guessing at colors, logos, or a style that hasn't actually been decided.
+// Revisit once that interview happens. PlanPulse and Content Manager DO have
+// established visual identities (products/planpulse.md, products/content-
+// manager.md) — see PRODUCT_STYLE_GUARDRAILS in render-card.ts for those,
+// used for carousel/ad photo backgrounds instead of this one.
+const LINKEDIN_STYLE_GUARDRAILS = `Style: clean, natural editorial photography or simple flat illustration — whichever
 suits the subject. No invented logos or brand marks. No on-image text, captions, or typography of any kind.
 No specific color palette claims (no established brand colors exist yet). Avoid generic stock-photo cliches
 (handshakes, laptop-in-a-cafe, glowing abstract data visualizations). Do not depict any screen, dashboard,
@@ -27,15 +31,24 @@ export interface GeneratedImage {
 }
 
 // gpt-image-1 doesn't return a cost field directly; this is a rough estimate
-// from published per-image pricing at medium quality, landscape size, for
-// run-log visibility only — not billing-accurate.
+// from published per-image pricing at medium quality, for run-log visibility
+// only — not billing-accurate.
 const APPROX_COST_USD = 0.07;
 
 export async function generateImage(openai: OpenAI, imagePrompt: string): Promise<GeneratedImage> {
+  return generateStyledImage(openai, imagePrompt, LINKEDIN_STYLE_GUARDRAILS, "landscape");
+}
+
+export async function generateStyledImage(
+  openai: OpenAI,
+  imagePrompt: string,
+  styleGuardrails: string,
+  orientation: "landscape" | "portrait" = "landscape"
+): Promise<GeneratedImage> {
   const response = await openai.images.generate({
     model: IMAGE_MODEL,
-    prompt: `${STYLE_GUARDRAILS}\n\nScene: ${imagePrompt}`,
-    size: IMAGE_SIZE,
+    prompt: `${styleGuardrails}\n\nScene: ${imagePrompt}`,
+    size: orientation === "portrait" ? IMAGE_SIZE_PORTRAIT : IMAGE_SIZE_LANDSCAPE,
     quality: IMAGE_QUALITY,
     n: 1,
   });
