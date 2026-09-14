@@ -32,6 +32,21 @@ const explicitFiles = filesArg
 const LEDGER_PATH = path.join(VAULT_PATH, "runs", "published-ledger.json");
 const DRY_RUN_DIR = path.join(__dirname, "dry-run-preview");
 
+// Matches any product-social format value (the field the switch below
+// actually dispatches on -- more robust than matching "platform", which one
+// vault file has a typo in). Used as a cheap pre-filter so LinkedIn drafts
+// (run.ts's job, not this script's) never even reach JSON.parse -- some of
+// the vault's earliest files (001-008) contain invalid-JSON artifacts
+// (literal unescaped newlines inside string values, stray non-breaking-space
+// padding) that would otherwise error on every run, harmlessly but noisily,
+// since they'd just get skipped anyway.
+const PRODUCT_SOCIAL_FORMAT_RE = /"format"\s*:\s*"(tiktok-carousel|single-post|ad-static|video-script)"/;
+
+// Non-breaking space (U+00A0) -- looks like ordinary whitespace but isn't
+// valid JSON whitespace. Some vault files carry it as padding, likely an
+// Obsidian/paste artifact. Normalize before parsing.
+const NBSP_RE = new RegExp(" ", "g");
+
 interface LedgerEntry {
   vault_file: string;
   calendar_scheduled_posts_id: string | null;
@@ -289,9 +304,15 @@ async function main() {
   for (const file of toProcess) {
     const filePath = path.join(VAULT_PATH, "posts", file);
     const raw = await fs.readFile(filePath, "utf-8");
+
+    if (!PRODUCT_SOCIAL_FORMAT_RE.test(raw)) {
+      continue;
+    }
+
+    const normalized = raw.replace(NBSP_RE, " ");
     let parsed: unknown;
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(normalized);
     } catch (err) {
       console.error(`[error] ${file}: could not parse JSON (${err instanceof Error ? err.message : err})`);
       continue;
