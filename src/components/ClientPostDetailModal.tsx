@@ -40,6 +40,7 @@ export interface ClientPostDetailItem {
   id: string;
   caption: string;
   image_url?: string | null;
+  media_urls?: string[] | null;
   scheduled_date?: string | null;
   scheduled_time?: string | null;
   approval_status?: string;
@@ -400,6 +401,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                 accountAvatarUrl={accountAvatarUrl}
                 caption={editedCaption}
                 imageUrl={post.image_url ?? undefined}
+                mediaUrls={post.media_urls ?? undefined}
                 scheduledDate={post.scheduled_date ?? undefined}
                 scheduledTime={post.scheduled_time ?? undefined}
               />
