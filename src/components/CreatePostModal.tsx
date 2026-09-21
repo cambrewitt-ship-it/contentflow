@@ -42,6 +42,8 @@ const PREVIEW_PLATFORMS = [
   { id: 'instagram', label: 'Instagram' },
   { id: 'facebook', label: 'Facebook' },
   { id: 'twitter', label: 'Twitter' },
+  { id: 'linkedin', label: 'LinkedIn' },
+  { id: 'tiktok', label: 'TikTok' },
 ] as const;
 type PreviewPlatform = (typeof PREVIEW_PLATFORMS)[number]['id'];
 
@@ -286,7 +288,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                   key={p.id}
                   type="button"
                   onClick={() => setSelectedPlatform(p.id)}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`flex-1 py-1.5 px-1 rounded-lg text-[11px] font-semibold transition-all ${
                     selectedPlatform === p.id
                       ? 'bg-white shadow-sm text-gray-900 ring-1 ring-gray-200'
                       : 'text-gray-400 hover:text-gray-600'

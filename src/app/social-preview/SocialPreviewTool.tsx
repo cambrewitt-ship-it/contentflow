@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import { Menu, X, Upload, ImageIcon, ChevronDown, Share2, Copy, Check, Loader2 } from 'lucide-react'
@@ -11,6 +10,7 @@ import {
   InstagramIcon,
   TwitterIcon,
   TikTokIcon,
+  LinkedInIcon,
 } from '@/components/social-icons'
 
 // ─── Platform config ──────────────────────────────────────────────────────────
@@ -18,6 +18,7 @@ const FEED_PLATFORMS = [
   { id: 'facebook',  label: 'Facebook' },
   { id: 'instagram', label: 'Instagram' },
   { id: 'twitter',   label: 'Twitter / X' },
+  { id: 'linkedin',  label: 'LinkedIn' },
   { id: 'tiktok',    label: 'TikTok' },
 ]
 const STORY_PLATFORMS = [
@@ -31,9 +32,30 @@ const CTA_OPTIONS = [
 ]
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function SocialPreviewTool() {
+interface SocialPreviewToolProps {
+  /** Platform tab selected on first render (defaults to Facebook feed) */
+  initialPlatform?: string
+  /** Start in paid-ad mode rather than organic */
+  initialIsAdvert?: boolean
+  /** Page <h1>. Platform landing pages override this. */
+  heading?: React.ReactNode
+  /** Sub-heading under the h1 */
+  subheading?: React.ReactNode
+  /** Breadcrumb trail rendered above the h1 */
+  breadcrumb?: React.ReactNode
+  /** Server-rendered SEO copy shown below the tool */
+  children?: React.ReactNode
+}
+
+export default function SocialPreviewTool({
+  initialPlatform = 'facebook',
+  initialIsAdvert = false,
+  heading = 'Free Social Media Post Preview Tool — Facebook, Instagram, TikTok & More',
+  subheading = 'See exactly how your post will look on every major platform — as an organic post or a paid ad. No account needed, completely free.',
+  breadcrumb,
+  children,
+}: SocialPreviewToolProps) {
   const { user } = useAuth()
-  const searchParams = useSearchParams()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Business profile
@@ -45,13 +67,13 @@ export default function SocialPreviewTool() {
   const [caption, setCaption]     = useState('')
 
   // Ad fields
-  const [isAdvert, setIsAdvert]   = useState(false)
+  const [isAdvert, setIsAdvert]   = useState(initialIsAdvert)
   const [headline, setHeadline]   = useState('')
   const [ctaText, setCtaText]     = useState('Shop Now')
   const [ctaOpen, setCtaOpen]     = useState(false)
 
   // Preview
-  const [selectedPlatform, setSelectedPlatform] = useState('facebook')
+  const [selectedPlatform, setSelectedPlatform] = useState(initialPlatform)
 
   // Drag state
   const [isDraggingImage, setIsDraggingImage] = useState(false)
@@ -65,9 +87,12 @@ export default function SocialPreviewTool() {
   const logoInputRef  = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
-  // Load shared preview on mount
+  // Load shared preview on mount.
+  // Read ?share= from the URL directly rather than via useSearchParams(), which
+  // would opt this page out of static prerendering and leave crawlers an empty
+  // shell instead of the SEO copy below.
   useEffect(() => {
-    const token = searchParams.get('share')
+    const token = new URLSearchParams(window.location.search).get('share')
     if (!token) return
     setLoadingShared(true)
     fetch(`/api/preview-share?token=${token}`)
@@ -176,6 +201,7 @@ export default function SocialPreviewTool() {
       instagram:    'bg-gradient-to-br from-purple-500 to-pink-500',
       'ig-stories': 'bg-gradient-to-br from-purple-500 to-pink-500',
       twitter:      'bg-sky-400',
+      linkedin:     'bg-[#0A66C2]',
       tiktok:       'bg-black border-2 border-white',
     }
     const fallbackIcons: Record<string, React.ReactNode> = {
@@ -184,6 +210,7 @@ export default function SocialPreviewTool() {
       instagram:    <InstagramIcon size={iconSize} className="text-white" />,
       'ig-stories': <InstagramIcon size={iconSize} className="text-white" />,
       twitter:      <TwitterIcon   size={iconSize} className="text-white" />,
+      linkedin:     <LinkedInIcon  size={iconSize} className="text-white" />,
       tiktok:       <TikTokIcon    size={iconSize} className="text-white" />,
     }
 
@@ -200,6 +227,7 @@ export default function SocialPreviewTool() {
     selectedPlatform === 'facebook'    ? 'Your Facebook Page'
     : selectedPlatform === 'instagram' ? 'your_instagram'
     : selectedPlatform === 'twitter'   ? 'Your Twitter'
+    : selectedPlatform === 'linkedin'  ? 'Your Company'
     : selectedPlatform === 'tiktok'    ? '@yourtiktok'
     : selectedPlatform === 'fb-stories'? 'Your Facebook Page'
     : 'your_instagram'
@@ -493,58 +521,244 @@ export default function SocialPreviewTool() {
   )
 
   // ── TikTok preview ────────────────────────────────────────────────────────────
+  const TikTokNav = () => (
+    <div className="absolute bottom-0 left-0 right-0 bg-black flex items-end justify-around px-1 pt-1 pb-1">
+      {[
+        { label: 'Home',     path: <path d="M3 10.6L12 3l9 7.6V21a1 1 0 01-1 1h-4.5v-6h-7v6H4a1 1 0 01-1-1V10.6z" /> },
+        { label: 'Discover', path: <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M20 20l-4.4-4.4" /></g> },
+      ].map((item) => (
+        <div key={item.label} className="flex flex-col items-center gap-0.5 w-9">
+          <svg className="w-[18px] h-[18px] text-white" fill="currentColor" viewBox="0 0 24 24">{item.path}</svg>
+          <span className="text-white text-[7px] font-medium leading-none">{item.label}</span>
+        </div>
+      ))}
+      {/* Create button */}
+      <div className="flex flex-col items-center w-9 pb-2.5">
+        <div className="relative w-7 h-[18px]">
+          <div className="absolute left-0 top-0 w-6 h-[18px] rounded-[5px] bg-[#25F4EE]" />
+          <div className="absolute right-0 top-0 w-6 h-[18px] rounded-[5px] bg-[#FE2C55]" />
+          <div className="absolute left-[2px] top-0 w-[23px] h-[18px] rounded-[5px] bg-white flex items-center justify-center">
+            <svg className="w-2.5 h-2.5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+          </div>
+        </div>
+      </div>
+      {[
+        { label: 'Inbox', path: <path d="M4 3h16a2 2 0 012 2v11a2 2 0 01-2 2H9l-4.4 3.3A1 1 0 013 20.5V5a2 2 0 012-2z" /> },
+        { label: 'Me',    path: <g><circle cx="12" cy="7.5" r="4" /><path d="M3.8 21c.6-4.3 4.1-6.6 8.2-6.6s7.6 2.3 8.2 6.6H3.8z" /></g> },
+      ].map((item) => (
+        <div key={item.label} className="flex flex-col items-center gap-0.5 w-9">
+          <svg className="w-[18px] h-[18px] text-white" fill="currentColor" viewBox="0 0 24 24">{item.path}</svg>
+          <span className="text-white text-[7px] font-medium leading-none">{item.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+
   const renderTikTokPreview = () => (
-    <div className="relative max-w-[240px] mx-auto rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '9/16', maxHeight: '420px' }}>
+    <div className="relative max-w-[240px] mx-auto rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '9/16', maxHeight: '440px' }}>
+      {/* Media */}
       {postImage ? (
         <img src={postImage} alt="Post" className="absolute inset-0 w-full h-full object-cover" />
       ) : (
-        <div className="absolute inset-0 bg-gradient-to-b from-gray-800 to-gray-900 flex items-center justify-center">
-          <div className="text-center text-gray-500"><ImageIcon className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-xs opacity-50">Image preview</p></div>
+        <div className="absolute inset-0 bg-[#111111] flex items-center justify-center">
+          <div className="w-[84px] h-[68px] rounded-2xl border-2 border-white/10 flex items-center justify-center">
+            <ImageIcon className="w-8 h-8 text-white/10" strokeWidth={1.5} />
+          </div>
         </div>
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/30" />
-      <div className="absolute top-3 left-0 right-0 flex items-center justify-center">
-        <span className="text-white text-xs font-semibold opacity-80">Following</span>
-        <span className="text-white/40 text-xs mx-2">|</span>
-        <span className="text-white text-xs font-bold">For You</span>
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/45" />
+
+      {/* Top bar */}
+      <div className="absolute top-2.5 left-3 right-3 flex items-center justify-center">
+        <span className="text-white/60 text-[11px] font-semibold">Following</span>
+        <span className="text-white/30 text-[11px] mx-1.5">|</span>
+        <span className="text-white text-[11px] font-bold">For You</span>
+        <svg className="absolute right-0 w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M20 20l-4.4-4.4" /></svg>
       </div>
+
       {isAdvert && (
-        <div className="absolute top-9 left-3">
+        <div className="absolute top-8 left-3">
           <span className="bg-white/20 backdrop-blur-sm text-white text-[10px] font-medium px-2 py-0.5 rounded-full border border-white/30">Sponsored</span>
         </div>
       )}
-      <div className="absolute right-2.5 bottom-24 flex flex-col items-center gap-5">
-        {renderAvatar('sm', 'tiktok')}
-        {[
-          { icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z', label: '14.2K', filled: true },
-          { icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', label: '342', filled: false },
-          { icon: 'M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z', label: 'Share', filled: false },
-        ].map((item) => (
-          <div key={item.label} className="flex flex-col items-center gap-0.5">
-            <div className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill={item.filled ? 'currentColor' : 'none'} stroke={item.filled ? 'none' : 'currentColor'} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
-              </svg>
-            </div>
-            <span className="text-white text-[10px] font-medium">{item.label}</span>
-          </div>
-        ))}
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 border-2 border-white/40 flex items-center justify-center">
-          <div className="w-3 h-3 rounded-full bg-black/60" />
+
+      {/* Right action rail */}
+      <div className="absolute right-2 bottom-[84px] flex flex-col items-center gap-3.5">
+        <div className="flex flex-col items-center gap-0.5">
+          <svg className="w-7 h-7 text-white drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" /></svg>
+          <span className="text-white text-[10px] font-semibold drop-shadow">2.5M</span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <svg className="w-7 h-7 drop-shadow" viewBox="0 0 24 24">
+            <path fill="white" d="M20.5 2.5h-17A1.5 1.5 0 002 4v12.5A1.5 1.5 0 003.5 18H6v3.3c0 .7.8 1.1 1.4.6l4.9-3.9h8.2a1.5 1.5 0 001.5-1.5V4a1.5 1.5 0 00-1.5-1.5z" />
+            <circle cx="8" cy="10" r="1.3" fill="black" /><circle cx="12" cy="10" r="1.3" fill="black" /><circle cx="16" cy="10" r="1.3" fill="black" />
+          </svg>
+          <span className="text-white text-[10px] font-semibold drop-shadow">342</span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <svg className="w-7 h-7 text-white drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M21.7 11.2L13 3.3c-.5-.5-1.4-.1-1.4.6v3.8C5.9 8.2 2 12.6 2 18.4c0 .9 1.1 1.2 1.6.5 1.9-2.8 4.5-4.3 8-4.4v3.8c0 .7.9 1.1 1.4.6l8.7-7.9c.3-.3.3-.8 0-1.1z" /></svg>
+          <span className="text-white text-[10px] font-semibold drop-shadow">13.1K</span>
+        </div>
+        {/* Record disc */}
+        <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-[#3a3a3a] to-black flex items-center justify-center">
+          <div className="w-3 h-3 rounded-full bg-white" />
+          <svg className="absolute -left-1.5 -top-0.5 w-3 h-3 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" /></svg>
         </div>
       </div>
-      <div className="absolute bottom-0 left-0 right-12 p-3 space-y-1.5">
-        <p className="text-white text-sm font-bold">{displayName}</p>
-        {caption && <p className="text-white/90 text-xs leading-relaxed line-clamp-2">{caption}</p>}
+
+      {/* Bottom content */}
+      <div className="absolute bottom-[42px] left-0 right-12 px-3 space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          {renderAvatar('sm', 'tiktok')}
+          <span className="text-white text-xs font-bold drop-shadow">{displayName}</span>
+        </div>
+        {caption && <p className="text-white text-[11px] font-semibold leading-snug line-clamp-3 drop-shadow">{caption}</p>}
         {isAdvert && (
-          <div className="flex items-center gap-2 pt-1">
-            {headline && <p className="text-white/80 text-xs font-medium truncate flex-1">{headline}</p>}
-            <button className="flex-shrink-0 bg-[#FE2C55] text-white text-xs font-bold px-3 py-1.5 rounded-md">{ctaText}</button>
+          <div className="flex items-center gap-2 pt-0.5">
+            {headline && <p className="text-white/80 text-[11px] font-medium truncate flex-1">{headline}</p>}
+            <button className="flex-shrink-0 bg-[#FE2C55] text-white text-[11px] font-bold px-3 py-1.5 rounded-md">{ctaText}</button>
           </div>
         )}
-        <div className="flex items-center gap-1 pt-0.5">
-          <svg className="w-3 h-3 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" /></svg>
-          <p className="text-white/70 text-[10px] truncate">Original Sound · {displayName}</p>
+        <div className="flex items-center gap-1.5">
+          <svg className="w-3 h-3 text-white flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" /></svg>
+          <div className="h-[3px] flex-1 rounded-full bg-white/25 overflow-hidden"><div className="h-full w-2/3 bg-white/60 rounded-full" /></div>
+        </div>
+      </div>
+
+      <TikTokNav />
+    </div>
+  )
+
+  // ── LinkedIn preview ──────────────────────────────────────────────────────────
+  // LinkedIn pages use a square logo rather than a circular avatar
+  const renderLinkedInLogo = () => {
+    const initial = businessName ? businessName.charAt(0).toUpperCase() : null
+    if (logoPreview) {
+      return (
+        <div className="w-12 h-12 rounded-[4px] overflow-hidden flex-shrink-0 bg-white">
+          <img src={logoPreview} alt={businessName || 'Logo'} className="w-full h-full object-cover" />
+        </div>
+      )
+    }
+    return (
+      <div className="w-12 h-12 rounded-[4px] flex-shrink-0 bg-[#0A66C2] flex items-center justify-center">
+        {initial
+          ? <span className="text-white font-semibold text-lg">{initial}</span>
+          : <LinkedInIcon size={24} className="text-white" />}
+      </div>
+    )
+  }
+
+  const LinkedInReactions = () => (
+    <div className="flex -space-x-1">
+      <div className="w-[18px] h-[18px] rounded-full bg-[#378FE9] flex items-center justify-center ring-1 ring-white">
+        <svg viewBox="0 0 24 24" fill="white" className="w-2.5 h-2.5"><path d="M9.5 21H6a1 1 0 01-1-1v-9a1 1 0 011-1h3.5v11zM20.9 11.4l-1.5 8A2 2 0 0117.4 21H11V9.6l3.2-6.4a1 1 0 011.8.1c.5 1.2.7 2.6.4 4L15.9 9h3.2a2 2 0 011.8 2.4z"/></svg>
+      </div>
+      <div className="w-[18px] h-[18px] rounded-full bg-[#DF704D] flex items-center justify-center ring-1 ring-white">
+        <svg viewBox="0 0 16 16" fill="white" className="w-2.5 h-2.5"><path fillRule="evenodd" d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314z"/></svg>
+      </div>
+      <div className="w-[18px] h-[18px] rounded-full bg-[#F5BB5C] flex items-center justify-center ring-1 ring-white">
+        <svg viewBox="0 0 24 24" fill="white" className="w-2.5 h-2.5"><path d="M9 21h6v-1H9v1zm3-20a7 7 0 00-4 12.7V17a1 1 0 001 1h6a1 1 0 001-1v-3.3A7 7 0 0012 1z"/></svg>
+      </div>
+    </div>
+  )
+
+  const LinkedInActionIcon = ({ kind }: { kind: 'like' | 'comment' | 'repost' | 'share' }) => {
+    const common = { className: 'w-[18px] h-[18px]', fill: 'none', stroke: '#00000099', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, viewBox: '0 0 24 24' }
+    if (kind === 'like')    return <svg {...common}><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"/><path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></svg>
+    if (kind === 'comment') return <svg {...common}><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+    if (kind === 'repost')  return <svg {...common}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+    return <svg {...common}><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+  }
+
+  const renderLinkedInPreview = () => (
+    <div className="bg-white max-w-sm mx-auto overflow-hidden rounded-lg border border-[#e0dfdc] shadow-sm" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', color: 'rgba(0,0,0,0.9)' }}>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2">
+        <div className="flex items-start gap-2 min-w-0">
+          {renderLinkedInLogo()}
+          <div className="min-w-0 pt-0.5">
+            <div style={{ fontSize: '14px', fontWeight: 600, lineHeight: '1.3' }} className="truncate">{displayName}</div>
+            <div style={{ fontSize: '12px', color: 'rgba(0,0,0,0.6)', lineHeight: '1.3' }} className="truncate">
+              {isAdvert ? 'Promoted · Your industry' : 'Your industry'}
+            </div>
+            {!isAdvert && (
+              <div style={{ fontSize: '12px', color: 'rgba(0,0,0,0.6)', lineHeight: '1.3' }} className="flex items-center gap-1">
+                <span>1h</span>
+                <span>·</span>
+                <svg viewBox="0 0 16 16" fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="1.2" className="w-3 h-3">
+                  <circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="2.8" ry="6.5"/><line x1="1.5" y1="8" x2="14.5" y2="8"/>
+                </svg>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0 pt-1">
+          <svg viewBox="0 0 20 20" fill="rgba(0,0,0,0.6)" className="w-5 h-5"><circle cx="4" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="16" cy="10" r="1.6"/></svg>
+          <X className="w-4 h-4" style={{ color: 'rgba(0,0,0,0.6)' }} />
+        </div>
+      </div>
+
+      {/* Caption */}
+      <div className="px-3 pb-2">
+        {caption ? (
+          <p style={{ fontSize: '14px', lineHeight: '1.42857', color: 'rgba(0,0,0,0.9)' }} className="whitespace-pre-wrap break-words line-clamp-3">
+            {caption}
+            <span style={{ color: 'rgba(0,0,0,0.6)' }}> …see more</span>
+          </p>
+        ) : (
+          <p style={{ fontSize: '14px', color: 'rgba(0,0,0,0.45)' }} className="italic">Your post text appears here…</p>
+        )}
+      </div>
+
+      {/* Image */}
+      {postImage ? (
+        <div className="bg-gray-50 flex items-center justify-center" style={{ maxHeight: '300px' }}>
+          <img src={postImage} alt="Post" className="w-full object-cover" style={{ maxHeight: '300px' }} />
+        </div>
+      ) : (
+        <div className="h-44 bg-gray-100 flex items-center justify-center border-y border-dashed border-gray-200">
+          <div className="text-center text-gray-400"><ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-40" /><p className="text-xs">Image preview</p></div>
+        </div>
+      )}
+
+      {/* Link / CTA card — LinkedIn single-image ad unit */}
+      {isAdvert && (
+        <div className="bg-[#F4F2EE] px-3 py-2.5 flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            {headline
+              ? <p style={{ fontSize: '14px', fontWeight: 600, lineHeight: '1.3', color: 'rgba(0,0,0,0.9)' }}>{headline}</p>
+              : <p style={{ fontSize: '14px', fontWeight: 600, lineHeight: '1.3', color: 'rgba(0,0,0,0.45)' }} className="italic">Your Headline</p>}
+            <p style={{ fontSize: '12px', color: 'rgba(0,0,0,0.6)' }} className="mt-0.5">yourwebsite.com</p>
+          </div>
+          <button className="flex-shrink-0 border border-[#0A66C2] text-[#0A66C2] text-[13px] font-semibold px-3 py-1 rounded-full hover:bg-[#0A66C2]/5 transition-colors whitespace-nowrap">
+            {ctaText}
+          </button>
+        </div>
+      )}
+
+      {/* Social counts */}
+      <div className="px-3 py-2 flex items-center justify-between" style={{ fontSize: '12px', color: 'rgba(0,0,0,0.6)' }}>
+        <div className="flex items-center gap-1.5">
+          <LinkedInReactions />
+          <span>139K</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>12K comments</span>
+          <span>·</span>
+          <span>{isAdvert ? '108K reposts' : '6K reposts'}</span>
+        </div>
+      </div>
+
+      {/* Action bar */}
+      <div className="px-1 py-0.5 border-t border-[#e0dfdc]">
+        <div className="flex">
+          {(['like', 'comment', 'repost', 'share'] as const).map((kind) => (
+            <button key={kind} className="flex-1 flex items-center justify-center gap-1 py-2 hover:bg-[#f3f2ef] rounded transition-colors">
+              <LinkedInActionIcon kind={kind} />
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(0,0,0,0.6)' }} className="capitalize">{kind}</span>
+            </button>
+          ))}
         </div>
       </div>
     </div>
@@ -655,6 +869,7 @@ export default function SocialPreviewTool() {
       case 'facebook':   return renderFacebookPreview()
       case 'instagram':  return renderInstagramPreview()
       case 'twitter':    return renderTwitterPreview()
+      case 'linkedin':   return renderLinkedInPreview()
       case 'tiktok':     return renderTikTokPreview()
       case 'fb-stories': return renderFBStoriesPreview()
       case 'ig-stories': return renderIGStoriesPreview()
@@ -726,8 +941,9 @@ export default function SocialPreviewTool() {
       {/* ── Page header ── */}
       <div className="border-b border-border/40 bg-muted/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <h1 className="text-3xl font-bold tracking-tight">Free Social Media Post Preview Tool — Facebook, Instagram, TikTok &amp; More</h1>
-          <p className="mt-2 text-muted-foreground">See exactly how your post will look on every major platform — as an organic post or a paid ad. No account needed, completely free.</p>
+          {breadcrumb}
+          <h1 className="text-3xl font-bold tracking-tight">{heading}</h1>
+          <p className="mt-2 text-muted-foreground">{subheading}</p>
         </div>
       </div>
 
@@ -906,7 +1122,7 @@ export default function SocialPreviewTool() {
               )}
               <div>
                 <p className="text-xs text-muted-foreground font-medium mb-1.5 uppercase tracking-wide">Feed</p>
-                <div className="grid grid-cols-4 rounded-lg border border-border overflow-hidden">
+                <div className="grid grid-cols-5 rounded-lg border border-border overflow-hidden">
                   {FEED_PLATFORMS.map((p) => (
                     <button key={p.id} onClick={() => setSelectedPlatform(p.id)}
                       className={`py-2 text-[11px] font-medium transition-colors leading-tight px-1 ${selectedPlatform === p.id ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}>
@@ -935,53 +1151,8 @@ export default function SocialPreviewTool() {
         </div>
       </div>
 
-      {/* ── SEO Content Section ── */}
-      <div className="border-t border-border/40 bg-muted/20">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16 max-w-4xl">
-          <div className="space-y-12">
-
-            <section>
-              <h2 className="text-2xl font-bold tracking-tight text-foreground mb-4">How to Preview Your Social Media Posts</h2>
-              <p className="text-base text-muted-foreground leading-relaxed">
-                Uploading an image and writing a caption only to find it looks nothing like you expected on the actual platform is one of the most common frustrations in social media marketing. Our free social media preview tool lets you see exactly how your post will render — including profile picture, caption layout, image cropping, and engagement buttons — before you hit publish. Simply enter your business name, upload your logo, add your image and caption, then switch between platforms instantly.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold tracking-tight text-foreground mb-4">Supported Platforms — Facebook, Instagram, TikTok, Twitter/X &amp; More</h2>
-              <p className="text-base text-muted-foreground leading-relaxed mb-4">
-                Each social media platform renders posts differently. Image ratios, caption positioning, font sizes, and engagement UI all vary significantly. Our tool supports live previews for:
-              </p>
-              <ul className="space-y-2 text-base text-muted-foreground">
-                <li><strong className="text-foreground">Facebook Feed</strong> — See your post as it appears in the Facebook news feed, including the engagement bar and share options.</li>
-                <li><strong className="text-foreground">Instagram Feed</strong> — Preview square-cropped images, caption placement, and like counts as they appear on Instagram.</li>
-                <li><strong className="text-foreground">Twitter / X Feed</strong> — Check how your tweet renders with attached image, handle, and engagement row.</li>
-                <li><strong className="text-foreground">TikTok Feed</strong> — Visualise your content in TikTok&apos;s full-screen vertical format with overlaid caption and action buttons.</li>
-                <li><strong className="text-foreground">Facebook Stories</strong> — Preview the full-screen story format with progress bars and reply bar.</li>
-                <li><strong className="text-foreground">Instagram Stories</strong> — See your story as it appears with the Instagram gradient header and swipe-up CTA.</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold tracking-tight text-foreground mb-4">Preview Organic Posts and Paid Social Media Ads</h2>
-              <p className="text-base text-muted-foreground leading-relaxed">
-                Most social media preview tools only show organic posts. Ours lets you toggle between organic and paid ad formats so you can check how your ad creative will render — including the &ldquo;Sponsored&rdquo; label, headline text, call-to-action button, and destination URL. This is especially useful for agencies and media buyers who need to present realistic ad mockups to clients before spending any budget.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold tracking-tight text-foreground mb-4">Want to Generate and Schedule Content Too?</h2>
-              <p className="text-base text-muted-foreground leading-relaxed mb-6">
-                This preview tool is a free standalone feature of <strong className="text-foreground">Content Manager</strong> — an AI-powered platform built for marketing agencies. With a full account you can generate brand-trained captions using AI, schedule posts across every platform, manage multiple clients from a shared workspace, and get content approved through a built-in client portal. No more copy-pasting between tools.
-              </p>
-              <Link href="/auth/signup">
-                <Button size="lg">Start Your Free 14-Day Trial</Button>
-              </Link>
-            </section>
-
-          </div>
-        </div>
-      </div>
+      {/* ── SEO copy (supplied per-page by the server component) ── */}
+      {children}
 
     </div>
   )

@@ -72,12 +72,14 @@ function weekStartForDateKey(dateKey: string): Date {
   return date;
 }
 
-type PreviewPlatform = "facebook" | "instagram" | "twitter";
+type PreviewPlatform = "facebook" | "instagram" | "twitter" | "linkedin" | "tiktok";
 
 const PREVIEW_PLATFORMS: { id: PreviewPlatform; label: string }[] = [
   { id: "instagram", label: "Instagram" },
   { id: "facebook", label: "Facebook" },
   { id: "twitter", label: "Twitter/X" },
+  { id: "linkedin", label: "LinkedIn" },
+  { id: "tiktok", label: "TikTok" },
 ];
 
 function pickDefaultPlatform(platforms?: string[]): PreviewPlatform {
@@ -85,6 +87,8 @@ function pickDefaultPlatform(platforms?: string[]): PreviewPlatform {
   const p = platforms[0].toLowerCase();
   if (p === "facebook") return "facebook";
   if (p === "twitter" || p === "x") return "twitter";
+  if (p === "linkedin") return "linkedin";
+  if (p === "tiktok") return "tiktok";
   return "instagram";
 }
 
@@ -384,7 +388,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                   key={p.id}
                   type="button"
                   onClick={() => setSelectedPlatform(p.id)}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`flex-1 py-1.5 px-1 rounded-lg text-[11px] font-semibold transition-all ${
                     selectedPlatform === p.id
                       ? "bg-white shadow-sm text-gray-900 ring-1 ring-gray-200"
                       : "text-gray-400 hover:text-gray-600"

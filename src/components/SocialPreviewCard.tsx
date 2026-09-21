@@ -52,6 +52,8 @@ export function SocialPreviewCard({
     platform === 'facebook'  ? 'Your Facebook Page'
     : platform === 'instagram' ? 'your_instagram'
     : platform === 'twitter'   ? 'Your Twitter'
+    : platform === 'linkedin'  ? 'Your Company'
+    : platform === 'tiktok'    ? '@yourtiktok'
     : 'Your Account'
   )
 
@@ -381,6 +383,249 @@ export function SocialPreviewCard({
     </div>
   )
 
+  // ── LinkedIn ──────────────────────────────────────────────────────────────────
+
+  // LinkedIn pages use a square logo rather than a circular avatar
+  const renderSquareLogo = () => {
+    if (accountAvatarUrl) {
+      return (
+        <div className="w-12 h-12 rounded-[4px] overflow-hidden flex-shrink-0 bg-white">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={accountAvatarUrl} alt={accountName || 'Logo'} className="w-full h-full object-cover" />
+        </div>
+      )
+    }
+    return (
+      <div className="w-12 h-12 rounded-[4px] flex-shrink-0 bg-[#0A66C2] flex items-center justify-center">
+        {accountName
+          ? <span className="text-white font-semibold text-lg">{accountName.charAt(0).toUpperCase()}</span>
+          : <LinkedInIcon size={24} className="text-white" />}
+      </div>
+    )
+  }
+
+  const CarouselControls = ({ small = false }: { small?: boolean }) => {
+    if (!allMedia || allMedia.length <= 1) return null
+    const btn = small ? 'w-6 h-6' : 'w-7 h-7'
+    const chev = small ? 'w-3.5 h-3.5' : 'w-4 h-4'
+    return (
+      <>
+        <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}
+          className={`absolute left-2 top-1/2 -translate-y-1/2 ${btn} rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10`}>
+          <ChevronLeft className={chev} />
+        </button>
+        <button onClick={() => setCarouselIndex(i => (i + 1) % allMedia.length)}
+          className={`absolute right-2 top-1/2 -translate-y-1/2 ${btn} rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10`}>
+          <ChevronRight className={chev} />
+        </button>
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+          {allMedia.map((_, i) => (
+            <button key={i} onClick={() => setCarouselIndex(i)}
+              className={`w-1.5 h-1.5 rounded-full transition-colors ${i === carouselIndex ? 'bg-white' : 'bg-white/50'}`} />
+          ))}
+        </div>
+      </>
+    )
+  }
+
+  const renderLinkedInPreview = () => (
+    <div
+      className="bg-white border border-[#e0dfdc] rounded-lg overflow-hidden max-w-sm mx-auto"
+      style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', color: 'rgba(0,0,0,0.9)' }}
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2 px-3 pt-3 pb-2">
+        <div className="flex items-start gap-2 min-w-0">
+          {renderSquareLogo()}
+          <div className="min-w-0 pt-0.5">
+            <div style={{ fontSize: '14px', fontWeight: 600, lineHeight: '1.3' }} className="truncate">{displayName}</div>
+            <div style={{ fontSize: '12px', color: 'rgba(0,0,0,0.6)', lineHeight: '1.3' }} className="truncate">Your industry</div>
+            <div style={{ fontSize: '12px', color: 'rgba(0,0,0,0.6)', lineHeight: '1.3' }} className="flex items-center gap-1">
+              <span>1h</span>
+              <span>·</span>
+              <svg viewBox="0 0 16 16" fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="1.2" className="w-3 h-3">
+                <circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="2.8" ry="6.5"/><line x1="1.5" y1="8" x2="14.5" y2="8"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0 pt-1">
+          <svg viewBox="0 0 20 20" fill="rgba(0,0,0,0.6)" className="w-5 h-5"><circle cx="4" cy="10" r="1.6"/><circle cx="10" cy="10" r="1.6"/><circle cx="16" cy="10" r="1.6"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="2" strokeLinecap="round" className="w-4 h-4"><path d="M6 18L18 6M6 6l12 12"/></svg>
+        </div>
+      </div>
+
+      {/* Post text */}
+      {caption && (
+        <div className="px-3 pb-2">
+          <p style={{ fontSize: '14px', lineHeight: '1.42857' }} className="whitespace-pre-wrap break-words line-clamp-3">
+            {caption}
+            <span style={{ color: 'rgba(0,0,0,0.6)' }}> …see more</span>
+          </p>
+        </div>
+      )}
+
+      {/* Media */}
+      {activeImageUrl ? (
+        <div className="relative bg-black w-full">
+          {isActiveVideo ? (
+            <video src={activeImageUrl} controls playsInline className="w-full h-auto block" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={activeImageUrl} alt="Post" className="w-full h-auto block" />
+          )}
+          <CarouselControls />
+        </div>
+      ) : (
+        <div className="h-44 bg-gray-100 flex items-center justify-center border-y border-gray-200">
+          <div className="text-center text-gray-400">
+            <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-40" />
+            <p className="text-xs">Image preview</p>
+          </div>
+        </div>
+      )}
+
+      {/* Social counts */}
+      <div className="px-3 py-2 flex items-center justify-between" style={{ fontSize: '12px', color: 'rgba(0,0,0,0.6)' }}>
+        <div className="flex items-center gap-1.5">
+          <div className="flex -space-x-1">
+            <div className="w-[18px] h-[18px] rounded-full bg-[#378FE9] flex items-center justify-center ring-1 ring-white">
+              <svg viewBox="0 0 24 24" fill="white" className="w-2.5 h-2.5"><path d="M9.5 21H6a1 1 0 01-1-1v-9a1 1 0 011-1h3.5v11zM20.9 11.4l-1.5 8A2 2 0 0117.4 21H11V9.6l3.2-6.4a1 1 0 011.8.1c.5 1.2.7 2.6.4 4L15.9 9h3.2a2 2 0 011.8 2.4z"/></svg>
+            </div>
+            <div className="w-[18px] h-[18px] rounded-full bg-[#DF704D] flex items-center justify-center ring-1 ring-white">
+              <svg viewBox="0 0 16 16" fill="white" className="w-2.5 h-2.5"><path fillRule="evenodd" d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314z"/></svg>
+            </div>
+            <div className="w-[18px] h-[18px] rounded-full bg-[#F5BB5C] flex items-center justify-center ring-1 ring-white">
+              <svg viewBox="0 0 24 24" fill="white" className="w-2.5 h-2.5"><path d="M9 21h6v-1H9v1zm3-20a7 7 0 00-4 12.7V17a1 1 0 001 1h6a1 1 0 001-1v-3.3A7 7 0 0012 1z"/></svg>
+            </div>
+          </div>
+          <span>139K</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>12K comments</span>
+          <span>·</span>
+          <span>6K reposts</span>
+        </div>
+      </div>
+
+      {/* Action bar */}
+      <div className="px-1 py-0.5 border-t border-[#e0dfdc]">
+        <div className="flex">
+          {[
+            { kind: 'Like',    path: <><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"/><path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></> },
+            { kind: 'Comment', path: <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/> },
+            { kind: 'Repost',  path: <><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></> },
+            { kind: 'Share',   path: <><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></> },
+          ].map((item) => (
+            <button key={item.kind} className="flex-1 flex items-center justify-center gap-1 py-2 hover:bg-[#f3f2ef] rounded transition-colors">
+              <svg className="w-[18px] h-[18px]" fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">{item.path}</svg>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(0,0,0,0.6)' }}>{item.kind}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+
+  // ── TikTok ────────────────────────────────────────────────────────────────────
+
+  const renderTikTokPreview = () => (
+    <div className="relative max-w-[240px] mx-auto rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '9/16', maxHeight: '440px' }}>
+      {/* Media */}
+      {activeImageUrl ? (
+        isActiveVideo ? (
+          <video src={activeImageUrl} controls playsInline className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={activeImageUrl} alt="Post" className="absolute inset-0 w-full h-full object-cover" />
+        )
+      ) : (
+        <div className="absolute inset-0 bg-[#111111] flex items-center justify-center">
+          <div className="w-[84px] h-[68px] rounded-2xl border-2 border-white/10 flex items-center justify-center">
+            <ImageIcon className="w-8 h-8 text-white/10" strokeWidth={1.5} />
+          </div>
+        </div>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/45 pointer-events-none" />
+      <CarouselControls small />
+
+      {/* Top bar */}
+      <div className="absolute top-2.5 left-3 right-3 flex items-center justify-center">
+        <span className="text-white/60 text-[11px] font-semibold">Following</span>
+        <span className="text-white/30 text-[11px] mx-1.5">|</span>
+        <span className="text-white text-[11px] font-bold">For You</span>
+        <svg className="absolute right-0 w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.4-4.4"/></svg>
+      </div>
+
+      {/* Right action rail */}
+      <div className="absolute right-2 bottom-[84px] flex flex-col items-center gap-3.5">
+        <div className="flex flex-col items-center gap-0.5">
+          <svg className="w-7 h-7 text-white drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          <span className="text-white text-[10px] font-semibold drop-shadow">2.5M</span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <svg className="w-7 h-7 drop-shadow" viewBox="0 0 24 24">
+            <path fill="white" d="M20.5 2.5h-17A1.5 1.5 0 002 4v12.5A1.5 1.5 0 003.5 18H6v3.3c0 .7.8 1.1 1.4.6l4.9-3.9h8.2a1.5 1.5 0 001.5-1.5V4a1.5 1.5 0 00-1.5-1.5z"/>
+            <circle cx="8" cy="10" r="1.3" fill="black"/><circle cx="12" cy="10" r="1.3" fill="black"/><circle cx="16" cy="10" r="1.3" fill="black"/>
+          </svg>
+          <span className="text-white text-[10px] font-semibold drop-shadow">342</span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <svg className="w-7 h-7 text-white drop-shadow" fill="currentColor" viewBox="0 0 24 24"><path d="M21.7 11.2L13 3.3c-.5-.5-1.4-.1-1.4.6v3.8C5.9 8.2 2 12.6 2 18.4c0 .9 1.1 1.2 1.6.5 1.9-2.8 4.5-4.3 8-4.4v3.8c0 .7.9 1.1 1.4.6l8.7-7.9c.3-.3.3-.8 0-1.1z"/></svg>
+          <span className="text-white text-[10px] font-semibold drop-shadow">13.1K</span>
+        </div>
+        <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-[#3a3a3a] to-black flex items-center justify-center">
+          <div className="w-3 h-3 rounded-full bg-white" />
+          <svg className="absolute -left-1.5 -top-0.5 w-3 h-3 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        </div>
+      </div>
+
+      {/* Bottom content */}
+      <div className="absolute bottom-[42px] left-0 right-12 px-3 space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          {renderAvatar('sm')}
+          <span className="text-white text-xs font-bold drop-shadow">{displayName}</span>
+        </div>
+        {caption && <p className="text-white text-[11px] font-semibold leading-snug line-clamp-3 drop-shadow">{caption}</p>}
+        <div className="flex items-center gap-1.5">
+          <svg className="w-3 h-3 text-white flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          <div className="h-[3px] flex-1 rounded-full bg-white/25 overflow-hidden"><div className="h-full w-2/3 bg-white/60 rounded-full" /></div>
+        </div>
+      </div>
+
+      {/* Bottom nav */}
+      <div className="absolute bottom-0 left-0 right-0 bg-black flex items-end justify-around px-1 pt-1 pb-1">
+        {[
+          { label: 'Home',     path: <path d="M3 10.6L12 3l9 7.6V21a1 1 0 01-1 1h-4.5v-6h-7v6H4a1 1 0 01-1-1V10.6z"/> },
+          { label: 'Discover', path: <g fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.4-4.4"/></g> },
+        ].map((item) => (
+          <div key={item.label} className="flex flex-col items-center gap-0.5 w-9">
+            <svg className="w-[18px] h-[18px] text-white" fill="currentColor" viewBox="0 0 24 24">{item.path}</svg>
+            <span className="text-white text-[7px] font-medium leading-none">{item.label}</span>
+          </div>
+        ))}
+        <div className="flex flex-col items-center w-9 pb-2.5">
+          <div className="relative w-7 h-[18px]">
+            <div className="absolute left-0 top-0 w-6 h-[18px] rounded-[5px] bg-[#25F4EE]" />
+            <div className="absolute right-0 top-0 w-6 h-[18px] rounded-[5px] bg-[#FE2C55]" />
+            <div className="absolute left-[2px] top-0 w-[23px] h-[18px] rounded-[5px] bg-white flex items-center justify-center">
+              <svg className="w-2.5 h-2.5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            </div>
+          </div>
+        </div>
+        {[
+          { label: 'Inbox', path: <path d="M4 3h16a2 2 0 012 2v11a2 2 0 01-2 2H9l-4.4 3.3A1 1 0 013 20.5V5a2 2 0 012-2z"/> },
+          { label: 'Me',    path: <g><circle cx="12" cy="7.5" r="4"/><path d="M3.8 21c.6-4.3 4.1-6.6 8.2-6.6s7.6 2.3 8.2 6.6H3.8z"/></g> },
+        ].map((item) => (
+          <div key={item.label} className="flex flex-col items-center gap-0.5 w-9">
+            <svg className="w-[18px] h-[18px] text-white" fill="currentColor" viewBox="0 0 24 24">{item.path}</svg>
+            <span className="text-white text-[7px] font-medium leading-none">{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
   // ── Master renderer ───────────────────────────────────────────────────────────
 
   const renderPreview = () => {
@@ -388,13 +633,15 @@ export function SocialPreviewCard({
       case 'facebook':  return renderFacebookPreview()
       case 'instagram': return renderInstagramPreview()
       case 'twitter':   return renderTwitterPreview()
+      case 'linkedin':  return renderLinkedInPreview()
+      case 'tiktok':    return renderTikTokPreview()
       default:          return renderFacebookPreview()
     }
   }
 
   return (
     <div className="space-y-4">
-      <div className="bg-gray-50 p-3 rounded-lg">
+      <div className={`${platform === 'tiktok' ? 'bg-gray-900' : 'bg-gray-50'} p-3 rounded-lg`}>
         {renderPreview()}
       </div>
 

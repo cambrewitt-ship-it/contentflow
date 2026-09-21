@@ -7,6 +7,7 @@ interface PortalClient {
   id: string;
   name: string;
   portal_settings: Record<string, unknown>;
+  logo_url?: string | null;
 }
 
 export interface PortalParty {
@@ -23,6 +24,7 @@ interface PortalContextType {
   error: string | null;
   logout: () => void;
   validateToken: (token: string) => Promise<boolean>;
+  setClientLogo: (logoUrl: string) => void;
 }
 
 const PortalContext = createContext<PortalContextType | undefined>(undefined);
@@ -46,7 +48,7 @@ export function PortalProvider({
   const validateToken = async (tokenValue: string): Promise<boolean> => {
     // Check sessionStorage cache first (valid for 10 minutes)
     try {
-      const cacheKey = `portal_validated_${tokenValue}`;
+      const cacheKey = `portal_validated_v2_${tokenValue}`;
       const cached = typeof window !== 'undefined' ? sessionStorage.getItem(cacheKey) : null;
       if (cached) {
         const parsed = JSON.parse(cached);
@@ -84,7 +86,7 @@ export function PortalProvider({
         // Cache the result in sessionStorage
         try {
           sessionStorage.setItem(
-            `portal_validated_${tokenValue}`,
+            `portal_validated_v2_${tokenValue}`,
             JSON.stringify({ client: data.client, party: data.party ?? null, timestamp: Date.now() })
           );
         } catch {
@@ -105,6 +107,32 @@ export function PortalProvider({
     }
   };
 
+  /**
+   * Update the client logo in context (and the sessionStorage cache) without a
+   * full re-validation — used after a portal-side logo upload so the top bar
+   * picks it up immediately.
+   */
+  const setClientLogo = (logoUrl: string) => {
+    setClient(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, logo_url: logoUrl };
+      try {
+        const cacheKey = `portal_validated_v2_${token}`;
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify({ ...parsed, client: next })
+          );
+        }
+      } catch {
+        // sessionStorage unavailable — context state is still updated
+      }
+      return next;
+    });
+  };
+
   const logout = () => {
     setClient(null);
     setParty(null);
@@ -114,7 +142,7 @@ export function PortalProvider({
       sessionStorage.removeItem('portal_token');
       // Clear all portal validation caches
       for (const key of Object.keys(sessionStorage)) {
-        if (key.startsWith('portal_validated_')) sessionStorage.removeItem(key);
+        if (key.startsWith('portal_validated_v2_')) sessionStorage.removeItem(key);
       }
     }
   };
@@ -137,6 +165,7 @@ export function PortalProvider({
     error,
     logout,
     validateToken,
+    setClientLogo,
   };
 
   return <PortalContext.Provider value={value}>{children}</PortalContext.Provider>;

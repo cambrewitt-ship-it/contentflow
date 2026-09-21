@@ -10,14 +10,22 @@ export async function requireAuth(request: Request) {
   const token = authHeader.substring(7);
   const supabase = createSupabaseWithToken(token);
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-  // getUser() validates the JWT server-side including expiry - no need for a separate getSession() call
-  if (userError || !user) {
+  // getClaims() verifies the JWT's signature and expiry against the cached JWKS,
+  // so it avoids the auth-server round trip that getUser() makes on every single
+  // request. That round trip counts against Supabase's per-IP auth rate limit and
+  // was exhausting it. Projects still on a symmetric (HS256) signing key fall back
+  // to a network call internally, so this is safe either way.
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+
+  const userId = claimsData?.claims?.sub;
+  if (claimsError || !userId) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }
+
+  const user = {
+    id: userId,
+    email: claimsData.claims.email as string | undefined,
+  };
 
   return { user, supabase, token };
 }

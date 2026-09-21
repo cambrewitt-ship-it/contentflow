@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next'
+import { PLATFORM_SLUGS } from './social-preview/platforms'
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://content-manager.io'
@@ -26,8 +27,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: `${baseUrl}/social-preview`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
-      priority: 0.8,
+      priority: 0.9,
     },
+    // Platform-specific preview landing pages (facebook-post-preview, etc.)
+    ...PLATFORM_SLUGS.map((slug) => ({
+      url: `${baseUrl}/social-preview/${slug}`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly' as const,
+      priority: 0.8,
+    })),
     {
       url: `${baseUrl}/blog`,
       lastModified: new Date(),

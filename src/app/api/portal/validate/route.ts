@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 
     const { data: client, error } = await supabase
       .from('clients')
-      .select('id, name, portal_settings')
+      .select('id, name, portal_settings, logo_url')
       .eq('id', resolved.clientId)
       .single();
 
@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
         id: client.id,
         name: client.name,
         portal_settings: client.portal_settings ?? {},
+        logo_url: client.logo_url ?? null,
       },
       party: resolved.party ?? null,
     });

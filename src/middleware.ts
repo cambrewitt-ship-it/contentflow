@@ -71,6 +71,7 @@ export async function middleware(req: NextRequest) {
     '/portal/',     // Client portal pages
     '/approval/',   // Approval pages with tokens
     '/blog/',       // Blog article pages
+    '/social-preview/', // Platform-specific preview landing pages
   ];
 
   const pathname = req.nextUrl.pathname;

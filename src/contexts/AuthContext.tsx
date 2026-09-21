@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
 // Note: Using console instead of logger for client-side debugging
@@ -24,9 +24,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  // A failed refresh can fire repeatedly; without this guard each one kicks off
+  // another full page reload, and every reload retries the refresh again.
+  const clearingAuthRef = useRef(false);
 
   // Clear all authentication storage and force re-login
   const clearAuthAndRedirect = useCallback(() => {
+    if (clearingAuthRef.current) return;
+    clearingAuthRef.current = true;
+
     console.log('🧹 Clearing all authentication storage and redirecting to login');
     
     try {

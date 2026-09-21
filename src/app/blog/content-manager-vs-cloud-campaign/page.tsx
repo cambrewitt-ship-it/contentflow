@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Script from 'next/script'
 import PageContent from './PageContent'
 
 export const metadata: Metadata = {
@@ -37,7 +36,7 @@ const schemaMarkup = {
 export default function Page() {
   return (
     <>
-      <Script
+      <script
         id="blog-schema-vs-cloud-campaign"
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaMarkup) }}

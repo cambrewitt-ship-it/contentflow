@@ -60,14 +60,21 @@ export function createSupabaseWithToken(token: string) {
 export async function getAuthenticatedUser(token: string) {
   try {
     const supabase = createSupabaseWithToken(token);
-    const { data: { user }, error } = await supabase.auth.getUser();
+    // Verified locally against the cached JWKS rather than via a per-request
+    // auth-server call - see the note in lib/authHelpers.ts.
+    const { data, error } = await supabase.auth.getClaims(token);
 
     if (error) {
       logger.error('Authentication error:', error);
       return null;
     }
 
-    return user;
+    const userId = data?.claims?.sub;
+    if (!userId) {
+      return null;
+    }
+
+    return { id: userId, email: data.claims.email as string | undefined };
   } catch (error) {
     logger.error('Failed to get authenticated user:', error);
     return null;

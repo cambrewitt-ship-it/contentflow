@@ -62,6 +62,8 @@ const PREVIEW_PLATFORMS: { id: PreviewPlatform; label: string; color: string }[]
   { id: "instagram", label: "Instagram", color: "from-purple-500 to-pink-500" },
   { id: "facebook",  label: "Facebook",  color: "bg-blue-600" },
   { id: "twitter",   label: "Twitter/X", color: "bg-sky-400" },
+  { id: "linkedin",  label: "LinkedIn",  color: "bg-[#0A66C2]" },
+  { id: "tiktok",    label: "TikTok",    color: "bg-black" },
 ];
 
 function pickDefaultPlatform(platforms?: string[]): PreviewPlatform {
@@ -947,7 +949,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                       key={p.id}
                       type="button"
                       onClick={() => setSelectedPlatform(p.id)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      className={`flex-1 py-1.5 px-1 rounded-lg text-[11px] font-semibold transition-all ${
                         selectedPlatform === p.id
                           ? "bg-white shadow-sm text-gray-900 ring-1 ring-gray-200"
                           : "text-gray-400 hover:text-gray-600"

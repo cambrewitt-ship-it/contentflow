@@ -42,6 +42,9 @@ export default function NotificationBell() {
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
+    // Background tabs shouldn't keep polling - a few forgotten tabs add up to a
+    // steady stream of authenticated API calls against the auth rate limit.
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     const token = getAccessToken();
     if (!token) return;
     try {
@@ -61,7 +64,16 @@ export default function NotificationBell() {
   useEffect(() => {
     fetchNotifications();
     const interval = setInterval(fetchNotifications, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    // Catch up immediately when the tab comes back to the foreground, so pausing
+    // the poll doesn't make the badge look stale.
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchNotifications();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [fetchNotifications]);
 
   // Close on outside click

@@ -15,7 +15,7 @@ let profileCheckCache: boolean | null = null;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, getAccessToken } = useAuth();

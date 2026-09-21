@@ -293,7 +293,7 @@ function PortalCalendarEventModal({
 export default function PortalCalendarPage() {
   const params = useParams();
   const token = params?.token as string;
-  const { party, client } = usePortal();
+  const { party, client, setClientLogo } = usePortal();
 
   // Modal state
   const [modalItem, setModalItem] = useState<ModalItem | null>(null);
@@ -368,6 +368,9 @@ export default function PortalCalendarPage() {
   const [showBrandSettings, setShowBrandSettings] = useState(false);
   const [tempBrandName, setTempBrandName] = useState('');
   const [tempBrandLogoUrl, setTempBrandLogoUrl] = useState('');
+  const [brandLogoUploading, setBrandLogoUploading] = useState(false);
+  const [brandLogoError, setBrandLogoError] = useState<string | null>(null);
+  const brandLogoInputRef = useRef<HTMLInputElement>(null);
   const brandInitializedRef = useRef(false);
 
   // View mode state
@@ -906,7 +909,55 @@ export default function PortalCalendarPage() {
   const openBrandSettings = () => {
     setTempBrandName(brandName);
     setTempBrandLogoUrl(brandLogoUrl);
+    setBrandLogoError(null);
     setShowBrandSettings(true);
+  };
+
+  const handleBrandLogoUpload = async (file: File) => {
+    setBrandLogoError(null);
+
+    if (!file.type.startsWith('image/')) {
+      setBrandLogoError('Please choose an image file');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setBrandLogoError('Logo must be smaller than 5MB');
+      return;
+    }
+
+    setBrandLogoUploading(true);
+    try {
+      const imageData = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Could not read file'));
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch('/api/portal/brand-logo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, imageData, filename: file.name }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.logoUrl) {
+        setBrandLogoError(data.error || 'Upload failed');
+        return;
+      }
+
+      setTempBrandLogoUrl(data.logoUrl);
+
+      // The API adopts the upload as the client logo when there wasn't one —
+      // mirror that into context so the top bar updates right away.
+      if (data.adoptedAsClientLogo) {
+        setClientLogo(data.logoUrl);
+      }
+    } catch (err) {
+      setBrandLogoError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setBrandLogoUploading(false);
+    }
   };
 
   const saveBrandSettings = () => {
@@ -2540,9 +2591,65 @@ export default function PortalCalendarPage() {
                 />
               </div>
 
-              {/* Logo URL */}
+              {/* Logo */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Logo</label>
+
+                <input
+                  ref={brandLogoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) handleBrandLogoUpload(file);
+                    e.target.value = '';
+                  }}
+                />
+
+                <div className="flex items-center gap-3">
+                  {tempBrandLogoUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={tempBrandLogoUrl}
+                      alt="Logo preview"
+                      className="w-12 h-12 rounded-full object-cover border border-gray-200 bg-gray-50 flex-shrink-0"
+                      onError={e => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center flex-shrink-0">
+                      <ImageIcon className="w-5 h-5 text-gray-400" />
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      onClick={() => brandLogoInputRef.current?.click()}
+                      disabled={brandLogoUploading}
+                      className="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {brandLogoUploading
+                        ? 'Uploading...'
+                        : tempBrandLogoUrl ? 'Replace logo' : 'Upload logo'}
+                    </button>
+                    {tempBrandLogoUrl && !brandLogoUploading && (
+                      <button
+                        type="button"
+                        onClick={() => { setTempBrandLogoUrl(''); setBrandLogoError(null); }}
+                        className="text-xs text-red-600 hover:underline text-left"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {brandLogoError && (
+                  <p className="mt-2 text-xs text-red-600">{brandLogoError}</p>
+                )}
+
+                <label className="block text-xs font-medium text-gray-500 mt-3 mb-1">Or paste a logo URL</label>
                 <input
                   type="url"
                   value={tempBrandLogoUrl}
@@ -2550,18 +2657,6 @@ export default function PortalCalendarPage() {
                   placeholder="https://example.com/logo.png"
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
                 />
-                {tempBrandLogoUrl && (
-                  <div className="mt-2 flex items-center gap-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={tempBrandLogoUrl}
-                      alt="Logo preview"
-                      className="w-10 h-10 rounded-full object-cover border border-gray-200 bg-gray-50"
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                    <span className="text-xs text-gray-500">Preview</span>
-                  </div>
-                )}
               </div>
             </div>
 

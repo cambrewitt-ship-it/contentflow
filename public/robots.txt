@@ -6,4 +6,55 @@ Disallow: /auth/
 Disallow: /dashboard/
 Disallow: /api/
 
+# ── AI / answer-engine crawlers ──────────────────────────────────────────────
+# Explicitly allowed so the free preview tool and the specs reference in
+# /llms.txt can be cited in AI answers.
+User-agent: GPTBot
+Allow: /
+Disallow: /auth/
+Disallow: /dashboard/
+Disallow: /api/
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /auth/
+Disallow: /dashboard/
+Disallow: /api/
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /auth/
+Disallow: /dashboard/
+Disallow: /api/
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /auth/
+Disallow: /dashboard/
+Disallow: /api/
+
+User-agent: Claude-SearchBot
+Allow: /
+Disallow: /auth/
+Disallow: /dashboard/
+Disallow: /api/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /auth/
+Disallow: /dashboard/
+Disallow: /api/
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /auth/
+Disallow: /dashboard/
+Disallow: /api/
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /auth/
+Disallow: /dashboard/
+Disallow: /api/
+
 Sitemap: https://content-manager.io/sitemap.xml

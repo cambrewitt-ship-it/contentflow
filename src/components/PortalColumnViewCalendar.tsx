@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, ChangeEvent, useImperativeHandle, forwardRef } from 'react';
 import { Calendar, CheckCircle, AlertTriangle, XCircle, Minus, Tag, FileText, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
-import { VideoThumbnail } from '@/components/VideoThumbnail';
+import { CarouselMedia } from '@/components/CarouselMedia';
 import { isVideoUrl } from '@/lib/videoUtils';
 import { type CalendarEvent } from './CalendarEventModal';
 import logger from '@/lib/logger';
@@ -107,64 +107,6 @@ interface PortalColumnViewCalendarProps {
   onTagsChange?: (postId: string, tags: Array<{ id: string; name: string; color: string }>) => void;
 }
 
-// Lazy loading image component
-const LazyImage = ({ 
-  src, 
-  alt, 
-  className 
-}: { 
-  src: string; 
-  alt: string; 
-  className?: string; 
-}) => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isInView, setIsInView] = useState(false);
-  const imgRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsInView(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (imgRef.current) {
-      observer.observe(imgRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div ref={imgRef} className={className}>
-      {isInView && (
-        <img
-          src={src}
-          alt={alt}
-          onLoad={() => setIsLoaded(true)}
-          className={`w-full h-auto object-contain rounded-lg transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
-          onError={(e) => {
-            e.currentTarget.src = '/api/placeholder/100/100';
-          }}
-        />
-      )}
-      {!isLoaded && isInView && (
-        <div className="w-full min-h-32 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
-          <div className="w-4 h-4 animate-spin text-gray-400" />
-        </div>
-      )}
-      {!isInView && (
-        <div className="w-full min-h-32 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
-          <div className="w-4 h-4 animate-spin text-gray-400" />
-        </div>
-      )}
-    </div>
-  );
-};
 
 // Sortable Post Card Component
 function SortablePostCard({
@@ -530,17 +472,19 @@ function SortablePostCard({
         </div>
         {uploadData.file_url && (() => {
           const carouselGroup: any[] = (post.carouselUploads?.length ?? 0) > 1 ? post.carouselUploads : null;
-          const activeUpload = carouselGroup ? carouselGroup[imgIndex] ?? carouselGroup[0] : uploadData;
-          const activeUrl = activeUpload.file_url || uploadData.file_url;
-          const activeType = activeUpload.file_type || uploadData.file_type;
-          const total = carouselGroup ? carouselGroup.length : 1;
+          const mediaItems = (carouselGroup ?? [uploadData]).map((item: any) => ({
+            url: item.file_url || uploadData.file_url,
+            isVideo: (item.file_type || uploadData.file_type)?.startsWith('video/') ?? false,
+          }));
+          const total = mediaItems.length;
           return (
             <div className="relative w-full mb-2 rounded overflow-hidden border border-gray-200">
-              {activeType?.startsWith('video/') ? (
-                <VideoThumbnail src={activeUrl} className="w-full min-h-24" objectFit="cover" />
-              ) : (
-                <LazyImage src={activeUrl} alt={fileName || 'Client upload'} className="w-full" />
-              )}
+              <CarouselMedia
+                items={mediaItems}
+                index={imgIndex}
+                alt={fileName || 'Client upload'}
+                className="w-full"
+              />
               {total > 1 && (
                 <>
                   <button
@@ -667,15 +611,11 @@ function SortablePostCard({
       {/* Post Image */}
       {post.image_url && (() => {
         const allMedia: string[] = (post.media_urls?.length ?? 0) > 1 ? post.media_urls : [post.image_url];
-        const activeUrl = allMedia[imgIndex] ?? post.image_url;
-        const total = allMedia.length;
+        const mediaItems = allMedia.map((url) => ({ url, isVideo: isVideoUrl(url) }));
+        const total = mediaItems.length;
         return (
           <div className="relative w-full mb-2 rounded overflow-hidden">
-            {isVideoUrl(activeUrl) ? (
-              <VideoThumbnail src={activeUrl} className="w-full min-h-24" objectFit="cover" />
-            ) : (
-              <LazyImage src={activeUrl} alt="Post" className="w-full" />
-            )}
+            <CarouselMedia items={mediaItems} index={imgIndex} alt="Post" className="w-full" />
             {total > 1 && (
               <>
                 <button

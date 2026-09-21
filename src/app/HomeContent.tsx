@@ -1173,6 +1173,30 @@ export default function HomeContent() {
             </div>
           </div>
 
+          {/* Free tools — sitewide internal links into the /social-preview cluster */}
+          <div className="mt-8 pt-8 border-t border-border/40">
+            <h3 className="text-sm font-bold text-foreground mb-3 text-center md:text-left">Free Preview Tools</h3>
+            <div className="flex flex-wrap justify-center md:justify-start gap-x-5 gap-y-2">
+              {[
+                { href: '/social-preview', label: 'Social media post preview' },
+                { href: '/social-preview/facebook-post-preview', label: 'Facebook post preview' },
+                { href: '/social-preview/instagram-post-preview', label: 'Instagram post preview' },
+                { href: '/social-preview/linkedin-post-preview', label: 'LinkedIn post preview' },
+                { href: '/social-preview/twitter-x-post-preview', label: 'X (Twitter) post preview' },
+                { href: '/social-preview/tiktok-post-preview', label: 'TikTok post preview' },
+                { href: '/social-preview/instagram-story-preview', label: 'Instagram Story preview' },
+                { href: '/social-preview/facebook-story-preview', label: 'Facebook Story preview' },
+                { href: '/social-preview/facebook-ad-preview', label: 'Facebook ad preview' },
+                { href: '/social-preview/instagram-ad-preview', label: 'Instagram ad preview' },
+                { href: '/social-preview/linkedin-ad-preview', label: 'LinkedIn ad preview' },
+              ].map(({ href, label }) => (
+                <Link key={href} href={href} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
           <div className="mt-8 pt-8 border-t border-border/40">
             <p className="text-sm text-muted-foreground text-center">
               © 2025 OneOneThree Digital. All rights reserved.
