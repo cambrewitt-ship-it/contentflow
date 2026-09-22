@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Poppins, Noto_Sans, Montserrat } from "next/font/google";
+import { poppins, montserrat } from "./fonts";
 import "./globals.css";
 import "../styles/glassmorphism.css";
 import { UIThemeProvider } from "../contexts/UIThemeContext";
@@ -9,23 +9,6 @@ import { GoogleTagManager, GoogleTagManagerNoScript } from "../components/Google
 
 // Validate environment variables on server startup
 import "../lib/validateEnv";
-
-const poppins = Poppins({ 
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800", "900"],
-  variable: "--font-poppins"
-});
-
-const notoSans = Noto_Sans({
-  subsets: ["latin"],
-  weight: ["400", "700"]
-});
-
-const montserrat = Montserrat({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-montserrat",
-});
 
 export const metadata: Metadata = {
   title: {

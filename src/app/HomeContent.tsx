@@ -17,7 +17,6 @@ import {
   YouTubeIcon,
   ThreadsIcon
 } from "@/components/social-icons";
-import { Oswald, Poppins } from "next/font/google";
 import { isSingleClientTier } from "../lib/tierUtils";
 
 interface UserProfile {
@@ -34,16 +33,6 @@ interface Client {
   id: string;
   name: string;
 }
-
-const oswald = Oswald({
-  subsets: ["latin"],
-  weight: ["700"],
-});
-
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["700"],
-});
 
 const pricingTiers = [
   {
