@@ -353,7 +353,14 @@ export function SocialPreviewColumn({
 
       // Step 1: Upload image to LATE
       console.log('Uploading image to LATE...')
-      const activeImage = uploadedImages.find(img => img.id === activeImageId) || uploadedImages[0]
+      // Carousels publish in thumbnail order, so the first photo is the cover
+      const activeImage = uploadedImages.length > 1
+        ? uploadedImages[0]
+        : (uploadedImages.find(img => img.id === activeImageId) || uploadedImages[0])
+      const allMediaUrls = uploadedImages.map(img => img.blobUrl || img.preview)
+      if (uploadedImages.length > 1 && allMediaUrls.some(url => !url?.startsWith('https://'))) {
+        throw new Error('Photos are still uploading. Please wait and try again.')
+      }
       let imageData = activeImage.preview
 
       // Convert blob URL to base64 if needed
@@ -402,6 +409,7 @@ export function SocialPreviewColumn({
         project_id: selectedProjectId || null,
         caption: displayCaption,
         image_url: lateMediaUrl, // Use the LATE media URL for the calendar post
+        media_urls: allMediaUrls.length > 1 ? allMediaUrls : null,
         scheduled_date: scheduledDate,
         scheduled_time: scheduledTime,
         post_notes: '',

@@ -3,6 +3,10 @@ import logger from '@/lib/logger';
 import { checkSocialMediaPostingPermission } from '@/lib/subscriptionMiddleware';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
+import { toLateMediaItem, LateUploadError } from '@/lib/lateMedia';
+
+// Carousel posts re-host each extra photo on LATE before scheduling
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
@@ -85,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     const { data: scheduledPost, error: scheduledPostError } = await supabase
       .from('calendar_scheduled_posts')
-      .select('id, client_id')
+      .select('id, client_id, media_urls')
       .eq('id', postId)
       .single();
 
@@ -137,16 +141,35 @@ export async function POST(request: NextRequest) {
     // Ensure we have valid content for LATE API
     const finalContent = caption.trim() || 'Posted via Content Manager';
 
+    // media_urls[0] is the cover, which the client already uploaded as lateMediaUrl
+    const extraMediaUrls: string[] = Array.isArray(scheduledPost.media_urls) ? scheduledPost.media_urls.slice(1) : [];
+    let extraMediaItems: Array<{ type: 'image' | 'video'; url: string }>;
+    try {
+      extraMediaItems = await Promise.all(extraMediaUrls.map((url) => toLateMediaItem(url)));
+    } catch (mediaError) {
+      logger.error('Failed to prepare carousel media for LATE:', mediaError);
+      return NextResponse.json(
+        {
+          error: 'Failed to upload carousel photos',
+          details: mediaError instanceof LateUploadError ? mediaError.details : undefined,
+        },
+        { status: mediaError instanceof LateUploadError ? mediaError.status : 500 }
+      );
+    }
+
     // Log what we're sending to LATE
     const requestBody = {
       content: finalContent,
       platforms: platforms,
       scheduledFor: localDateTime, // e.g. "2024-09-16T18:00:00"
       timezone: clientTimezone,
-      mediaItems: [{
-        type: 'image',
-        url: lateMediaUrl
-      }]
+      mediaItems: [
+        {
+          type: 'image',
+          url: lateMediaUrl
+        },
+        ...extraMediaItems,
+      ]
     };
 
     logger.debug('LATE request body', {

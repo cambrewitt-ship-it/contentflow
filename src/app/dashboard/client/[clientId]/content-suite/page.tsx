@@ -978,6 +978,12 @@ function ContentSuiteContent({
         throw new Error('Invalid image format. Please re-upload the image.')
       }
 
+      // Every photo goes into the post; schedule-post re-hosts photos 2+ on LATE from media_urls
+      const allMediaUrls = uploadedImages.map(img => img.blobUrl || img.preview)
+      if (allMediaUrls.some(url => !url?.startsWith('https://'))) {
+        throw new Error('Photos are still uploading. Please wait and try again.')
+      }
+
       // Step 1: Upload image to LATE
       console.log('Uploading image to LATE...')
       let imageData = imageUrl
@@ -1046,6 +1052,7 @@ function ContentSuiteContent({
         project_id: selectedProjectId,
         caption: selectedCaption,
         image_url: imageUrl,
+        media_urls: allMediaUrls.length > 1 ? allMediaUrls : null,
         scheduled_date: date,
         scheduled_time: scheduledTime,
         post_notes: '',

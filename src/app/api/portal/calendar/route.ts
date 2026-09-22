@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { z } from 'zod';
 import logger from '@/lib/logger';
 import { resolvePortalToken } from '@/lib/portalAuth';
 
@@ -201,10 +202,20 @@ export async function GET(request: NextRequest) {
   }
 }
 
+const mediaUrlsSchema = z
+  .array(z.string().url().startsWith('https://'))
+  .max(20)
+  .nullish();
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { token, caption, image_url, post_notes, scheduled_date, scheduled_time } = body;
+    const mediaUrlsResult = mediaUrlsSchema.safeParse(body.media_urls);
+    if (!mediaUrlsResult.success) {
+      return NextResponse.json({ error: 'media_urls must be a list of up to 20 https URLs' }, { status: 400 });
+    }
+    const mediaUrls = mediaUrlsResult.data && mediaUrlsResult.data.length > 1 ? mediaUrlsResult.data : null;
 
     if (!token) {
       return NextResponse.json({ error: 'Token is required' }, { status: 400 });
@@ -232,6 +243,7 @@ export async function POST(request: NextRequest) {
         client_id: clientId,
         caption: caption ?? null,
         image_url: image_url ?? null,
+        media_urls: mediaUrls,
         post_notes: post_notes ?? null,
         scheduled_date,
         scheduled_time,
@@ -250,6 +262,7 @@ export async function POST(request: NextRequest) {
         client_id: clientId,
         caption: caption ?? null,
         image_url: image_url ?? null,
+        media_urls: mediaUrls,
         post_notes: post_notes ?? null,
         scheduled_date,
         scheduled_time,

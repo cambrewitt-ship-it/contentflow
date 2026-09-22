@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Loader2, Sparkles, Send, RefreshCw, Upload as UploadIcon } from 'lucide-react';
+import { X, Loader2, Sparkles, Send, RefreshCw, Plus, AlertCircle, Upload as UploadIcon } from 'lucide-react';
 import { uploadMediaToBlob, getMediaType } from '@/lib/blobUpload';
 import { extractVideoThumbnail } from '@/lib/videoUtils';
 import { prepareImageDataForAI } from '@/lib/imageCompression';
@@ -63,7 +63,8 @@ const PREVIEW_PLATFORMS = [
 type PreviewPlatform = (typeof PREVIEW_PLATFORMS)[number]['id'];
 
 export function PortalCreatePostModal({ open, onClose, token, clientId, weekStart, onCreated }: PortalCreatePostModalProps) {
-  const [media, setMedia] = useState<UploadedMedia | null>(null);
+  const [mediaList, setMediaList] = useState<UploadedMedia[]>([]);
+  const [activeMediaId, setActiveMediaId] = useState<string | null>(null);
   const [postNotes, setPostNotes] = useState('');
   const [captions, setCaptions] = useState<Caption[]>([]);
   const [selectedCaptionId, setSelectedCaptionId] = useState<string | null>(null);
@@ -85,8 +86,9 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const reset = () => {
-    if (media?.preview.startsWith('blob:')) URL.revokeObjectURL(media.preview);
-    setMedia(null);
+    mediaList.forEach((m) => { if (m.preview.startsWith('blob:')) URL.revokeObjectURL(m.preview); });
+    setMediaList([]);
+    setActiveMediaId(null);
     setPostNotes('');
     setCaptions([]);
     setSelectedCaptionId(null);
@@ -112,6 +114,12 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
 
   if (!open) return null;
 
+  // The active photo drives AI captions; every photo in mediaList goes into the post as a carousel
+  const media = mediaList.find((m) => m.id === activeMediaId) ?? mediaList[0] ?? null;
+  const activeIndex = media ? mediaList.indexOf(media) : 0;
+  const allUploaded = mediaList.length > 0 && mediaList.every((m) => !!m.blobUrl && !m.uploadFailed);
+  const hasFailedUpload = mediaList.some((m) => m.uploadFailed);
+
   const selectedCaption = captions.find((c) => c.id === selectedCaptionId);
   const activeCaptionText = customCaption.trim() ? customCaption : (selectedCaption?.text || '');
 
@@ -125,9 +133,26 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
     return undefined;
   };
 
-  const handleFileSelected = async (file: File) => {
+  const handleFilesSelected = async (files: File[]) => {
     setError(null);
-    const id = `media-${Date.now()}`;
+    const valid = files.filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/'));
+    await Promise.all(valid.map((file, i) => addMediaFile(file, i === 0)));
+  };
+
+  const removeMedia = (id: string) => {
+    const index = mediaList.findIndex((m) => m.id === id);
+    const target = mediaList[index];
+    if (target?.preview.startsWith('blob:')) URL.revokeObjectURL(target.preview);
+    const remaining = mediaList.filter((m) => m.id !== id);
+    setMediaList((prev) => prev.filter((m) => m.id !== id));
+    if (activeMediaId === id) {
+      const next = remaining[Math.min(Math.max(index, 0), remaining.length - 1)];
+      setActiveMediaId(next ? next.id : null);
+    }
+  };
+
+  const addMediaFile = async (file: File, activate: boolean) => {
+    const id = `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const detectedType = getMediaType(file);
     const mediaType = detectedType === 'unknown' ? undefined : detectedType;
     const isVideo = mediaType === 'video';
@@ -146,22 +171,20 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
       previewUrl = URL.createObjectURL(file);
     }
 
-    setMedia({ id, file, preview: previewUrl, mediaType, videoThumbnail });
-    setCaptions([]);
-    setSelectedCaptionId(null);
-    setChatMessages([]);
+    setMediaList((prev) => [...prev, { id, file, preview: previewUrl, mediaType, videoThumbnail }]);
+    if (activate) setActiveMediaId(id);
 
     try {
       const filename = `portal-${Date.now()}-${file.name}`;
       const uploadResult = await uploadMediaToBlob(file, filename);
       if (!isVideo || !videoThumbnail) URL.revokeObjectURL(previewUrl);
-      setMedia((prev) => prev && prev.id === id
-        ? { ...prev, blobUrl: uploadResult.url, mediaType: uploadResult.mediaType, preview: isVideo ? (prev.videoThumbnail || uploadResult.url) : uploadResult.url }
-        : prev
-      );
+      setMediaList((prev) => prev.map((m) => m.id === id
+        ? { ...m, blobUrl: uploadResult.url, mediaType: uploadResult.mediaType, preview: isVideo ? (m.videoThumbnail || uploadResult.url) : uploadResult.url }
+        : m
+      ));
     } catch (err) {
       logger.error('Failed to upload media to blob storage:', err);
-      setMedia((prev) => prev && prev.id === id ? { ...prev, uploadFailed: true } : prev);
+      setMediaList((prev) => prev.map((m) => (m.id === id ? { ...m, uploadFailed: true } : m)));
     }
   };
 
@@ -357,10 +380,11 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
     setSelectedCaptionId(caption.id);
   };
 
-  const canSubmit = !!media?.blobUrl && !!activeCaptionText.trim() && !!selectedDateKey && !!selectedTime && !isSubmitting;
+  const canSubmit = allUploaded && !!activeCaptionText.trim() && !!selectedDateKey && !!selectedTime && !isSubmitting;
 
   const handleSubmit = async () => {
-    if (!canSubmit || !media?.blobUrl || !selectedDateKey) return;
+    if (!canSubmit || !selectedDateKey) return;
+    const mediaUrls = mediaList.map((m) => m.blobUrl as string);
     setIsSubmitting(true);
     setError(null);
     try {
@@ -370,7 +394,8 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
         body: JSON.stringify({
           token,
           caption: activeCaptionText,
-          image_url: media.blobUrl,
+          image_url: mediaUrls[0],
+          media_urls: mediaUrls.length > 1 ? mediaUrls : null,
           post_notes: postNotes || '',
           scheduled_date: selectedDateKey,
           scheduled_time: `${selectedTime}:00`,
@@ -444,9 +469,74 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
                 accountName="Your Account"
                 caption={activeCaptionText}
                 imageUrl={media?.blobUrl || media?.preview}
+                mediaUrls={mediaList.map((m) => m.blobUrl || m.preview)}
+                carouselIndex={activeIndex}
+                onCarouselIndexChange={(i) => {
+                  const m = mediaList[i];
+                  if (m) setActiveMediaId(m.id);
+                }}
                 scheduledDate={selectedDateKey ?? undefined}
                 scheduledTime={selectedTime}
               />
+
+              {mediaList.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    {mediaList.length > 1 ? `Carousel · ${mediaList.length} photos` : '1 photo'}
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {mediaList.map((m, i) => {
+                      const isUploading = !m.blobUrl && !m.uploadFailed;
+                      const isActive = m.id === media?.id;
+                      return (
+                        <div
+                          key={m.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setActiveMediaId(m.id)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveMediaId(m.id); }}
+                          className={`relative w-14 h-14 rounded-lg overflow-hidden border-2 cursor-pointer transition-colors ${
+                            m.uploadFailed ? 'border-red-400' : isActive ? 'border-blue-500' : 'border-transparent hover:border-gray-300'
+                          }`}
+                          title={`Photo ${i + 1}`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={m.preview} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                          <span className="absolute bottom-0.5 left-0.5 bg-black/60 text-white text-[9px] font-semibold leading-none px-1 py-0.5 rounded">
+                            {i + 1}
+                          </span>
+                          {isUploading && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <Loader2 className="w-4 h-4 text-white animate-spin" />
+                            </div>
+                          )}
+                          {m.uploadFailed && (
+                            <div className="absolute inset-0 bg-red-500/70 flex items-center justify-center" title="Upload failed">
+                              <AlertCircle className="w-4 h-4 text-white" />
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            aria-label={`Remove photo ${i + 1}`}
+                            onClick={(e) => { e.stopPropagation(); removeMedia(m.id); }}
+                            className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 hover:bg-red-600 text-white flex items-center justify-center"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-14 h-14 rounded-lg border-2 border-dashed border-gray-300 text-gray-400 hover:text-gray-600 hover:border-gray-400 flex items-center justify-center transition-colors"
+                      title="Add more photos"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -460,46 +550,32 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
 
             {/* Photo */}
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Photo</p>
-              {media ? (
-                <div className="relative w-full h-40 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={media.preview} alt="" className="w-full h-full object-cover" />
-                  {!media.blobUrl && !media.uploadFailed && (
-                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 text-white animate-spin" />
-                    </div>
-                  )}
-                  {media.uploadFailed && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-xs text-white">
-                      Upload failed
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="w-full h-24 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center text-xs text-gray-400">
-                  No photo selected
-                </div>
-              )}
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Photos</p>
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 accept="image/*,video/*"
                 className="hidden"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileSelected(file);
+                  const files = Array.from(e.target.files ?? []);
                   e.target.value = '';
+                  if (files.length > 0) handleFilesSelected(files);
                 }}
               />
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 <UploadIcon className="w-3.5 h-3.5" />
-                Upload
+                {mediaList.length > 0 ? 'Add photos' : 'Upload photos'}
               </button>
+              <p className="text-[11px] text-gray-500 mt-1.5">
+                {hasFailedUpload
+                  ? 'A photo failed to upload — remove it to continue.'
+                  : 'Select several photos at once (or keep adding) to make a carousel.'}
+              </p>
             </div>
 
             {/* Notes */}
