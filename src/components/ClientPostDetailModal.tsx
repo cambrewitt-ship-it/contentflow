@@ -11,10 +11,18 @@ import {
   Calendar,
   ArrowUp,
   RotateCcw,
+  Check,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
+import { PlatformBadges, PlatformLogo } from "@/components/PlatformBadges";
+import {
+  TARGET_PLATFORM_IDS,
+  TARGET_PLATFORM_LABELS,
+  normalizeTargetPlatforms,
+  type TargetPlatform,
+} from "@/lib/targetPlatforms";
 import logger from "@/lib/logger";
 
 interface ApprovalStep {
@@ -45,6 +53,7 @@ export interface ClientPostDetailItem {
   scheduled_time?: string | null;
   approval_status?: string;
   platforms_scheduled?: string[];
+  target_platforms?: string[] | null;
   tags?: Array<{ id: string; name: string; color: string }>;
 }
 
@@ -61,6 +70,7 @@ interface Props {
   isResubmitting?: boolean;
   onChangeDate?: (newDateKey: string) => Promise<boolean>;
   isChangingDate?: boolean;
+  onChangeTargetPlatforms?: (platforms: TargetPlatform[]) => Promise<boolean>;
 }
 
 function weekStartForDateKey(dateKey: string): Date {
@@ -159,10 +169,34 @@ function PipelineSteps({ steps }: { steps: ApprovalStep[] }) {
   );
 }
 
-export function ClientPostDetailModal({ post, onClose, getAccessToken, authorName, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate }: Props) {
-  const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform>(() =>
-    pickDefaultPlatform(post.platforms_scheduled)
+export function ClientPostDetailModal({ post, onClose, getAccessToken, authorName, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate, onChangeTargetPlatforms }: Props) {
+  const [targetPlatforms, setTargetPlatforms] = useState<TargetPlatform[]>(() =>
+    normalizeTargetPlatforms(post.target_platforms)
   );
+  const [platformsError, setPlatformsError] = useState<string | null>(null);
+  const [isSavingPlatforms, setIsSavingPlatforms] = useState(false);
+
+  const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform>(() => {
+    const targets = normalizeTargetPlatforms(post.target_platforms);
+    return pickDefaultPlatform(targets.length > 0 ? targets : post.platforms_scheduled);
+  });
+
+  const handleTogglePlatform = async (platform: TargetPlatform) => {
+    if (!onChangeTargetPlatforms || isSavingPlatforms) return;
+    const previous = targetPlatforms;
+    const isOn = previous.includes(platform);
+    const next = normalizeTargetPlatforms(isOn ? previous.filter((p) => p !== platform) : [...previous, platform]);
+    setTargetPlatforms(next);
+    if (!isOn) setSelectedPlatform(platform);
+    setPlatformsError(null);
+    setIsSavingPlatforms(true);
+    const ok = await onChangeTargetPlatforms(next);
+    setIsSavingPlatforms(false);
+    if (!ok) {
+      setTargetPlatforms(previous);
+      setPlatformsError("Failed to update platforms");
+    }
+  };
 
   const initialCaption = post.caption || "";
   const [isEditingCaption, setIsEditingCaption] = useState(false);
@@ -337,6 +371,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
               <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
                 Calendar Post
               </span>
+              <PlatformBadges platforms={targetPlatforms} size={20} />
               {post.scheduled_date && (
                 <button
                   type="button"
@@ -430,6 +465,43 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                   ))}
                 </div>
               )}
+
+              {/* Intended platforms */}
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    Platforms
+                  </p>
+                  {isSavingPlatforms && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {TARGET_PLATFORM_IDS.map((platform) => {
+                    const isOn = targetPlatforms.includes(platform);
+                    return (
+                      <button
+                        key={platform}
+                        type="button"
+                        role="checkbox"
+                        aria-checked={isOn}
+                        onClick={() => handleTogglePlatform(platform)}
+                        disabled={!onChangeTargetPlatforms}
+                        className={`inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-xs font-medium border transition-colors disabled:cursor-default ${
+                          isOn
+                            ? "bg-gray-900 border-gray-900 text-white"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
+                        }`}
+                      >
+                        <PlatformLogo platform={platform} size={20} />
+                        {TARGET_PLATFORM_LABELS[platform]}
+                        {isOn && <Check className="w-3 h-3" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                {platformsError && (
+                  <p className="text-xs text-red-600 mt-1">{platformsError}</p>
+                )}
+              </div>
 
               {/* Caption */}
               <div>

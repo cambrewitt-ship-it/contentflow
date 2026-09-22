@@ -89,6 +89,7 @@ export default function PublicApprovalPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [socialPreviewEnabled, setSocialPreviewEnabled] = useState<Set<string>>(new Set());
+  const previewDefaultsApplied = useRef(false);
   const [carouselIndexes, setCarouselIndexes] = useState<{ [postKey: string]: number }>({});
 
   // Fetch approval data using the token
@@ -114,6 +115,16 @@ export default function PublicApprovalPage() {
 
       setSession(sessionData);
       setWeeks(weeksData || []);
+
+      // Posts marked for specific platforms open in that platform's social preview (first load only)
+      if (!previewDefaultsApplied.current) {
+        previewDefaultsApplied.current = true;
+        const markedKeys = ((weeksData || []) as WeekData[])
+          .flatMap((week) => week.posts)
+          .filter((post) => Array.isArray(post.target_platforms) && post.target_platforms.length > 0)
+          .map((post) => `${post.post_type}-${post.id}`);
+        setSocialPreviewEnabled(new Set(markedKeys));
+      }
     } catch (err: any) {
       logger.error('❌ Error fetching approval data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load approval data');
@@ -578,6 +589,7 @@ export default function PublicApprovalPage() {
                                     businessName={session?.client_name || ''}
                                     logoUrl={session?.client_logo_url || null}
                                     mediaUrls={mediaUrls ?? undefined}
+                                    targetPlatforms={post.target_platforms}
                                   />
                                 </div>
                               );

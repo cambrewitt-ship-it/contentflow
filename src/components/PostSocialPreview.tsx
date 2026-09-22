@@ -9,6 +9,8 @@ import {
   TikTokIcon,
   LinkedInIcon,
 } from '@/components/social-icons';
+import { PlatformBadges } from '@/components/PlatformBadges';
+import { normalizeTargetPlatforms } from '@/lib/targetPlatforms';
 
 const FEED_PLATFORMS = [
   { id: 'facebook',  label: 'Facebook' },
@@ -30,12 +32,16 @@ interface PostSocialPreviewProps {
   businessName?: string;
   logoUrl?: string | null;
   mediaUrls?: string[] | null;
+  // Platforms the post is marked for: the preview opens on the first and only offers these
+  targetPlatforms?: string[] | null;
 }
 
-export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, businessName = '', logoUrl, mediaUrls }: PostSocialPreviewProps) {
+export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, businessName = '', logoUrl, mediaUrls, targetPlatforms }: PostSocialPreviewProps) {
   const isVideo = fileType?.startsWith('video/') && !!fileUrl;
   const mediaUrl = isVideo ? fileUrl! : (imageUrl || null);
-  const [platform, setPlatform] = useState('facebook');
+  const targets = normalizeTargetPlatforms(targetPlatforms);
+  const feedPlatforms = targets.length > 0 ? FEED_PLATFORMS.filter((p) => (targets as string[]).includes(p.id)) : FEED_PLATFORMS;
+  const [platform, setPlatform] = useState<string>(targets[0] ?? 'facebook');
 
   // Carousel state
   const allMedia = mediaUrls && mediaUrls.length > 1 ? mediaUrls : null;
@@ -631,9 +637,15 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
     <div className="space-y-3">
       {/* Platform selector */}
       <div className="space-y-2">
+        {targets.length > 0 && (
+          <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-500">
+            <span>Planned for</span>
+            <PlatformBadges platforms={targets} size={18} />
+          </div>
+        )}
         {/* Feed platforms */}
         <div className="flex flex-wrap gap-1.5">
-          {FEED_PLATFORMS.map((p) => (
+          {feedPlatforms.map((p) => (
             <button
               key={p.id}
               type="button"
@@ -649,6 +661,7 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
           ))}
         </div>
         {/* Story platforms */}
+        {targets.length === 0 && (
         <div className="flex flex-wrap gap-1.5 items-center">
           <span className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Stories:</span>
           {STORY_PLATFORMS.map((p) => (
@@ -666,6 +679,7 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
             </button>
           ))}
         </div>
+        )}
       </div>
 
       {/* Preview */}

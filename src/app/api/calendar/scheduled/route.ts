@@ -4,6 +4,7 @@ import logger from '@/lib/logger';
 import { createSupabaseWithToken, createSupabaseAdmin } from '@/lib/supabaseServer';
 import { uuidSchema } from '@/lib/validators';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
+import { TARGET_PLATFORM_IDS, normalizeTargetPlatforms } from '@/lib/targetPlatforms';
 
 const booleanStringSchema = z
   .union([z.literal('true'), z.literal('false')])
@@ -46,7 +47,11 @@ const scheduledPostSchema = z.object({
 
 const patchSchema = z.object({
   postId: uuidSchema,
-  updates: z.object({}).passthrough(),
+  updates: z
+    .object({
+      target_platforms: z.array(z.enum(TARGET_PLATFORM_IDS)).max(TARGET_PLATFORM_IDS.length).optional(),
+    })
+    .passthrough(),
 });
 
 const rescheduleSchema = z.object({
@@ -168,7 +173,7 @@ export async function GET(request: Request) {
     const adminSupabase = createSupabaseAdmin();
 
     // Optimized query - only select fields needed for approval board
-    const baseFields = 'id, project_id, caption, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, late_status, late_post_id, platforms_scheduled, created_at, updated_at, last_edited_at, edit_count, needs_reapproval, original_caption';
+    const baseFields = 'id, project_id, caption, scheduled_time, scheduled_date, approval_status, needs_attention, client_feedback, late_status, late_post_id, platforms_scheduled, created_at, updated_at, last_edited_at, edit_count, needs_reapproval, original_caption, target_platforms';
     const selectFields = shouldIncludeImageData ? `${baseFields}, image_url, media_urls` : baseFields;
 
     // Build query based on filter type
@@ -508,6 +513,7 @@ export async function PATCH(request: Request) {
     // Ensure image_url is preserved if not being updated
     const updateData = {
       ...updates,
+      ...(updates.target_platforms !== undefined && { target_platforms: normalizeTargetPlatforms(updates.target_platforms) }),
       // If image_url is not in updates, don't overwrite it
       ...(updates.image_url === undefined && { image_url: undefined })
     };

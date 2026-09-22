@@ -11,6 +11,7 @@ interface ApprovalBoardPost {
   post_type: 'scheduled' | 'planner_scheduled' | 'portal_upload';
   project_id?: string;
   client_id?: string;
+  target_platforms?: string[] | null;
   approval?: {
     post_id: string;
     post_type: string;
@@ -119,7 +120,8 @@ export async function GET(request: NextRequest) {
           scheduled_time,
           scheduled_date,
           project_id,
-          client_id
+          client_id,
+          target_platforms
         `)
         .eq('client_id', session.client_id)
         .in('id', selectedPlannerPostIds)

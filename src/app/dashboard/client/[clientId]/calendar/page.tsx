@@ -103,6 +103,7 @@ interface Post {
   caption: string;
   image_url: string;
   media_urls?: string[] | null;
+  target_platforms?: string[] | null;
   scheduled_time: string | null;
   scheduled_date?: string;
   late_post_id?: string;
@@ -1125,6 +1126,33 @@ export default function CalendarPage() {
         newSet.delete(post.id);
         return newSet;
       });
+    }
+  };
+
+  const handleUpdateTargetPlatforms = async (postId: string, platforms: string[]): Promise<boolean> => {
+    try {
+      const accessToken = requireAccessToken();
+      const response = await fetch('/api/calendar/scheduled', {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ postId, updates: { target_platforms: platforms } })
+      });
+      if (!response.ok) throw new Error(`Failed to update platforms (${response.status})`);
+
+      setScheduledPosts(prevScheduled => {
+        const updated = { ...prevScheduled };
+        Object.keys(updated).forEach(date => {
+          updated[date] = updated[date].map(p => (p.id === postId ? { ...p, target_platforms: platforms } : p));
+        });
+        return updated;
+      });
+      return true;
+    } catch (error) {
+      console.error('Error updating target platforms:', error);
+      return false;
     }
   };
 
@@ -2914,6 +2942,7 @@ export default function CalendarPage() {
                       scheduled_time: post.scheduled_time,
                       approval_status: post.approval_status,
                       platforms_scheduled: post.platforms_scheduled,
+                      target_platforms: post.target_platforms ?? [],
                       tags: post.tags ?? [],
                     });
                   }
@@ -3045,6 +3074,7 @@ export default function CalendarPage() {
                         scheduled_time: post.scheduled_time,
                         approval_status: post.approval_status,
                         platforms_scheduled: post.platforms_scheduled,
+                        target_platforms: post.target_platforms ?? [],
                         tags: post.tags ?? [],
                       });
                     }
@@ -3208,6 +3238,11 @@ export default function CalendarPage() {
           onChangeDate={async (newDateKey) => {
             const ok = await handleChangePostDate(postDetailModal.id, newDateKey);
             if (ok) setPostDetailModal(prev => prev ? { ...prev, scheduled_date: newDateKey } : prev);
+            return ok;
+          }}
+          onChangeTargetPlatforms={async (platforms) => {
+            const ok = await handleUpdateTargetPlatforms(postDetailModal.id, platforms);
+            if (ok) setPostDetailModal(prev => prev ? { ...prev, target_platforms: platforms } : prev);
             return ok;
           }}
         />
