@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { SocialPreviewCard } from '@/components/SocialPreviewCard';
 import PhotoSwapDialog from '@/components/PhotoSwapDialog';
 import { WeekDayChooser } from '@/components/WeekDayChooser';
+import { PlatformPicker } from '@/components/PlatformBadges';
+import { normalizeTargetPlatforms, type TargetPlatform } from '@/lib/targetPlatforms';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -88,6 +90,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
   } = useContentStore();
 
   const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform>('instagram');
+  const [targetPlatforms, setTargetPlatforms] = useState<TargetPlatform[]>([]);
   const [customCaption, setCustomCaption] = useState('');
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
@@ -243,6 +246,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
             caption: activeCaptionText,
             image_url: mediaUrls[0],
             media_urls: mediaUrls.length > 1 ? mediaUrls : null,
+            target_platforms: targetPlatforms,
             scheduled_date: selectedDateKey,
             scheduled_time: `${selectedTime}:00`,
             post_notes: postNotes || '',
@@ -439,6 +443,21 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                   ? 'A photo failed to upload — remove it to continue.'
                   : 'Select several photos at once (or keep adding) to make a carousel.'}
               </p>
+            </div>
+
+            {/* Intended platforms */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Platforms</p>
+              <PlatformPicker
+                selected={targetPlatforms}
+                onToggle={(platform) => {
+                  const isOn = targetPlatforms.includes(platform);
+                  setTargetPlatforms(normalizeTargetPlatforms(
+                    isOn ? targetPlatforms.filter((p) => p !== platform) : [...targetPlatforms, platform]
+                  ));
+                  if (!isOn) setSelectedPlatform(platform);
+                }}
+              />
             </div>
 
             {/* Prompt bar — notes + caption generation, works in both Standard and Chat modes */}

@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
         scheduled_time,
         late_status,
         platforms_scheduled,
+        target_platforms,
         approval_status,
         needs_attention,
         client_feedback,

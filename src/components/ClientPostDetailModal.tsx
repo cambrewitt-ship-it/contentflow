@@ -11,18 +11,12 @@ import {
   Calendar,
   ArrowUp,
   RotateCcw,
-  Check,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
-import { PlatformBadges, PlatformLogo } from "@/components/PlatformBadges";
-import {
-  TARGET_PLATFORM_IDS,
-  TARGET_PLATFORM_LABELS,
-  normalizeTargetPlatforms,
-  type TargetPlatform,
-} from "@/lib/targetPlatforms";
+import { PlatformBadges, PlatformPicker } from "@/components/PlatformBadges";
+import { normalizeTargetPlatforms, type TargetPlatform } from "@/lib/targetPlatforms";
 import logger from "@/lib/logger";
 
 interface ApprovalStep {
@@ -474,30 +468,11 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                   </p>
                   {isSavingPlatforms && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {TARGET_PLATFORM_IDS.map((platform) => {
-                    const isOn = targetPlatforms.includes(platform);
-                    return (
-                      <button
-                        key={platform}
-                        type="button"
-                        role="checkbox"
-                        aria-checked={isOn}
-                        onClick={() => handleTogglePlatform(platform)}
-                        disabled={!onChangeTargetPlatforms}
-                        className={`inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-xs font-medium border transition-colors disabled:cursor-default ${
-                          isOn
-                            ? "bg-gray-900 border-gray-900 text-white"
-                            : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
-                        }`}
-                      >
-                        <PlatformLogo platform={platform} size={20} />
-                        {TARGET_PLATFORM_LABELS[platform]}
-                        {isOn && <Check className="w-3 h-3" />}
-                      </button>
-                    );
-                  })}
-                </div>
+                <PlatformPicker
+                  selected={targetPlatforms}
+                  onToggle={handleTogglePlatform}
+                  disabled={!onChangeTargetPlatforms}
+                />
                 {platformsError && (
                   <p className="text-xs text-red-600 mt-1">{platformsError}</p>
                 )}

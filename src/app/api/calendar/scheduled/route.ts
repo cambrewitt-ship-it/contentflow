@@ -38,6 +38,7 @@ const scheduledPostSchema = z.object({
     caption: z.string().max(5000).optional(),
     image_url: z.string().url().nullable().optional(),
     media_urls: z.array(z.string().url()).max(20).nullable().optional(),
+    target_platforms: z.array(z.enum(TARGET_PLATFORM_IDS)).max(TARGET_PLATFORM_IDS.length).optional(),
     post_notes: z.string().max(5000).nullable().optional(),
     scheduled_date: z.string().min(1, 'scheduled_date is required'),
     scheduled_time: z.string().min(1, 'scheduled_time is required'),
@@ -378,6 +379,7 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     const mediaUrls =
       scheduledPost.media_urls && scheduledPost.media_urls.length > 1 ? scheduledPost.media_urls : null;
+    const targetPlatforms = normalizeTargetPlatforms(scheduledPost.target_platforms);
 
     const { error: scheduleError } = await adminSupabase
       .from('calendar_scheduled_posts')
@@ -388,6 +390,7 @@ export async function POST(request: Request) {
         caption: scheduledPost.caption ?? null,
         image_url: scheduledPost.image_url ?? null,
         media_urls: mediaUrls,
+        target_platforms: targetPlatforms,
         post_notes: scheduledPost.post_notes ?? null,
         scheduled_date: scheduledPost.scheduled_date,
         scheduled_time: scheduledPost.scheduled_time,
@@ -402,6 +405,7 @@ export async function POST(request: Request) {
       caption: scheduledPost.caption ?? null,
       image_url: scheduledPost.image_url ?? null,
       media_urls: mediaUrls,
+      target_platforms: targetPlatforms,
       post_notes: scheduledPost.post_notes ?? null,
       scheduled_date: scheduledPost.scheduled_date,
       scheduled_time: scheduledPost.scheduled_time,

@@ -23,6 +23,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { PortalTagDropdown } from "@/components/PortalTagDropdown";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
+import { PlatformBadges } from "@/components/PlatformBadges";
+import { normalizeTargetPlatforms } from "@/lib/targetPlatforms";
 import { PortalParty } from "@/contexts/PortalContext";
 import logger from "@/lib/logger";
 
@@ -47,6 +49,7 @@ export interface ModalPost {
   approval_status?: string;
   approval_steps?: ApprovalStep[];
   platforms_scheduled?: string[];
+  target_platforms?: string[] | null;
   tags?: Array<{ id: string; name: string; color: string }>;
   one_time_approval?: {
     approval_status: string;
@@ -252,9 +255,12 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   const carouselNext = () => setCarouselIndex(i => (i + 1) % carouselLength);
 
   // Social preview platform selector
-  const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform>(() =>
-    isPost ? pickDefaultPlatform((item.data as ModalPost).platforms_scheduled) : "instagram"
-  );
+  const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform>(() => {
+    if (!isPost) return "instagram";
+    const modalPost = item.data as ModalPost;
+    const targets = normalizeTargetPlatforms(modalPost.target_platforms);
+    return pickDefaultPlatform(targets.length > 0 ? targets : modalPost.platforms_scheduled);
+  });
 
   // Post-specific state
   const [steps, setSteps] = useState<ApprovalStep[]>(
@@ -815,6 +821,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
               <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
                 {isPost ? "Calendar Post" : "Queue Item"}
               </span>
+              {isPost && <PlatformBadges platforms={(item.data as ModalPost).target_platforms} size={20} />}
               {isEditingDate && !hasAssignedDate ? (
                 <div className="flex items-center gap-1">
                   <input

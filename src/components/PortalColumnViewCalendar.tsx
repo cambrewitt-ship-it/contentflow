@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, ChangeEvent, useImperativeHandle, forwardRef } from 'react';
 import { Calendar, CheckCircle, AlertTriangle, XCircle, Minus, Tag, FileText, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CarouselMedia } from '@/components/CarouselMedia';
+import { PlatformBadges } from '@/components/PlatformBadges';
 import { isVideoUrl } from '@/lib/videoUtils';
 import { type CalendarEvent } from './CalendarEventModal';
 import logger from '@/lib/logger';
@@ -580,8 +581,9 @@ function SortablePostCard({
       {/* Header with Date, Status and Select button */}
       <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
         <div className="flex flex-col">
-          <span className="text-[11px] font-medium text-gray-700">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-gray-700">
             {post.scheduled_date ? formatDate(post.scheduled_date) : ''}
+            <PlatformBadges platforms={post.target_platforms} size={16} />
           </span>
           {post.scheduled_time && (
             <span className="text-[11px] text-gray-500">
