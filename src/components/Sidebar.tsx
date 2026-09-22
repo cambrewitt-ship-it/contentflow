@@ -21,7 +21,6 @@ import {
   Calendar,
   Images,
   Bot,
-  Sparkles,
   PenSquare,
   Link2,
   Settings,
@@ -349,9 +348,9 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                 active: !!pathname?.includes("/media-gallery"),
               },
               {
-                name: "Autopilot ✨",
+                name: "Content Agent",
                 href: `/dashboard/client/${clientIdFromPath}/autopilot`,
-                icon: Sparkles,
+                icon: Bot,
                 active: !pathname?.includes("/autopilot-settings") && !!pathname?.includes("/autopilot"),
               },
               {
