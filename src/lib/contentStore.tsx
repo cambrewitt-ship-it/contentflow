@@ -86,7 +86,7 @@ export interface ContentStore {
   setCopyTone: (tone: CopyTone) => void
   setCopyType: (copyType: 'social-media' | 'email-marketing') => void
   setContentIdeas: (ideas: ContentIdea[]) => void
-  addImage: (file: File) => Promise<void>
+  addImage: (file: File, options?: { activate?: boolean }) => Promise<void>
   removeImage: (id: string) => void
   updateImageNotes: (id: string, notes: string) => void
   updateCaption: (id: string, text: string) => void
@@ -341,8 +341,8 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Empty dependency array - only run on mount/unmount
 
-  const addImage = async (file: File) => {
-    const id = `media-${Date.now()}`
+  const addImage = async (file: File, options?: { activate?: boolean }) => {
+    const id = `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const detectedType = getMediaType(file)
     const mediaType = detectedType === 'unknown' ? undefined : detectedType
     const isVideo = mediaType === 'video'
@@ -377,7 +377,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       videoThumbnail: videoThumbnail
     }
     setUploadedImages(prev => [...prev, newImage])
-    setActiveImageId(id)
+    if (options?.activate !== false) {
+      setActiveImageId(id)
+    }
     
     try {
       // Upload to blob storage (now supports both images and videos)
@@ -421,9 +423,12 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       URL.revokeObjectURL(imageToRemove.preview)
     }
     
+    const removedIndex = uploadedImages.findIndex(img => img.id === id)
+    const remaining = uploadedImages.filter(img => img.id !== id)
     setUploadedImages(prev => prev.filter(img => img.id !== id))
     if (activeImageId === id) {
-      setActiveImageId(null)
+      const next = remaining[Math.min(Math.max(removedIndex, 0), remaining.length - 1)]
+      setActiveImageId(next ? next.id : null)
     }
   }
 

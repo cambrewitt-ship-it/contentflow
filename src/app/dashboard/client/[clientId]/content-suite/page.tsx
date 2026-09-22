@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Send, Settings, Images } from 'lucide-react'
 import PhotoSwapDialog from '@/components/PhotoSwapDialog'
+import { isVideoUrl } from '@/lib/videoUtils'
 import Link from 'next/link'
 import ClientViewToggle from '@/components/ClientViewToggle'
 import { SocialPreviewColumn } from './SocialPreviewColumn'
@@ -455,12 +456,17 @@ export default function ContentSuitePage({ params }: PageProps) {
         console.log('ℹ️ Image is not base64, using as-is:', imageUrl?.substring(0, 100))
       }
       
+      const allMediaUrls = uploadedImages
+        .map((img) => img.blobUrl || img.preview)
+        .filter((url): url is string => !!url && url.startsWith('https://'))
+
       // Prepare the update data
       const updateData = {
         client_id: clientId,
         edited_by_user_id: clientId, // Using clientId as user ID for now
         caption: finalCaption,
         image_url: imageUrl,
+        media_urls: allMediaUrls.length > 1 ? allMediaUrls : null,
         platforms: ['instagram', 'facebook', 'twitter'], // Default platforms
         edit_reason: 'Updated via content suite',
         // Only include media_type for main posts table, not calendar tables
@@ -534,42 +540,36 @@ export default function ContentSuitePage({ params }: PageProps) {
     setIsSendingToScheduler(true)
     
     try {
-      // Get the active image
-      const activeImage = uploadedImages[0] // Use first image for now
-      
-      // Get the proper image URL — prefer blobUrl (Supabase Storage) over preview
-      let imageUrl = activeImage.blobUrl || activeImage.preview
+      // Every uploaded photo goes into the post, in thumbnail order (first photo = cover)
+      const mediaUrls = uploadedImages.map((image) => {
+        // Prefer blobUrl (cloud storage) over preview
+        const url = image.blobUrl || image.preview
 
-      // Validate that we have a proper URL, not base64 data
-      if (!imageUrl) {
-        throw new Error('No image URL available. Please wait for the image to finish uploading.')
-      }
-
-      // Show a clear error if the upload failed
-      if ((activeImage as any).uploadFailed) {
-        throw new Error('The image failed to upload. Please remove it and try uploading again.')
-      }
-
-      // Check if we have a valid HTTPS URL
-      const isValidUrl = imageUrl.startsWith('https://')
-
-      if (!isValidUrl) {
-        if (imageUrl.startsWith('data:')) {
-          console.error('❌ Image is base64 data - upload may have failed or is pending')
-          const base64Size = Math.round((imageUrl.length * 3) / 4 / (1024 * 1024))
-          throw new Error(`Image is still processing (${base64Size}MB). Please wait a moment and try again.`)
+        if ((image as any).uploadFailed) {
+          throw new Error('A photo failed to upload. Please remove it and try uploading again.')
         }
 
-        if (imageUrl.startsWith('blob:')) {
-          console.error('❌ Image is still a temporary blob URL')
-          throw new Error('Image is still uploading to cloud storage. Please wait and try again.')
+        if (!url) {
+          throw new Error('No image URL available. Please wait for your photos to finish uploading.')
         }
 
-        console.error('❌ Unknown image URL format:', imageUrl.substring(0, 50))
-        throw new Error('Invalid image format. Please re-upload the image.')
-      }
-      
-      console.log('✅ Using image URL:', imageUrl.substring(0, 80) + '...')
+        if (!url.startsWith('https://')) {
+          if (url.startsWith('data:')) {
+            const base64Size = Math.round((url.length * 3) / 4 / (1024 * 1024))
+            throw new Error(`A photo is still processing (${base64Size}MB). Please wait a moment and try again.`)
+          }
+          if (url.startsWith('blob:')) {
+            throw new Error('Photos are still uploading to cloud storage. Please wait and try again.')
+          }
+          throw new Error('Invalid image format. Please re-upload the photo.')
+        }
+
+        return url
+      })
+      const imageUrl = mediaUrls[0]
+      const carouselUrls = mediaUrls.length > 1 ? mediaUrls : null
+
+      console.log('✅ Using media URLs:', mediaUrls.length)
       
       // Check if this upload came from a specific date in the calendar
       const hasScheduledDate = preloadedContent?.scheduledDate
@@ -586,6 +586,7 @@ export default function ContentSuitePage({ params }: PageProps) {
           project_id: selectedProjectId,
           caption: selectedCaption,
           image_url: imageUrl,
+          media_urls: carouselUrls,
           scheduled_date: preloadedContent?.scheduledDate,
           scheduled_time: scheduledTime,
           post_notes: '',
@@ -626,6 +627,7 @@ export default function ContentSuitePage({ params }: PageProps) {
           project_id: selectedProjectId,
           caption: selectedCaption,
           image_url: imageUrl,
+          media_urls: carouselUrls,
           post_notes: '',
         }
         
@@ -1511,16 +1513,20 @@ function ContentSuiteContent({
   }
 
   // Media upload handlers
+  // Upload in parallel; only the first file of a batch becomes the active (previewed) photo
+  const addMediaFiles = async (fileList: FileList | null) => {
+    if (!fileList) return
+    const files = Array.from(fileList).filter(
+      file => file.type.startsWith('image/') || file.type.startsWith('video/')
+    )
+    await Promise.all(files.map((file, i) => addImage(file, { activate: i === 0 })))
+  }
+
   const handleMediaUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (files) {
-      for (const file of Array.from(files)) {
-        // Accept both images and videos
-        if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
-          await addImage(file)
-        }
-      }
-    }
+    const uploads = addMediaFiles(event.target.files)
+    // Reset so re-selecting the same file still fires onChange
+    event.target.value = ''
+    await uploads
   }
 
   const handleDragOver = (event: React.DragEvent) => {
@@ -1529,13 +1535,7 @@ function ContentSuiteContent({
 
   const handleDrop = async (event: React.DragEvent) => {
     event.preventDefault()
-    const files = event.dataTransfer.files
-    for (const file of Array.from(files)) {
-      // Accept both images and videos
-      if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
-        await addImage(file)
-      }
-    }
+    await addMediaFiles(event.dataTransfer.files)
   }
 
 
@@ -1561,8 +1561,19 @@ function ContentSuiteContent({
         setSelectedCaptions([captionId]);
       }
       
-      // Set image if available
-      if (editingPost.image_url) {
+      const existingMediaUrls: string[] = Array.isArray(editingPost.media_urls) ? editingPost.media_urls : [];
+      if (existingMediaUrls.length > 1) {
+        const existingImages = existingMediaUrls.map((url, i) => ({
+          id: `edit-image-${i + 1}`,
+          file: new File([], `existing-image-${i + 1}.jpg`, { type: 'image/jpeg' }),
+          preview: url,
+          blobUrl: url,
+          mediaType: isVideoUrl(url) ? ('video' as const) : ('image' as const),
+          notes: i === 0 ? (editingPost.notes || '') : '',
+        }));
+        setUploadedImages(existingImages);
+        setActiveImageId(existingImages[0].id);
+      } else if (editingPost.image_url) {
         // Create a mock file for the existing image
         const mockFile = new File([], 'existing-image.jpg', { type: 'image/jpeg' });
         const imageId = "edit-image-1";

@@ -42,6 +42,7 @@ export async function PUT(
     const {
       caption,
       image_url,
+      media_urls,
       notes,
       edit_reason,
       edited_by_user_id,
@@ -320,6 +321,9 @@ export async function PUT(
     }
     if (image_url !== undefined) {
       updateData.image_url = image_url;
+    }
+    if (media_urls !== undefined) {
+      updateData.media_urls = Array.isArray(media_urls) && media_urls.length > 1 ? media_urls : null;
     }
     if (notes !== undefined) {
       updateData.notes = notes;

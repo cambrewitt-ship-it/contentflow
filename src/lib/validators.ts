@@ -204,6 +204,7 @@ export const updateClientSchema = createClientSchema.partial();
 export const updatePostSchema = z.object({
   caption: sanitizedString(5000).optional(),
   image_url: urlSchema.optional(),
+  media_urls: z.array(urlSchema).max(20).nullable().optional(),
   notes: sanitizedString(2000).optional(),
   edit_reason: sanitizedString(500).optional(),
   edited_by_user_id: uuidSchema.optional(),

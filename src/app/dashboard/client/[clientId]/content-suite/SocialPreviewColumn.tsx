@@ -3,7 +3,7 @@
 import { useContentStore } from '@/lib/contentStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, X, FolderOpen, Calendar, Clock, Check, AlertCircle, ChevronDown, Plus, Send } from 'lucide-react'
+import { Loader2, X, FolderOpen, Calendar, Clock, Check, AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Plus, Send } from 'lucide-react'
 import { 
   FacebookIcon, 
   InstagramIcon, 
@@ -99,6 +99,7 @@ export function SocialPreviewColumn({
     copyType,
     setCaptions,
     setSelectedCaptions,
+    setActiveImageId,
   } = useContentStore()
 
   // Scheduling state
@@ -569,6 +570,7 @@ export function SocialPreviewColumn({
                 </div>
               </div>
             )}
+            {renderCarouselControls()}
           </div>
         );
       })()}
@@ -662,6 +664,7 @@ export function SocialPreviewColumn({
                 </div>
               </div>
             )}
+            {renderCarouselControls()}
           </div>
         );
       })()}
@@ -750,6 +753,7 @@ export function SocialPreviewColumn({
                   </div>
                 </div>
               )}
+              {renderCarouselControls(true)}
             </div>
           );
         })()}
@@ -851,6 +855,52 @@ export function SocialPreviewColumn({
     </div>
   )
 
+  // Multiple uploads form a carousel; arrows step the active photo so the thumbnails stay in sync
+  const renderCarouselControls = (small = false) => {
+    const total = uploadedImages.length
+    const index = uploadedImages.findIndex(img => img.id === activeImageId)
+    if (total < 2 || index < 0) return null
+    const go = (delta: number) => setActiveImageId(uploadedImages[(index + delta + total) % total].id)
+    const btn = small ? 'w-6 h-6' : 'w-7 h-7'
+    const chev = small ? 'w-3.5 h-3.5' : 'w-4 h-4'
+    return (
+      <>
+        <button
+          type="button"
+          aria-label="Previous photo"
+          onClick={() => go(-1)}
+          className={`absolute left-2 top-1/2 -translate-y-1/2 ${btn} rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10`}
+        >
+          <ChevronLeft className={chev} />
+        </button>
+        <button
+          type="button"
+          aria-label="Next photo"
+          onClick={() => go(1)}
+          className={`absolute right-2 top-1/2 -translate-y-1/2 ${btn} rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10`}
+        >
+          <ChevronRight className={chev} />
+        </button>
+        {!small && (
+          <div className="absolute top-2 right-2 bg-black/60 text-white text-[11px] font-semibold px-2 py-0.5 rounded-full z-10">
+            {index + 1}/{total}
+          </div>
+        )}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+          {uploadedImages.map((img, i) => (
+            <button
+              key={img.id}
+              type="button"
+              aria-label={`Show photo ${i + 1}`}
+              onClick={() => setActiveImageId(img.id)}
+              className={`w-1.5 h-1.5 rounded-full transition-colors ${i === index ? 'bg-white' : 'bg-white/50'}`}
+            />
+          ))}
+        </div>
+      </>
+    )
+  }
+
   // Resolves the active upload to a renderable source (video posts use their thumbnail)
   const getActiveMedia = () => {
     if (!activeImageId) return { src: null as string | null, isVideo: false }
@@ -933,6 +983,7 @@ export function SocialPreviewColumn({
                 </div>
               </div>
             )}
+            {renderCarouselControls()}
           </div>
         ) : (
           <div className="h-44 bg-gray-200 flex items-center justify-center">
@@ -996,6 +1047,7 @@ export function SocialPreviewColumn({
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/45" />
+        {renderCarouselControls(true)}
 
         {/* Top bar */}
         <div className="absolute top-2.5 left-3 right-3 flex items-center justify-center">

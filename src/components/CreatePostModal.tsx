@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Loader2, Sparkles, Images, Send, RefreshCw, Brain, Upload as UploadIcon } from 'lucide-react';
+import { X, Loader2, Sparkles, Images, Send, RefreshCw, Brain, Plus, AlertCircle, Upload as UploadIcon } from 'lucide-react';
 import { ContentStoreProvider, useContentStore } from '@/lib/contentStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { SocialPreviewCard } from '@/components/SocialPreviewCard';
@@ -69,6 +69,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
     setSelectedCaptions,
     setPostNotes,
     addImage,
+    removeImage,
     copyType,
     generateAICaptions,
     remixCaption,
@@ -110,6 +111,10 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
   }, []);
 
   const activeImage = uploadedImages.find((img) => img.id === activeImageId);
+  const activeIndex = Math.max(0, uploadedImages.findIndex((img) => img.id === activeImageId));
+  const previewUrls = uploadedImages.map((img) => img.blobUrl || img.preview);
+  const allUploaded = uploadedImages.length > 0 && uploadedImages.every((img) => img.blobUrl?.startsWith('https://') && !img.uploadFailed);
+  const hasFailedUpload = uploadedImages.some((img) => img.uploadFailed);
   const selectedCaption = captions.find((c) => selectedCaptions.includes(c.id));
   const activeCaptionText = customCaption.trim() ? customCaption : (selectedCaption?.text || '');
 
@@ -140,9 +145,11 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
     }
   }, [chatMessages]);
 
-  const handleFileSelected = async (file: File) => {
+  const handleFilesSelected = async (files: File[]) => {
     setError(null);
-    await addImage(file);
+    const media = files.filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/'));
+    // Parallel uploads; the first file of the batch becomes the active (previewed) photo
+    await Promise.all(media.map((file, i) => addImage(file, { activate: i === 0 })));
   };
 
   const handleGalleryPhotoSelected = async (mediaGalleryId: string) => {
@@ -156,8 +163,13 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
       const items: Array<{ id: string; media_url: string }> = data.items ?? data.gallery ?? [];
       const item = items.find((i) => i.id === mediaGalleryId);
       if (!item) return;
-      const mockFile = new File([], 'gallery-photo.jpg', { type: 'image/jpeg' });
       const imageId = `gallery-${mediaGalleryId}`;
+      if (uploadedImages.some((img) => img.id === imageId)) {
+        setActiveImageId(imageId);
+        setGalleryOpen(false);
+        return;
+      }
+      const mockFile = new File([], 'gallery-photo.jpg', { type: 'image/jpeg' });
       setUploadedImages([
         ...uploadedImages,
         { id: imageId, file: mockFile, preview: item.media_url, blobUrl: item.media_url },
@@ -211,16 +223,16 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
     }
   };
 
-  const canSubmit = !!activeImage && !!activeCaptionText.trim() && !!selectedDateKey && !!selectedTime && !isSubmitting;
+  const canSubmit = allUploaded && !!activeCaptionText.trim() && !!selectedDateKey && !!selectedTime && !isSubmitting;
 
   const handleSubmit = async () => {
-    if (!canSubmit || !activeImage || !selectedDateKey || !activeCaptionText.trim()) return;
+    if (!canSubmit || !selectedDateKey || !activeCaptionText.trim()) return;
     setIsSubmitting(true);
     setError(null);
     try {
       const accessToken = getAccessToken();
       if (!accessToken) throw new Error('Authentication required. Please log in again.');
-      const imageUrl = activeImage.blobUrl || activeImage.preview;
+      const mediaUrls = uploadedImages.map((img) => img.blobUrl as string);
       const response = await fetch('/api/calendar/scheduled', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -229,7 +241,8 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
             client_id: clientId,
             project_id: selectedProjectId,
             caption: activeCaptionText,
-            image_url: imageUrl,
+            image_url: mediaUrls[0],
+            media_urls: mediaUrls.length > 1 ? mediaUrls : null,
             scheduled_date: selectedDateKey,
             scheduled_time: `${selectedTime}:00`,
             post_notes: postNotes || '',
@@ -305,9 +318,78 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                 accountAvatarUrl={accountAvatarUrl}
                 caption={activeCaptionText}
                 imageUrl={activeImage?.blobUrl || activeImage?.preview}
+                mediaUrls={previewUrls}
+                carouselIndex={activeIndex}
+                onCarouselIndexChange={(i) => {
+                  const img = uploadedImages[i];
+                  if (img) setActiveImageId(img.id);
+                }}
                 scheduledDate={selectedDateKey ?? undefined}
                 scheduledTime={selectedTime}
               />
+
+              {uploadedImages.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    {uploadedImages.length > 1 ? `Carousel · ${uploadedImages.length} photos` : '1 photo'}
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {uploadedImages.map((img, i) => {
+                      const isUploading = !img.blobUrl && !img.uploadFailed;
+                      const isActive = img.id === activeImageId;
+                      return (
+                        <div
+                          key={img.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setActiveImageId(img.id)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveImageId(img.id); }}
+                          className={`relative w-14 h-14 rounded-lg overflow-hidden border-2 cursor-pointer transition-colors ${
+                            img.uploadFailed ? 'border-red-400' : isActive ? 'border-blue-500' : 'border-transparent hover:border-gray-300'
+                          }`}
+                          title={`Photo ${i + 1}`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={img.mediaType === 'video' ? (img.videoThumbnail || img.preview) : img.preview}
+                            alt={`Photo ${i + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <span className="absolute bottom-0.5 left-0.5 bg-black/60 text-white text-[9px] font-semibold leading-none px-1 py-0.5 rounded">
+                            {i + 1}
+                          </span>
+                          {isUploading && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <Loader2 className="w-4 h-4 text-white animate-spin" />
+                            </div>
+                          )}
+                          {img.uploadFailed && (
+                            <div className="absolute inset-0 bg-red-500/70 flex items-center justify-center" title="Upload failed">
+                              <AlertCircle className="w-4 h-4 text-white" />
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            aria-label={`Remove photo ${i + 1}`}
+                            onClick={(e) => { e.stopPropagation(); removeImage(img.id); }}
+                            className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 hover:bg-red-600 text-white flex items-center justify-center"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-14 h-14 rounded-lg border-2 border-dashed border-gray-300 text-gray-400 hover:text-gray-600 hover:border-gray-400 flex items-center justify-center transition-colors"
+                      title="Add more photos"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -321,17 +403,18 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
 
             {/* Image */}
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Photo</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Photos</p>
               <div className="flex gap-2">
                 <input
                   ref={fileInputRef}
                   type="file"
+                  multiple
                   accept="image/*,video/*"
                   className="hidden"
                   onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileSelected(file);
+                    const files = Array.from(e.target.files ?? []);
                     e.target.value = '';
+                    if (files.length > 0) handleFilesSelected(files);
                   }}
                 />
                 <button
@@ -340,7 +423,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                   className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
                 >
                   <UploadIcon className="w-3.5 h-3.5" />
-                  Upload
+                  {uploadedImages.length > 0 ? 'Add photos' : 'Upload photos'}
                 </button>
                 <button
                   type="button"
@@ -351,6 +434,11 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                   Gallery
                 </button>
               </div>
+              <p className="text-[11px] text-gray-500 mt-1.5">
+                {hasFailedUpload
+                  ? 'A photo failed to upload — remove it to continue.'
+                  : 'Select several photos at once (or keep adding) to make a carousel.'}
+              </p>
             </div>
 
             {/* Prompt bar — notes + caption generation, works in both Standard and Chat modes */}

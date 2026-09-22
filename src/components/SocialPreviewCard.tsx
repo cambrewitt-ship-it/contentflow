@@ -21,6 +21,9 @@ interface SocialPreviewCardProps {
   caption: string
   imageUrl?: string
   mediaUrls?: string[]
+  // Optional controlled carousel position (e.g. to sync with an external thumbnail strip)
+  carouselIndex?: number
+  onCarouselIndexChange?: (index: number) => void
   scheduledDate?: string
   scheduledTime?: string
   approvalStatus?: 'pending' | 'approved' | 'rejected'
@@ -36,6 +39,8 @@ export function SocialPreviewCard({
   caption,
   imageUrl,
   mediaUrls,
+  carouselIndex: controlledIndex,
+  onCarouselIndexChange,
   scheduledDate,
   scheduledTime,
   approvalStatus,
@@ -44,7 +49,14 @@ export function SocialPreviewCard({
 }: SocialPreviewCardProps) {
   // Carousel state — mediaUrls overrides single imageUrl when present
   const allMedia = mediaUrls && mediaUrls.length > 1 ? mediaUrls : null
-  const [carouselIndex, setCarouselIndex] = useState(0)
+  const [internalIndex, setInternalIndex] = useState(0)
+  const rawIndex = controlledIndex ?? internalIndex
+  const carouselIndex = allMedia ? Math.min(Math.max(rawIndex, 0), allMedia.length - 1) : 0
+  const setCarouselIndex = (update: number | ((i: number) => number)) => {
+    const next = typeof update === 'function' ? update(carouselIndex) : update
+    if (controlledIndex === undefined) setInternalIndex(next)
+    onCarouselIndexChange?.(next)
+  }
   const activeImageUrl = allMedia ? allMedia[carouselIndex] : imageUrl
   const isActiveVideo = !!activeImageUrl && isVideoUrl(activeImageUrl)
 

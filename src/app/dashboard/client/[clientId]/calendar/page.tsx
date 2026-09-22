@@ -102,6 +102,7 @@ interface Post {
   project_id: string | null;
   caption: string;
   image_url: string;
+  media_urls?: string[] | null;
   scheduled_time: string | null;
   scheduled_date?: string;
   late_post_id?: string;
@@ -1275,6 +1276,7 @@ export default function CalendarPage() {
           client_id: clientId,
           caption: post.caption,
           image_url: post.image_url,
+          media_urls: post.media_urls ?? null,
           post_notes: post.post_notes,
           scheduled_date: scheduledDate,
           scheduled_time: scheduledTime
@@ -1428,6 +1430,7 @@ export default function CalendarPage() {
           client_id: clientId,
           caption: post.caption,
           image_url: post.image_url,
+          media_urls: post.media_urls ?? null,
           post_notes: post.post_notes,
           scheduled_date: scheduledDate,
           scheduled_time: scheduledTime
@@ -1651,6 +1654,7 @@ export default function CalendarPage() {
             client_id: clientId,
             caption: post.caption,
             image_url: post.image_url,
+            media_urls: post.media_urls ?? null,
             post_notes: post.post_notes,
             scheduled_date: scheduledDate,
             scheduled_time: scheduledTime

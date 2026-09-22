@@ -35,6 +35,7 @@ const createUnscheduledSchema = z
     project_id: uuidSchema.nullish(),
     caption: z.string().max(5000).optional(),
     image_url: z.string().url().nullable().optional(),
+    media_urls: z.array(z.string().url()).max(20).nullable().optional(),
     post_notes: z.string().max(5000).nullable().optional(),
   })
   .passthrough();
@@ -259,6 +260,7 @@ export async function POST(request: Request) {
         project_id: postData.project_id || null,
         caption: postData.caption || null,
         image_url: postData.image_url || null,
+        media_urls: postData.media_urls ?? null,
         post_notes: postData.post_notes || null,
         created_at: now,
       }
