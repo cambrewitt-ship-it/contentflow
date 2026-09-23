@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { resolvePortalToken } from '@/lib/portalAuth';
+import { ApprovalSessionError, buildApprovalShareUrl, createApprovalSession } from '@/lib/approvalSessions';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,88 +20,18 @@ export async function POST(request: NextRequest) {
 
     const resolved = await resolvePortalToken(token);
     if (!resolved) return NextResponse.json({ error: 'Invalid portal token' }, { status: 401 });
-    const { clientId } = resolved;
 
-    // Verify calendar posts belong to this client
-    const { data: calendarPosts } = await supabase
-      .from('calendar_scheduled_posts')
-      .select('id, project_id')
-      .eq('client_id', clientId)
-      .in('id', postIds);
+    const session = await createApprovalSession(supabase, {
+      clientId: resolved.clientId,
+      postIds,
+      expiresInDays,
+    });
 
-    // Any IDs not found in calendar_scheduled_posts are portal uploads
-    const foundPostIds = new Set((calendarPosts || []).map(p => p.id));
-    const uploadIds = (postIds as string[]).filter(id => !foundPostIds.has(id));
-
-    let validUploadIds: string[] = [];
-    if (uploadIds.length > 0) {
-      const { data: uploads } = await supabase
-        .from('client_uploads')
-        .select('id')
-        .eq('client_id', clientId)
-        .in('id', uploadIds);
-      validUploadIds = (uploads || []).map(u => u.id);
-    }
-
-    if ((!calendarPosts || calendarPosts.length === 0) && validUploadIds.length === 0) {
-      return NextResponse.json({ error: 'No valid posts found' }, { status: 404 });
-    }
-
-    const validPostIds = (calendarPosts || []).map(p => p.id);
-    const projectIds = new Set((calendarPosts || []).map(p => p.project_id).filter(Boolean));
-    const projectId = projectIds.size === 1 ? Array.from(projectIds)[0] : null;
-
-    const share_token = crypto.randomUUID();
-    const expires_at = new Date();
-    expires_at.setDate(expires_at.getDate() + expiresInDays);
-
-    const { data: session, error: sessionError } = await supabase
-      .from('client_approval_sessions')
-      .insert({ project_id: projectId, client_id: clientId, share_token, expires_at: expires_at.toISOString() })
-      .select()
-      .single();
-
-    if (sessionError || !session) {
-      return NextResponse.json({ error: 'Failed to create approval session' }, { status: 500 });
-    }
-
-    // Insert calendar post approvals
-    if (validPostIds.length > 0) {
-      const { error: calendarInsertError } = await supabase.from('post_approvals').insert(
-        validPostIds.map(post_id => ({
-          session_id: session.id,
-          post_id,
-          post_type: 'planner_scheduled',
-          approval_status: 'pending',
-        }))
-      );
-      if (calendarInsertError) {
-        console.error('Portal approval link - calendar post approvals insert error:', calendarInsertError);
-        return NextResponse.json({ error: 'Failed to create approval records' }, { status: 500 });
-      }
-    }
-
-    if (validUploadIds.length > 0) {
-      const { error: uploadInsertError } = await supabase.from('post_approvals').insert(
-        validUploadIds.map(post_id => ({
-          session_id: session.id,
-          post_id,
-          post_type: 'portal_upload',
-          approval_status: 'pending',
-        }))
-      );
-      if (uploadInsertError) {
-        console.error('Portal approval link - upload approvals insert error:', uploadInsertError);
-        return NextResponse.json({ error: 'Failed to create upload approval records' }, { status: 500 });
-      }
-    }
-
-    const host = request.headers.get('host');
-    const protocol = host && host.includes('localhost') ? 'http' : 'https';
-    const shareUrl = `${protocol}://${host}/approval/${share_token}`;
-
-    return NextResponse.json({ session, share_url: shareUrl });
+    return NextResponse.json({ session, share_url: buildApprovalShareUrl(request, session.share_token) });
   } catch (error) {
+    if (error instanceof ApprovalSessionError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Portal approval link error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

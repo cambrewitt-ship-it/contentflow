@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
+import { commentPostTypeFor, type ApprovalPostType } from '@/lib/approvalSessions';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
     // Get session by share token (include client name for comment author)
     const { data: session, error: sessionError } = await supabase
       .from('client_approval_sessions')
-      .select('id, client_id, project_id, expires_at, clients(name)')
+      .select('id, client_id, expires_at, clients(name)')
       .eq('share_token', share_token)
       .single();
 
@@ -75,7 +76,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify post belongs to the session and look up in the right table
+    // The session's post_approvals rows are the source of truth for which posts a link covers
+    const { data: sessionApproval, error: membershipError } = await supabase
+      .from('post_approvals')
+      .select('id')
+      .eq('session_id', session.id)
+      .eq('post_id', post_id)
+      .eq('post_type', post_type)
+      .maybeSingle();
+
+    if (membershipError) {
+      logger.error('❌ Error checking session membership:', membershipError);
+      return NextResponse.json({ error: 'Failed to verify approval link' }, { status: 500 });
+    }
+    if (!sessionApproval) {
+      return NextResponse.json({ error: 'Post does not belong to this approval session' }, { status: 403 });
+    }
+
+    const isPost = post_type !== 'portal_upload';
+    let previousStatus: { approval_status: string | null; client_feedback: string | null } | null = null;
+
+    // Look up the post in the right table
     if (post_type === 'portal_upload') {
       const { data: uploadRecord, error: uploadError } = await supabase
         .from('client_uploads')
@@ -103,7 +124,7 @@ export async function POST(request: NextRequest) {
       const tableName = post_type === 'planner_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
       const { data: postRecord, error: postError } = await supabase
         .from(tableName)
-        .select('id, project_id, client_id')
+        .select('id, client_id, approval_status, client_feedback')
         .eq('id', post_id)
         .single();
 
@@ -116,13 +137,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Post does not belong to this approval session' }, { status: 403 });
       }
 
-      if (session.project_id !== null && postRecord.project_id !== session.project_id) {
-        return NextResponse.json({ error: 'Post does not belong to this approval session' }, { status: 403 });
-      }
-
-      if (session.project_id === null && postRecord.project_id !== null) {
-        return NextResponse.json({ error: 'Post does not belong to this approval session' }, { status: 403 });
-      }
+      previousStatus = {
+        approval_status: postRecord.approval_status ?? null,
+        client_feedback: postRecord.client_feedback ?? null,
+      };
 
       // Update post caption if client edited it
       if (edited_caption && edited_caption.trim() !== '') {
@@ -156,79 +174,45 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update or create post approval record
-    const { data: existingApproval, error: checkError } = await supabase
+    const { data: approval, error: approvalError } = await supabase
       .from('post_approvals')
-      .select('*')
-      .eq('session_id', session.id)
-      .eq('post_id', post_id)
-      .eq('post_type', post_type)
+      .update({
+        approval_status,
+        client_comments: client_comments || null,
+        approved_at: approval_status === 'approved' ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', sessionApproval.id)
+      .select()
       .single();
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      logger.error('❌ Error checking existing approval:', checkError);
+    if (approvalError) {
+      logger.error('❌ Error updating approval:', approvalError);
       return NextResponse.json(
-        { error: 'Failed to check existing approval' },
+        { error: 'Failed to update approval' },
         { status: 500 }
       );
     }
 
-    let approval;
-    if (existingApproval) {
-      // Update existing approval
-      const { data, error } = await supabase
-        .from('post_approvals')
-        .update({
-          approval_status,
-          client_comments: client_comments || null,
-          approved_at: approval_status === 'approved' ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingApproval.id)
-        .select()
-        .single();
-
-      if (error) {
-        logger.error('❌ Error updating approval:', error);
-        return NextResponse.json(
-          { error: 'Failed to update approval' },
-          { status: 500 }
-        );
-      }
-
-      approval = data;
-    } else {
-      // Create new approval
-      const { data, error } = await supabase
-        .from('post_approvals')
+    // Same history trail as approvals made inside the portal
+    if (isPost) {
+      const { error: historyError } = await supabase
+        .from('post_approval_history')
         .insert({
-          session_id: session.id,
           post_id,
-          post_type,
-          approval_status,
-          client_comments: client_comments || null,
-          approved_at: approval_status === 'approved' ? new Date().toISOString() : null,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        logger.error('❌ Error creating approval:', error);
-        return NextResponse.json(
-          { error: 'Failed to create approval' },
-          { status: 500 }
-        );
-      }
-
-      approval = data;
+          changed_by: 'approval_link',
+          previous_approval_status: previousStatus?.approval_status ?? null,
+          new_approval_status: approval_status,
+          previous_client_feedback: previousStatus?.client_feedback ?? null,
+          new_client_feedback: client_comments || null,
+          metadata: { session_id: session.id, post_type },
+        });
+      if (historyError) logger.warn('Failed to write approval history', historyError);
     }
 
     // Write client_comments into the post_comments thread so they appear in the portal modal
     if (client_comments && client_comments.trim()) {
-      const commentPostType =
-        post_type === 'portal_upload' ? 'portal_upload' :
-        post_type === 'planner_scheduled' ? 'scheduled' :
-        'calendar_scheduled';
+      const commentPostType = commentPostTypeFor(post_type as ApprovalPostType);
 
       const clientName =
         (session as any).clients?.name ?? 'Client';

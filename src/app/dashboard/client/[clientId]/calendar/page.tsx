@@ -461,9 +461,6 @@ export default function CalendarPage() {
         return;
       }
 
-      // Get project_id if all posts belong to the same project, otherwise use null
-      const projectIds = new Set(selectedPostsArray.map(p => p.project_id).filter(Boolean));
-      const projectId = projectIds.size === 1 ? Array.from(projectIds)[0] : null;
       const postIds = selectedPostsArray.map(p => p.id);
 
       const accessToken = requireAccessToken();
@@ -475,7 +472,6 @@ export default function CalendarPage() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          project_id: projectId,
           client_id: clientId,
           expires_in_days: 30,
           selected_post_ids: postIds
