@@ -8,6 +8,28 @@ import { MAX_ITERATIONS } from './constants';
 const openai = new OpenAI();
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
+// Each iteration resends the growing conversation, so a run can hit the org's
+// tokens-per-minute cap. OpenAI's suggested retry-after is often ~100ms, which
+// the SDK's own fast retries burn through while the rolling 1-minute window is
+// still full — so wait progressively longer here (5s, 10s, ... ~75s total,
+// inside the route's 300s budget) before giving up.
+const RATE_LIMIT_BACKOFF_MS = [5_000, 10_000, 15_000, 20_000, 25_000];
+
+async function createCompletionWithBackoff(
+  params: Parameters<typeof openai.chat.completions.create>[0] & { stream?: false }
+) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await openai.chat.completions.create(params);
+    } catch (err) {
+      if (!(err instanceof OpenAI.RateLimitError) || attempt >= RATE_LIMIT_BACKOFF_MS.length) throw err;
+      const delay = RATE_LIMIT_BACKOFF_MS[attempt];
+      logger.warn(`Autopilot agent: OpenAI rate limit hit, retrying in ${delay / 1000}s`, { attempt: attempt + 1 });
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
 export interface AgentRunResult {
   planSummary: string;
   candidates: ScratchpadPost[];
@@ -91,7 +113,7 @@ export async function runAutopilotAgentLoop(ctx: RunContext): Promise<AgentRunRe
     iterations++;
 
     const nearCap = iterations >= MAX_ITERATIONS - 1;
-    const completion = await openai.chat.completions.create({
+    const completion = await createCompletionWithBackoff({
       model: MODEL,
       messages,
       tools: TOOL_DEFS,
