@@ -16,6 +16,7 @@ interface SelectContextValue {
   onValueChange: (value: string) => void;
   open: boolean;
   setOpen: (open: boolean) => void;
+  rootRef: React.RefObject<HTMLDivElement | null>;
 }
 
 const SelectContext = React.createContext<SelectContextValue | null>(null);
@@ -37,10 +38,11 @@ interface SelectProps {
 
 export function Select({ value, onValueChange, children }: SelectProps) {
   const [open, setOpen] = React.useState(false);
+  const rootRef = React.useRef<HTMLDivElement>(null);
 
   return (
-    <SelectContext.Provider value={{ value, onValueChange, open, setOpen }}>
-      <div className="relative inline-block w-full">{children}</div>
+    <SelectContext.Provider value={{ value, onValueChange, open, setOpen, rootRef }}>
+      <div ref={rootRef} className="relative inline-block w-full">{children}</div>
     </SelectContext.Provider>
   );
 }
@@ -92,15 +94,20 @@ interface SelectContentProps {
 }
 
 export function SelectContent({ className, children }: SelectContentProps) {
-  const { open, setOpen } = useSelect();
+  const { open, setOpen, rootRef } = useSelect();
 
-  // Close on outside click
+  // Close on outside click. Clicks inside the select are left alone: this capture
+  // listener runs before React's handlers, so closing here would unmount the menu
+  // before the clicked item's onClick could fire.
   React.useEffect(() => {
     if (!open) return;
-    const handler = () => setOpen(false);
+    const handler = (e: MouseEvent) => {
+      if (rootRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
     document.addEventListener('click', handler, { capture: true });
     return () => document.removeEventListener('click', handler, { capture: true });
-  }, [open, setOpen]);
+  }, [open, setOpen, rootRef]);
 
   if (!open) return null;
 
