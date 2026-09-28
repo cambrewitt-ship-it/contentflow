@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ContentStoreProvider, ContentFocus, CopyTone } from '@/lib/contentStore'
 import { useAuth } from '@/contexts/AuthContext'
 import { SchedulePostModal, Platform } from '@/components/SchedulePostModal'
+import { ChatCaptionOption } from '@/components/ChatCaptionOption'
 
 interface Project {
   id: string
@@ -884,7 +885,8 @@ function ContentSuiteContent({
     setChatInput,
     sendChatMessage,
     handleEnterChatMode,
-    selectChatCaption
+    selectChatCaption,
+    updateChatCaption
   } = useContentStore()
   const { contentIdeas, setContentIdeas } = useContentStore()
   
@@ -2503,33 +2505,17 @@ function ContentSuiteContent({
                               {msg.role === 'assistant' && !msg.isLoading && msg.captions && msg.captions.length > 0 && (
                                 <div className="space-y-2">
                                   <p className="text-xs text-gray-400 font-medium px-0.5 mb-1">
-                                    {msgIdx === 0 ? 'Here are your captions — click to select:' : 'Updated captions:'}
+                                    {msgIdx === 0 ? 'Here are your captions — click one to select & edit:' : 'Updated captions:'}
                                   </p>
-                                  {msg.captions.map((caption) => {
-                                    const isSelected = selectedCaptions.includes(caption.id)
-                                    return (
-                                      <div
-                                        key={caption.id}
-                                        onClick={() => selectChatCaption(caption)}
-                                        className={`group relative bg-white rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-md ${
-                                          isSelected
-                                            ? 'border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-500/20'
-                                            : 'border-gray-200 hover:border-blue-300'
-                                        }`}
-                                      >
-                                        <p className="text-sm text-gray-800 leading-relaxed p-3 pr-24 whitespace-pre-wrap">{caption.text}</p>
-                                        <div className={`absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
-                                          isSelected
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-gray-100 text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-700'
-                                        }`}>
-                                          {isSelected ? (
-                                            <><Check className="w-3 h-3" /> Selected</>
-                                          ) : 'Select'}
-                                        </div>
-                                      </div>
-                                    )
-                                  })}
+                                  {msg.captions.map((caption) => (
+                                    <ChatCaptionOption
+                                      key={caption.id}
+                                      text={caption.text}
+                                      selected={selectedCaptions.includes(caption.id)}
+                                      onSelect={() => selectChatCaption(caption)}
+                                      onChange={(text) => updateChatCaption(caption.id, text)}
+                                    />
+                                  ))}
                                 </div>
                               )}
 

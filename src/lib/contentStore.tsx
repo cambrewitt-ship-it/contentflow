@@ -107,6 +107,7 @@ export interface ContentStore {
   sendChatMessage: (accessToken?: string) => Promise<void>
   handleEnterChatMode: (accessToken?: string) => Promise<void>
   selectChatCaption: (caption: ChatCaption) => void
+  updateChatCaption: (id: string, text: string) => void
 }
 
 const ContentStoreContext = createContext<ContentStore | null>(null)
@@ -1048,6 +1049,19 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     selectCaption(caption.id)
   }
 
+  // Edit a chat-generated caption in place — keeps the chat history and the selected caption in sync
+  const updateChatCaption = (id: string, text: string) => {
+    setChatMessages(prev => prev.map(m =>
+      m.captions?.some(c => c.id === id)
+        ? { ...m, captions: m.captions.map(c => (c.id === id ? { ...c, text } : c)) }
+        : m
+    ))
+    setCaptions(prev => {
+      if (prev.some(c => c.id === id)) return prev.map(c => (c.id === id ? { ...c, text } : c))
+      return [...prev, { id, text }]
+    })
+  }
+
   const clearAll = () => {
     // Clean up blob URLs before clearing
     uploadedImages.forEach(image => {
@@ -1153,6 +1167,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     sendChatMessage,
     handleEnterChatMode,
     selectChatCaption,
+    updateChatCaption,
   }
 
   return (

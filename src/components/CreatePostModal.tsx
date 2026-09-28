@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { SocialPreviewCard } from '@/components/SocialPreviewCard';
 import PhotoSwapDialog from '@/components/PhotoSwapDialog';
 import { WeekDayChooser } from '@/components/WeekDayChooser';
+import { ChatCaptionOption } from '@/components/ChatCaptionOption';
 import { PlatformPicker } from '@/components/PlatformBadges';
 import { normalizeTargetPlatforms, type TargetPlatform } from '@/lib/targetPlatforms';
 import { Textarea } from '@/components/ui/textarea';
@@ -85,6 +86,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
     sendChatMessage,
     handleEnterChatMode,
     selectChatCaption,
+    updateChatCaption,
     clearAll,
   } = useContentStore();
 
@@ -612,18 +614,14 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                         ) : msg.captions && msg.captions.length > 0 ? (
                           <div className="space-y-1.5">
                             {msg.captions.map((cap) => (
-                              <button
+                              <ChatCaptionOption
                                 key={cap.id}
-                                type="button"
-                                onClick={() => selectChatCaption(cap)}
-                                className={`w-full text-left px-3 py-2 rounded-lg border text-xs transition-colors ${
-                                  selectedCaptions.includes(cap.id)
-                                    ? 'border-blue-400 bg-blue-50 text-gray-900'
-                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                                }`}
-                              >
-                                {cap.text}
-                              </button>
+                                size="sm"
+                                text={cap.text}
+                                selected={selectedCaptions.includes(cap.id)}
+                                onSelect={() => selectChatCaption(cap)}
+                                onChange={(text) => updateChatCaption(cap.id, text)}
+                              />
                             ))}
                           </div>
                         ) : (

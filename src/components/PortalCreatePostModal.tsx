@@ -7,6 +7,7 @@ import { extractVideoThumbnail } from '@/lib/videoUtils';
 import { prepareImageDataForAI } from '@/lib/imageCompression';
 import { SocialPreviewCard } from '@/components/SocialPreviewCard';
 import { WeekDayChooser } from '@/components/WeekDayChooser';
+import { ChatCaptionOption } from '@/components/ChatCaptionOption';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -380,6 +381,18 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
     setSelectedCaptionId(caption.id);
   };
 
+  // Edit a chat-generated caption in place — keeps the chat history and the selected caption in sync
+  const updateChatCaption = (id: string, text: string) => {
+    setChatMessages((prev) => prev.map((m) =>
+      m.captions?.some((c) => c.id === id)
+        ? { ...m, captions: m.captions.map((c) => (c.id === id ? { ...c, text } : c)) }
+        : m
+    ));
+    setCaptions((prev) =>
+      prev.some((c) => c.id === id) ? prev.map((c) => (c.id === id ? { ...c, text } : c)) : [...prev, { id, text }]
+    );
+  };
+
   const canSubmit = allUploaded && !!activeCaptionText.trim() && !!selectedDateKey && !!selectedTime && !isSubmitting;
 
   const handleSubmit = async () => {
@@ -678,18 +691,14 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
                         ) : msg.captions && msg.captions.length > 0 ? (
                           <div className="space-y-1.5">
                             {msg.captions.map((cap) => (
-                              <button
+                              <ChatCaptionOption
                                 key={cap.id}
-                                type="button"
-                                onClick={() => selectChatCaption(cap)}
-                                className={`w-full text-left px-3 py-2 rounded-lg border text-xs transition-colors ${
-                                  selectedCaptionId === cap.id
-                                    ? 'border-blue-400 bg-blue-50 text-gray-900'
-                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                                }`}
-                              >
-                                {cap.text}
-                              </button>
+                                size="sm"
+                                text={cap.text}
+                                selected={selectedCaptionId === cap.id && !customCaption.trim()}
+                                onSelect={() => (selectedCaptionId === cap.id ? setSelectedCaptionId(null) : selectChatCaption(cap))}
+                                onChange={(text) => updateChatCaption(cap.id, text)}
+                              />
                             ))}
                           </div>
                         ) : (
