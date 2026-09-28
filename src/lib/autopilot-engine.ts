@@ -4,6 +4,8 @@ import { trackAICreditUsage } from '@/lib/subscriptionMiddleware';
 import { sendAutopilotPlanReadyEmail } from '@/lib/email';
 import { createNotification } from '@/lib/notifications';
 import logger from '@/lib/logger';
+import { formatTovPromptSection } from '@/lib/brandVoice';
+import { getCaptionRuleTexts, formatPlaybookPromptSection } from '@/lib/captionPlaybook';
 import { getStylePreferences } from '@/lib/preference-engine';
 import {
   inferHemisphere,
@@ -21,6 +23,8 @@ import type { GalleryItem } from '@/lib/autopilot-agent/context';
 import { runAutopilotAgentLoop } from '@/lib/autopilot-agent/loop';
 import type { RunContext } from '@/lib/autopilot-agent/tools';
 import { TOKENS_PER_CREDIT } from '@/lib/autopilot-agent/constants';
+import { organicEnabled, adsEnabled } from '@/lib/autopilot-agent/runBrief';
+import type { RunBrief } from '@/lib/autopilot-agent/runBrief';
 
 // Re-exported for backward compatibility — imported directly by
 // src/app/api/autopilot/plans/[planId]/confirm/route.ts.
@@ -58,14 +62,17 @@ export async function generateContentPlan(
   clientId: string,
   userId: string,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
+  // Set when a user runs the agent from the composer; cron runs omit it and
+  // fall back to the client's saved autopilot settings.
+  brief?: RunBrief
 ): Promise<{ plan: AutopilotPlan; candidates: unknown[] }> {
   const admin = createSupabaseAdmin();
 
   // Step 1: Gather context (same data the old engine fetched — now served to
   // the agent via tools instead of pre-stuffed into one giant prompt).
   logger.info('Autopilot v3: gathering context', { clientId });
-  const [brandCtx, events, recentPosts, existingPosts, gallery, project, stylePrefs] =
+  const [brandCtx, events, recentPosts, existingPosts, gallery, project, stylePrefs, captionRules] =
     await Promise.all([
       fetchBrandContext(clientId),
       getEventsForRange(clientId, startDate, endDate),
@@ -74,6 +81,7 @@ export async function generateContentPlan(
       getAvailableGalleryItems(clientId, 40),
       getOrCreateDefaultProject(clientId, userId),
       getStylePreferences(clientId),
+      getCaptionRuleTexts(clientId),
     ]);
 
   const client = brandCtx.client;
@@ -81,10 +89,13 @@ export async function generateContentPlan(
 
   const holidays = await getRegionalHolidays(client.region, startDate, endDate);
 
-  // Step 2: Determine candidate count (10-12, always, regardless of existing posts)
+  // Step 2: Determine candidate count — the brief's post count, else 10-12
+  // regardless of existing posts. A paid-ads-only brief has no organic posts.
   const prefs = (client.posting_preferences ?? {}) as Record<string, unknown>;
   const postsPerWeek = (prefs.posts_per_week as number) || 3;
-  const candidateCount = Math.min(12, Math.max(10, postsPerWeek * 3));
+  const candidateCount = brief
+    ? organicEnabled(brief) ? brief.postCount : 0
+    : Math.min(12, Math.max(10, postsPerWeek * 3));
   const hemisphere = inferHemisphere(
     (client.business_context as Record<string, unknown>)?.hemisphere as string | undefined,
     client.region
@@ -92,9 +103,10 @@ export async function generateContentPlan(
   const season = deriveSeason(hemisphere, startDate);
 
   const adCopySettings = (client.ad_copy_settings ?? {}) as { enabled?: boolean; platform?: string; variants_per_run?: number };
-  const adCopyEnabled = adCopySettings.enabled === true;
-  const adCopyCount = Math.min(10, Math.max(1, adCopySettings.variants_per_run || 3));
-  const adPlatform = adCopySettings.platform === 'google' ? 'google' : 'meta';
+  const savedAdCopyCount = Math.min(10, Math.max(1, adCopySettings.variants_per_run || 3));
+  const adCopyEnabled = brief ? adsEnabled(brief) : adCopySettings.enabled === true;
+  const adCopyCount = brief?.format === 'paid' ? brief.postCount : savedAdCopyCount;
+  const adPlatform = brief ? brief.adPlatform : adCopySettings.platform === 'google' ? 'google' : 'meta';
 
   logger.info('Autopilot v3: plan params', {
     postsPerWeek,
@@ -107,6 +119,7 @@ export async function generateContentPlan(
     hasStylePrefs: stylePrefs.hasEnoughData,
     adCopyEnabled,
     adCopyCount: adCopyEnabled ? adCopyCount : 0,
+    runFormat: brief?.format ?? 'saved_settings',
   });
 
   // Create plan record in 'generating' state
@@ -186,6 +199,8 @@ export async function generateContentPlan(
     adCopyEnabled,
     adCopyCount,
     adPlatform,
+    brief: brief ?? null,
+    captionRules,
   };
 
   logger.info('Autopilot v3: starting agent loop', { model: MODEL, candidateCount, clientId });
@@ -283,8 +298,10 @@ export async function generateContentPlan(
         postsPerWeek,
         existingCount: existingPosts.length,
         hasStylePrefs: stylePrefs.hasEnoughData,
+        captionRulesCount: captionRules.length,
         adCopyEnabled,
         adCandidatesCount,
+        runBrief: brief ?? null,
         agentRun: runResult.usage,
       },
     })
@@ -376,7 +393,7 @@ export async function regenerateCaption(params: {
   platforms: string[];
 }): Promise<string> {
   const { clientId, galleryItem, postType, platforms } = params;
-  const brandCtx = await fetchBrandContext(clientId);
+  const [brandCtx, captionRules] = await Promise.all([fetchBrandContext(clientId), getCaptionRuleTexts(clientId)]);
   const client = brandCtx.client;
 
   const prompt = `You are a social media copywriter. Write a single caption for a ${postType} post on ${platforms.join(' and ')}.
@@ -386,6 +403,9 @@ Tone: ${client?.brand_tone || 'engaging and authentic'}
 Target audience: ${client?.target_audience || 'general'}
 Caption dos: ${client?.caption_dos || 'none'}
 Caption don'ts: ${client?.caption_donts || 'none'}
+${client?.brand_voice_examples ? `Brand voice examples (match this voice):\n${client.brand_voice_examples}\n` : ''}
+${formatTovPromptSection(client?.brand_tov ?? null)}
+${formatPlaybookPromptSection(captionRules)}
 
 Photo details:
 - Description: ${galleryItem.ai_description || 'none'}

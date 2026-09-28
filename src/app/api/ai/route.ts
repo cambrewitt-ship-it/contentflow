@@ -13,6 +13,7 @@ import { sanitizeAndValidateContentIdeas } from '@/lib/ai-utils';
 import { detectPromptLeakage, logLeakageIncident } from '@/lib/ai-monitoring';
 import { resolvePortalToken } from '@/lib/portalAuth';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
+import { BRAND_VOICE_COLUMNS, resolveBrandVoice, formatTovPromptSection } from '@/lib/brandVoice';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -222,7 +223,7 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select(
-        'company_description, website_url, brand_tone, target_audience, value_proposition, caption_dos, caption_donts, brand_voice_examples, region, timezone'
+        `company_description, website_url, brand_tone, target_audience, value_proposition, region, timezone, ${BRAND_VOICE_COLUMNS}`
       )
       .eq('id', clientId)
       .single();
@@ -256,14 +257,18 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
       logger.error('Could not fetch website scrapes:', { error: scrapeError.message });
     }
 
+    // Only the voice sources switched on for this client (TOV, examples, do's/don'ts)
+    const voice = resolveBrandVoice(client);
+
     const brandContext = {
       company: client.company_description,
       tone: client.brand_tone,
       audience: client.target_audience,
       value_proposition: client.value_proposition,
-      dos: client.caption_dos,
-      donts: client.caption_donts,
-      voice_examples: client.brand_voice_examples,
+      tov: voice.tov,
+      dos: voice.dos,
+      donts: voice.donts,
+      voice_examples: voice.voice_examples,
       region: client.region,
       timezone: client.timezone,
       documents: documents || [],
@@ -625,6 +630,7 @@ async function generateCaptions(
         hasAudience: !!brandContext?.audience,
         hasValueProp: !!brandContext?.value_proposition,
         hasVoiceExamples: !!brandContext?.voice_examples,
+        hasTov: !!brandContext?.tov,
         hasDos: !!brandContext?.dos,
         hasDonts: !!brandContext?.donts,
         documentsCount: brandContext?.documents?.length || 0,
@@ -641,6 +647,8 @@ ${brandContext.tone ? `🎭 BRAND TONE: ${brandContext.tone}` : ''}
 ${brandContext.audience ? `👥 TARGET AUDIENCE: ${brandContext.audience}` : ''}
 ${brandContext.value_proposition ? `🎯 VALUE PROPOSITION: ${brandContext.value_proposition}` : ''}
 
+${formatTovPromptSection(brandContext.tov)}
+
 ${brandContext.voice_examples ? `🎤 BRAND VOICE EXAMPLES (ABSOLUTE PRIORITY - NON-NEGOTIABLE):
 ${brandContext.voice_examples}
 
@@ -651,7 +659,7 @@ ${brandContext.voice_examples}
 - Match the same level of formality/informality
 - Use similar sentence structures and vocabulary
 - If brand voice examples are provided, you MUST use them - generic content is unacceptable
-- These examples take PRIORITY over all other brand guidelines` : ''}
+- ${brandContext.tov ? 'These examples take PRIORITY over the general brand tone above, but must still follow the Tone of Voice guide rules' : 'These examples take PRIORITY over all other brand guidelines'}` : ''}
 
 ${brandContext.dos || brandContext.donts ? `📋 AI CAPTION RULES (MANDATORY):
 ${brandContext.dos ? `✅ ALWAYS INCLUDE: ${brandContext.dos}` : ''}
@@ -672,6 +680,9 @@ CRITICAL OUTPUT RULES:
 - Start directly with the email content
 
 Brand Context: ${brandContext?.company || 'Not specified'} | Tone: ${brandContext?.tone || 'Professional'} | Audience: ${brandContext?.audience || 'Not specified'}
+${formatTovPromptSection(brandContext?.tov ?? null)}
+${brandContext?.dos ? `✅ ALWAYS INCLUDE: ${brandContext.dos}` : ''}
+${brandContext?.donts ? `❌ NEVER INCLUDE: ${brandContext.donts}` : ''}
 ${getAntiAiSlopGuidelines()}
 
 Write professional email copy now.`
@@ -1017,6 +1028,9 @@ async function remixCaption(
       systemPrompt += `\nBrand Context: ${brandContext.company || 'Not specified'} | Tone: ${
         brandContext.tone || 'Not specified'
       } | Audience: ${brandContext.audience || 'Not specified'}\n`;
+      if (brandContext.tov) {
+        systemPrompt += `\n${formatTovPromptSection(brandContext.tov)}\n\n`;
+      }
       if (brandContext.voice_examples) {
         systemPrompt += `Brand Voice Examples: ${brandContext.voice_examples}\n`;
       }
@@ -1120,6 +1134,7 @@ async function chatCaption(
       if (brandContext.company) brandContextSection += `💼 Company: ${brandContext.company}\n`;
       if (brandContext.tone) brandContextSection += `🎭 Tone: ${brandContext.tone}\n`;
       if (brandContext.audience) brandContextSection += `👥 Audience: ${brandContext.audience}\n`;
+      if (brandContext.tov) brandContextSection += `\n${formatTovPromptSection(brandContext.tov)}\n`;
       if (brandContext.voice_examples) {
         brandContextSection += `\n🎤 Brand Voice (match this style exactly):\n${brandContext.voice_examples}\n`;
       }
@@ -1387,9 +1402,9 @@ Make each idea unique to THIS business - not generic content any competitor coul
       brand_tone: brandContext.tone,
       target_audience: brandContext.audience,
       value_proposition: brandContext.value_proposition,
-      brand_voice_examples: brandContext.voice_examples,
-      caption_dos: brandContext.dos,
-      caption_donts: brandContext.donts,
+      brand_voice_examples: brandContext.voice_examples ?? undefined,
+      caption_dos: brandContext.dos ?? undefined,
+      caption_donts: brandContext.donts ?? undefined,
     };
 
     const futureHolidays = upcomingHolidays.filter((holiday) => {

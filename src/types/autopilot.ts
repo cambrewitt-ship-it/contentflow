@@ -70,6 +70,7 @@ export interface ContentEvent {
 
 export type AutopilotPlanStatus =
   | 'generating'
+  | 'draft'
   | 'pending_approval'
   | 'approved'
   | 'partially_approved'
@@ -140,6 +141,14 @@ export interface AutopilotCandidate {
   ad_description: string | null;
   ad_platform: string | null;
   ad_status: 'pending' | 'ready' | 'copied' | null;
+  /** True once the user saved this kept post to the Content Agent drafts list. */
+  saved_to_drafts?: boolean;
+  saved_to_drafts_at?: string | null;
+  /** Feedback left during swipe review (migration 027). */
+  feedback?: string | null;
+  feedback_tags?: string[];
+  /** The AI's first version, set once the caption is edited or rewritten. */
+  original_caption?: string | null;
 }
 
 // ── Autopilot Post ────────────────────────────────────────────────────────────

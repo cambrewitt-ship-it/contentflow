@@ -81,6 +81,12 @@ export interface Client {
   caption_dos?: string;
   caption_donts?: string;
   brand_voice_examples?: string;
+  brand_tov?: string | null;
+  brand_tov_source_filename?: string | null;
+  brand_tov_updated_at?: string | null;
+  use_brand_tov?: boolean;
+  use_voice_examples?: boolean;
+  use_caption_rules?: boolean;
   founded_date?: string;
   late_profile_id?: string;
   logo_url?: string;

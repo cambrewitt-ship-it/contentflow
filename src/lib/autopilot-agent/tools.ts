@@ -1,7 +1,8 @@
 import type OpenAI from 'openai';
-import { CORPORATE_WORDS, countWords, countHashtags, countEmojis } from '@/lib/preference-engine';
+import { CORPORATE_WORDS, countWords, countHashtags, countEmojis, endsWithQuestion } from '@/lib/preference-engine';
 import type { StylePreferences } from '@/lib/preference-engine';
 import type { BrandContext, GalleryItem, ContentEvent, RegionalHoliday } from './context';
+import type { RunBrief } from './runBrief';
 
 // ── Scratchpad candidate shape ──────────────────────────────────────────────
 // What the agent accumulates via propose_post calls, persisted to
@@ -54,6 +55,10 @@ export interface RunContext {
   adCopyEnabled: boolean;
   adCopyCount: number;
   adPlatform: string;
+  // Per-run brief from the composer; null for cron runs (saved settings only).
+  brief: RunBrief | null;
+  // The client's caption playbook — rules from the agency's feedback on past posts.
+  captionRules: string[];
 }
 
 // ── Tool schemas ─────────────────────────────────────────────────────────────
@@ -202,6 +207,34 @@ export const TOOL_DEFS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   },
 ];
 
+// The loop hands the model all context up front (buildContextBriefing), so it
+// only needs the tools that act. The get_* and critique tools stay defined and
+// dispatchable, but aren't offered — each one used to cost a full turn.
+const AGENT_TOOL_NAMES = new Set(['search_media_gallery', 'propose_post', 'propose_ad_copy', 'finalize_candidate_pool']);
+export const AGENT_TOOL_DEFS = TOOL_DEFS.filter(
+  t => t.type === 'function' && AGENT_TOOL_NAMES.has(t.function.name)
+);
+
+/** Everything the get_* tools would return, gathered once for the first message. */
+export function buildContextBriefing(ctx: RunContext): string {
+  const section = (title: string, data: unknown) => `## ${title}\n${JSON.stringify(data)}`;
+  return [
+    section('Brand context', dispatchTool('get_brand_context', '{}', ctx)),
+    section('Photo gallery (every available photo — use these ids)', ctx.gallery.map(trimmedGalleryItem)),
+    section('Upcoming events in the window', dispatchTool('get_upcoming_events', '{}', ctx)),
+    section('Season and holidays', dispatchTool('get_nz_context', '{}', ctx)),
+    section('Style preferences and account manager feedback', dispatchTool('get_style_preferences', '{}', ctx)),
+    section('Recent posts (last 14 days — avoid repeating these)', dispatchTool('get_recent_posts', '{}', ctx)),
+  ].join('\n\n');
+}
+
+/** True once the pool has everything the run asked for. */
+export function poolIsFull(ctx: RunContext): boolean {
+  const ads = ctx.scratchpad.posts.filter(p => p.post_type === 'paid_ad').length;
+  const organic = ctx.scratchpad.posts.length - ads;
+  return organic >= ctx.candidateCount && (!ctx.adCopyEnabled || ads >= ctx.adCopyCount);
+}
+
 // ── Dispatch ─────────────────────────────────────────────────────────────────
 
 function trimmedGalleryItem(g: GalleryItem) {
@@ -216,7 +249,44 @@ function trimmedGalleryItem(g: GalleryItem) {
   };
 }
 
-function critique(caption: string, hashtags: string[] | undefined): { passed: boolean; violations: string[] } {
+// ── Photo variety within a pool ─────────────────────────────────────────────
+// Organic posts and ad variants each get their own variety check (an ad may
+// reuse a photo from an organic post). A photo can only repeat within a type
+// once the pool is bigger than the gallery.
+
+function photoUsesInPool(ctx: RunContext, mediaGalleryId: string, isAd: boolean): number {
+  return ctx.scratchpad.posts.filter(
+    p => p.media_gallery_id === mediaGalleryId && (p.post_type === 'paid_ad') === isAd
+  ).length;
+}
+
+function photoVarietyError(
+  ctx: RunContext,
+  mediaGalleryId: string,
+  isAd: boolean
+): { success: false; error: string; unused_photos: ReturnType<typeof trimmedGalleryItem>[] } | null {
+  const poolSize = isAd ? ctx.adCopyCount : ctx.candidateCount;
+  const maxUses = Math.max(1, Math.ceil(poolSize / Math.max(1, ctx.gallery.length)));
+  const uses = photoUsesInPool(ctx, mediaGalleryId, isAd);
+  if (uses < maxUses) return null;
+
+  const unused = ctx.gallery
+    .filter(g => photoUsesInPool(ctx, g.id, isAd) === 0)
+    .sort((a, b) => a.times_used - b.times_used)
+    .slice(0, 8)
+    .map(trimmedGalleryItem);
+  return {
+    success: false,
+    error: `That photo is already used in this pool — every ${isAd ? 'ad variant' : 'post'} needs a different photo. Pick one of these unused photos (or search again) and write the copy for it.`,
+    unused_photos: unused,
+  };
+}
+
+function critique(
+  caption: string,
+  hashtags: string[] | undefined,
+  brief: RunBrief | null
+): { passed: boolean; violations: string[] } {
   const violations: string[] = [];
 
   if (caption.length > 2200) violations.push('Caption exceeds the 2200 character platform limit.');
@@ -236,7 +306,16 @@ function critique(caption: string, hashtags: string[] | undefined): { passed: bo
     violations.push(`${tagCount} hashtags — max 5, and every one must be directly relevant to this specific post’s topic, not the brand’s region or unrelated services.`);
   }
 
-  if (countEmojis(caption) > 6) violations.push('Excessive emoji use.');
+  if (brief && !brief.useHashtags && tagCount > 0) {
+    violations.push('This run asked for no hashtags — leave the hashtags array empty.');
+  }
+
+  const emojiCount = countEmojis(caption);
+  if (brief && !brief.useEmojis && emojiCount > 0) {
+    violations.push('This run asked for no emojis — remove them.');
+  } else if (emojiCount > 6) {
+    violations.push('Excessive emoji use.');
+  }
 
   return { passed: violations.length === 0, violations };
 }
@@ -267,6 +346,8 @@ export function dispatchTool(name: string, argsJson: string, ctx: RunContext): u
         caption_dos: client.caption_dos,
         caption_donts: client.caption_donts,
         brand_voice_examples: client.brand_voice_examples,
+        tone_of_voice_guide: client.brand_tov,
+        caption_playbook: ctx.captionRules,
         region: client.region,
         business_context: client.business_context,
         posting_preferences: client.posting_preferences,
@@ -297,10 +378,21 @@ export function dispatchTool(name: string, argsJson: string, ctx: RunContext): u
         return true;
       });
 
+      // Surface unused photos first when the brief asks for fresh media
+      // (stable sort keeps the freshness_score order within each group).
+      if (ctx.brief?.preferFreshMedia) {
+        filtered.sort((a, b) => Number(a.times_used > 0) - Number(b.times_used > 0));
+      }
+
       return {
         total_available: ctx.gallery.length,
         matched: filtered.length,
-        results: filtered.slice(0, limit).map(trimmedGalleryItem),
+        // Photos the pool already uses sort last, so the agent sees fresh options first
+        results: filtered
+          .map(g => ({ g, used: photoUsesInPool(ctx, g.id, false) + photoUsesInPool(ctx, g.id, true) }))
+          .sort((a, b) => Number(a.used > 0) - Number(b.used > 0))
+          .slice(0, limit)
+          .map(({ g, used }) => ({ ...trimmedGalleryItem(g), used_in_this_pool: used })),
       };
     }
 
@@ -332,9 +424,16 @@ export function dispatchTool(name: string, argsJson: string, ctx: RunContext): u
 
     case 'get_style_preferences':
       if (!ctx.stylePrefs.hasEnoughData) {
-        return { has_enough_data: false, note: 'Not enough swipe history yet — use default brand voice.' };
+        return {
+          has_enough_data: false,
+          note: 'Not enough swipe history for statistics yet — use default brand voice, but follow any feedback and edits below.',
+          account_manager_feedback: ctx.stylePrefs.recentFeedback,
+          account_manager_edits: ctx.stylePrefs.recentEdits,
+        };
       }
       return {
+        account_manager_feedback: ctx.stylePrefs.recentFeedback,
+        account_manager_edits: ctx.stylePrefs.recentEdits,
         has_enough_data: true,
         liked_examples: ctx.stylePrefs.topLikedExamples,
         disliked_examples: ctx.stylePrefs.topDislikedExamples,
@@ -346,6 +445,14 @@ export function dispatchTool(name: string, argsJson: string, ctx: RunContext): u
       };
 
     case 'propose_post': {
+      if (ctx.candidateCount === 0) {
+        return { success: false, error: 'This run is paid ads only — use propose_ad_copy instead.' };
+      }
+      const organicCount = ctx.scratchpad.posts.filter(p => p.post_type !== 'paid_ad').length;
+      if (organicCount >= ctx.candidateCount) {
+        return { success: false, error: `The pool already has ${organicCount} posts (target ${ctx.candidateCount}) — no more needed.` };
+      }
+
       const mediaGalleryId = typeof args.media_gallery_id === 'string' ? args.media_gallery_id : null;
       const caption = typeof args.caption === 'string' ? args.caption.trim() : '';
       const suggestedDate = typeof args.suggested_date === 'string' ? args.suggested_date : null;
@@ -359,6 +466,31 @@ export function dispatchTool(name: string, argsJson: string, ctx: RunContext): u
       if (!suggestedDate || suggestedDate < ctx.startStr || suggestedDate > ctx.endStr) {
         return { success: false, error: `suggested_date must be between ${ctx.startStr} and ${ctx.endStr}.` };
       }
+      const postType = typeof args.post_type === 'string' ? args.post_type : null;
+      const goals: string[] = ctx.brief?.goals ?? [];
+      if (postType && goals.length > 0 && !goals.includes(postType)) {
+        return { success: false, error: `This run only wants these post_types: ${goals.join(', ')}.` };
+      }
+
+      // Pool-level variety: closing every post with a question reads as a formula
+      const organicPosts = ctx.scratchpad.posts.filter(p => p.post_type !== 'paid_ad');
+      const questionEndings = organicPosts.filter(p => endsWithQuestion(p.caption)).length;
+      if (endsWithQuestion(caption) && questionEndings + 1 > Math.max(1, Math.floor(ctx.candidateCount / 3))) {
+        return {
+          success: false,
+          error: `Too many captions end with a question (${questionEndings} already). End this one differently — a statement, an invitation, or a direct call to action — and propose it again.`,
+        };
+      }
+
+      const organicPhotoError = photoVarietyError(ctx, mediaGalleryId, false);
+      if (organicPhotoError) return organicPhotoError;
+
+      // The quality check runs here rather than as its own turn (critique_own_draft)
+      const proposedHashtags = Array.isArray(args.hashtags) ? (args.hashtags as string[]) : [];
+      const check = critique(caption, proposedHashtags, ctx.brief);
+      if (!check.passed) {
+        return { success: false, error: 'Caption failed the quality check — fix these and propose it again.', violations: check.violations };
+      }
 
       const galleryItem = ctx.galleryMap.get(mediaGalleryId)!;
       const suggestedTimeRaw = typeof args.suggested_time === 'string' ? args.suggested_time : '';
@@ -368,9 +500,11 @@ export function dispatchTool(name: string, argsJson: string, ctx: RunContext): u
         media_gallery_id: mediaGalleryId,
         media_url: galleryItem.media_url,
         caption,
-        hashtags: Array.isArray(args.hashtags) ? (args.hashtags as string[]) : [],
-        platforms: Array.isArray(args.platforms) ? (args.platforms as string[]) : [],
-        post_type: typeof args.post_type === 'string' ? args.post_type : null,
+        hashtags: Array.isArray(args.hashtags) && ctx.brief?.useHashtags !== false ? (args.hashtags as string[]) : [],
+        platforms: ctx.brief?.platforms.length
+          ? [...ctx.brief.platforms]
+          : Array.isArray(args.platforms) ? (args.platforms as string[]) : [],
+        post_type: postType,
         suggested_date: suggestedDate,
         suggested_time: suggestedTime,
         event_reference: typeof args.event_reference === 'string' ? args.event_reference : null,
@@ -407,6 +541,14 @@ export function dispatchTool(name: string, argsJson: string, ctx: RunContext): u
         return { success: false, error: `Already have ${adCandidateCount} ad copy candidates (target ${ctx.adCopyCount}) — no more needed.` };
       }
 
+      const adPhotoError = photoVarietyError(ctx, mediaGalleryId, true);
+      if (adPhotoError) return adPhotoError;
+
+      const adCheck = critique(primaryText, [], ctx.brief);
+      if (!adCheck.passed) {
+        return { success: false, error: 'Ad copy failed the quality check — fix these and propose it again.', violations: adCheck.violations };
+      }
+
       const galleryItem = ctx.galleryMap.get(mediaGalleryId)!;
 
       ctx.scratchpad.posts.push({
@@ -433,7 +575,7 @@ export function dispatchTool(name: string, argsJson: string, ctx: RunContext): u
     case 'critique_own_draft': {
       const caption = typeof args.caption === 'string' ? args.caption : '';
       const hashtags = Array.isArray(args.hashtags) ? (args.hashtags as string[]) : undefined;
-      return critique(caption, hashtags);
+      return critique(caption, hashtags, ctx.brief);
     }
 
     case 'finalize_candidate_pool': {

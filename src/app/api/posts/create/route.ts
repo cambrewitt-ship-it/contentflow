@@ -137,12 +137,13 @@ export async function POST(request: NextRequest) {
     if (postsData && postsData.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const calendarPosts = postsData.map((post: any) => ({
-        project_id: projectId || 'default',
+        // project_id is a uuid FK to projects — 'default' isn't a valid value
+        project_id: projectId && projectId !== 'default' ? projectId : null,
         client_id: clientId,
         caption: post.caption,
         image_url: post.image_url, // Use the image_url from the posts table
         post_notes: post.notes || '',
-        status: 'draft'
+        // No status column on this table; approval_status keeps its default
       }));
 
       const { data: calendarData, error: calendarError } = await supabase

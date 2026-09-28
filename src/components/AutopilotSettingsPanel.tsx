@@ -227,7 +227,7 @@ function OperatingHoursSection({
 }) {
   const { getAccessToken } = useAuth();
   const { saveState, save } = useSectionSave(clientId, getAccessToken);
-  const [hours, setHours] = useState<OperatingHours>(initial ?? DEFAULT_OPERATING_HOURS);
+  const [hours, setHours] = useState<OperatingHours>({ ...DEFAULT_OPERATING_HOURS, ...initial });
 
   const toggleDay = (day: string) => {
     setHours(prev => ({
@@ -308,7 +308,7 @@ function PostingPreferencesSection({
 }) {
   const { getAccessToken } = useAuth();
   const { saveState, save } = useSectionSave(clientId, getAccessToken);
-  const [prefs, setPrefs] = useState<PostingPreferences>(initial ?? DEFAULT_POSTING_PREFS);
+  const [prefs, setPrefs] = useState<PostingPreferences>({ ...DEFAULT_POSTING_PREFS, ...initial });
   const [newTime, setNewTime] = useState('');
   const [mixError, setMixError] = useState<string | null>(null);
 
@@ -536,7 +536,7 @@ function BusinessContextSection({
 }) {
   const { getAccessToken } = useAuth();
   const { saveState, save } = useSectionSave(clientId, getAccessToken);
-  const [ctx, setCtx] = useState<BusinessContext>(initial ?? DEFAULT_BUSINESS_CONTEXT);
+  const [ctx, setCtx] = useState<BusinessContext>({ ...DEFAULT_BUSINESS_CONTEXT, ...initial });
 
   const toggleAttribute = (key: string) => {
     setCtx(prev => ({
@@ -820,7 +820,7 @@ function AdCopySection({
 }) {
   const { getAccessToken } = useAuth();
   const { saveState, save } = useSectionSave(clientId, getAccessToken);
-  const [settings, setSettings] = useState<AdCopySettings>(initial ?? DEFAULT_AD_COPY_SETTINGS);
+  const [settings, setSettings] = useState<AdCopySettings>({ ...DEFAULT_AD_COPY_SETTINGS, ...initial });
 
   const handleSave = async () => {
     const client = await save({ ad_copy_settings: settings });

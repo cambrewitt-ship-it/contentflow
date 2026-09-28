@@ -19,6 +19,13 @@ export async function requireAuth(request: Request) {
 
   const userId = claimsData?.claims?.sub;
   if (claimsError || !userId) {
+    // Distinguishes an expired token from e.g. Supabase Auth rate limiting (HS256
+    // projects verify every token with a network call)
+    console.warn('requireAuth: token rejected', {
+      path: new URL(request.url).pathname,
+      reason: claimsError?.message ?? 'no subject claim',
+      status: (claimsError as { status?: number } | null)?.status,
+    });
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }
 

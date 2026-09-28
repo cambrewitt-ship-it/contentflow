@@ -15,13 +15,14 @@ const fieldSchema = z
     suggested_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     suggested_time: z.string().optional(),
     caption: z.string().min(1).max(5000).optional(),
+    hashtags: z.array(z.string().max(100)).max(30).optional(),
     ad_headline: z.string().min(1).max(200).optional(),
     ad_primary_text: z.string().min(1).max(2000).optional(),
     ad_description: z.string().min(1).max(500).optional(),
   })
   .refine(
     b =>
-      b.suggested_date || b.suggested_time || b.caption || b.ad_headline || b.ad_primary_text || b.ad_description,
+      b.suggested_date || b.suggested_time || b.caption || b.hashtags || b.ad_headline || b.ad_primary_text || b.ad_description,
     { message: 'At least one field is required' }
   );
 
@@ -87,6 +88,9 @@ export async function PATCH(
           seasonContext: candidate.season_tag ?? null,
           liked: decision === 'kept',
           autopilotPlanId: candidate.autopilot_plan_id,
+          feedback: candidate.feedback ?? null,
+          feedbackTags: candidate.feedback_tags ?? [],
+          originalCaption: candidate.original_caption ?? null,
         });
       } catch (prefErr) {
         logger.error('Failed to record preference:', prefErr);
@@ -140,7 +144,14 @@ export async function PATCH(
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (fieldParsed.data.suggested_date) updates.suggested_date = fieldParsed.data.suggested_date;
     if (fieldParsed.data.suggested_time) updates.suggested_time = fieldParsed.data.suggested_time;
-    if (fieldParsed.data.caption) updates.caption = fieldParsed.data.caption;
+    if (fieldParsed.data.caption) {
+      updates.caption = fieldParsed.data.caption;
+      // Keep the AI's first version so learning can compare it with the edit
+      if (fieldParsed.data.caption !== candidate.caption && !candidate.original_caption) {
+        updates.original_caption = candidate.caption;
+      }
+    }
+    if (fieldParsed.data.hashtags) updates.hashtags = fieldParsed.data.hashtags;
     if (fieldParsed.data.ad_headline) updates.ad_headline = fieldParsed.data.ad_headline;
     if (fieldParsed.data.ad_primary_text) updates.ad_primary_text = fieldParsed.data.ad_primary_text;
     if (fieldParsed.data.ad_description) updates.ad_description = fieldParsed.data.ad_description;

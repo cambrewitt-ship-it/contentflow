@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { resolvePortalToken } from '@/lib/portalAuth';
 import logger from '@/lib/logger';
+import { createSupabaseAdmin } from '@/lib/supabaseServer';
+import { BRAND_VOICE_COLUMNS, resolveBrandVoice, formatTovPromptSection } from '@/lib/brandVoice';
 
 export const maxDuration = 30;
 export const dynamic = 'force-dynamic';
@@ -48,9 +50,23 @@ export async function POST(request: NextRequest) {
     const focusInstruction = FOCUS_MAP[contentFocus] || FOCUS_MAP['main-focus'];
     const typeLabel = COPY_TYPE_MAP[copyType] || 'social media post';
 
+    const { data: brandRow } = await createSupabaseAdmin()
+      .from('clients')
+      .select(BRAND_VOICE_COLUMNS)
+      .eq('id', resolved.clientId)
+      .maybeSingle();
+    const voice = resolveBrandVoice(brandRow);
+    const brandVoiceSection = [
+      formatTovPromptSection(voice.tov),
+      voice.voice_examples ? `Brand voice examples (match this voice):\n${voice.voice_examples}` : '',
+      voice.dos ? `Always include: ${voice.dos}` : '',
+      voice.donts ? `Never include: ${voice.donts}` : '',
+    ].filter(Boolean).join('\n\n');
+
     const systemPrompt = `You are a professional social media copywriter. Generate a compelling ${typeLabel} caption.
 Tone: ${toneInstruction}.
 Image role: ${focusInstruction}.
+${brandVoiceSection ? `\n${brandVoiceSection}\n` : ''}
 Output ONLY the caption text — no explanations, no labels, no quotes around it. Keep it concise and suitable for social media.`;
 
     const userMessage = notes?.trim()

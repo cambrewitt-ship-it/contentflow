@@ -6,9 +6,10 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Send, Settings, Images } from 'lucide-react'
+import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Send, Settings, Images, Upload, FileText } from 'lucide-react'
 import PhotoSwapDialog from '@/components/PhotoSwapDialog'
 import { isVideoUrl } from '@/lib/videoUtils'
 import Link from 'next/link'
@@ -51,6 +52,10 @@ interface Client {
   id: string
   name: string
   logo_url?: string
+  caption_dos?: string | null
+  caption_donts?: string | null
+  brand_voice_examples?: string | null
+  brand_tov?: string | null
 }
 
 interface PageProps {
@@ -726,6 +731,7 @@ export default function ContentSuitePage({ params }: PageProps) {
       <ContentSuiteContent 
         clientId={clientId}
         client={client}
+        setClient={setClient}
         projects={projects}
         projectsLoading={projectsLoading}
         setProjects={setProjects}
@@ -767,6 +773,7 @@ export default function ContentSuitePage({ params }: PageProps) {
 interface ContentSuiteContentProps {
   clientId: string
   client: Client | null
+  setClient: React.Dispatch<React.SetStateAction<Client | null>>
   projects: Project[]
   projectsLoading: boolean
   setProjects: (projects: Project[]) => void
@@ -804,10 +811,13 @@ interface ContentSuiteContentProps {
   connectedAccounts: any[]
 }
 
+const CUSTOM_MODE_CAPTION_ID = 'custom-mode-caption'
+
 // Separate component that has access to the content store context
 function ContentSuiteContent({
   clientId,
   client,
+  setClient,
   projects,
   projectsLoading,
   setProjects,
@@ -921,6 +931,24 @@ function ContentSuiteContent({
 
   // Chat mode UI-only state (chatMode/chatMessages/chatInput/chatLoading now live in the shared store)
   const chatContainerRef = useRef<HTMLDivElement>(null)
+
+  // Custom caption mode — the user writes the caption themselves. The text is kept as a
+  // regular caption in the store (CUSTOM_MODE_CAPTION_ID) so previews and saving pick it up.
+  const [customMode, setCustomMode] = useState(false)
+  const customModeCaption = captions.find(cap => cap.id === CUSTOM_MODE_CAPTION_ID)
+  const handleCustomModeCaptionChange = (text: string) => {
+    setCaptions(
+      customModeCaption
+        ? captions.map(cap => (cap.id === CUSTOM_MODE_CAPTION_ID ? { ...cap, text } : cap))
+        : [...captions, { id: CUSTOM_MODE_CAPTION_ID, text }]
+    )
+    setSelectedCaptions(text.trim() ? [CUSTOM_MODE_CAPTION_ID] : [])
+  }
+  const handleEnterCustomMode = () => {
+    setChatMode(false)
+    setCustomMode(true)
+    if (customModeCaption?.text.trim()) setSelectedCaptions([CUSTOM_MODE_CAPTION_ID])
+  }
   
   // State for scheduling
   const [isScheduling, setIsScheduling] = useState(false)
@@ -935,8 +963,14 @@ function ContentSuiteContent({
     captionDos: '',
     captionDonts: '',
     brandVoiceExamples: '',
+    brandTov: '',
+    useBrandTov: true,
+    useVoiceExamples: true,
+    useCaptionRules: true,
   })
   const [initialRules, setInitialRules] = useState<typeof rulesForm | null>(null)
+  const [tovMeta, setTovMeta] = useState<{ filename: string | null; updatedAt: string | null }>({ filename: null, updatedAt: null })
+  const [transcribingTov, setTranscribingTov] = useState(false)
 
   // Handler for scheduling posts via modal
   const handleScheduleFromModal = async (date: string, time: string, platform: Platform) => {
@@ -1355,10 +1389,15 @@ function ContentSuiteContent({
         captionDos: client.caption_dos || '',
         captionDonts: client.caption_donts || '',
         brandVoiceExamples: client.brand_voice_examples || '',
+        brandTov: client.brand_tov || '',
+        useBrandTov: client.use_brand_tov !== false,
+        useVoiceExamples: client.use_voice_examples !== false,
+        useCaptionRules: client.use_caption_rules !== false,
       }
 
       setRulesForm(nextRules)
       setInitialRules(nextRules)
+      setTovMeta({ filename: client.brand_tov_source_filename || null, updatedAt: client.brand_tov_updated_at || null })
     } catch (error) {
       setRulesError(error instanceof Error ? error.message : 'Failed to load AI caption rules.')
     } finally {
@@ -1394,6 +1433,11 @@ function ContentSuiteContent({
           caption_dos: rulesForm.captionDos,
           caption_donts: rulesForm.captionDonts,
           brand_voice_examples: rulesForm.brandVoiceExamples,
+          use_brand_tov: rulesForm.useBrandTov,
+          use_voice_examples: rulesForm.useVoiceExamples,
+          use_caption_rules: rulesForm.useCaptionRules,
+          // Only send the guide when edited, so its updated date stays meaningful
+          ...(initialRules?.brandTov !== rulesForm.brandTov ? { brand_tov: rulesForm.brandTov } : {}),
         }),
       })
 
@@ -1414,15 +1458,21 @@ function ContentSuiteContent({
         captionDos: updatedClient.caption_dos || rulesForm.captionDos,
         captionDonts: updatedClient.caption_donts || rulesForm.captionDonts,
         brandVoiceExamples: updatedClient.brand_voice_examples || rulesForm.brandVoiceExamples,
+        brandTov: updatedClient.brand_tov ?? rulesForm.brandTov,
+        useBrandTov: updatedClient.use_brand_tov ?? rulesForm.useBrandTov,
+        useVoiceExamples: updatedClient.use_voice_examples ?? rulesForm.useVoiceExamples,
+        useCaptionRules: updatedClient.use_caption_rules ?? rulesForm.useCaptionRules,
       }
 
       setRulesForm(nextRules)
       setInitialRules(nextRules)
+      setTovMeta({ filename: updatedClient.brand_tov_source_filename ?? null, updatedAt: updatedClient.brand_tov_updated_at ?? null })
       setClient(prev => prev ? {
         ...prev,
         caption_dos: nextRules.captionDos,
         caption_donts: nextRules.captionDonts,
         brand_voice_examples: nextRules.brandVoiceExamples,
+        brand_tov: nextRules.brandTov,
       } : prev)
       setRulesSuccess('AI caption rules updated successfully.')
     } catch (error) {
@@ -1430,10 +1480,54 @@ function ContentSuiteContent({
     } finally {
       setSavingRules(false)
     }
-  }, [clientId, getAccessToken, rulesForm])
+  }, [clientId, getAccessToken, rulesForm, initialRules])
+
+  // Upload a Tone of Voice document — the server transcribes it to markdown and saves it
+  const handleTovUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !clientId) return
+
+    setRulesError(null)
+    setRulesSuccess(null)
+
+    const token = getAccessToken()
+    if (!token) {
+      setRulesError('Authentication required. Please log in again.')
+      return
+    }
+
+    setTranscribingTov(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const response = await fetch(`/api/clients/${clientId}/tone-of-voice`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to transcribe tone of voice document.')
+      }
+
+      const updatedClient = data.client ?? {}
+      const brandTov = updatedClient.brand_tov || ''
+      setRulesForm(prev => ({ ...prev, brandTov, useBrandTov: true }))
+      // The guide is already saved server-side; keep other unsaved edits flagged
+      setInitialRules(prev => prev ? { ...prev, brandTov } : prev)
+      setTovMeta({ filename: updatedClient.brand_tov_source_filename ?? file.name, updatedAt: updatedClient.brand_tov_updated_at ?? null })
+      setClient(prev => prev ? { ...prev, brand_tov: brandTov } : prev)
+      setRulesSuccess('Tone of Voice transcribed and saved. Review the markdown below and edit if needed.')
+    } catch (error) {
+      setRulesError(error instanceof Error ? error.message : 'Failed to transcribe tone of voice document.')
+    } finally {
+      setTranscribingTov(false)
+    }
+  }, [clientId, getAccessToken])
 
   // Update a field in the rules form
-  const updateRulesField = useCallback((field: keyof typeof rulesForm, value: string) => {
+  const updateRulesField = useCallback(<K extends keyof typeof rulesForm>(field: K, value: (typeof rulesForm)[K]) => {
     setRulesForm(prev => ({
       ...prev,
       [field]: value,
@@ -1445,7 +1539,11 @@ function ContentSuiteContent({
     initialRules === null ||
     initialRules.captionDos !== rulesForm.captionDos ||
     initialRules.captionDonts !== rulesForm.captionDonts ||
-    initialRules.brandVoiceExamples !== rulesForm.brandVoiceExamples
+    initialRules.brandVoiceExamples !== rulesForm.brandVoiceExamples ||
+    initialRules.brandTov !== rulesForm.brandTov ||
+    initialRules.useBrandTov !== rulesForm.useBrandTov ||
+    initialRules.useVoiceExamples !== rulesForm.useVoiceExamples ||
+    initialRules.useCaptionRules !== rulesForm.useCaptionRules
 
   // Load caption rules when modal opens
   useEffect(() => {
@@ -1904,7 +2002,7 @@ function ContentSuiteContent({
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="card-title-26">Content Creation</CardTitle>
                   <div className="flex flex-col items-end gap-1">
-                    {!client?.brand_voice_examples && !client?.caption_dos && !client?.caption_donts && (
+                    {!client?.brand_voice_examples && !client?.caption_dos && !client?.caption_donts && !client?.brand_tov && (
                       <button
                         onClick={() => setShowSettingsModal(true)}
                         className="flex items-center gap-1 text-xs text-orange-600 font-medium bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5 hover:bg-orange-100 transition-colors"
@@ -1923,7 +2021,7 @@ function ContentSuiteContent({
                         <Settings className="w-4 h-4 mr-2" />
                         Settings
                       </Button>
-                      {!client?.brand_voice_examples && !client?.caption_dos && !client?.caption_donts && (
+                      {!client?.brand_voice_examples && !client?.caption_dos && !client?.caption_donts && !client?.brand_tov && (
                         <span className="absolute top-1 left-1 w-2 h-2 rounded-full bg-red-500 pointer-events-none" />
                       )}
                     </div>
@@ -2193,9 +2291,9 @@ function ContentSuiteContent({
                     <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Caption Mode</span>
                     <div className="flex items-center bg-gray-100 rounded-full p-1 gap-0.5">
                       <button
-                        onClick={() => setChatMode(false)}
+                        onClick={() => { setCustomMode(false); setChatMode(false) }}
                         className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
-                          !chatMode
+                          !chatMode && !customMode
                             ? 'bg-white text-gray-900 shadow-sm'
                             : 'text-gray-500 hover:text-gray-700'
                         }`}
@@ -2204,6 +2302,7 @@ function ContentSuiteContent({
                       </button>
                       <button
                         onClick={() => {
+                          setCustomMode(false)
                           const accessToken = getAccessToken()
                           handleEnterChatMode(accessToken || undefined).catch((error: unknown) => {
                             if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
@@ -2213,20 +2312,46 @@ function ContentSuiteContent({
                             }
                           })
                         }}
-                        disabled={!activeImage}
-                        className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
-                          chatMode
+                        className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+                          chatMode && !customMode
                             ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-sm'
                             : 'text-gray-500 hover:text-gray-700'
                         }`}
                       >
                         ✦ Chat
                       </button>
+                      <button
+                        onClick={handleEnterCustomMode}
+                        className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+                          customMode
+                            ? 'bg-white text-gray-900 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Custom
+                      </button>
                     </div>
                   </div>
 
+                  {/* ── Custom Mode: write your own caption ── */}
+                  {customMode && (
+                    <div className="pt-3">
+                      <Textarea
+                        value={customModeCaption?.text ?? ''}
+                        onChange={(e) => handleCustomModeCaptionChange(e.target.value)}
+                        placeholder={`Write your own ${copyType === 'social-media' ? 'caption' : 'email copy'}...`}
+                        className="min-h-[220px] resize-y border-2 border-gray-300 bg-white focus:outline-none focus:ring-0 focus:border-blue-500 focus:shadow-lg p-4 text-sm text-gray-800 leading-relaxed rounded-2xl w-full"
+                        autoFocus
+                      />
+                      <div className="flex items-center justify-between mt-2 px-1">
+                        <p className="text-xs text-gray-400">No AI — this caption is used exactly as written</p>
+                        <p className="text-xs text-gray-400">{(customModeCaption?.text ?? '').length} characters</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ── Standard Mode: notes input + generate button ── */}
-                  {!chatMode && (
+                  {!chatMode && !customMode && (
                     <>
                       <div className="border-t border-gray-200 pt-6">
                         {/* Video Notice */}
@@ -2325,7 +2450,7 @@ function ContentSuiteContent({
                   )}
 
                   {/* ── Chat Mode: scrollable conversation window ── */}
-                  {chatMode && (
+                  {chatMode && !customMode && (
                     <div className="pt-3">
                       {/* Messages window */}
                       <div
@@ -2455,14 +2580,15 @@ function ContentSuiteContent({
                   </div>
 
                   {/* ── Standard Mode: caption cards ── */}
-                  {!chatMode && (
+                  {!chatMode && !customMode && (
                     <div>
                       {/* Caption boxes */}
                       <div className="w-full flex justify-center">
                         {(() => {
-                          const firstCaption = captions.length > 0 ? captions[0] : { id: 'custom-caption-1', text: '' }
-                          const displayCaptions = captions.length > 0 ? captions.slice(0, 3) : [firstCaption]
-                          const isEmptyBox = captions.length === 0
+                          const standardCaptions = captions.filter(cap => cap.id !== CUSTOM_MODE_CAPTION_ID)
+                          const firstCaption = standardCaptions.length > 0 ? standardCaptions[0] : { id: 'custom-caption-1', text: '' }
+                          const displayCaptions = standardCaptions.length > 0 ? standardCaptions.slice(0, 3) : [firstCaption]
+                          const isEmptyBox = standardCaptions.length === 0
                           const isSingleCaption = displayCaptions.length === 1
 
                           return (
@@ -2487,7 +2613,7 @@ function ContentSuiteContent({
                                             const newText = e.target.value
                                             if (isFirstEmpty) {
                                               const newCaption = { id: 'custom-caption-1', text: newText }
-                                              setCaptions([newCaption])
+                                              setCaptions([...captions, newCaption])
                                               if (newText.trim()) selectCaption('custom-caption-1')
                                             } else {
                                               updateCaption(caption.id, newText)
@@ -2674,11 +2800,11 @@ function ContentSuiteContent({
 
       {/* AI Caption Rules Settings Modal */}
       <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
-        <DialogContent className="max-w-2xl bg-white">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white">
           <DialogHeader>
             <DialogTitle>AI Caption Rules</DialogTitle>
             <DialogDescription>
-              Update the guardrails the AI uses when generating captions for this client. Changes apply across the entire dashboard.
+              Choose which brand voice sources the AI follows when writing copy for this client. Changes apply across the entire dashboard.
             </DialogDescription>
           </DialogHeader>
 
@@ -2700,6 +2826,71 @@ function ContentSuiteContent({
               </div>
             ) : (
               <>
+                {/* Brand Tone of Voice guide */}
+                <div className={`rounded-lg border p-4 ${rulesForm.useBrandTov ? 'border-purple-300' : 'border-gray-200 opacity-60'}`}>
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      📘 Brand Tone of Voice
+                    </label>
+                    <SourceToggle
+                      checked={rulesForm.useBrandTov}
+                      onChange={(checked) => updateRulesField('useBrandTov', checked)}
+                    />
+                  </div>
+                  <p className="mb-3 text-xs text-purple-600">
+                    Upload the brand&apos;s TOV guide (PDF, Word, text or markdown). AI transcribes it to markdown and treats it as the copy rules for every caption.
+                  </p>
+                  <div className="mb-3 flex flex-wrap items-center gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => document.getElementById('tov-upload')?.click()}
+                      disabled={transcribingTov}
+                    >
+                      {transcribingTov ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Transcribing...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          {rulesForm.brandTov ? 'Replace TOV Document' : 'Upload TOV Document'}
+                        </>
+                      )}
+                    </Button>
+                    <input
+                      id="tov-upload"
+                      type="file"
+                      accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+                      onChange={handleTovUpload}
+                      className="hidden"
+                    />
+                    {tovMeta.filename && (
+                      <span className="flex items-center gap-1 text-xs text-gray-500">
+                        <FileText className="h-3 w-3" />
+                        {tovMeta.filename}
+                        {tovMeta.updatedAt && ` · updated ${new Date(tovMeta.updatedAt).toLocaleDateString()}`}
+                      </span>
+                    )}
+                  </div>
+                  <Textarea
+                    value={rulesForm.brandTov}
+                    onChange={(e) => updateRulesField('brandTov', e.target.value)}
+                    placeholder="Upload a TOV document above, or write/paste the brand's tone of voice rules here in markdown."
+                    rows={10}
+                    className="font-mono text-xs border-purple-300 focus-visible:border-purple-500 focus-visible:ring-purple-500"
+                  />
+                </div>
+
+                <div className={`rounded-lg border p-4 ${rulesForm.useCaptionRules ? 'border-gray-200' : 'border-gray-200 opacity-60'}`}>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-gray-700">Do&apos;s &amp; Don&apos;ts</span>
+                  <SourceToggle
+                    checked={rulesForm.useCaptionRules}
+                    onChange={(checked) => updateRulesField('useCaptionRules', checked)}
+                  />
+                </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -2732,11 +2923,18 @@ function ContentSuiteContent({
                     </p>
                   </div>
                 </div>
+                </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    🎤 Brand Voice Examples
-                  </label>
+                <div className={`rounded-lg border p-4 ${rulesForm.useVoiceExamples ? 'border-gray-200' : 'border-gray-200 opacity-60'}`}>
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      🎤 Brand Voice Examples
+                    </label>
+                    <SourceToggle
+                      checked={rulesForm.useVoiceExamples}
+                      onChange={(checked) => updateRulesField('useVoiceExamples', checked)}
+                    />
+                  </div>
                   <Textarea
                     value={rulesForm.brandVoiceExamples}
                     onChange={(e) => updateRulesField('brandVoiceExamples', e.target.value)}
@@ -2778,5 +2976,15 @@ function ContentSuiteContent({
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+// On/off switch for whether the AI uses a brand voice source
+function SourceToggle({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-600">
+      <Checkbox checked={checked} onCheckedChange={(value) => onChange(value === true)} />
+      Use in AI copy
+    </label>
   )
 }

@@ -68,7 +68,6 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
     postNotes,
     setUploadedImages,
     setActiveImageId,
-    setSelectedCaptions,
     setPostNotes,
     addImage,
     removeImage,
@@ -92,6 +91,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
   const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform>('instagram');
   const [targetPlatforms, setTargetPlatforms] = useState<TargetPlatform[]>([]);
   const [customCaption, setCustomCaption] = useState('');
+  const [customMode, setCustomMode] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState('12:00');
@@ -119,7 +119,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
   const allUploaded = uploadedImages.length > 0 && uploadedImages.every((img) => img.blobUrl?.startsWith('https://') && !img.uploadFailed);
   const hasFailedUpload = uploadedImages.some((img) => img.uploadFailed);
   const selectedCaption = captions.find((c) => selectedCaptions.includes(c.id));
-  const activeCaptionText = customCaption.trim() ? customCaption : (selectedCaption?.text || '');
+  const activeCaptionText = customMode ? customCaption : (selectedCaption?.text || '');
 
   const handleCreditError = (err: unknown) => {
     if (err instanceof Error && err.message === 'INSUFFICIENT_CREDITS') {
@@ -461,6 +461,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
             </div>
 
             {/* Prompt bar — notes + caption generation, works in both Standard and Chat modes */}
+            {!customMode && (
             <div>
               <div className="relative flex items-end border-2 border-gray-300 rounded-3xl bg-white focus-within:border-blue-500 focus-within:shadow-lg transition-all">
                 <Textarea
@@ -501,6 +502,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                 AI will analyze your image and your notes to generate captions
               </p>
             </div>
+            )}
 
             {/* Caption generation */}
             <div>
@@ -509,9 +511,9 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                 <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-0.5">
                   <button
                     type="button"
-                    onClick={() => setChatMode(false)}
+                    onClick={() => { setCustomMode(false); setChatMode(false); }}
                     className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                      !chatMode ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'
+                      !chatMode && !customMode ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'
                     }`}
                   >
                     Standard
@@ -519,20 +521,41 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                   <button
                     type="button"
                     onClick={() => {
+                      setCustomMode(false);
                       const accessToken = getAccessToken();
                       handleEnterChatMode(accessToken || undefined).catch((err: unknown) => handleCreditError(err));
                     }}
-                    disabled={!activeImage}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-40 ${
-                      chatMode ? 'bg-blue-600 text-white' : 'text-gray-500'
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      chatMode && !customMode ? 'bg-blue-600 text-white' : 'text-gray-500'
                     }`}
                   >
                     Chat
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => { setChatMode(false); setCustomMode(true); }}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      customMode ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'
+                    }`}
+                  >
+                    Custom
+                  </button>
                 </div>
               </div>
 
-              {!chatMode ? (
+              {customMode ? (
+                <div className="space-y-1">
+                  <Textarea
+                    value={customCaption}
+                    onChange={(e) => setCustomCaption(e.target.value)}
+                    placeholder="Write your own caption..."
+                    rows={8}
+                    autoFocus
+                    className="text-sm resize-y"
+                  />
+                  <p className="text-[11px] text-gray-400 text-right">{customCaption.length} characters</p>
+                </div>
+              ) : !chatMode ? (
                 <div className="space-y-2">
                   <div className="space-y-1.5 max-h-56 overflow-y-auto">
                     {captions.length === 0 && (
@@ -544,9 +567,9 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                       <button
                         key={cap.id}
                         type="button"
-                        onClick={() => { setCustomCaption(''); selectCaption(cap.id); }}
+                        onClick={() => selectCaption(cap.id)}
                         className={`w-full text-left px-3 py-2 rounded-lg border text-xs transition-colors ${
-                          selectedCaptions.includes(cap.id) && !customCaption.trim()
+                          selectedCaptions.includes(cap.id)
                             ? 'border-blue-400 bg-blue-50 text-gray-900'
                             : 'border-gray-200 text-gray-600 hover:border-gray-300'
                         }`}
@@ -592,7 +615,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                               <button
                                 key={cap.id}
                                 type="button"
-                                onClick={() => { setCustomCaption(''); selectChatCaption(cap); }}
+                                onClick={() => selectChatCaption(cap)}
                                 className={`w-full text-left px-3 py-2 rounded-lg border text-xs transition-colors ${
                                   selectedCaptions.includes(cap.id)
                                     ? 'border-blue-400 bg-blue-50 text-gray-900'
@@ -634,22 +657,6 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                   </div>
                 </div>
               )}
-
-              <div className="pt-2">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                  Or write your own
-                </p>
-                <Textarea
-                  value={customCaption}
-                  onChange={(e) => {
-                    setCustomCaption(e.target.value);
-                    if (e.target.value.trim()) setSelectedCaptions([]);
-                  }}
-                  placeholder="Write a custom caption..."
-                  rows={3}
-                  className="text-xs resize-none"
-                />
-              </div>
             </div>
 
             {/* Day / time */}

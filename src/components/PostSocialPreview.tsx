@@ -34,14 +34,25 @@ interface PostSocialPreviewProps {
   mediaUrls?: string[] | null;
   // Platforms the post is marked for: the preview opens on the first and only offers these
   targetPlatforms?: string[] | null;
+  // Optional controlled platform, so a parent flipping between posts can keep
+  // the same platform open. Falls back to the first target if not offered.
+  platform?: string;
+  onPlatformChange?: (platform: string) => void;
 }
 
-export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, businessName = '', logoUrl, mediaUrls, targetPlatforms }: PostSocialPreviewProps) {
+export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, businessName = '', logoUrl, mediaUrls, targetPlatforms, platform: controlledPlatform, onPlatformChange }: PostSocialPreviewProps) {
   const isVideo = fileType?.startsWith('video/') && !!fileUrl;
   const mediaUrl = isVideo ? fileUrl! : (imageUrl || null);
   const targets = normalizeTargetPlatforms(targetPlatforms);
   const feedPlatforms = targets.length > 0 ? FEED_PLATFORMS.filter((p) => (targets as string[]).includes(p.id)) : FEED_PLATFORMS;
-  const [platform, setPlatform] = useState<string>(targets[0] ?? 'facebook');
+  const [internalPlatform, setInternalPlatform] = useState<string>(targets[0] ?? 'facebook');
+  const offeredIds = [...feedPlatforms, ...(targets.length === 0 ? STORY_PLATFORMS : [])].map((p) => p.id);
+  const requestedPlatform = controlledPlatform ?? internalPlatform;
+  const platform = offeredIds.includes(requestedPlatform) ? requestedPlatform : (targets[0] ?? 'facebook');
+  const setPlatform = (p: string) => {
+    setInternalPlatform(p);
+    onPlatformChange?.(p);
+  };
 
   // Carousel state
   const allMedia = mediaUrls && mediaUrls.length > 1 ? mediaUrls : null;

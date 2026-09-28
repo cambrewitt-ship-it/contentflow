@@ -1,4 +1,5 @@
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
+import { FEEDBACK_TAGS } from '@/lib/captionFeedback';
 
 export interface StylePreferences {
   totalLiked: number;
@@ -13,9 +14,37 @@ export interface StylePreferences {
   avoidedPostTypes: string[];
 
   topLikedExamples: Array<{ caption: string; post_type: string; event_context: string | null }>;
-  topDislikedExamples: Array<{ caption: string; post_type: string; reason_inferred: string }>;
+  topDislikedExamples: Array<{ caption: string; post_type: string; reason: string }>;
+
+  // What the account manager actually said, and how they rewrote captions.
+  // Returned regardless of hasEnoughData — explicit feedback is useful from day one.
+  recentFeedback: Array<{ caption_excerpt: string; kept: boolean; feedback: string }>;
+  recentEdits: Array<{ ai_wrote: string; they_changed_it_to: string }>;
 
   toneNotes: string;
+}
+
+interface PreferenceRow {
+  caption: string;
+  post_type: string | null;
+  liked: boolean;
+  event_context: string | null;
+  caption_word_count: number | null;
+  hashtag_count: number | null;
+  created_at: string;
+  feedback?: string | null;
+  feedback_tags?: string[] | null;
+  original_caption?: string | null;
+}
+
+export const endsWithQuestion = (caption: string) => /\?\s*(\p{Extended_Pictographic}\s*)*$/u.test(caption.trim());
+
+function feedbackText(row: PreferenceRow): string | null {
+  const tagLabels = (row.feedback_tags ?? [])
+    .map(t => FEEDBACK_TAGS[t as keyof typeof FEEDBACK_TAGS]?.label)
+    .filter(Boolean);
+  const parts = [tagLabels.join(', '), row.feedback?.trim()].filter(Boolean);
+  return parts.length > 0 ? parts.join(' — ') : null;
 }
 
 export const CORPORATE_WORDS = [
@@ -68,7 +97,12 @@ function deriveToneNotes(
   const avgEmojis = avg(liked.map(l => countEmojis(l.caption)));
   const avgHashtags = avg(liked.map(l => countHashtags(l.caption)));
 
-  const questionRate = liked.filter(l => l.caption.includes('?')).length / liked.length;
+  // Compare against skipped posts: a high rate among kept posts alone is just
+  // the agent's own habit echoing back (it writes questions, some get kept).
+  const questionEndRate = (rows: Array<{ caption: string }>) =>
+    rows.length > 0 ? rows.filter(r => endsWithQuestion(r.caption)).length / rows.length : 0;
+  const likedQuestionRate = questionEndRate(liked);
+  const dislikedQuestionRate = questionEndRate(disliked);
   const exclamationRate = liked.filter(l => l.caption.includes('!')).length / liked.length;
   const likedCorporateCount = liked.filter(l =>
     CORPORATE_WORDS.some(w => l.caption.toLowerCase().includes(w))
@@ -84,7 +118,11 @@ function deriveToneNotes(
     notes.push(`Prefers medium-length captions (~${Math.round(avgWords)} words)`);
   }
 
-  if (questionRate > 0.4) notes.push('engagement-style questions work well');
+  if (disliked.length >= 3 && dislikedQuestionRate > likedQuestionRate + 0.25) {
+    notes.push('captions ending in a question tend to get skipped — end most posts another way');
+  } else if (disliked.length >= 3 && likedQuestionRate > dislikedQuestionRate + 0.25) {
+    notes.push('an occasional closing question works (still vary endings)');
+  }
   if (exclamationRate > 0.5) notes.push('energetic tone with exclamation points resonates');
 
   if (avgEmojis > 3) notes.push('emoji-rich captions perform better');
@@ -109,13 +147,18 @@ function deriveToneNotes(
 export async function getStylePreferences(clientId: string): Promise<StylePreferences> {
   const admin = createSupabaseAdmin();
 
-  const { data } = await admin
-    .from('content_preferences')
-    .select('caption, post_type, liked, event_context, caption_word_count, hashtag_count, created_at')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false });
+  const baseColumns = 'caption, post_type, liked, event_context, caption_word_count, hashtag_count, created_at';
+  const query = (columns: string) =>
+    admin
+      .from('content_preferences')
+      .select(columns)
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false });
+  let { data, error } = await query(`${baseColumns}, feedback, feedback_tags, original_caption`);
+  // Feedback columns arrive with migration 027 — fall back until it's run
+  if (error) ({ data, error } = await query(baseColumns));
 
-  const prefs = data ?? [];
+  const prefs = (data ?? []) as unknown as PreferenceRow[];
   const liked = prefs.filter(p => p.liked);
   const disliked = prefs.filter(p => !p.liked);
 
@@ -154,8 +197,22 @@ export async function getStylePreferences(clientId: string): Promise<StylePrefer
   const topDislikedExamples = disliked.slice(0, 5).map(p => ({
     caption: p.caption,
     post_type: p.post_type ?? 'unknown',
-    reason_inferred: inferDislikeReason(p.caption),
+    reason: feedbackText(p) ?? `inferred: ${inferDislikeReason(p.caption)}`,
   }));
+
+  const recentFeedback = prefs
+    .filter(p => feedbackText(p))
+    .slice(0, 8)
+    .map(p => ({
+      caption_excerpt: p.caption.substring(0, 160),
+      kept: p.liked,
+      feedback: feedbackText(p)!,
+    }));
+
+  const recentEdits = prefs
+    .filter(p => p.original_caption && p.original_caption !== p.caption)
+    .slice(0, 3)
+    .map(p => ({ ai_wrote: p.original_caption!, they_changed_it_to: p.caption }));
 
   const toneNotes = hasEnoughData
     ? deriveToneNotes(liked, disliked)
@@ -173,6 +230,8 @@ export async function getStylePreferences(clientId: string): Promise<StylePrefer
     avoidedPostTypes,
     topLikedExamples,
     topDislikedExamples,
+    recentFeedback,
+    recentEdits,
     toneNotes,
   };
 }
@@ -188,6 +247,9 @@ export async function recordPreference(params: {
   seasonContext: string | null;
   liked: boolean;
   autopilotPlanId: string | null;
+  feedback?: string | null;
+  feedbackTags?: string[];
+  originalCaption?: string | null;
 }): Promise<void> {
   const admin = createSupabaseAdmin();
 
@@ -205,5 +267,9 @@ export async function recordPreference(params: {
     hashtag_count: countHashtags(params.caption),
     emoji_count: countEmojis(params.caption),
     autopilot_plan_id: params.autopilotPlanId,
+    // Only sent when present, so rows still save before migration 027 is run
+    ...(params.feedback ? { feedback: params.feedback } : {}),
+    ...(params.feedbackTags?.length ? { feedback_tags: params.feedbackTags } : {}),
+    ...(params.originalCaption ? { original_caption: params.originalCaption } : {}),
   });
 }

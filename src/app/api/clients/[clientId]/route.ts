@@ -223,6 +223,12 @@ export async function PUT(
       caption_dos?: string;
       caption_donts?: string;
       brand_voice_examples?: string;
+      brand_tov?: string | null;
+      brand_tov_source_filename?: string | null;
+      brand_tov_updated_at?: string | null;
+      use_brand_tov?: boolean;
+      use_voice_examples?: boolean;
+      use_caption_rules?: boolean;
       value_proposition?: string;
       portal_enabled?: boolean;
       region?: string;
@@ -245,6 +251,15 @@ export async function PUT(
     if (body.caption_dos !== undefined) updateData.caption_dos = body.caption_dos;
     if (body.caption_donts !== undefined) updateData.caption_donts = body.caption_donts;
     if (body.brand_voice_examples !== undefined) updateData.brand_voice_examples = body.brand_voice_examples;
+    if (body.brand_tov !== undefined) {
+      updateData.brand_tov = body.brand_tov || null;
+      updateData.brand_tov_updated_at = new Date().toISOString();
+      // Clearing the guide also clears where it came from
+      if (!body.brand_tov) updateData.brand_tov_source_filename = null;
+    }
+    if (typeof body.use_brand_tov === 'boolean') updateData.use_brand_tov = body.use_brand_tov;
+    if (typeof body.use_voice_examples === 'boolean') updateData.use_voice_examples = body.use_voice_examples;
+    if (typeof body.use_caption_rules === 'boolean') updateData.use_caption_rules = body.use_caption_rules;
     if (body.value_proposition !== undefined) updateData.value_proposition = body.value_proposition;
     if (body.portal_enabled !== undefined) updateData.portal_enabled = body.portal_enabled;
     if (body.region !== undefined) updateData.region = body.region;

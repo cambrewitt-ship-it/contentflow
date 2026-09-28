@@ -6,6 +6,7 @@ import { withAICreditCheck } from '@/lib/subscriptionMiddleware';
 import { generateContentPlan } from '@/lib/autopilot-engine';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { estimateWorstCaseCredits } from '@/lib/autopilot-agent/constants';
+import { runBriefSchema } from '@/lib/autopilot-agent/runBrief';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -16,6 +17,7 @@ const bodySchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   force: z.boolean().default(false),
+  brief: runBriefSchema.optional(),
 });
 
 function nextMonday(from: Date): Date {
@@ -45,7 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { clientId, force } = parsed.data;
+    const { clientId, force, brief } = parsed.data;
 
     // Re-check ownership with actual clientId
     const ownership = await requireClientOwnership(request, clientId);
@@ -73,7 +75,7 @@ export async function POST(request: NextRequest) {
       : nextMonday(new Date());
     const endDate = parsed.data.endDate
       ? new Date(parsed.data.endDate + 'T23:59:59Z')
-      : addDays(startDate, 6);
+      : addDays(startDate, brief?.window === 'next_two_weeks' ? 13 : 6);
 
     const startStr = startDate.toISOString().split('T')[0];
     const endStr = endDate.toISOString().split('T')[0];
@@ -112,9 +114,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    logger.info('Autopilot: generating plan', { clientId, startStr, endStr, userId: user.id });
+    logger.info('Autopilot: generating plan', { clientId, startStr, endStr, userId: user.id, format: brief?.format });
 
-    const result = await generateContentPlan(clientId, user.id, startDate, endDate);
+    const result = await generateContentPlan(clientId, user.id, startDate, endDate, brief);
 
     return NextResponse.json({ success: true, plan: result.plan, candidates: result.candidates }, { status: 201 });
   } catch (error) {

@@ -108,7 +108,7 @@ export async function POST(
               caption: fullCaption,
               image_url: candidate.media_url,
               post_notes: null,
-              status: 'draft',
+              // No status column on this table; approval_status keeps its default
             })
             .select('*')
             .single()

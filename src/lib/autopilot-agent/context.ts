@@ -1,5 +1,6 @@
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import logger from '@/lib/logger';
+import { BRAND_VOICE_COLUMNS, resolveBrandVoice, type BrandVoiceRow } from '@/lib/brandVoice';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 // Moved out of autopilot-engine.ts so both the orchestrator (engine.ts) and the
@@ -49,6 +50,7 @@ export interface BrandContext {
     caption_dos: string | null;
     caption_donts: string | null;
     brand_voice_examples: string | null;
+    brand_tov: string | null;
     region: string | null;
     timezone: string | null;
     business_context: Record<string, unknown> | null;
@@ -151,7 +153,7 @@ export async function fetchBrandContext(clientId: string): Promise<BrandContext>
   const { data: client, error: clientError } = await admin
     .from('clients')
     .select(
-      'name, company_description, website_url, brand_tone, target_audience, value_proposition, caption_dos, caption_donts, brand_voice_examples, region, timezone, business_context, posting_preferences, operating_hours, ad_copy_settings'
+      `name, company_description, website_url, brand_tone, target_audience, value_proposition, region, timezone, business_context, posting_preferences, operating_hours, ad_copy_settings, ${BRAND_VOICE_COLUMNS}`
     )
     .eq('id', clientId)
     .single();
@@ -177,8 +179,21 @@ export async function fetchBrandContext(clientId: string): Promise<BrandContext>
     .order('scraped_at', { ascending: false })
     .limit(1);
 
+  // Blank out any voice sources (TOV, examples, do's/don'ts) switched off for this client
+  let resolvedClient: BrandContext['client'] = null;
+  if (client) {
+    const voice = resolveBrandVoice(client as BrandVoiceRow);
+    resolvedClient = {
+      ...(client as unknown as NonNullable<BrandContext['client']>),
+      brand_tov: voice.tov,
+      brand_voice_examples: voice.voice_examples,
+      caption_dos: voice.dos,
+      caption_donts: voice.donts,
+    };
+  }
+
   return {
-    client: (client as BrandContext['client']) ?? null,
+    client: resolvedClient,
     documents: documents ?? [],
     website: scrapes?.[0] ?? null,
   };
