@@ -5,8 +5,9 @@ import { requireClientOwnership } from '@/lib/authHelpers';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
 import { toLateMediaItem, LateUploadError } from '@/lib/lateMedia';
 
-// Carousel posts re-host each extra photo on LATE before scheduling
-export const maxDuration = 60;
+// Carousel posts re-host each extra photo on LATE before scheduling, and a post whose
+// time has passed is published inside LATE's request — an Instagram carousel can take 1-2 min
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {
@@ -195,7 +196,7 @@ export async function POST(request: NextRequest) {
     }
     
     const lateData = await lateResponse.json();
-    const latePostId = lateData.id || lateData.postId || lateData.latePostId || null;
+    const latePostId = lateData.post?._id || lateData.id || lateData.postId || lateData.latePostId || null;
 
     logger.debug('LATE response data', {
       latePostId,
