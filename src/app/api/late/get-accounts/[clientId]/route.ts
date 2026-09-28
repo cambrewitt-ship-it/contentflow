@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
+import { markOnboardingStep } from '@/lib/onboardingHelpers';
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ clientId: string }> }
@@ -17,7 +18,7 @@ export async function GET(
 
     const auth = await requireClientOwnership(request, clientId);
     if (auth.error) return auth.error;
-    const { supabase } = auth;
+    const { supabase, user } = auth;
 
     // Get the client's LATE profile ID
     const { data: client, error: clientError } = await supabase
@@ -54,8 +55,15 @@ export async function GET(
     }
     
     const data = await response.json();
+    const accounts = data.accounts || [];
 
-    return NextResponse.json({ accounts: data.accounts || [] });
+    // LATE is the source of truth for connections, so tick the onboarding step here too —
+    // this catches connections whose OAuth callback couldn't record them
+    if (accounts.length > 0) {
+      await markOnboardingStep(supabase, user.id, 'checklist_connect_social');
+    }
+
+    return NextResponse.json({ accounts });
   } catch (error) {
     logger.error('Error fetching accounts:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
+import { getRequestAppUrl } from '@/lib/requestAppUrl';
 import { requireAuth } from '@/lib/authHelpers';
 
 const lateApiKey = process.env.LATE_API_KEY!;
@@ -178,28 +179,8 @@ export async function POST(req: NextRequest) {
 
     const profileId = client.late_profile_id;
 
-    // Build Facebook-specific callback URL - use proper environment detection
-    const getAppUrl = (req: NextRequest): string => {
-      const envUrl = process.env.NEXT_PUBLIC_APP_URL;
-      const host = req.headers.get('host');
-
-      // PRIORITY 1: localhost (dev only)
-      if (host && host.includes('localhost')) {
-        return `http://${host}`;
-      }
-
-      // PRIORITY 2: Use explicit env URL in production (covers custom domains)
-      if (envUrl && !envUrl.includes('ngrok')) {
-        logger.debug('Using environment URL', { envUrl });
-        return envUrl;
-      }
-
-      // Fallback: derive from request host
-      const protocol = req.headers.get('x-forwarded-proto') || 'https';
-      return `${protocol}://${host}`;
-    };
     
-    const correctAppUrl = getAppUrl(req);
+    const correctAppUrl = getRequestAppUrl(req);
     const callbackUrl = source === 'onboarding'
       ? `${correctAppUrl}/api/late/facebook-callback?clientId=${clientId}&source=onboarding`
       : `${correctAppUrl}/api/late/facebook-callback?clientId=${clientId}`;

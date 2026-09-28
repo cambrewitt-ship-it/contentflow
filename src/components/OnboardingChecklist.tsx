@@ -18,9 +18,11 @@ interface OnboardingChecklistProps {
   clientId?: string;
   /** Called after a successful fetch so parent can react if needed */
   onLoad?: (checklist: ChecklistState) => void;
+  /** Change this value to re-fetch the checklist (e.g. after social accounts load) */
+  refreshKey?: string | number;
 }
 
-export default function OnboardingChecklist({ clientId, onLoad }: OnboardingChecklistProps) {
+export default function OnboardingChecklist({ clientId, onLoad, refreshKey }: OnboardingChecklistProps) {
   const { getAccessToken } = useAuth();
   const [checklist, setChecklist] = useState<ChecklistState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,7 +50,7 @@ export default function OnboardingChecklist({ clientId, onLoad }: OnboardingChec
 
   useEffect(() => {
     fetchChecklist();
-  }, [fetchChecklist]);
+  }, [fetchChecklist, refreshKey]);
 
   if (loading || !checklist) return null;
 

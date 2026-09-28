@@ -354,10 +354,13 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       const username = urlParams.get('username');
       const connected = urlParams.get('connected');
       
-      if (oauthSuccess) {
+      const connectedStatus = urlParams.get('status');
+      const successPlatform = oauthSuccess || (connected && connectedStatus === 'success' ? connected : null);
+
+      if (successPlatform) {
         setOauthMessage({
           type: 'success',
-          message: `Successfully connected to ${oauthSuccess}${username ? ` (${username})` : ''}!`
+          message: `Successfully connected to ${successPlatform}${username ? ` (${username})` : ''}!`
         });
         // Clear URL parameters
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -957,7 +960,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
       <ClientViewToggle clientId={clientId} activeView="dashboard" />
       <div className="px-8 pb-8 max-w-7xl mx-auto">
         {/* Onboarding Checklist */}
-        <OnboardingChecklist clientId={clientId} />
+        <OnboardingChecklist clientId={clientId} refreshKey={connectedAccounts.length} />
 
         {/* Header */}
         <div className="mb-8">

@@ -1,30 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
+import { getRequestAppUrl } from '@/lib/requestAppUrl';
 
-// Get the correct app URL - prefer environment variable, but fallback to detecting from request
-function getAppUrl(req: NextRequest): string {
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
-  const host = req.headers.get('host');
-
-  // PRIORITY 1: localhost (dev only)
-  if (host && host.includes('localhost')) {
-    return `http://${host}`;
-  }
-
-  // PRIORITY 2: Use explicit env URL in production (covers custom domains)
-  if (envUrl && !envUrl.includes('ngrok')) {
-    return envUrl;
-  }
-
-  // Fallback: derive from request host
-  const protocol = req.headers.get('x-forwarded-proto') || 'https';
-  return `${protocol}://${host}`;
-}
 
 export async function GET(req: NextRequest) {
   logger.debug('Facebook callback request received');
   // Get the correct app URL
-  const appUrl = getAppUrl(req);
+  const appUrl = getRequestAppUrl(req);
 
   try {
     // Handle malformed URLs with multiple ? characters

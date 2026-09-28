@@ -1,31 +1,13 @@
 // app/api/late/oauth-callback/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
-import { requireClientOwnership } from '@/lib/authHelpers';
+import { getRequestAppUrl } from '@/lib/requestAppUrl';
+import { createSupabaseServer } from '@/lib/supabaseServer';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
-// Get the correct app URL - prefer environment variable, but fallback to detecting from request
-function getAppUrl(req: NextRequest): string {
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
-  const host = req.headers.get('host');
-
-  // PRIORITY 1: localhost (dev only)
-  if (host && host.includes('localhost')) {
-    return `http://${host}`;
-  }
-
-  // PRIORITY 2: Use explicit env URL in production (covers custom domains)
-  if (envUrl && !envUrl.includes('ngrok')) {
-    return envUrl;
-  }
-
-  // Fallback: derive from request host
-  const protocol = req.headers.get('x-forwarded-proto') || 'https';
-  return `${protocol}://${host}`;
-}
 
 export async function GET(req: NextRequest) {
   // Get the correct app URL
-  const appUrl = getAppUrl(req);
+  const appUrl = getRequestAppUrl(req);
   
   try {
     // Handle malformed URLs with multiple ? characters
@@ -104,49 +86,46 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(errorRedirectUrl);
     }
 
-    const auth = await requireClientOwnership(req, clientId);
-    if (auth.error) {
-      const unauthorizedRedirectUrl = `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=Unauthorized`;
-      return NextResponse.redirect(unauthorizedRedirectUrl);
+    // This route is hit by a browser redirect from LATE, so there is no Bearer header —
+    // authenticate from the session cookie instead. The account is already connected in
+    // LATE either way, so a missing session must not turn into an error or a logout.
+    const supabase = await createSupabaseServer();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: client } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('id', clientId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (client) {
+        // Upsert the connection in a single round trip (insert or update on conflict)
+        const now = new Date().toISOString();
+        const { error: upsertError } = await supabase
+          .from('social_connections')
+          .upsert({
+            client_id: clientId,
+            platform: platform,
+            platform_user_id: profileId,
+            username: username || 'Unknown',
+            profile_id: profileId,
+            connected_at: now,
+            status: 'connected',
+            last_sync: now
+          }, { onConflict: 'client_id,platform' });
+
+        if (upsertError) {
+          logger.error('❌ Error upserting connection:', upsertError);
+        }
+
+        // Mark onboarding: first social account connected
+        await markOnboardingStep(supabase, user.id, 'checklist_connect_social');
+      }
+    } else {
+      logger.warn('OAuth callback without a session cookie; skipping connection record', { platform });
     }
-    const { supabase, user } = auth;
-
-    // Check environment variables
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_SUPABASE_SERVICE_ROLE) {
-
-      const errorRedirectUrl = clientId 
-        ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Configuration error: Missing database credentials`
-        : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Configuration error: Missing database credentials`;
-      
-      return NextResponse.redirect(errorRedirectUrl);
-    }
-
-    // Upsert the connection in a single round trip (insert or update on conflict)
-    const now = new Date().toISOString();
-    const { error: upsertError } = await supabase
-      .from('social_connections')
-      .upsert({
-        client_id: clientId,
-        platform: platform,
-        platform_user_id: profileId,
-        username: username || 'Unknown',
-        profile_id: profileId,
-        connected_at: now,
-        status: 'connected',
-        last_sync: now
-      }, { onConflict: 'client_id,platform' });
-
-    if (upsertError) {
-      logger.error('❌ Error upserting connection:', upsertError);
-      const errorRedirectUrl = clientId
-        ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Failed to save connection`
-        : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Failed to save connection`;
-
-      return NextResponse.redirect(errorRedirectUrl);
-    }
-
-    // Mark onboarding: first social account connected (fire-and-forget)
-    markOnboardingStep(supabase, user.id, 'checklist_connect_social');
 
     // Redirect back to client dashboard (or onboarding step) with success message
     if (clientId) {
