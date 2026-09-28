@@ -4,21 +4,13 @@ import React, { useState, useEffect, useRef, useMemo, forwardRef, useImperativeH
 import { Calendar, Clock, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Trash2, Loader2, MessageCircle, Copy, Pencil, Check, X, Tag, FileText, CalendarDays, Sparkles } from 'lucide-react';
 import { CarouselMedia } from '@/components/CarouselMedia';
 import { PlatformBadges } from '@/components/PlatformBadges';
+import { PublishStatusBadge } from '@/components/PublishStatusBadge';
 import { isVideoUrl } from '@/lib/videoUtils';
 import { type CalendarEvent, EVENT_COLOR_CLASSES } from './CalendarEventModal';
 import logger from '@/lib/logger';
 import { TagDropdownModal } from '@/components/TagDropdownModal';
 import { AddPostCardButton } from '@/components/AddPostCardButton';
 import { supabase } from '@/lib/supabaseClient';
-import { 
-  FacebookIcon, 
-  InstagramIcon, 
-  TwitterIcon, 
-  LinkedInIcon,
-  TikTokIcon,
-  YouTubeIcon,
-  ThreadsIcon 
-} from '@/components/social-icons';
 import {
   DndContext,
   DragEndEvent,
@@ -148,31 +140,6 @@ const normalizeToWeekStart = (input: Date) => {
   date.setDate(diff);
   date.setHours(0, 0, 0, 0);
   return date;
-};
-
-// Helper to get platform icon
-const getPlatformIcon = (platform: string, size: number = 14) => {
-  const normalizedPlatform = platform.toLowerCase();
-  
-  switch (normalizedPlatform) {
-    case 'facebook':
-      return <FacebookIcon size={size} className="text-white" />;
-    case 'instagram':
-      return <InstagramIcon size={size} className="text-white" />;
-    case 'twitter':
-    case 'x':
-      return <TwitterIcon size={size} className="text-white" />;
-    case 'linkedin':
-      return <LinkedInIcon size={size} className="text-white" />;
-    case 'tiktok':
-      return <TikTokIcon size={size} className="text-white" />;
-    case 'youtube':
-      return <YouTubeIcon size={size} className="text-white" />;
-    case 'threads':
-      return <ThreadsIcon size={size} className="text-white" />;
-    default:
-      return null;
-  }
 };
 
 const computeInitialStartWeek = (weekDates: Date[]) => {
@@ -612,17 +579,6 @@ function SortablePostCard({
     );
   }
 
-  // Check if this post is published
-  const isPublished = post.late_status === 'published' || 
-                     (post.platforms_scheduled && post.platforms_scheduled.length > 0);
-  
-  const publishedPlatforms: string[] = [];
-  if (isPublished && post.platforms_scheduled) {
-    post.platforms_scheduled.forEach((platform: string) => {
-      publishedPlatforms.push(platform.toLowerCase());
-    });
-  }
-
   return (
     <div
       ref={setNodeRef}
@@ -637,19 +593,8 @@ function SortablePostCard({
         isDeleting ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer active:cursor-grabbing'
       } ${isSelected ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200' : ''}`}
     >
-      {/* Published Indicator Bar */}
-      {isPublished && publishedPlatforms.length > 0 && (
-        <div className="bg-green-500 px-3 py-1.5 flex items-center gap-2">
-          <span className="text-white text-xs font-bold tracking-wide">PUBLISHED</span>
-          <div className="flex items-center gap-1.5">
-            {publishedPlatforms.map((platform, index) => (
-              <div key={`${platform}-${index}`} className="flex items-center">
-                {getPlatformIcon(platform, 14)}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Scheduled/posted-to platforms + when */}
+      <PublishStatusBadge post={post} />
 
       {/* Header with Date and Status */}
       <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200 p-2">

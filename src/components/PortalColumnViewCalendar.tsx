@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, ChangeEvent, useImperative
 import { Calendar, CheckCircle, AlertTriangle, XCircle, Minus, Tag, FileText, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CarouselMedia } from '@/components/CarouselMedia';
 import { PlatformBadges } from '@/components/PlatformBadges';
+import { PublishStatusBadge, getPublishStatus } from '@/components/PublishStatusBadge';
 import { isVideoUrl } from '@/lib/videoUtils';
 import { type CalendarEvent } from './CalendarEventModal';
 import logger from '@/lib/logger';
@@ -578,6 +579,13 @@ function SortablePostCard({
         isNativeDragOver ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : isCalendarSelected ? 'border-indigo-500 bg-indigo-50 shadow-lg shadow-indigo-200/50' : getCardStyling()
       } ${isDragging ? 'opacity-50 scale-105 cursor-grabbing' : ''} ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''}`}
     >
+      {/* Scheduled/posted-to platforms + when */}
+      {getPublishStatus(post) && (
+        <div className="-mx-3 -mt-3 mb-2 overflow-hidden rounded-t-[6px]">
+          <PublishStatusBadge post={post} />
+        </div>
+      )}
+
       {/* Header with Date, Status and Select button */}
       <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
         <div className="flex flex-col">

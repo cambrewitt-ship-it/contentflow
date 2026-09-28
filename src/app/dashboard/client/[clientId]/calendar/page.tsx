@@ -2938,6 +2938,7 @@ export default function CalendarPage() {
                       scheduled_time: post.scheduled_time,
                       approval_status: post.approval_status,
                       platforms_scheduled: post.platforms_scheduled,
+                      late_status: post.late_status ?? null,
                       target_platforms: post.target_platforms ?? [],
                       tags: post.tags ?? [],
                     });
@@ -3070,6 +3071,7 @@ export default function CalendarPage() {
                         scheduled_time: post.scheduled_time,
                         approval_status: post.approval_status,
                         platforms_scheduled: post.platforms_scheduled,
+                        late_status: post.late_status ?? null,
                         target_platforms: post.target_platforms ?? [],
                         tags: post.tags ?? [],
                       });

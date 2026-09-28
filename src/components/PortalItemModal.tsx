@@ -24,6 +24,7 @@ import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { PortalTagDropdown } from "@/components/PortalTagDropdown";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
 import { PlatformBadges } from "@/components/PlatformBadges";
+import { PublishStatusBadge } from "@/components/PublishStatusBadge";
 import { normalizeTargetPlatforms } from "@/lib/targetPlatforms";
 import { PortalParty } from "@/contexts/PortalContext";
 import logger from "@/lib/logger";
@@ -49,6 +50,7 @@ export interface ModalPost {
   approval_status?: string;
   approval_steps?: ApprovalStep[];
   platforms_scheduled?: string[];
+  late_status?: string | null;
   target_platforms?: string[] | null;
   tags?: Array<{ id: string; name: string; color: string }>;
   one_time_approval?: {
@@ -1039,6 +1041,9 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
               <div>
                 <h2 className="text-base font-semibold text-gray-900 break-words">{title}</h2>
               </div>
+
+              {/* Scheduled/posted-to platforms + when */}
+              {isPost && <PublishStatusBadge post={item.data as ModalPost} variant="panel" />}
 
               {/* Tags */}
               <div className="relative">

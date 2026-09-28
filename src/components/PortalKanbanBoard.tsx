@@ -25,6 +25,7 @@ export interface KanbanCalendarPost {
   approval_status: string;
   approval_steps: any[];
   platforms_scheduled: string[] | null;
+  late_status?: string | null;
   post_notes: string | null;
   tags?: Array<{ id: string; name: string; color: string }>;
 }

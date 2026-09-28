@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
 import { PlatformBadges, PlatformPicker } from "@/components/PlatformBadges";
+import { PublishStatusBadge } from "@/components/PublishStatusBadge";
 import { normalizeTargetPlatforms, type TargetPlatform } from "@/lib/targetPlatforms";
 import logger from "@/lib/logger";
 
@@ -47,6 +48,7 @@ export interface ClientPostDetailItem {
   scheduled_time?: string | null;
   approval_status?: string;
   platforms_scheduled?: string[];
+  late_status?: string | null;
   target_platforms?: string[] | null;
   tags?: Array<{ id: string; name: string; color: string }>;
 }
@@ -444,6 +446,9 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
           {/* RIGHT — details + status + comments */}
           <div className="flex-1 overflow-y-auto flex flex-col">
             <div className="p-5 space-y-5">
+
+              {/* Scheduled/posted-to platforms + when */}
+              <PublishStatusBadge post={post} variant="panel" />
 
               {/* Tags */}
               {(post.tags ?? []).length > 0 && (

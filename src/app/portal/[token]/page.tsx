@@ -1865,6 +1865,7 @@ export default function PortalCalendarPage() {
                 approval_status: post.approval_status,
                 approval_steps: post.approval_steps,
                 platforms_scheduled: post.platforms_scheduled ?? undefined,
+                late_status: post.late_status ?? null,
                 tags: post.tags,
               },
             })
@@ -2211,6 +2212,7 @@ export default function PortalCalendarPage() {
                       approval_status: post.approval_status,
                       approval_steps: post.approval_steps,
                       platforms_scheduled: post.platforms_scheduled,
+                      late_status: post.late_status ?? null,
                       target_platforms: (post as any).target_platforms ?? [],
                       tags: post.tags ?? [],
                       one_time_approval: (post as any).one_time_approval ?? null,
@@ -2356,6 +2358,7 @@ export default function PortalCalendarPage() {
                     approval_status: post.approval_status,
                     approval_steps: post.approval_steps,
                     platforms_scheduled: post.platforms_scheduled ?? undefined,
+                    late_status: post.late_status ?? null,
                     target_platforms: (post as any).target_platforms ?? [],
                     tags: post.tags,
                     one_time_approval: (post as any).one_time_approval ?? null,
