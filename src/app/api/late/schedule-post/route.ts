@@ -202,13 +202,25 @@ export async function POST(request: NextRequest) {
       lateData
     });
 
-    // Save late_post_id and platforms to calendar_scheduled_posts
+    // Save late_post_id and platforms to calendar_scheduled_posts. A post can be
+    // scheduled to one platform at a time, so add to the platforms it's already
+    // scheduled to rather than replacing them.
+    const { data: existingPost } = await supabase
+      .from('calendar_scheduled_posts')
+      .select('platforms_scheduled')
+      .eq('id', postId)
+      .single();
+    const platformsScheduled = Array.from(new Set([
+      ...((existingPost?.platforms_scheduled as string[] | null) ?? []),
+      ...selectedAccounts.map((a: { platform: string }) => a.platform),
+    ].map((p: string) => p.toLowerCase())));
+
     const { error: updateError } = await supabase
       .from('calendar_scheduled_posts')
       .update({ 
         late_status: 'scheduled',
         late_post_id: latePostId,
-        platforms_scheduled: selectedAccounts.map((a: { platform: string }) => a.platform)
+        platforms_scheduled: platformsScheduled
       })
       .eq('id', postId);
     
@@ -252,7 +264,8 @@ export async function POST(request: NextRequest) {
       success: true,
       latePostId: latePostId,
       late_post_id: latePostId,
-      id: latePostId
+      id: latePostId,
+      platforms_scheduled: platformsScheduled
     });
 
   } catch (error) {

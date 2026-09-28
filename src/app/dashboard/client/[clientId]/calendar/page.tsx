@@ -2325,25 +2325,17 @@ export default function CalendarPage() {
         const latePostId = result.latePostId || result.late_post_id || result.id;
         
         if (latePostId) {
-          // Update database with LATE post ID
-          await supabase
-            .from('calendar_scheduled_posts')
-            .update({
-              late_status: 'scheduled',
-              late_post_id: latePostId,
-              platforms_scheduled: [...(post.platforms_scheduled || []), account.platform]
-            })
-            .eq('id', post.id);
-          
-          // Update local state to show post as scheduled (green)
+          // The schedule route saves the post's LATE id and merged platform list;
+          // mirror them in local state so the card shows every platform
           setScheduledPosts(prevScheduled => {
             const updated = { ...prevScheduled };
             Object.keys(updated).forEach(date => {
-              updated[date] = updated[date].map(p => 
-                p.id === post.id 
-                  ? { ...p, late_status: 'scheduled', late_post_id: latePostId, platforms_scheduled: [...(p.platforms_scheduled || []), account.platform] }
-                  : p
-              );
+              updated[date] = updated[date].map(p => {
+                if (p.id !== post.id) return p;
+                const platforms: string[] = result.platforms_scheduled
+                  ?? Array.from(new Set([...(p.platforms_scheduled || []), account.platform]));
+                return { ...p, late_status: 'scheduled', late_post_id: latePostId, platforms_scheduled: platforms };
+              });
             });
             return updated;
           });
