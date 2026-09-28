@@ -5,9 +5,31 @@ import { requireClientOwnership } from '@/lib/authHelpers';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
 import { toLateMediaItem, LateUploadError } from '@/lib/lateMedia';
 
-// Carousel posts re-host each extra photo on LATE before scheduling, and a post whose
-// time has passed is published inside LATE's request — an Instagram carousel can take 1-2 min
+// Carousel posts re-host each extra photo on LATE before scheduling
 export const maxDuration = 300;
+
+const PAST_DUE_BUFFER_MS = 60 * 1000;
+
+// Converts a wall-clock "YYYY-MM-DDTHH:mm[:ss]" in an IANA timezone to a UTC timestamp
+function zonedLocalToUtcMs(localDateTime: string, timeZone: string): number {
+  const asUtc = Date.parse(`${localDateTime}Z`);
+  if (Number.isNaN(asUtc)) return NaN;
+  const offsetAt = (ms: number) => {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).formatToParts(ms).map((p) => [p.type, Number(p.value)])
+    );
+    return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) - ms;
+  };
+  try {
+    const guess = asUtc - offsetAt(asUtc);
+    return asUtc - offsetAt(guess); // second pass settles DST boundaries
+  } catch {
+    return NaN; // unknown timezone
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -158,12 +180,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // LATE publishes a post whose time has passed inside the request itself, which for an
+    // Instagram carousel takes over a minute and can outlive our request. Schedule those a
+    // minute out instead so LATE queues them and responds straight away.
+    const scheduledUtcMs = zonedLocalToUtcMs(localDateTime, clientTimezone);
+    const isPastDue = !Number.isNaN(scheduledUtcMs) && scheduledUtcMs < Date.now() + PAST_DUE_BUFFER_MS;
+    const scheduleTiming = isPastDue
+      ? { scheduledFor: new Date(Date.now() + PAST_DUE_BUFFER_MS).toISOString(), timezone: 'UTC' }
+      : { scheduledFor: localDateTime, timezone: clientTimezone }; // e.g. "2024-09-16T18:00:00"
+
     // Log what we're sending to LATE
     const requestBody = {
       content: finalContent,
       platforms: platforms,
-      scheduledFor: localDateTime, // e.g. "2024-09-16T18:00:00"
-      timezone: clientTimezone,
+      ...scheduleTiming,
       mediaItems: [
         {
           type: 'image',
