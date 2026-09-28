@@ -1025,6 +1025,7 @@ export function DateDivider({
   onEventAdd,
   onEventClick,
   contentEventIndicators,
+  variant = 'default',
 }: {
   dateKey: string;
   dayDate: Date;
@@ -1037,7 +1038,10 @@ export function DateDivider({
   onEventAdd?: (dateKey: string) => void;
   onEventClick?: (event: CalendarEvent) => void;
   contentEventIndicators?: import('@/components/EventsCalendarLayer').ContentEvent[];
+  /** 'board' = the quieter Trello-style header used by TrelloBoardCalendar. */
+  variant?: 'default' | 'board';
 }) {
+  const isBoard = variant === 'board';
   const { setNodeRef } = useDroppable({
     id: `divider-${dateKey}`,
     data: { dateKey },
@@ -1061,16 +1065,22 @@ export function DateDivider({
         setIsNativeDragOver(false);
         onNativeDrop?.(e, dateKey);
       }}
-      className={`mt-3 mb-1.5 pb-1 border-b rounded-t px-1 transition-colors ${
-        isNativeDragOver || isDragOver ? 'border-blue-400 bg-blue-50' : isTodayDay ? 'border-blue-200' : 'border-gray-200'
-      }`}
+      className={
+        isBoard
+          ? `group/divider mt-2 first:mt-0 mb-1 px-1 py-0.5 rounded-md transition-colors ${
+              isNativeDragOver || isDragOver ? 'bg-blue-100 ring-2 ring-blue-400' : ''
+            }`
+          : `mt-3 mb-1.5 pb-1 border-b rounded-t px-1 transition-colors ${
+              isNativeDragOver || isDragOver ? 'border-blue-400 bg-blue-50' : isTodayDay ? 'border-blue-200' : 'border-gray-200'
+            }`
+      }
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-semibold uppercase ${isTodayDay ? 'text-blue-700' : 'text-gray-700'}`}>
+          <span className={`${isBoard ? 'text-[11px] tracking-wide' : 'text-xs'} font-semibold uppercase ${isTodayDay ? 'text-blue-700' : isBoard ? 'text-[#44546f]' : 'text-gray-700'}`}>
             {dayName}
           </span>
-          <span className={`text-xs ${isTodayDay ? 'text-blue-600 font-bold' : 'text-gray-600'}`}>
+          <span className={`${isBoard ? 'text-[11px]' : 'text-xs'} ${isTodayDay ? 'text-blue-600 font-bold' : isBoard ? 'text-[#626f86]' : 'text-gray-600'}`}>
             {getDayNumber(dayDate)}
           </span>
         </div>
@@ -1078,10 +1088,14 @@ export function DateDivider({
           <button
             type="button"
             onClick={() => onEventAdd(dateKey)}
-            className="px-2 py-0.5 text-xs font-medium text-purple-600 border border-purple-300 rounded hover:bg-purple-50 transition-colors"
+            className={
+              isBoard
+                ? 'px-1.5 py-0.5 text-[11px] font-medium text-[#44546f] rounded hover:bg-[#091e4224] hover:text-purple-700 opacity-0 group-hover/divider:opacity-100 focus:opacity-100 transition'
+                : 'px-2 py-0.5 text-xs font-medium text-purple-600 border border-purple-300 rounded hover:bg-purple-50 transition-colors'
+            }
             title="Mark event or note"
           >
-            Note
+            {isBoard ? '+ Note' : 'Note'}
           </button>
         )}
       </div>

@@ -228,8 +228,6 @@ export default function CalendarPage() {
       // Storage unavailable — the choice just won't persist.
     }
   }, []);
-  const [showBoardPostsTray, setShowBoardPostsTray] = useState(true);
-  const [showBoardActions, setShowBoardActions] = useState(false);
   const calendarScrollRef = useRef<HTMLDivElement>(null);
   const columnViewRef = useRef<ColumnViewCalendarHandle>(null);
   const stripViewRef = useRef<StripCalendarHandle>(null);
@@ -245,24 +243,6 @@ export default function CalendarPage() {
       // Storage unavailable — keep the default view.
     }
   }, []);
-
-  // Board (beta) is a full-screen overlay: lock page scroll and let Esc exit it
-  // (unless a modal is open on top — Esc belongs to that modal).
-  useEffect(() => {
-    if (viewMode !== 'board') return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (document.querySelector('[role="dialog"], .fixed.inset-0.z-50')) return;
-      setViewMode('column');
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [viewMode, setViewMode]);
 
   // Calendar events / notes
   const [calendarEvents, setCalendarEvents] = useState<{[dateKey: string]: CalendarEvent[]}>({});
@@ -2570,9 +2550,16 @@ export default function CalendarPage() {
     onAddNoteForWeek: handleOpenEventModalForWeek,
   };
 
-  // Bulk actions / scheduling / project filter bar — shown above the calendar, and inside the Board view.
-  const actionBar = (
-    <div className="bg-white border-b border-gray-200 px-6 py-3 mb-4 rounded-lg shadow flex items-center justify-between gap-3">
+  // Bulk actions / scheduling / project filter bar — shown above the calendar, and (always on)
+  // inside the Board view, where it's rendered as a compact frosted strip.
+  const renderActionBar = (variant: 'default' | 'board') => (
+    <div
+      className={
+        variant === 'board'
+          ? 'bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-3 w-max min-w-full text-sm [&_button]:py-1.5 [&_button]:px-3 [&_button]:text-sm [&_button]:whitespace-nowrap [&_select]:py-1.5 [&>div>a]:py-1.5'
+          : 'bg-white border-b border-gray-200 px-6 py-3 mb-4 rounded-lg shadow flex items-center justify-between gap-3'
+      }
+    >
       {/* Left side - action buttons */}
       <div className="flex items-center gap-3">
         <button
@@ -2903,87 +2890,66 @@ export default function CalendarPage() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Board (beta) — Trello-style full-screen view. Remove this block + TrelloBoardCalendar.tsx to drop it. */}
+    <div className={`${viewMode === 'board' ? 'h-full' : 'min-h-screen'} bg-background`}>
+      {/* Board (beta) — Trello-style view. It fills the page's content area so the app sidebar and
+          top bar stay visible; the posts tray and action bar are always shown. The rest of the page
+          (content portal etc.) sits below it. Remove this block + TrelloBoardCalendar.tsx to drop it. */}
       {viewMode === 'board' && (
-        <div className="fixed inset-0 z-40">
-          <TrelloBoardCalendar
-            ref={columnViewRef}
-            {...sharedCalendarProps}
-            toolbar={
-              <>
-                <div className="flex items-center bg-white/15 rounded-lg p-0.5">
-                  {([
-                    ['month', 'Month', Calendar],
-                    ['column', 'Column', Columns],
-                    ['strip', 'Strip', ArrowRight],
-                    ['board', 'Board', KanbanSquare],
-                  ] as const).map(([mode, label, Icon]) => (
-                    <button
-                      key={mode}
-                      onClick={() => setViewMode(mode)}
-                      className={`px-2.5 py-1 text-sm rounded-md transition-all flex items-center gap-1.5 ${
-                        viewMode === mode ? 'bg-white text-gray-900 shadow-sm' : 'text-white/90 hover:bg-white/20'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span className="hidden lg:inline">{label}</span>
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => setShowBoardPostsTray(v => !v)}
-                  className={`px-2.5 py-1 text-sm rounded-md transition-colors ${showBoardPostsTray ? 'bg-white/30' : 'hover:bg-white/20'}`}
-                  title="Show/hide unscheduled posts"
-                >
-                  Posts
-                </button>
-                <button
-                  onClick={() => setShowBoardActions(v => !v)}
-                  className={`px-2.5 py-1 text-sm rounded-md transition-colors ${
-                    showBoardActions || selectedPosts.size > 0 ? 'bg-white/30' : 'hover:bg-white/20'
-                  }`}
-                  title="Bulk actions, scheduling and project filter"
-                >
-                  Actions{selectedPosts.size > 0 ? ` (${selectedPosts.size})` : ''}
-                </button>
+        <div className="h-full flex flex-col">
+          <ClientViewToggle clientId={clientId} activeView="calendar" />
+          <div className="flex-1 min-h-0">
+            <TrelloBoardCalendar
+              ref={columnViewRef}
+              {...sharedCalendarProps}
+              toolbar={
                 <button
                   onClick={() => setShowEventsPanel(v => !v)}
-                  className={`px-2.5 py-1 text-sm rounded-md transition-colors ${showEventsPanel ? 'bg-white/30' : 'hover:bg-white/20'}`}
+                  className={`px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1.5 ${showEventsPanel ? 'bg-white/30' : 'hover:bg-white/20'}`}
                 >
+                  <Calendar className="w-4 h-4" />
                   Events
                 </button>
-                <button
-                  onClick={() => setViewMode('column')}
-                  className="p-1.5 rounded-md hover:bg-white/20 transition-colors"
-                  title="Exit board (Esc)"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </>
-            }
-            subToolbar={
-              showBoardActions || selectedPosts.size > 0 ? (
-                <div className="overflow-x-auto [&>div]:mb-0">{actionBar}</div>
-              ) : null
-            }
-            leftDrawer={
-              showBoardPostsTray ? (
-                <div className="relative z-10 w-40 flex-shrink-0 m-3 mr-0 rounded-xl bg-white/95 shadow-md flex flex-col overflow-hidden">
+              }
+              subToolbar={<div className="overflow-x-auto calendar-hscroll">{renderActionBar('board')}</div>}
+              leftDrawer={
+                <div className="relative z-10 w-44 flex-shrink-0 m-3 mr-0 rounded-xl bg-[#f1f2f4] shadow-[0_1px_1px_#091e4240,0_0_1px_#091e424f] flex flex-col overflow-hidden">
                   {postsTrayContent}
                 </div>
-              ) : null
-            }
-            rightPanel={
-              showEventsPanel ? (
-                <EventsPanel clientId={clientId as string} onClose={() => setShowEventsPanel(false)} />
-              ) : null
-            }
-          />
+              }
+              rightPanel={
+                showEventsPanel ? (
+                  <EventsPanel clientId={clientId as string} onClose={() => setShowEventsPanel(false)} />
+                ) : null
+              }
+              bottomDock={([
+                ['month', 'Month', Calendar],
+                ['column', 'Column', Columns],
+                ['strip', 'Strip', ArrowRight],
+                ['board', 'Board', KanbanSquare],
+              ] as const).map(([mode, label, Icon]) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1.5 ${
+                    viewMode === mode
+                      ? 'bg-[#e9f2ff] text-[#0c66e4] shadow-[inset_0_-2px_0_#0c66e4]'
+                      : 'hover:bg-[#091e420f] hover:text-[#172b4d]'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
+            />
+          </div>
         </div>
       )}
+      {viewMode !== 'board' && (
+        <>
       {/* View Toggle */}
       <ClientViewToggle clientId={clientId} activeView="calendar" />
+        </>
+      )}
       <div className="p-6 pb-8">
       {/* Error Display */}
       {error && (
@@ -3011,11 +2977,10 @@ export default function CalendarPage() {
         </div>
       )}
 
+      {viewMode !== 'board' && renderActionBar('default')}
 
-      {actionBar}
-
-        {/* Main Layout: Sidebar + Calendar Content */}
-        <div className="flex gap-6 relative min-w-0" style={viewMode === 'month' ? { minHeight: 'calc(100vh - 200px)' } : { height: 'calc(100vh - 200px)' }}>
+        {/* Main Layout: Sidebar + Calendar Content (the Board view renders its own, above) */}
+        <div className={`flex gap-6 relative min-w-0 ${viewMode === 'board' ? 'hidden' : ''}`} style={viewMode === 'month' ? { minHeight: 'calc(100vh - 200px)' } : { height: 'calc(100vh - 200px)' }}>
           {/* Left Sidebar - Posts in Project (Vertical) */}
           <div
             className="bg-white rounded-lg shadow transition-all duration-300 flex flex-col w-36 flex-shrink-0 sticky top-0"

@@ -1,7 +1,7 @@
 'use client';
 
 // Trello-style "Board (beta)" view of the calendar. Same data + handlers as ColumnViewCalendar,
-// but rendered as compact cards in fixed-width week lists on a full-screen background.
+// but rendered as compact cards in fixed-width week lists on a coloured/photo background.
 // Self-contained so it can be removed by deleting this file and the 'board' branch in the
 // calendar page.
 
@@ -21,7 +21,9 @@ import {
   Rows3,
   LayoutList,
   Plus,
-  Layers,
+  Paperclip,
+  ChevronsRightLeft,
+  ChevronsLeftRight,
 } from 'lucide-react';
 import {
   DndContext,
@@ -102,6 +104,9 @@ const writeStorage = (key: string, value: string) => {
   }
 };
 
+// Trello's card and list elevation.
+const TRELLO_SHADOW = 'shadow-[0_1px_1px_#091e4240,0_0_1px_#091e424f]';
+
 const isUploadPost = (post: Post) =>
   post.post_type === 'client-upload' || post.post_type === 'client_upload' || !!post.isClientUpload;
 
@@ -123,15 +128,37 @@ function fallbackFormatTime(time?: string | null) {
   return `${hours % 12 || 12}:${m.slice(0, 2)} ${hours >= 12 ? 'PM' : 'AM'}`;
 }
 
-function CardCover({ url, isVideo, count, compact }: { url: string; isVideo: boolean; count: number; compact: boolean }) {
+function CardCover({ url, isVideo, compact }: { url: string; isVideo: boolean; compact: boolean }) {
+  if (compact) {
+    return (
+      <div className="relative overflow-hidden bg-gray-200 flex-shrink-0 w-14 h-14 rounded-md">
+        {isVideo ? (
+          <VideoThumbnail src={url} className="w-full h-full" objectFit="cover" />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={url}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.currentTarget.src = '/api/placeholder/100/100';
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Full-bleed cover like Trello: images keep their own shape (capped so tall portraits
+  // don't swallow the list); videos use a fixed frame since the thumbnail has no intrinsic size.
   return (
-    <div
-      className={`relative overflow-hidden bg-gray-200 flex-shrink-0 ${
-        compact ? 'w-14 h-14 rounded-md' : 'w-full aspect-[4/3] rounded-t-lg'
-      }`}
-    >
+    <div className="relative overflow-hidden rounded-t-lg bg-[#dcdfe4]">
       {isVideo ? (
-        <VideoThumbnail src={url} className="w-full h-full" objectFit="cover" />
+        <div className="w-full aspect-[4/3]">
+          <VideoThumbnail src={url} className="w-full h-full" objectFit="cover" />
+        </div>
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -139,21 +166,11 @@ function CardCover({ url, isVideo, count, compact }: { url: string; isVideo: boo
           alt=""
           loading="lazy"
           draggable={false}
-          className="w-full h-full object-cover"
+          className="block w-full h-auto min-h-[80px] max-h-[260px] object-cover"
           onError={(e) => {
             e.currentTarget.src = '/api/placeholder/100/100';
           }}
         />
-      )}
-      {count > 1 && (
-        <span
-          className={`absolute bg-black/60 text-white font-semibold rounded-full inline-flex items-center gap-0.5 ${
-            compact ? 'bottom-0.5 right-0.5 text-[9px] px-1 py-0' : 'bottom-1.5 right-1.5 text-[10px] px-1.5 py-0.5'
-          }`}
-        >
-          <Layers className={compact ? 'w-2 h-2' : 'w-2.5 h-2.5'} />
-          {count}
-        </span>
       )}
     </div>
   );
@@ -165,6 +182,8 @@ function BoardCard({
   isDeleting,
   isDuplicating,
   isSelected,
+  labelsExpanded,
+  onToggleLabels,
   formatTimeTo12Hour,
   projectName,
   onPostClick,
@@ -179,6 +198,8 @@ function BoardCard({
   isDeleting: boolean;
   isDuplicating: boolean;
   isSelected: boolean;
+  labelsExpanded: boolean;
+  onToggleLabels: () => void;
   formatTimeTo12Hour?: (time24: string) => string;
   projectName?: string;
   onPostClick?: (post: Post) => void;
@@ -318,7 +339,7 @@ function BoardCard({
         setIsNativeDragOver(false);
         onNativeDrop?.(e, dateKey);
       }}
-      className={`group relative mb-2 rounded-lg bg-white shadow-[0_1px_1px_rgba(9,30,66,0.25)] hover:ring-2 hover:ring-blue-400 transition-shadow ${
+      className={`group relative mb-2 rounded-lg bg-white ${TRELLO_SHADOW} hover:ring-2 hover:ring-[#388bff] transition-shadow ${
         isUpload ? 'cursor-pointer' : 'cursor-pointer active:cursor-grabbing'
       } ${isDragging ? 'opacity-40' : ''} ${isDeleting ? 'opacity-50 pointer-events-none' : ''} ${
         isSelected ? 'ring-2 ring-blue-500' : ''
@@ -326,45 +347,53 @@ function BoardCard({
     >
       {quickActions}
 
-      {!compact && cover && <CardCover url={cover.url} isVideo={cover.isVideo} count={media.length} compact={false} />}
+      {!compact && cover && <CardCover url={cover.url} isVideo={cover.isVideo} compact={false} />}
 
-      <div className={`p-2 ${compact ? 'flex gap-2' : ''}`}>
-        {compact && cover && <CardCover url={cover.url} isVideo={cover.isVideo} count={media.length} compact />}
+      <div className={`px-3 pt-2 pb-1.5 ${compact ? 'flex gap-2' : ''}`}>
+        {compact && cover && <CardCover url={cover.url} isVideo={cover.isVideo} compact />}
 
         <div className="min-w-0 flex-1">
-          {/* Labels row (Trello-style) */}
+          {/* Labels row — Trello-style colour bars; click any label to show/hide label names board-wide. */}
           {(tags.length > 0 || isUpload) && (
             <div className="flex flex-wrap gap-1 mb-1.5 pr-16">
-              {isUpload && (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase bg-blue-100 text-blue-700">
-                  Portal upload
-                </span>
-              )}
-              {tags.map((tag) => (
-                <span
+              {[
+                ...(isUpload ? [{ id: '__upload', name: 'Portal upload', color: '#579dff' }] : []),
+                ...tags,
+              ].map((tag) => (
+                <button
                   key={tag.id}
-                  className="px-1.5 py-0.5 rounded text-[10px] font-semibold text-white max-w-[120px] truncate"
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleLabels();
+                  }}
+                  className={`rounded transition-all hover:brightness-90 ${
+                    labelsExpanded
+                      ? 'h-4 px-1.5 text-[11px] leading-4 font-semibold text-white max-w-[140px] truncate'
+                      : 'h-2 w-10'
+                  }`}
                   style={{ backgroundColor: tag.color }}
-                  title={tag.name}
+                  title={labelsExpanded ? 'Hide label names' : tag.name}
                 >
-                  {tag.name}
-                </span>
+                  {labelsExpanded ? tag.name : null}
+                </button>
               ))}
             </div>
           )}
 
-          <p className={`text-[13px] leading-snug text-gray-800 break-words ${compact ? 'line-clamp-2' : 'line-clamp-3'} ${
+          <p className={`text-sm leading-5 text-[#172b4d] break-words ${compact ? 'line-clamp-2' : 'line-clamp-3'} ${
             !cover && tags.length === 0 && !isUpload ? 'pr-16' : ''
           }`}>
-            {text || <span className="text-gray-400 italic">{isUpload ? 'Client upload' : 'No caption'}</span>}
+            {text || <span className="text-[#626f86] italic">{isUpload ? 'Client upload' : 'No caption'}</span>}
           </p>
 
           {/* Badges row */}
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-gray-500">
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-[#44546f]">
             {!isUpload && <PlatformBadges platforms={post.target_platforms} size={14} />}
             {time && (
               <span className="inline-flex items-center gap-0.5">
-                <Clock className="w-3 h-3" />
+                <Clock className="w-3.5 h-3.5" />
                 {time}
               </span>
             )}
@@ -386,8 +415,14 @@ function BoardCard({
               </span>
             )}
             {hasFeedback && (
-              <span className="inline-flex items-center text-blue-600" title="Client feedback">
-                <MessageCircle className="w-3 h-3" />
+              <span className="inline-flex items-center" title="Client feedback">
+                <MessageCircle className="w-3.5 h-3.5" />
+              </span>
+            )}
+            {media.length > 1 && (
+              <span className="inline-flex items-center gap-0.5" title={`${media.length} media files`}>
+                <Paperclip className="w-3.5 h-3.5" />
+                {media.length}
               </span>
             )}
             {projectName && (
@@ -428,8 +463,8 @@ function AddCardFooter({
         setIsDragOver(false);
         onNativeDrop?.(e);
       }}
-      className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-sm transition-colors ${
-        isDragOver ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-400' : 'text-gray-600 hover:bg-gray-300/60 hover:text-gray-800'
+      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+        isDragOver ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-400' : 'text-[#44546f] hover:bg-[#091e4224] hover:text-[#172b4d]'
       }`}
     >
       <Plus className="w-4 h-4" />
@@ -445,6 +480,10 @@ function BoardList({
   isCurrent,
   density,
   dragOverDateKey,
+  labelsExpanded,
+  onToggleLabels,
+  collapsed,
+  onToggleCollapsed,
   props,
 }: {
   weekStart: Date;
@@ -453,6 +492,10 @@ function BoardList({
   isCurrent: boolean;
   density: Density;
   dragOverDateKey: string | null;
+  labelsExpanded: boolean;
+  onToggleLabels: () => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
   props: ColumnViewCalendarProps;
 }) {
   const { setNodeRef } = useDroppable({
@@ -465,23 +508,51 @@ function BoardList({
   const today = new Date().toDateString();
   const projectName = (id?: string | null) => (id ? props.projects?.find((p) => p.id === id)?.name : undefined);
 
+  // Collapsed list: a narrow vertical strip, like Trello's collapse-list control.
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        data-board-list
+        ref={setNodeRef}
+        onClick={onToggleCollapsed}
+        className={`w-10 flex-shrink-0 self-start rounded-xl bg-[#f1f2f4] ${TRELLO_SHADOW} hover:bg-[#dcdfe4] transition-colors flex flex-col items-center gap-2 py-3 ${
+          isCurrent ? 'ring-2 ring-white' : ''
+        }`}
+        title="Expand list"
+      >
+        <ChevronsLeftRight className="w-4 h-4 text-[#44546f]" />
+        <span className="[writing-mode:vertical-rl] text-sm font-semibold text-[#172b4d] whitespace-nowrap">{title}</span>
+        <span className="text-xs text-[#626f86]">{postEntries.length}</span>
+      </button>
+    );
+  }
+
   return (
     <div
       data-board-list
-      className={`w-[272px] flex-shrink-0 max-h-full flex flex-col rounded-xl bg-[#f1f2f4]/95 shadow-md ${
-        isCurrent ? 'ring-2 ring-white/80' : ''
+      className={`w-[272px] flex-shrink-0 max-h-full flex flex-col rounded-xl bg-[#f1f2f4] ${TRELLO_SHADOW} ${
+        isCurrent ? 'ring-2 ring-white' : ''
       }`}
     >
-      <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
-        <h3 className="text-sm font-semibold text-gray-800 truncate">
+      <div className="flex items-center gap-1 pl-3 pr-1.5 pt-2 pb-1">
+        <h3 className="flex-1 min-w-0 text-sm font-semibold text-[#172b4d] truncate py-1">
           {title}
           {isCurrent && (
-            <span className="ml-1.5 align-middle px-1.5 py-0.5 rounded bg-blue-600 text-white text-[10px] font-semibold uppercase">
+            <span className="ml-1.5 align-middle px-1.5 py-0.5 rounded bg-[#0c66e4] text-white text-[10px] font-semibold uppercase">
               This week
             </span>
           )}
         </h3>
-        <span className="text-xs text-gray-500 flex-shrink-0">{postEntries.length}</span>
+        <span className="text-xs text-[#626f86] flex-shrink-0 px-1">{postEntries.length}</span>
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          className="p-1.5 rounded-md text-[#44546f] hover:bg-[#091e4224] transition-colors flex-shrink-0"
+          title="Collapse list"
+        >
+          <ChevronsRightLeft className="w-4 h-4" />
+        </button>
       </div>
 
       <div ref={setNodeRef} className="flex-1 min-h-[40px] overflow-y-auto px-2 board-list-scroll">
@@ -503,6 +574,7 @@ function BoardList({
                   onEventAdd={props.onEventAdd}
                   onEventClick={props.onEventClick}
                   contentEventIndicators={props.contentEvents?.[entry.dateKey]}
+                  variant="board"
                 />
               );
             }
@@ -516,6 +588,8 @@ function BoardList({
                 isDeleting={(isUpload ? props.deletingUploadIds : props.deletingPostIds)?.has(post.id) ?? false}
                 isDuplicating={props.duplicatingPostIds?.has(post.id) ?? false}
                 isSelected={props.selectedPosts?.has(post.id) ?? false}
+                labelsExpanded={labelsExpanded}
+                onToggleLabels={onToggleLabels}
                 formatTimeTo12Hour={props.formatTimeTo12Hour}
                 projectName={projectName(post.project_id)}
                 onPostClick={props.onPostClick}
@@ -549,6 +623,8 @@ export interface TrelloBoardCalendarProps extends ColumnViewCalendarProps {
   leftDrawer?: React.ReactNode;
   /** Optional right-hand panel (the events panel). */
   rightPanel?: React.ReactNode;
+  /** Optional floating dock centred at the bottom of the board (Trello-style view switcher). */
+  bottomDock?: React.ReactNode;
 }
 
 export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBoardCalendarProps>(function TrelloBoardCalendar(
@@ -556,7 +632,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   ref
 ) {
   const { weeks, scheduledPosts, clientUploads = {}, events = {}, contentEvents, loading, clientId, formatWeekCommencing } = props;
-  const { toolbar, subToolbar, leftDrawer, rightPanel } = props;
+  const { toolbar, subToolbar, leftDrawer, rightPanel, bottomDock } = props;
 
   const initialStart = () => {
     const start = new Date(computeInitialStartWeek(weeks));
@@ -571,6 +647,8 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const [bgId, setBgId] = useState<string>('ocean');
   const [density, setDensity] = useState<Density>('cover');
   const [showBgPicker, setShowBgPicker] = useState(false);
+  const [labelsExpanded, setLabelsExpanded] = useState(false);
+  const [collapsedWeeks, setCollapsedWeeks] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{ x: number; scrollLeft: number } | null>(null);
 
@@ -581,6 +659,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
     if (savedBg && BOARD_BACKGROUNDS.some((b) => b.id === savedBg)) setBgId(savedBg);
     const savedDensity = readStorage('boardDensity');
     if (savedDensity === 'cover' || savedDensity === 'compact') setDensity(savedDensity);
+    setLabelsExpanded(readStorage('boardLabelsExpanded') === '1');
   }, [bgKey]);
 
   useEffect(() => {
@@ -626,6 +705,22 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
     const next: Density = density === 'cover' ? 'compact' : 'cover';
     setDensity(next);
     writeStorage('boardDensity', next);
+  };
+
+  const toggleLabels = () => {
+    setLabelsExpanded((prev) => {
+      writeStorage('boardLabelsExpanded', prev ? '0' : '1');
+      return !prev;
+    });
+  };
+
+  const toggleCollapsed = (weekKey: string) => {
+    setCollapsedWeeks((prev) => {
+      const next = new Set(prev);
+      if (next.has(weekKey)) next.delete(weekKey);
+      else next.add(weekKey);
+      return next;
+    });
   };
 
   const handleDragStart = (event: DragStartEvent) => setActiveId(String(event.active.id));
@@ -686,7 +781,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
       {bg.isPhoto && <div className="absolute inset-0 bg-black/20 pointer-events-none" />}
 
       {/* Top bar */}
-      <div className="relative z-10 flex items-center justify-between gap-3 px-4 py-2 bg-black/30 backdrop-blur-sm text-white">
+      <div className="relative z-10 flex items-center justify-between gap-3 px-4 py-2.5 bg-black/35 backdrop-blur-md text-white">
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -711,7 +806,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
           >
             <ChevronRight className="w-4 h-4" />
           </button>
-          <span className="ml-2 text-sm font-semibold hidden md:inline">
+          <span className="ml-2 text-base font-bold tracking-tight hidden md:inline">
             {formatWeekCommencing(columns[0]?.weekStart ?? startWeek)} – {formatWeekCommencing(columns[columns.length - 1]?.weekStart ?? startWeek)}
           </span>
         </div>
@@ -761,7 +856,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
         </div>
       </div>
 
-      {subToolbar && <div className="relative z-10 px-4 pt-3">{subToolbar}</div>}
+      {subToolbar && <div className="relative z-10 flex-shrink-0 bg-black/20 backdrop-blur-sm px-4 py-2">{subToolbar}</div>}
 
       <div className="relative flex-1 min-h-0 flex">
         {leftDrawer}
@@ -786,7 +881,8 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
               onMouseUp={onPanEnd}
               onMouseLeave={onPanEnd}
             >
-              <div className="h-full flex items-start gap-3 p-3 w-max">
+              {/* Bottom padding keeps the last cards clear of the floating dock. */}
+              <div className={`h-full flex items-start gap-3 p-3 w-max ${bottomDock ? 'pb-20' : ''}`}>
                 {columns.map((column) => (
                   <BoardList
                     key={column.weekStart.toISOString()}
@@ -796,6 +892,10 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
                     isCurrent={isCurrentWeek(column.weekStart)}
                     density={density}
                     dragOverDateKey={dragOverDay}
+                    labelsExpanded={labelsExpanded}
+                    onToggleLabels={toggleLabels}
+                    collapsed={collapsedWeeks.has(column.weekStart.toISOString())}
+                    onToggleCollapsed={() => toggleCollapsed(column.weekStart.toISOString())}
                     props={props}
                   />
                 ))}
@@ -804,7 +904,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
 
             <DragOverlay>
               {activePost && activePost.type === 'post' ? (
-                <div className="w-[256px] rotate-3 rounded-lg bg-white shadow-2xl p-2 text-[13px] text-gray-800 line-clamp-3">
+                <div className="w-[256px] rotate-3 rounded-lg bg-white shadow-2xl px-3 py-2 text-sm text-[#172b4d] line-clamp-3">
                   {activePost.post.caption || 'Post'}
                 </div>
               ) : null}
@@ -813,6 +913,12 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
         )}
 
         {rightPanel && <div className="relative z-10 flex-shrink-0 h-full bg-white">{rightPanel}</div>}
+
+        {bottomDock && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 p-1 rounded-xl bg-white shadow-[0_8px_24px_rgba(9,30,66,0.25)] text-sm text-[#44546f]">
+            {bottomDock}
+          </div>
+        )}
       </div>
     </div>
   );
