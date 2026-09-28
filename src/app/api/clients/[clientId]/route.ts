@@ -238,6 +238,7 @@ export async function PUT(
       autopilot_enabled?: boolean;
       autopilot_settings?: Record<string, unknown>;
       ad_copy_settings?: Record<string, unknown>;
+      agent_media_ids?: string[] | null;
       updated_at?: string;
     } = {};
 
@@ -269,6 +270,14 @@ export async function PUT(
     if (body.autopilot_enabled !== undefined) updateData.autopilot_enabled = body.autopilot_enabled;
     if (body.autopilot_settings !== undefined) updateData.autopilot_settings = body.autopilot_settings;
     if (body.ad_copy_settings !== undefined) updateData.ad_copy_settings = body.ad_copy_settings;
+    if (body.agent_media_ids === null) {
+      updateData.agent_media_ids = null;
+    } else if (Array.isArray(body.agent_media_ids)) {
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      updateData.agent_media_ids = body.agent_media_ids.filter(
+        (id: unknown): id is string => typeof id === 'string' && uuid.test(id)
+      );
+    }
 
     // Add updated_at timestamp
     updateData.updated_at = new Date().toISOString();

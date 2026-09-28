@@ -204,7 +204,17 @@ export async function getAvailableGalleryItems(
   limit: number
 ): Promise<GalleryItem[]> {
   const admin = createSupabaseAdmin();
-  const { data, error } = await admin
+
+  // A hand-picked selection (Content Agent settings → Photos) replaces the
+  // default "freshest N photos" pool; null means no selection was made.
+  const { data: clientRow } = await admin
+    .from('clients')
+    .select('agent_media_ids')
+    .eq('id', clientId)
+    .single();
+  const selectedIds = (clientRow?.agent_media_ids as string[] | null) ?? null;
+
+  let query = admin
     .from('media_gallery')
     .select(
       'id, media_url, media_type, ai_description, ai_tags, ai_categories, ai_mood, ai_setting, ai_subjects, freshness_score, times_used, user_context, last_used_at'
@@ -213,8 +223,16 @@ export async function getAvailableGalleryItems(
     .eq('status', 'available')
     .eq('ai_analysis_status', 'complete')
     .eq('media_type', 'image')
-    .order('freshness_score', { ascending: false })
-    .limit(limit);
+    .order('freshness_score', { ascending: false });
+
+  if (selectedIds) {
+    if (selectedIds.length === 0) return [];
+    query = query.in('id', selectedIds).limit(Math.max(limit, selectedIds.length));
+  } else {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     logger.error('Failed to fetch gallery items:', error);

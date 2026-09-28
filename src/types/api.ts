@@ -98,6 +98,8 @@ export interface Client {
   autopilot_enabled?: boolean;
   autopilot_settings?: AutopilotSettings;
   ad_copy_settings?: AdCopySettings;
+  // Photos the Content Agent may use; null/undefined = every analyzed photo
+  agent_media_ids?: string[] | null;
   created_at: string;
   updated_at: string;
 }

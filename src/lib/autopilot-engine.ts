@@ -170,8 +170,8 @@ export async function generateContentPlan(
       .from('autopilot_plans')
       .update({ status: 'failed', ai_plan_summary: 'No analyzed photos available in gallery.' })
       .eq('id', planRow.id);
-    await notifyFailure('No analyzed photos available in the media gallery — upload and analyze photos first.');
-    throw new Error('No analyzed photos available in the media gallery. Upload and analyze photos first.');
+    await notifyFailure('No analyzed photos available — upload and analyze photos first, or check the photos selected in Content Agent settings.');
+    throw new Error('No analyzed photos available. Upload and analyze photos first, or check the photos selected in Content Agent settings.');
   }
 
   // Step 3: Run the agentic tool-calling loop
