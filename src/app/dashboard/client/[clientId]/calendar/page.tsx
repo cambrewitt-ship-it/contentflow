@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, AlertCircle, FileDown, Sparkles, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, KanbanSquare, AlertCircle, FileDown, Sparkles, ArrowLeft, ArrowRight } from 'lucide-react';
 import ClientViewToggle from '@/components/ClientViewToggle';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import { ColumnViewCalendar, type ColumnViewCalendarHandle } from '@/components/ColumnViewCalendar';
 import { StripCalendar, type StripCalendarHandle } from '@/components/StripCalendar';
+import { TrelloBoardCalendar } from '@/components/TrelloBoardCalendar';
 import { CalendarEventModal, type CalendarEvent } from '@/components/CalendarEventModal';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
@@ -218,10 +219,50 @@ export default function CalendarPage() {
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
   const [postDetailModal, setPostDetailModal] = useState<ClientPostDetailItem | null>(null);
   const [uploadDetailModal, setUploadDetailModal] = useState<ClientUploadDetailItem | null>(null);
-  const [viewMode, setViewMode] = useState<'month' | 'column' | 'strip'>('column');
+  const [viewMode, setViewModeState] = useState<'month' | 'column' | 'strip' | 'board'>('column');
+  const setViewMode = useCallback((mode: 'month' | 'column' | 'strip' | 'board') => {
+    setViewModeState(mode);
+    try {
+      window.localStorage.setItem('calendarViewMode', mode);
+    } catch {
+      // Storage unavailable — the choice just won't persist.
+    }
+  }, []);
+  const [showBoardPostsTray, setShowBoardPostsTray] = useState(true);
+  const [showBoardActions, setShowBoardActions] = useState(false);
   const calendarScrollRef = useRef<HTMLDivElement>(null);
   const columnViewRef = useRef<ColumnViewCalendarHandle>(null);
   const stripViewRef = useRef<StripCalendarHandle>(null);
+
+  // Restore the last calendar view the user picked.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('calendarViewMode');
+      if (saved === 'month' || saved === 'column' || saved === 'strip' || saved === 'board') {
+        setViewModeState(saved);
+      }
+    } catch {
+      // Storage unavailable — keep the default view.
+    }
+  }, []);
+
+  // Board (beta) is a full-screen overlay: lock page scroll and let Esc exit it
+  // (unless a modal is open on top — Esc belongs to that modal).
+  useEffect(() => {
+    if (viewMode !== 'board') return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('[role="dialog"], .fixed.inset-0.z-50')) return;
+      setViewMode('column');
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [viewMode, setViewMode]);
 
   // Calendar events / notes
   const [calendarEvents, setCalendarEvents] = useState<{[dateKey: string]: CalendarEvent[]}>({});
@@ -2442,8 +2483,505 @@ export default function CalendarPage() {
   };
 
 
+  // Shared by the Strip, Column and Board views: open the right detail modal for a card.
+  const handleCalendarCardClick = (post: any) => {
+    const isUpload =
+      post.post_type === 'client-upload' ||
+      post.post_type === 'client_upload' ||
+      (post as any).isClientUpload;
+    if (isUpload) {
+      const uploadData = (post as any).client_upload || (post as any).upload || post;
+      setUploadDetailModal({
+        id: post.id,
+        file_name: uploadData.file_name || post.caption || 'Upload',
+        file_type: uploadData.file_type || 'image/jpeg',
+        file_url: uploadData.file_url || post.image_url || '',
+        notes: uploadData.notes || null,
+        created_at: uploadData.created_at || new Date().toISOString(),
+        target_date: uploadData.target_date ?? null,
+      });
+    } else {
+      setPostDetailModal({
+        id: post.id,
+        caption: post.caption,
+        image_url: post.image_url,
+        media_urls: (post as any).media_urls ?? null,
+        scheduled_date: post.scheduled_date,
+        scheduled_time: post.scheduled_time,
+        approval_status: post.approval_status,
+        platforms_scheduled: post.platforms_scheduled,
+        late_status: post.late_status ?? null,
+        target_platforms: post.target_platforms ?? [],
+        tags: post.tags ?? [],
+      });
+    }
+  };
+
+  // Native HTML5 drag from the unscheduled posts tray, dropped directly onto an existing card/date.
+  const handleCalendarCardDrop = async (e: React.DragEvent, dateKey: string) => {
+    const postData = e.dataTransfer.getData('post');
+    if (!postData) return;
+    const post = JSON.parse(postData);
+    await scheduleUnscheduledPost(post, dateKey, '12:00');
+  };
+
+  // Tray post dropped on a week's "Add post" button — ask which day.
+  const handleAddButtonDrop = (e: React.DragEvent, weekStart: Date) => {
+    const postData = e.dataTransfer.getData('post');
+    if (!postData) return;
+    const post = JSON.parse(postData);
+    setQuickSchedule({ weekStart, post, mode: 'schedule' });
+  };
+
+  // Props shared by the Column view and the Board (beta) view.
+  const sharedCalendarProps = {
+    weeks: getWeeksToDisplay(),
+    scheduledPosts: scheduledPosts as any,
+    clientUploads,
+    events: calendarEvents,
+    loading: isLoadingScheduledPosts,
+    formatWeekCommencing,
+    clientId,
+    handleEditScheduledPost: handleEditScheduledPost as any,
+    editingPostId,
+    setEditingPostId,
+    editingTimePostIds,
+    formatTimeTo12Hour,
+    projects,
+    onDeletePost: handleDeleteScheduledPost as any,
+    onDuplicatePost: handleDuplicatePost as any,
+    deletingPostIds,
+    duplicatingPostIds,
+    deletingUploadIds,
+    selectedPosts,
+    onTogglePostSelection: handleTogglePostSelection,
+    onDeleteClientUpload: handleDeleteClientUpload as any,
+    onUpdateCaption: handleUpdateCaption as any,
+    savingCaptionPostIds,
+    onEventAdd: handleOpenEventModal,
+    onEventClick: handleEditEvent,
+    contentEvents: contentEventsByDate,
+    onPostClick: handleCalendarCardClick,
+    onDrop: handleCalendarCardDrop,
+    onPostMove: handleColumnPostMove,
+    onPostMoveToWeek: handlePostMoveToWeek,
+    onAddCardClick: (weekStart: Date) => setCreatePostModal({ open: true, weekStart }),
+    onAddButtonDrop: handleAddButtonDrop,
+    onAddNoteForWeek: handleOpenEventModalForWeek,
+  };
+
+  // Bulk actions / scheduling / project filter bar — shown above the calendar, and inside the Board view.
+  const actionBar = (
+    <div className="bg-white border-b border-gray-200 px-6 py-3 mb-4 rounded-lg shadow flex items-center justify-between gap-3">
+      {/* Left side - action buttons */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => {
+            const totalPosts = Object.values(scheduledPosts).reduce((acc, week) => acc + week.length, 0);
+            if (selectedPosts.size === totalPosts && totalPosts > 0) {
+              handleDeselectAllPosts();
+            } else {
+              handleSelectAllPosts();
+            }
+          }}
+          className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-gray-600 hover:bg-gray-700"
+        >
+          {(() => {
+            const totalPosts = Object.values(scheduledPosts).reduce((acc, week) => acc + week.length, 0);
+            return selectedPosts.size === totalPosts && totalPosts > 0 ? 'Deselect All' : 'Select All';
+          })()}
+        </button>
+
+        <button
+          onClick={handleBulkDelete}
+          disabled={isDeleting || selectedPosts.size === 0}
+          className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+            isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' :
+            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+            'bg-red-600 hover:bg-red-700'
+          }`}
+        >
+          {isDeleting && (
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+          )}
+          {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
+        </button>
+
+        <button
+          onClick={handleExportToPDF}
+          disabled={exportingPDF || selectedPosts.size === 0}
+          className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+            exportingPDF ? 'opacity-50 cursor-not-allowed bg-blue-500' :
+            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+            'bg-blue-600 hover:bg-blue-700'
+          }`}
+          title={selectedPosts.size === 0 ? 'Select posts to export' : 'Export selected posts to PDF'}
+        >
+          {exportingPDF ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              Exporting...
+            </>
+          ) : (
+            <>
+              <FileDown className="w-4 h-4" />
+              Export to PDF ({selectedPosts.size || 0})
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={handleGenerateApprovalLink}
+          disabled={generatingApprovalLink || selectedPosts.size === 0}
+          className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
+            generatingApprovalLink ? 'opacity-50 cursor-not-allowed bg-purple-500' :
+            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+            'bg-purple-600 hover:bg-purple-700'
+          }`}
+          title={selectedPosts.size === 0 ? 'Select posts to create approval link' : 'Create approval link for client'}
+        >
+          {generatingApprovalLink ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              Generating...
+            </>
+          ) : (
+            <>
+              <LinkIcon className="w-4 h-4" />
+              Share Approval Link ({selectedPosts.size || 0})
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={handleScrollToClientPortal}
+          className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-teal-600 hover:bg-teal-700"
+          title="Scroll to Content Portal section"
+        >
+          <User className="w-4 h-4" />
+          Content Portal
+        </button>
+      </div>
+
+      {/* Right side - schedule + project filter + nav buttons */}
+      <div className="flex items-center gap-3">
+        {/* Schedule buttons */}
+        {(connectedAccounts.length > 0 || selectedPosts.size > 0) && (
+          <span
+            className={`text-sm py-2 transition-colors ${
+            selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-400'
+            }`}
+          >
+            {selectedPosts.size || 0} selected:
+          </span>
+        )}
+        {connectedAccounts.length > 0 ? (
+          connectedAccounts.map((account) => {
+            const isScheduling = schedulingPlatform === account.platform;
+
+            const allScheduledPosts = Object.values(scheduledPosts).flat();
+            const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
+
+            console.log('🔍 Button enable check for', account.platform, ':', {
+              selectedPostsSize: selectedPosts.size,
+              postsToScheduleLength: postsToSchedule.length,
+              allScheduledPostsCount: allScheduledPosts.length,
+              selectedPostsArray: Array.from(selectedPosts),
+              postsToSchedule: postsToSchedule.map(p => ({
+                id: p.id,
+                caption: p.caption,
+                captionType: typeof p.caption,
+                captionLength: p.caption?.length,
+                trimmedCaption: p.caption?.trim(),
+                hasCaption: !!p.caption,
+                captionIsEmpty: !p.caption || p.caption.trim() === '',
+                fullPost: p
+              })),
+              hasEmptyCaptions: postsToSchedule.some(p => !p.caption || p.caption.trim() === ''),
+              isScheduling,
+              buttonShouldBeEnabled: !isScheduling && !postsToSchedule.some(p => !p.caption || p.caption.trim() === '')
+            });
+
+            const hasEmptyCaptions = postsToSchedule.some(post => {
+              const currentCaption = editingCaptions[post.id] || post.caption || '';
+              return currentCaption.trim().length === 0;
+            });
+
+            const isDisabled = isScheduling || hasEmptyCaptions || selectedPosts.size === 0;
+            const platformBgColor = selectedPosts.size === 0 ? 'bg-gray-400' :
+              account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
+              account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
+              account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
+              account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
+              'bg-gray-600 hover:bg-gray-700';
+
+            return (
+              <button
+                key={account._id}
+                onClick={() => handleScheduleToPlatform(account)}
+                disabled={isDisabled}
+                className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 transition-all ${
+                  isDisabled ? 'opacity-40 cursor-not-allowed' : ''
+                } ${platformBgColor}`}
+                title={
+                  selectedPosts.size === 0 ? 'Select posts to schedule' :
+                  hasEmptyCaptions ? 'Add captions to selected posts before scheduling' :
+                  `Schedule ${selectedPosts.size} post${selectedPosts.size === 1 ? '' : 's'} to ${account.platform}`
+                }
+              >
+                {isScheduling ? (
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {account.platform === 'facebook' && <FacebookIcon size={16} />}
+                    {account.platform === 'instagram' && <InstagramIcon size={16} />}
+                    {account.platform === 'twitter' && <TwitterIcon size={16} />}
+                    {account.platform === 'linkedin' && <LinkedInIcon size={16} />}
+                    <span>Schedule {selectedPosts.size > 0 ? `(${selectedPosts.size})` : ''}</span>
+                  </div>
+                )}
+              </button>
+            );
+          })
+        ) : (
+          selectedPosts.size > 0 && (
+            <Link href={`/dashboard/client/${clientId}`}>
+              <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm flex items-center gap-2 transition-all">
+                Connect Social Media to Publish
+              </button>
+            </Link>
+          )
+        )}
+
+        {/* Divider */}
+        <div className="w-px h-6 bg-gray-200" />
+
+        {/* Project Filter Dropdown */}
+        <select
+          value={selectedProjectFilter}
+          onChange={(e) => setSelectedProjectFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+        >
+          <option value="all">All Projects</option>
+          <option value="untagged">Untagged</option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+
+        {/* Autopilot Button */}
+        <Link
+          href={`/dashboard/client/${clientId}/autopilot`}
+          className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white rounded-md shadow-sm hover:shadow-md transition-all duration-300 text-sm font-medium"
+        >
+          <Sparkles className="w-4 h-4 mr-1.5" />
+          Autopilot
+        </Link>
+
+      </div>
+    </div>
+  );
+
+  // Unscheduled posts tray — the left sidebar in Column/Month/Strip, a drawer in the Board view.
+  const postsTrayContent = (
+    <>
+      {/* Sidebar Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 min-h-[73px]">
+        <h3 className="text-sm font-medium text-gray-700">Posts</h3>
+        <button
+          onClick={() => fetchUnscheduledPosts(true)}
+          disabled={isLoadingPosts}
+          className="inline-flex items-center p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg disabled:opacity-50 transition-colors"
+          title="Refresh unscheduled posts"
+        >
+          <RefreshCw className={`w-4 h-4 ${isLoadingPosts ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
+      {/* Sidebar Content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {/* Loading State for Unscheduled Posts */}
+        {isLoadingPosts && projectPosts.length === 0 && (
+          <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+              <p className="text-sm text-blue-800">Loading...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Posts Grid - Vertical Layout */}
+        <div className="flex flex-col gap-3">
+          {projectPosts.length === 0 && !isLoadingPosts ? (
+            <div className="text-gray-400 text-sm py-4 text-center">
+              No posts added yet. Add posts from Content Suite.
+            </div>
+          ) : (
+            projectPosts.map((post) => {
+              const isMoving = movingPostId === post.id;
+              const isDeleting = deletingUnscheduledPostIds.has(post.id);
+              return (
+                <div
+                  key={post.id}
+                  className={`w-full aspect-square rounded-lg overflow-hidden border-2 relative ${
+                    isMoving || isDeleting
+                      ? 'border-blue-500 bg-blue-50 cursor-not-allowed opacity-50'
+                      : 'border-gray-200 cursor-move hover:border-blue-400'
+                  }`}
+                  draggable={!isMoving && !isDeleting}
+                  onDragStart={(e) => !isMoving && !isDeleting && handleDragStart(e, post)}
+                >
+                  {isMoving ? (
+                    <div className="w-full h-full flex items-center justify-center bg-blue-50">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    </div>
+                  ) : isDeleting ? (
+                    <div className="w-full h-full flex items-center justify-center bg-red-50">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={post.image_url || '/api/placeholder/100/100'}
+                        alt="Post"
+                        className="w-full h-full object-cover"
+                        loading="eager"
+                        onLoad={(e) => {
+                          // Image is loaded - ensure it's ready for drag preview
+                          (e.target as HTMLImageElement).decode().catch(() => {});
+                        }}
+                        onError={(e) => {
+                          console.log('Image failed to load, using placeholder for post:', post.id);
+                          e.currentTarget.src = '/api/placeholder/100/100';
+                        }}
+                      />
+                      {/* Action buttons */}
+                      <div className="absolute top-1 right-1 flex flex-col gap-1">
+                        {/* Edit button */}
+                        <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              // Navigate to content suite with editPostId parameter in same tab
+                              window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
+                            }}
+                            className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
+                            title="Edit in Content Suite"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+
+                          {/* Delete button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              if (confirm('Are you sure you want to delete this post?')) {
+                                handleDeleteUnscheduledPost(post.id);
+                              }
+                            }}
+                            className="w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
+                            title="Delete post"
+                          >
+                            ×
+                          </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-background">
+      {/* Board (beta) — Trello-style full-screen view. Remove this block + TrelloBoardCalendar.tsx to drop it. */}
+      {viewMode === 'board' && (
+        <div className="fixed inset-0 z-40">
+          <TrelloBoardCalendar
+            ref={columnViewRef}
+            {...sharedCalendarProps}
+            toolbar={
+              <>
+                <div className="flex items-center bg-white/15 rounded-lg p-0.5">
+                  {([
+                    ['month', 'Month', Calendar],
+                    ['column', 'Column', Columns],
+                    ['strip', 'Strip', ArrowRight],
+                    ['board', 'Board', KanbanSquare],
+                  ] as const).map(([mode, label, Icon]) => (
+                    <button
+                      key={mode}
+                      onClick={() => setViewMode(mode)}
+                      className={`px-2.5 py-1 text-sm rounded-md transition-all flex items-center gap-1.5 ${
+                        viewMode === mode ? 'bg-white text-gray-900 shadow-sm' : 'text-white/90 hover:bg-white/20'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="hidden lg:inline">{label}</span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setShowBoardPostsTray(v => !v)}
+                  className={`px-2.5 py-1 text-sm rounded-md transition-colors ${showBoardPostsTray ? 'bg-white/30' : 'hover:bg-white/20'}`}
+                  title="Show/hide unscheduled posts"
+                >
+                  Posts
+                </button>
+                <button
+                  onClick={() => setShowBoardActions(v => !v)}
+                  className={`px-2.5 py-1 text-sm rounded-md transition-colors ${
+                    showBoardActions || selectedPosts.size > 0 ? 'bg-white/30' : 'hover:bg-white/20'
+                  }`}
+                  title="Bulk actions, scheduling and project filter"
+                >
+                  Actions{selectedPosts.size > 0 ? ` (${selectedPosts.size})` : ''}
+                </button>
+                <button
+                  onClick={() => setShowEventsPanel(v => !v)}
+                  className={`px-2.5 py-1 text-sm rounded-md transition-colors ${showEventsPanel ? 'bg-white/30' : 'hover:bg-white/20'}`}
+                >
+                  Events
+                </button>
+                <button
+                  onClick={() => setViewMode('column')}
+                  className="p-1.5 rounded-md hover:bg-white/20 transition-colors"
+                  title="Exit board (Esc)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            }
+            subToolbar={
+              showBoardActions || selectedPosts.size > 0 ? (
+                <div className="overflow-x-auto [&>div]:mb-0">{actionBar}</div>
+              ) : null
+            }
+            leftDrawer={
+              showBoardPostsTray ? (
+                <div className="relative z-10 w-40 flex-shrink-0 m-3 mr-0 rounded-xl bg-white/95 shadow-md flex flex-col overflow-hidden">
+                  {postsTrayContent}
+                </div>
+              ) : null
+            }
+            rightPanel={
+              showEventsPanel ? (
+                <EventsPanel clientId={clientId as string} onClose={() => setShowEventsPanel(false)} />
+              ) : null
+            }
+          />
+        </div>
+      )}
       {/* View Toggle */}
       <ClientViewToggle clientId={clientId} activeView="calendar" />
       <div className="p-6 pb-8">
@@ -2474,217 +3012,7 @@ export default function CalendarPage() {
       )}
 
 
-      {/* Action Bar - all controls in one bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 mb-4 rounded-lg shadow flex items-center justify-between gap-3">
-        {/* Left side - action buttons */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              const totalPosts = Object.values(scheduledPosts).reduce((acc, week) => acc + week.length, 0);
-              if (selectedPosts.size === totalPosts && totalPosts > 0) {
-                handleDeselectAllPosts();
-              } else {
-                handleSelectAllPosts();
-              }
-            }}
-            className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-gray-600 hover:bg-gray-700"
-          >
-            {(() => {
-              const totalPosts = Object.values(scheduledPosts).reduce((acc, week) => acc + week.length, 0);
-              return selectedPosts.size === totalPosts && totalPosts > 0 ? 'Deselect All' : 'Select All';
-            })()}
-          </button>
-
-          <button
-            onClick={handleBulkDelete}
-            disabled={isDeleting || selectedPosts.size === 0}
-            className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-              isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' :
-              selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
-              'bg-red-600 hover:bg-red-700'
-            }`}
-          >
-            {isDeleting && (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            )}
-            {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
-          </button>
-
-          <button
-            onClick={handleExportToPDF}
-            disabled={exportingPDF || selectedPosts.size === 0}
-            className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-              exportingPDF ? 'opacity-50 cursor-not-allowed bg-blue-500' :
-              selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
-              'bg-blue-600 hover:bg-blue-700'
-            }`}
-            title={selectedPosts.size === 0 ? 'Select posts to export' : 'Export selected posts to PDF'}
-          >
-            {exportingPDF ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Exporting...
-              </>
-            ) : (
-              <>
-                <FileDown className="w-4 h-4" />
-                Export to PDF ({selectedPosts.size || 0})
-              </>
-            )}
-          </button>
-
-          <button
-            onClick={handleGenerateApprovalLink}
-            disabled={generatingApprovalLink || selectedPosts.size === 0}
-            className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-              generatingApprovalLink ? 'opacity-50 cursor-not-allowed bg-purple-500' :
-              selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
-              'bg-purple-600 hover:bg-purple-700'
-            }`}
-            title={selectedPosts.size === 0 ? 'Select posts to create approval link' : 'Create approval link for client'}
-          >
-            {generatingApprovalLink ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Generating...
-              </>
-            ) : (
-              <>
-                <LinkIcon className="w-4 h-4" />
-                Share Approval Link ({selectedPosts.size || 0})
-              </>
-            )}
-          </button>
-
-          <button
-            onClick={handleScrollToClientPortal}
-            className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-teal-600 hover:bg-teal-700"
-            title="Scroll to Content Portal section"
-          >
-            <User className="w-4 h-4" />
-            Content Portal
-          </button>
-        </div>
-
-        {/* Right side - schedule + project filter + nav buttons */}
-        <div className="flex items-center gap-3">
-          {/* Schedule buttons */}
-          {(connectedAccounts.length > 0 || selectedPosts.size > 0) && (
-            <span
-              className={`text-sm py-2 transition-colors ${
-              selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-400'
-              }`}
-            >
-              {selectedPosts.size || 0} selected:
-            </span>
-          )}
-          {connectedAccounts.length > 0 ? (
-            connectedAccounts.map((account) => {
-              const isScheduling = schedulingPlatform === account.platform;
-
-              const allScheduledPosts = Object.values(scheduledPosts).flat();
-              const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
-
-              console.log('🔍 Button enable check for', account.platform, ':', {
-                selectedPostsSize: selectedPosts.size,
-                postsToScheduleLength: postsToSchedule.length,
-                allScheduledPostsCount: allScheduledPosts.length,
-                selectedPostsArray: Array.from(selectedPosts),
-                postsToSchedule: postsToSchedule.map(p => ({
-                  id: p.id,
-                  caption: p.caption,
-                  captionType: typeof p.caption,
-                  captionLength: p.caption?.length,
-                  trimmedCaption: p.caption?.trim(),
-                  hasCaption: !!p.caption,
-                  captionIsEmpty: !p.caption || p.caption.trim() === '',
-                  fullPost: p
-                })),
-                hasEmptyCaptions: postsToSchedule.some(p => !p.caption || p.caption.trim() === ''),
-                isScheduling,
-                buttonShouldBeEnabled: !isScheduling && !postsToSchedule.some(p => !p.caption || p.caption.trim() === '')
-              });
-
-              const hasEmptyCaptions = postsToSchedule.some(post => {
-                const currentCaption = editingCaptions[post.id] || post.caption || '';
-                return currentCaption.trim().length === 0;
-              });
-
-              const isDisabled = isScheduling || hasEmptyCaptions || selectedPosts.size === 0;
-              const platformBgColor = selectedPosts.size === 0 ? 'bg-gray-400' :
-                account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
-                account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
-                account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
-                account.platform === 'linkedin' ? 'bg-blue-700 hover:bg-blue-800' :
-                'bg-gray-600 hover:bg-gray-700';
-
-              return (
-                <button
-                  key={account._id}
-                  onClick={() => handleScheduleToPlatform(account)}
-                  disabled={isDisabled}
-                  className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 transition-all ${
-                    isDisabled ? 'opacity-40 cursor-not-allowed' : ''
-                  } ${platformBgColor}`}
-                  title={
-                    selectedPosts.size === 0 ? 'Select posts to schedule' :
-                    hasEmptyCaptions ? 'Add captions to selected posts before scheduling' :
-                    `Schedule ${selectedPosts.size} post${selectedPosts.size === 1 ? '' : 's'} to ${account.platform}`
-                  }
-                >
-                  {isScheduling ? (
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      {account.platform === 'facebook' && <FacebookIcon size={16} />}
-                      {account.platform === 'instagram' && <InstagramIcon size={16} />}
-                      {account.platform === 'twitter' && <TwitterIcon size={16} />}
-                      {account.platform === 'linkedin' && <LinkedInIcon size={16} />}
-                      <span>Schedule {selectedPosts.size > 0 ? `(${selectedPosts.size})` : ''}</span>
-                    </div>
-                  )}
-                </button>
-              );
-            })
-          ) : (
-            selectedPosts.size > 0 && (
-              <Link href={`/dashboard/client/${clientId}`}>
-                <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm flex items-center gap-2 transition-all">
-                  Connect Social Media to Publish
-                </button>
-              </Link>
-            )
-          )}
-
-          {/* Divider */}
-          <div className="w-px h-6 bg-gray-200" />
-
-          {/* Project Filter Dropdown */}
-          <select
-            value={selectedProjectFilter}
-            onChange={(e) => setSelectedProjectFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-          >
-            <option value="all">All Projects</option>
-            <option value="untagged">Untagged</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Autopilot Button */}
-          <Link
-            href={`/dashboard/client/${clientId}/autopilot`}
-            className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white rounded-md shadow-sm hover:shadow-md transition-all duration-300 text-sm font-medium"
-          >
-            <Sparkles className="w-4 h-4 mr-1.5" />
-            Autopilot
-          </Link>
-
-        </div>
-      </div>
+      {actionBar}
 
         {/* Main Layout: Sidebar + Calendar Content */}
         <div className="flex gap-6 relative min-w-0" style={viewMode === 'month' ? { minHeight: 'calc(100vh - 200px)' } : { height: 'calc(100vh - 200px)' }}>
@@ -2693,118 +3021,7 @@ export default function CalendarPage() {
             className="bg-white rounded-lg shadow transition-all duration-300 flex flex-col w-36 flex-shrink-0 sticky top-0"
             style={viewMode === 'month' ? { height: 'calc(100vh - 200px)', alignSelf: 'flex-start' } : { height: 'calc(100vh - 200px)' }}
           >
-            {/* Sidebar Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 min-h-[73px]">
-              <h3 className="text-sm font-medium text-gray-700">Posts</h3>
-              <button
-                onClick={() => fetchUnscheduledPosts(true)}
-                disabled={isLoadingPosts}
-                className="inline-flex items-center p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg disabled:opacity-50 transition-colors"
-                title="Refresh unscheduled posts"
-              >
-                <RefreshCw className={`w-4 h-4 ${isLoadingPosts ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-
-            {/* Sidebar Content */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {/* Loading State for Unscheduled Posts */}
-              {isLoadingPosts && projectPosts.length === 0 && (
-                <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
-                    <p className="text-sm text-blue-800">Loading...</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Posts Grid - Vertical Layout */}
-              <div className="flex flex-col gap-3">
-                {projectPosts.length === 0 && !isLoadingPosts ? (
-                  <div className="text-gray-400 text-sm py-4 text-center">
-                    No posts added yet. Add posts from Content Suite.
-                  </div>
-                ) : (
-                  projectPosts.map((post) => {
-                    const isMoving = movingPostId === post.id;
-                    const isDeleting = deletingUnscheduledPostIds.has(post.id);
-                    return (
-                      <div
-                        key={post.id}
-                        className={`w-full aspect-square rounded-lg overflow-hidden border-2 relative ${
-                          isMoving || isDeleting
-                            ? 'border-blue-500 bg-blue-50 cursor-not-allowed opacity-50'
-                            : 'border-gray-200 cursor-move hover:border-blue-400'
-                        }`}
-                        draggable={!isMoving && !isDeleting}
-                        onDragStart={(e) => !isMoving && !isDeleting && handleDragStart(e, post)}
-                      >
-                        {isMoving ? (
-                          <div className="w-full h-full flex items-center justify-center bg-blue-50">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                          </div>
-                        ) : isDeleting ? (
-                          <div className="w-full h-full flex items-center justify-center bg-red-50">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
-                          </div>
-                        ) : (
-                          <>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={post.image_url || '/api/placeholder/100/100'}
-                              alt="Post"
-                              className="w-full h-full object-cover"
-                              loading="eager"
-                              onLoad={(e) => {
-                                // Image is loaded - ensure it's ready for drag preview
-                                (e.target as HTMLImageElement).decode().catch(() => {});
-                              }}
-                              onError={(e) => {
-                                console.log('Image failed to load, using placeholder for post:', post.id);
-                                e.currentTarget.src = '/api/placeholder/100/100';
-                              }}
-                            />
-                            {/* Action buttons */}
-                            <div className="absolute top-1 right-1 flex flex-col gap-1">
-                              {/* Edit button */}
-                              <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    // Navigate to content suite with editPostId parameter in same tab
-                                    window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
-                                  }}
-                                  className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
-                                  title="Edit in Content Suite"
-                                >
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  </svg>
-                                </button>
-
-                                {/* Delete button */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    if (confirm('Are you sure you want to delete this post?')) {
-                                      handleDeleteUnscheduledPost(post.id);
-                                    }
-                                  }}
-                                  className="w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
-                                  title="Delete post"
-                                >
-                                  ×
-                                </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
+            {postsTrayContent}
           </div>
 
           {/* Main Content - Calendar */}
@@ -2853,6 +3070,15 @@ export default function CalendarPage() {
                     <ArrowRight className="w-4 h-4" />
                     Strip
                   </button>
+                  <button
+                    onClick={() => setViewMode('board')}
+                    className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                    title="Trello-style board (beta)"
+                  >
+                    <KanbanSquare className="w-4 h-4" />
+                    Board
+                    <span className="px-1 py-px rounded bg-blue-100 text-blue-700 text-[9px] font-semibold uppercase leading-none">Beta</span>
+                  </button>
                 </div>
               </div>
               <MonthViewCalendar
@@ -2870,6 +3096,8 @@ export default function CalendarPage() {
                   dragOverDate={dragOverDate}
                 />
             </>
+            ) : viewMode === 'board' ? (
+              <div className="flex-1" />
             ) : viewMode === 'strip' ? (
             <>
               <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center justify-center">
@@ -2896,6 +3124,15 @@ export default function CalendarPage() {
                     <ArrowRight className="w-4 h-4" />
                     Strip
                   </button>
+                  <button
+                    onClick={() => setViewMode('board')}
+                    className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                    title="Trello-style board (beta)"
+                  >
+                    <KanbanSquare className="w-4 h-4" />
+                    Board
+                    <span className="px-1 py-px rounded bg-blue-100 text-blue-700 text-[9px] font-semibold uppercase leading-none">Beta</span>
+                  </button>
                 </div>
               </div>
               <StripCalendar
@@ -2904,38 +3141,7 @@ export default function CalendarPage() {
                 clientUploads={clientUploads}
                 loading={isLoadingScheduledPosts}
                 onPostMove={handleColumnPostMove}
-                onPostClick={(post) => {
-                  const isUpload =
-                    post.post_type === 'client-upload' ||
-                    post.post_type === 'client_upload' ||
-                    (post as any).isClientUpload;
-                  if (isUpload) {
-                    const uploadData = (post as any).client_upload || (post as any).upload || post;
-                    setUploadDetailModal({
-                      id: post.id,
-                      file_name: uploadData.file_name || post.caption || 'Upload',
-                      file_type: uploadData.file_type || 'image/jpeg',
-                      file_url: uploadData.file_url || post.image_url || '',
-                      notes: uploadData.notes || null,
-                      created_at: uploadData.created_at || new Date().toISOString(),
-                      target_date: uploadData.target_date ?? null,
-                    });
-                  } else {
-                    setPostDetailModal({
-                      id: post.id,
-                      caption: post.caption,
-                      image_url: post.image_url,
-                      media_urls: (post as any).media_urls ?? null,
-                      scheduled_date: post.scheduled_date,
-                      scheduled_time: post.scheduled_time,
-                      approval_status: post.approval_status,
-                      platforms_scheduled: post.platforms_scheduled,
-                      late_status: post.late_status ?? null,
-                      target_platforms: post.target_platforms ?? [],
-                      tags: post.tags ?? [],
-                    });
-                  }
-                }}
+                onPostClick={handleCalendarCardClick}
               />
             </>
             ) : (
@@ -2985,6 +3191,15 @@ export default function CalendarPage() {
                         <ArrowRight className="w-4 h-4" />
                         Strip
                       </button>
+                      <button
+                        onClick={() => setViewMode('board')}
+                        className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                        title="Trello-style board (beta)"
+                      >
+                        <KanbanSquare className="w-4 h-4" />
+                        Board
+                        <span className="px-1 py-px rounded bg-blue-100 text-blue-700 text-[9px] font-semibold uppercase leading-none">Beta</span>
+                      </button>
                     </div>
                     <button
                       onClick={() => setShowEventsPanel(v => !v)}
@@ -3011,81 +3226,7 @@ export default function CalendarPage() {
                 <div className="flex-1 min-w-0 min-h-0">
                 <ColumnViewCalendar
                   ref={columnViewRef}
-                  weeks={getWeeksToDisplay()}
-                  scheduledPosts={scheduledPosts as any}
-                  clientUploads={clientUploads}
-                  events={calendarEvents}
-                  loading={isLoadingScheduledPosts}
-                  formatWeekCommencing={formatWeekCommencing}
-                  clientId={clientId}
-                  handleEditScheduledPost={handleEditScheduledPost as any}
-                  editingPostId={editingPostId}
-                  setEditingPostId={setEditingPostId}
-                  editingTimePostIds={editingTimePostIds}
-                  formatTimeTo12Hour={formatTimeTo12Hour}
-                  projects={projects}
-                  onDeletePost={handleDeleteScheduledPost as any}
-                  onDuplicatePost={handleDuplicatePost as any}
-                  deletingPostIds={deletingPostIds}
-                  duplicatingPostIds={duplicatingPostIds}
-                  deletingUploadIds={deletingUploadIds}
-                  selectedPosts={selectedPosts}
-                  onTogglePostSelection={handleTogglePostSelection}
-                  onDeleteClientUpload={handleDeleteClientUpload as any}
-                  onUpdateCaption={handleUpdateCaption as any}
-                  savingCaptionPostIds={savingCaptionPostIds}
-                  onEventAdd={handleOpenEventModal}
-                  onEventClick={handleEditEvent}
-                  contentEvents={contentEventsByDate}
-                  onPostClick={(post) => {
-                    const isUpload =
-                      post.post_type === 'client-upload' ||
-                      post.post_type === 'client_upload' ||
-                      (post as any).isClientUpload;
-                    if (isUpload) {
-                      const uploadData = (post as any).client_upload || (post as any).upload || post;
-                      setUploadDetailModal({
-                        id: post.id,
-                        file_name: uploadData.file_name || post.caption || 'Upload',
-                        file_type: uploadData.file_type || 'image/jpeg',
-                        file_url: uploadData.file_url || post.image_url || '',
-                        notes: uploadData.notes || null,
-                        created_at: uploadData.created_at || new Date().toISOString(),
-                        target_date: uploadData.target_date ?? null,
-                      });
-                    } else {
-                      setPostDetailModal({
-                        id: post.id,
-                        caption: post.caption,
-                        image_url: post.image_url,
-                        media_urls: (post as any).media_urls ?? null,
-                        scheduled_date: post.scheduled_date,
-                        scheduled_time: post.scheduled_time,
-                        approval_status: post.approval_status,
-                        platforms_scheduled: post.platforms_scheduled,
-                        late_status: post.late_status ?? null,
-                        target_platforms: post.target_platforms ?? [],
-                        tags: post.tags ?? [],
-                      });
-                    }
-                  }}
-                  onDrop={async (e: React.DragEvent, dateKey: string) => {
-                    // Handle native HTML5 drag from unscheduled posts, dropped directly onto an existing card
-                    const postData = e.dataTransfer.getData('post');
-                    if (!postData) return;
-                    const post = JSON.parse(postData);
-                    await scheduleUnscheduledPost(post, dateKey, '12:00');
-                  }}
-                  onPostMove={handleColumnPostMove}
-                  onPostMoveToWeek={handlePostMoveToWeek}
-                  onAddCardClick={(weekStart) => setCreatePostModal({ open: true, weekStart })}
-                  onAddButtonDrop={(e: React.DragEvent, weekStart: Date) => {
-                    const postData = e.dataTransfer.getData('post');
-                    if (!postData) return;
-                    const post = JSON.parse(postData);
-                    setQuickSchedule({ weekStart, post, mode: 'schedule' });
-                  }}
-                  onAddNoteForWeek={handleOpenEventModalForWeek}
+                  {...sharedCalendarProps}
                 />
                 </div>
                 {showEventsPanel && (

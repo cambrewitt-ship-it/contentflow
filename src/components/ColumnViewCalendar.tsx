@@ -32,7 +32,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { type ContentEvent, EVENT_TYPE_COLORS } from '@/components/EventsCalendarLayer';
 
-function EventIndicatorsInline({ events }: { events: ContentEvent[] }) {
+export function EventIndicatorsInline({ events }: { events: ContentEvent[] }) {
   const visible = events.slice(0, 4);
   const overflow = events.length - 4;
   return (
@@ -51,7 +51,7 @@ function EventIndicatorsInline({ events }: { events: ContentEvent[] }) {
   );
 }
 
-interface ClientUpload {
+export interface ClientUpload {
   id: string;
   file_name?: string;
   file_type?: string;
@@ -70,7 +70,7 @@ interface PostTag {
   color: string;
 }
 
-interface Post {
+export interface Post {
   id: string;
   post_type?: string;
   caption: string;
@@ -86,17 +86,17 @@ interface Post {
 // Trello-style flat card model: a week column renders one entry per date-with-content
 // (a "divider" carrying the day header/events) followed by one entry per post scheduled
 // that date — instead of a fixed row per calendar day.
-type WeekEntry =
+export type WeekEntry =
   | { type: 'divider'; dateKey: string; dayDate: Date; dayName: string }
   | { type: 'post'; dateKey: string; post: Post };
 
-interface Project {
+export interface Project {
   id: string;
   name: string;
   [key: string]: any;
 }
 
-interface ColumnViewCalendarProps {
+export interface ColumnViewCalendarProps {
   weeks: Date[];
   scheduledPosts: {[key: string]: Post[]};
   clientUploads?: {[key: string]: ClientUpload[]};
@@ -133,7 +133,7 @@ interface ColumnViewCalendarProps {
   onPostClick?: (post: Post) => void;
 }
 
-const normalizeToWeekStart = (input: Date) => {
+export const normalizeToWeekStart = (input: Date) => {
   const date = new Date(input);
   const dayOfWeek = date.getDay();
   const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
@@ -142,7 +142,7 @@ const normalizeToWeekStart = (input: Date) => {
   return date;
 };
 
-const computeInitialStartWeek = (weekDates: Date[]) => {
+export const computeInitialStartWeek = (weekDates: Date[]) => {
   const currentWeekStart = normalizeToWeekStart(new Date());
 
   if (weekDates.length === 0) {
@@ -170,6 +170,102 @@ const computeInitialStartWeek = (weekDates: Date[]) => {
   return closestPastWeek || sortedWeeks[0] || currentWeekStart;
 };
 
+
+// Builds the flat per-week entry lists (date dividers + post/upload cards) shared by the
+// Column view and the Board view. Pure — callers memoize.
+export function buildWeekColumns(
+  startWeek: Date,
+  weekCount: number,
+  scheduledPosts: { [key: string]: Post[] },
+  clientUploads: { [key: string]: ClientUpload[] },
+  events: { [key: string]: CalendarEvent[] },
+  contentEvents?: Record<string, ContentEvent[]>,
+): Array<{ weekStart: Date; entries: WeekEntry[] }> {
+  const weekColumns: Array<{ weekStart: Date; entries: WeekEntry[] }> = [];
+
+  for (let weekIndex = 0; weekIndex < weekCount; weekIndex++) {
+    const weekStartDate = new Date(startWeek);
+    weekStartDate.setDate(startWeek.getDate() + weekIndex * 7);
+
+    const entries: WeekEntry[] = [];
+
+    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+      const dayDate = new Date(weekStartDate);
+      dayDate.setDate(weekStartDate.getDate() + dayIndex);
+
+      const dateKey = dayDate.toLocaleDateString('en-CA');
+      const postsForDay = (scheduledPosts[dateKey] || []).map(post => ({
+        ...post,
+        post_type: post.post_type || 'post',
+        scheduled_date: post.scheduled_date || dateKey,
+      }));
+
+      const uploadsForDay: ClientUpload[] = clientUploads?.[dateKey] ?? [];
+
+      // Group carousel uploads (same carousel_group_id) into a single card
+      const seenCarouselGroups = new Set<string>();
+      const uploadEntries: Post[] = [];
+      for (const upload of uploadsForDay) {
+        if (upload.carousel_group_id) {
+          if (seenCarouselGroups.has(upload.carousel_group_id)) continue;
+          seenCarouselGroups.add(upload.carousel_group_id);
+          const group = uploadsForDay
+            .filter((u: ClientUpload) => u.carousel_group_id === upload.carousel_group_id)
+            .sort((a: ClientUpload, b: ClientUpload) => (a.carousel_order ?? 0) - (b.carousel_order ?? 0));
+          const isImage = typeof group[0].file_type === 'string'
+            ? group[0].file_type.startsWith('image/')
+            : /\.(png|jpe?g|gif|webp|svg)$/i.test(group[0].file_name || '');
+          uploadEntries.push({
+            id: group[0].id,
+            post_type: 'client-upload',
+            caption: group[0].notes || 'Client Upload',
+            image_url: isImage ? group[0].file_url : undefined,
+            scheduled_date: dateKey,
+            client_upload: group[0],
+            isClientUpload: true,
+            carouselUploads: group,
+            carousel_count: group.length,
+            tags: group[0].tags ?? [],
+          });
+        } else {
+          const isImage = typeof upload.file_type === 'string'
+            ? upload.file_type.startsWith('image/')
+            : /\.(png|jpe?g|gif|webp|svg)$/i.test(upload.file_name || '');
+          uploadEntries.push({
+            id: upload.id,
+            post_type: 'client-upload',
+            caption: upload.notes || 'Client Upload',
+            image_url: isImage ? upload.file_url : undefined,
+            scheduled_date: dateKey,
+            client_upload: upload,
+            isClientUpload: true,
+            tags: upload.tags ?? [],
+          });
+        }
+      }
+
+      const postsForDate = [...postsForDay, ...uploadEntries];
+      const hasEvents = (events[dateKey]?.length ?? 0) > 0 || (contentEvents?.[dateKey]?.length ?? 0) > 0;
+
+      // Decluttering: only render a date's header when it actually has something to show.
+      // A bare date (no posts, no events) contributes nothing — it's reachable only via the
+      // "+" add-card button or the week-wide "Add note" hover affordance.
+      if (postsForDate.length > 0 || hasEvents) {
+        entries.push({ type: 'divider', dateKey, dayDate, dayName: dayDate.toLocaleDateString('en-NZ', { weekday: 'short' }) });
+        for (const post of postsForDate) {
+          entries.push({ type: 'post', dateKey, post });
+        }
+      }
+    }
+
+    weekColumns.push({
+      weekStart: weekStartDate,
+      entries,
+    });
+  }
+
+  return weekColumns;
+}
 
 // Sortable Post Card Component
 function SortablePostCard({ 
@@ -1215,11 +1311,6 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
     })
   );
 
-  // Get day name and format date
-  const getDayName = (date: Date) => {
-    return date.toLocaleDateString('en-NZ', { weekday: 'short' });
-  };
-
   const getDayNumber = (date: Date) => {
     return date.getDate();
   };
@@ -1236,92 +1327,10 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
     }
   }, [weeks]);
 
-  const columns = useMemo(() => {
-    const weekColumns: Array<{ weekStart: Date; entries: WeekEntry[] }> = [];
-
-    for (let weekIndex = 0; weekIndex < VISIBLE_WEEK_COUNT; weekIndex++) {
-      const weekStartDate = new Date(startWeek);
-      weekStartDate.setDate(startWeek.getDate() + weekIndex * 7);
-
-      const entries: WeekEntry[] = [];
-
-      for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
-        const dayDate = new Date(weekStartDate);
-        dayDate.setDate(weekStartDate.getDate() + dayIndex);
-
-        const dateKey = dayDate.toLocaleDateString('en-CA');
-        const postsForDay = (scheduledPosts[dateKey] || []).map(post => ({
-          ...post,
-          post_type: post.post_type || 'post',
-          scheduled_date: post.scheduled_date || dateKey,
-        }));
-
-        const uploadsForDay: ClientUpload[] = clientUploadsMap?.[dateKey] ?? [];
-
-        // Group carousel uploads (same carousel_group_id) into a single card
-        const seenCarouselGroups = new Set<string>();
-        const uploadEntries: Post[] = [];
-        for (const upload of uploadsForDay) {
-          if (upload.carousel_group_id) {
-            if (seenCarouselGroups.has(upload.carousel_group_id)) continue;
-            seenCarouselGroups.add(upload.carousel_group_id);
-            const group = uploadsForDay
-              .filter((u: ClientUpload) => u.carousel_group_id === upload.carousel_group_id)
-              .sort((a: ClientUpload, b: ClientUpload) => (a.carousel_order ?? 0) - (b.carousel_order ?? 0));
-            const isImage = typeof group[0].file_type === 'string'
-              ? group[0].file_type.startsWith('image/')
-              : /\.(png|jpe?g|gif|webp|svg)$/i.test(group[0].file_name || '');
-            uploadEntries.push({
-              id: group[0].id,
-              post_type: 'client-upload',
-              caption: group[0].notes || 'Client Upload',
-              image_url: isImage ? group[0].file_url : undefined,
-              scheduled_date: dateKey,
-              client_upload: group[0],
-              isClientUpload: true,
-              carouselUploads: group,
-              carousel_count: group.length,
-              tags: group[0].tags ?? [],
-            });
-          } else {
-            const isImage = typeof upload.file_type === 'string'
-              ? upload.file_type.startsWith('image/')
-              : /\.(png|jpe?g|gif|webp|svg)$/i.test(upload.file_name || '');
-            uploadEntries.push({
-              id: upload.id,
-              post_type: 'client-upload',
-              caption: upload.notes || 'Client Upload',
-              image_url: isImage ? upload.file_url : undefined,
-              scheduled_date: dateKey,
-              client_upload: upload,
-              isClientUpload: true,
-              tags: upload.tags ?? [],
-            });
-          }
-        }
-
-        const postsForDate = [...postsForDay, ...uploadEntries];
-        const hasEvents = (events[dateKey]?.length ?? 0) > 0 || (contentEvents?.[dateKey]?.length ?? 0) > 0;
-
-        // Decluttering: only render a date's header when it actually has something to show.
-        // A bare date (no posts, no events) contributes nothing — it's reachable only via the
-        // "+" add-card button or the week-wide "Add note" hover affordance.
-        if (postsForDate.length > 0 || hasEvents) {
-          entries.push({ type: 'divider', dateKey, dayDate, dayName: getDayName(dayDate) });
-          for (const post of postsForDate) {
-            entries.push({ type: 'post', dateKey, post });
-          }
-        }
-      }
-
-      weekColumns.push({
-        weekStart: weekStartDate,
-        entries,
-      });
-    }
-
-    return weekColumns;
-  }, [startWeek, scheduledPosts, clientUploads, events, contentEvents]);
+  const columns = useMemo(
+    () => buildWeekColumns(startWeek, VISIBLE_WEEK_COUNT, scheduledPosts, clientUploadsMap, events, contentEvents),
+    [startWeek, scheduledPosts, clientUploads, events, contentEvents]
+  );
 
   const handleDragStart = (event: DragStartEvent) => {
     logger.debug('🔵 ColumnView DragStart:', event.active.id);
