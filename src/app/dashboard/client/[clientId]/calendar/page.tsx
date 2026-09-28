@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, KanbanSquare, AlertCircle, FileDown, Sparkles, ArrowLeft, ArrowRight } from 'lucide-react';
-import ClientViewToggle from '@/components/ClientViewToggle';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
@@ -261,7 +260,6 @@ export default function CalendarPage() {
     mode: 'schedule' | 'move';
   } | null>(null);
   const [quickScheduleSubmitting, setQuickScheduleSubmitting] = useState(false);
-  const clientPortalRef = useRef<HTMLDivElement>(null);
   const [showPlanRestrictionDialog, setShowPlanRestrictionDialog] = useState(false);
   const [planRestrictionMessage, setPlanRestrictionMessage] = useState(
     'Social media posting is not available on the free plan. Please upgrade to post to social media.'
@@ -272,6 +270,7 @@ export default function CalendarPage() {
   const [portalUrl, setPortalUrl] = useState<string | null>(null);
   const [generatingPortalLink, setGeneratingPortalLink] = useState(false);
   const [portalLinkCopied, setPortalLinkCopied] = useState(false);
+  const [showPortalModal, setShowPortalModal] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [showPDFExportModal, setShowPDFExportModal] = useState(false);
   const [clientName, setClientName] = useState<string>('');
@@ -457,9 +456,10 @@ export default function CalendarPage() {
     }
   };
 
-  // Scroll to Content Portal section
-  const handleScrollToClientPortal = () => {
-    clientPortalRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Open the Content Portal modal, fetching the link the first time.
+  const handleOpenPortalModal = () => {
+    setShowPortalModal(true);
+    if (!portalUrl && !generatingPortalLink) handleGeneratePortalLink();
   };
 
   // Generate approval link for selected posts
@@ -2641,9 +2641,9 @@ export default function CalendarPage() {
         </button>
 
         <button
-          onClick={handleScrollToClientPortal}
+          onClick={handleOpenPortalModal}
           className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-teal-600 hover:bg-teal-700"
-          title="Scroll to Content Portal section"
+          title="Get the client's Content Portal link"
         >
           <User className="w-4 h-4" />
           Content Portal
@@ -2892,11 +2892,9 @@ export default function CalendarPage() {
   return (
     <div className={`${viewMode === 'board' ? 'h-full' : 'min-h-screen'} bg-background`}>
       {/* Board (beta) — Trello-style view. It fills the page's content area so the app sidebar and
-          top bar stay visible; the posts tray and action bar are always shown. The rest of the page
-          (content portal etc.) sits below it. Remove this block + TrelloBoardCalendar.tsx to drop it. */}
+          top bar stay visible; the posts tray and action bar are always shown. Remove this block + TrelloBoardCalendar.tsx to drop it. */}
       {viewMode === 'board' && (
         <div className="h-full flex flex-col">
-          <ClientViewToggle clientId={clientId} activeView="calendar" />
           <div className="flex-1 min-h-0">
             <TrelloBoardCalendar
               ref={columnViewRef}
@@ -2944,13 +2942,7 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
-      {viewMode !== 'board' && (
-        <>
-      {/* View Toggle */}
-      <ClientViewToggle clientId={clientId} activeView="calendar" />
-        </>
-      )}
-      <div className="p-6 pb-8">
+      <div className={`p-6 pb-8 ${viewMode === 'board' && !error ? 'hidden' : ''}`}>
       {/* Error Display */}
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -3207,78 +3199,63 @@ export default function CalendarPage() {
         </div> {/* End Sidebar + Calendar Flex Container */}
         </div> {/* End Outer Flex Container */}
 
-        {/* Content Portal Section */}
-        <div ref={clientPortalRef} className="mt-8 bg-white rounded-lg shadow p-8">
-            <h3 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Content Portal</h3>
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <h4 className="text-lg font-semibold text-gray-700">Portal Link</h4>
-                  <p className="text-sm text-gray-600">
-                    Generate a secure link for the client to access their portal
-                  </p>
-                </div>
-                <Button
-                  onClick={handleGeneratePortalLink}
-                  disabled={generatingPortalLink}
-                  className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
-                >
-                  {generatingPortalLink ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <LinkIcon className="w-4 h-4 mr-2" />
-                      Generate Portal Link
-                    </>
-                  )}
-                </Button>
-              </div>
-
-              {portalUrl && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-700 mb-1">Portal URL:</p>
-                      <p className="text-sm text-gray-600 break-all">{portalUrl}</p>
-                    </div>
-                    <div className="flex items-center space-x-2 shrink-0">
-                      <Button
-                        onClick={handleCopyPortalLink}
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center"
-                      >
-                        {portalLinkCopied ? (
-                          <>
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            Copied!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4 mr-1" />
-                            Copy
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        onClick={() => window.open(portalUrl, '_blank')}
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center"
-                      >
-                        <ExternalLink className="w-4 h-4 mr-1" />
-                        Open
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
       </div>
+
+      {/* Content Portal link — opened from the "Content Portal" button in the action bar */}
+      <Dialog open={showPortalModal} onOpenChange={setShowPortalModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="w-5 h-5 text-teal-600" />
+              Content Portal
+            </DialogTitle>
+            <DialogDescription>
+              Share this secure link with your client so they can view, approve and upload content.
+            </DialogDescription>
+          </DialogHeader>
+
+          {generatingPortalLink && !portalUrl ? (
+            <div className="flex items-center gap-3 py-4 text-sm text-gray-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-teal-600 border-t-transparent" />
+              Getting portal link...
+            </div>
+          ) : portalUrl ? (
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={portalUrl}
+                onFocus={(e) => e.currentTarget.select()}
+                className="flex-1 min-w-0 px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <Button onClick={handleCopyPortalLink} variant="outline" size="sm" className="flex items-center shrink-0">
+                {portalLinkCopied ? (
+                  <>
+                    <CheckCircle className="w-4 h-4 mr-1 text-green-600" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 mr-1" />
+                    Copy
+                  </>
+                )}
+              </Button>
+              <Button onClick={() => window.open(portalUrl, '_blank')} variant="outline" size="sm" className="flex items-center shrink-0">
+                <ExternalLink className="w-4 h-4 mr-1" />
+                Open
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3 py-2">
+              <p className="text-sm text-gray-600">Couldn&apos;t load the portal link.</p>
+              <Button onClick={handleGeneratePortalLink} size="sm" className="bg-teal-600 hover:bg-teal-700 text-white">
+                <LinkIcon className="w-4 h-4 mr-1" />
+                Try again
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showPlanRestrictionDialog} onOpenChange={setShowPlanRestrictionDialog}>
         <DialogContent className="sm:max-w-md">

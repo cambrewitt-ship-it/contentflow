@@ -13,7 +13,6 @@ import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, Aler
 import PhotoSwapDialog from '@/components/PhotoSwapDialog'
 import { isVideoUrl } from '@/lib/videoUtils'
 import Link from 'next/link'
-import ClientViewToggle from '@/components/ClientViewToggle'
 import { SocialPreviewColumn } from './SocialPreviewColumn'
 import { ContentIdeasColumn } from './ContentIdeasColumn'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -1841,9 +1840,6 @@ function ContentSuiteContent({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* View Toggle */}
-      <ClientViewToggle clientId={clientId} activeView="content-suite" />
-
       {/* Action bar */}
       {isEditing && (
         <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">

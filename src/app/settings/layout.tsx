@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, User, CreditCard, Home } from 'lucide-react';
 import { useEffect } from 'react';
+import PlanBadge from '@/components/PlanBadge';
 
 const tabs = [
   {
@@ -115,10 +116,15 @@ export default function SettingsLayout({
                 <span>Back to Dashboard</span>
               </Button>
             </div>
-            <h1 className="text-3xl font-bold mb-2">Settings</h1>
-            <p className="text-muted-foreground">
-              Manage your account settings and preferences
-            </p>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold mb-2">Settings</h1>
+                <p className="text-muted-foreground">
+                  Manage your account settings and preferences
+                </p>
+              </div>
+              <PlanBadge />
+            </div>
           </div>
 
           {/* Tab Content */}

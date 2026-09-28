@@ -10,7 +10,6 @@ import BrandInformationPanel from '@/components/BrandInformationPanel'
 import { CompactMonthCalendar } from '@/components/CompactMonthCalendar'
 import { useAuth } from '@/contexts/AuthContext'
 import OnboardingChecklist from '@/components/OnboardingChecklist'
-import ClientViewToggle from '@/components/ClientViewToggle'
 import { Client, BrandDocument, WebsiteScrape, OAuthMessage } from '@/types/api'
 import { 
   FacebookIcon, 
@@ -957,8 +956,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   return (
     <div className="min-h-screen bg-background">
-      <ClientViewToggle clientId={clientId} activeView="dashboard" />
-      <div className="px-8 pb-8 max-w-7xl mx-auto">
+      <div className="px-8 pt-6 pb-8 max-w-7xl mx-auto">
         {/* Onboarding Checklist */}
         <OnboardingChecklist clientId={clientId} refreshKey={connectedAccounts.length} />
 
