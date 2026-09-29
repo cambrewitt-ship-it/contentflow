@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { resetMonthlyUsageIfDue } from './subscriptionHelpers';
 
 // Create Supabase client with service role for admin operations
 const supabaseAdmin = createClient(
@@ -204,6 +205,18 @@ export async function checkAICreditsPermissionForUser(
         error: 'Failed to check subscription status',
         userId
       };
+    }
+
+    // Start a fresh month if the billing period has rolled over since the
+    // last reset (backstop for a missed invoice.paid webhook, and the only
+    // reset path for subscriptions without Stripe billing).
+    try {
+      if (await resetMonthlyUsageIfDue(subscription)) {
+        subscription.ai_credits_used_this_month = 0;
+        subscription.posts_used_this_month = 0;
+      }
+    } catch (resetError) {
+      console.error('Error resetting monthly usage:', resetError);
     }
 
     // Check if subscription is active
@@ -435,17 +448,29 @@ export async function trackAICreditUsage(
     }
 
     // Log to ai_credit_usage table for analytics (even if there was an update error)
+    // Supabase returns (not throws) insert errors, so check them explicitly.
+    // Some databases were created without the metadata column — retry
+    // without it rather than silently dropping the usage record.
     try {
-      await supabaseAdmin
+      const usageRow = {
+        user_id: userId,
+        credit_type: creditType,
+        action_type: actionType,
+        credits_used: creditsUsed,
+        client_id: clientId || null,
+      };
+      const { error: insertError } = await supabaseAdmin
         .from('ai_credit_usage')
-        .insert({
-          user_id: userId,
-          credit_type: creditType,
-          action_type: actionType,
-          credits_used: creditsUsed,
-          client_id: clientId || null,
-          metadata: metadata || {}
-        });
+        .insert({ ...usageRow, metadata: metadata || {} });
+      if (insertError) {
+        console.error('Error logging to ai_credit_usage table, retrying without metadata:', insertError);
+        const { error: retryError } = await supabaseAdmin
+          .from('ai_credit_usage')
+          .insert(usageRow);
+        if (retryError) {
+          console.error('Error logging to ai_credit_usage table:', retryError);
+        }
+      }
     } catch (logError) {
       // Log error but don't fail the whole operation
       console.error('Error logging to ai_credit_usage table:', logError);

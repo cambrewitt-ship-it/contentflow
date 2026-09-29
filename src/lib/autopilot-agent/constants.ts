@@ -11,18 +11,24 @@
 // drafting/critiquing/proposing 10-12 candidates.
 export const MAX_ITERATIONS = 24;
 
-// Calibrated against the old v2 one-shot engine's implied cost (1 base + N
-// candidates credits for a ~6-7k token prompt+completion). Not an exact
-// science — revisit once real agent-run token usage data exists.
-export const TOKENS_PER_CREDIT = 500;
+// Agent runs are billed per candidate produced (1 base + 1 per candidate),
+// matching the old v2 one-shot engine. Billing on raw token usage doesn't
+// work for the agent loop: every iteration resends the whole conversation
+// (system prompt, context briefing, prior tool results), so cumulative
+// prompt tokens grow roughly quadratically with iterations and a single run
+// was charged hundreds of credits.
+export const BASE_CREDITS_PER_RUN = 1;
 
-// Conservative per-iteration token estimate (growing message history + tool
-// results) used only for the pre-flight credit-check ceiling — actual usage
-// is trued up afterward via trackAICreditUsage with real token counts, which
-// in practice should be well below this worst case since most runs finalize
-// long before hitting MAX_ITERATIONS.
-const AVG_TOKENS_PER_ITERATION_ESTIMATE = 1800;
+// Upper bound on candidates in one run: up to 12 organic posts (runBrief
+// postCount / saved-settings cap) plus up to 10 ad copy variants
+// (ad_copy_settings.variants_per_run cap). A paid-only brief is at most 12.
+export const MAX_CANDIDATES_PER_RUN = 22;
 
+export function creditsForRun(candidatesCreated: number): number {
+  return BASE_CREDITS_PER_RUN + Math.max(0, candidatesCreated);
+}
+
+// Pre-flight ceiling for /api/autopilot/generate-plan and the agent panel.
 export function estimateWorstCaseCredits(): number {
-  return Math.ceil((MAX_ITERATIONS * AVG_TOKENS_PER_ITERATION_ESTIMATE) / TOKENS_PER_CREDIT);
+  return creditsForRun(MAX_CANDIDATES_PER_RUN);
 }

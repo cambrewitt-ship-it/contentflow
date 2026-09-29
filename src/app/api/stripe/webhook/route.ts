@@ -9,6 +9,7 @@ import {
   createBillingRecord,
   getTierLimits,
   addPurchasedCredits,
+  resetMonthlyUsage,
 } from '@/lib/subscriptionHelpers';
 import { getCreditPackageByPriceId } from '@/lib/creditPackages';
 import logger from '@/lib/logger';
@@ -256,6 +257,17 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
   if (!dbSubscription) {
     logger.error('Subscription not found for customer');
     return;
+  }
+
+  // A renewal invoice starts a new billing period — reset monthly usage.
+  // Bounded by the invoice creation time so a retried webhook doesn't wipe
+  // usage recorded after the first reset.
+  if (invoice.billing_reason === 'subscription_cycle') {
+    try {
+      await resetMonthlyUsage(dbSubscription.user_id, new Date(invoice.created * 1000));
+    } catch (error) {
+      logger.error('Failed to reset monthly usage on renewal:', error);
+    }
   }
 
   // Create billing history record

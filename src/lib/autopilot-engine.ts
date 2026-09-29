@@ -22,7 +22,7 @@ import {
 import type { GalleryItem } from '@/lib/autopilot-agent/context';
 import { runAutopilotAgentLoop } from '@/lib/autopilot-agent/loop';
 import type { RunContext } from '@/lib/autopilot-agent/tools';
-import { TOKENS_PER_CREDIT } from '@/lib/autopilot-agent/constants';
+import { creditsForRun } from '@/lib/autopilot-agent/constants';
 import { organicEnabled, adsEnabled } from '@/lib/autopilot-agent/runBrief';
 import type { RunBrief } from '@/lib/autopilot-agent/runBrief';
 
@@ -312,8 +312,8 @@ export async function generateContentPlan(
     .select('*')
     .single();
 
-  // Step 7: Track credits based on actual token usage across the whole loop
-  const totalCredits = Math.max(1, Math.ceil(runResult.usage.totalTokens / TOKENS_PER_CREDIT));
+  // Step 7: Track credits — 1 base + 1 per candidate saved (see creditsForRun)
+  const totalCredits = creditsForRun(createdCandidates.length);
   await trackAICreditUsage(userId, totalCredits, 'autopilot_generate', clientId, {
     iterations: runResult.usage.iterations,
     toolCalls: runResult.usage.toolCalls,

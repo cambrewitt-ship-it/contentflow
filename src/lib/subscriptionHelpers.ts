@@ -277,6 +277,57 @@ export async function incrementUsage(
   return data;
 }
 
+// Reset the monthly usage counters if the last reset was before `boundary`.
+// The conditional update makes this idempotent: webhook retries or concurrent
+// callers with the same boundary reset at most once, so usage recorded after
+// the reset is never wiped. Returns true if a reset happened.
+export async function resetMonthlyUsage(
+  userId: string,
+  boundary: Date
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('subscriptions')
+    .update({
+      ai_credits_used_this_month: 0,
+      posts_used_this_month: 0,
+      usage_reset_date: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+    .or(`usage_reset_date.is.null,usage_reset_date.lt.${boundary.toISOString()}`)
+    .select('id');
+
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+// Lazily reset monthly usage when a new billing period has started. Paid
+// subscriptions reset at the Stripe period start (kept current by the
+// customer.subscription.updated webhook); subscriptions without a Stripe
+// period (freemium/trial) reset one month after the last reset.
+export async function resetMonthlyUsageIfDue(
+  subscription: Pick<
+    Subscription,
+    'user_id' | 'usage_reset_date' | 'current_period_start' | 'stripe_subscription_id'
+  >
+): Promise<boolean> {
+  let boundary: Date;
+  if (subscription.stripe_subscription_id && subscription.current_period_start) {
+    boundary = new Date(subscription.current_period_start);
+  } else {
+    boundary = new Date();
+    boundary.setMonth(boundary.getMonth() - 1);
+  }
+
+  if (
+    subscription.usage_reset_date &&
+    new Date(subscription.usage_reset_date) >= boundary
+  ) {
+    return false;
+  }
+
+  return resetMonthlyUsage(subscription.user_id, boundary);
+}
+
 // Decrement usage counter (for rollback scenarios)
 export async function decrementUsage(
   userId: string,

@@ -102,10 +102,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Credit check: conservative worst-case for the agentic loop (bounded
-    // iteration count x a per-iteration token estimate). The loop typically
-    // finalizes well before the iteration cap, so real usage — tracked via
-    // trackAICreditUsage after the run — is usually well under this ceiling.
+    // Credit check: worst case is 1 base + the max candidates a run can
+    // produce. Actual charge (trackAICreditUsage after the run) is based on
+    // how many candidates were saved, so it's usually lower.
     const creditCheck = await withAICreditCheck(request, estimateWorstCaseCredits());
     if (!creditCheck.allowed) {
       return NextResponse.json(
