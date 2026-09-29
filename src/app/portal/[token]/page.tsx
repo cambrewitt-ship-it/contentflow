@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns, Inbox, Upload, Image as ImageIcon, Film, Trash2, Sparkles, File, ListOrdered, FileDown, Link as LinkIcon, Copy, CheckCheck, Settings2, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns, Inbox, Upload, Image as ImageIcon, Film, Trash2, Sparkles, File, ListOrdered, FileDown, Link as LinkIcon, Copy, CheckCheck, Settings2, Plus, Smartphone } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,6 +21,7 @@ import { PortalCreatePostModal } from '@/components/PortalCreatePostModal';
 import { QuickScheduleDayTimePicker } from '@/components/QuickScheduleDayTimePicker';
 import EventsPanel from '@/components/EventsPanel';
 import { useContentEvents } from '@/components/EventsCalendarLayer';
+import { InstagramFeedPreview, buildFeedPreviewItems } from '@/components/InstagramFeedPreview';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -388,6 +389,12 @@ export default function PortalCalendarPage() {
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
   // Events panel on the board (holidays + custom events), shared with the agency calendar.
   const [showEventsPanel, setShowEventsPanel] = useState(false);
+  // Instagram grid mock-up of the calendar's posts, in publish order
+  const [showFeedPreview, setShowFeedPreview] = useState(false);
+  const feedPreviewItems = useMemo(
+    () => (showFeedPreview ? buildFeedPreviewItems(scheduledPosts, uploads) : []),
+    [showFeedPreview, scheduledPosts, uploads]
+  );
   const { eventsByDate: contentEventsByDate, refetch: refetchContentEvents } = useContentEvents(
     client?.id ?? '',
     undefined,
@@ -2270,7 +2277,15 @@ export default function PortalCalendarPage() {
 
       {/* View toggle for Column / Month (the Board view has its own, next to Events) */}
       {(viewMode === 'column' || viewMode === 'month') && (
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFeedPreview(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:text-gray-900"
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            Feed preview
+          </button>
           <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
             {PORTAL_VIEW_OPTIONS.map(({ id, label, Icon }) => (
               <button
@@ -2343,6 +2358,13 @@ export default function PortalCalendarPage() {
                 >
                   <Calendar className="w-4 h-4" />
                   Events
+                </button>
+                <button
+                  onClick={() => setShowFeedPreview(true)}
+                  className="px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1.5 hover:bg-white/20"
+                >
+                  <Smartphone className="w-4 h-4" />
+                  <span className="hidden lg:inline">Feed preview</span>
                 </button>
               </>
             }
@@ -2441,6 +2463,14 @@ export default function PortalCalendarPage() {
           </div>
         </div>
       )}
+
+      <InstagramFeedPreview
+        open={showFeedPreview}
+        onClose={() => setShowFeedPreview(false)}
+        items={feedPreviewItems}
+        accountName={brandName || client?.name || ''}
+        avatarUrl={brandLogoUrl || client?.logo_url || null}
+      />
 
       {/* Trello-style item modal */}
       {modalItem && (

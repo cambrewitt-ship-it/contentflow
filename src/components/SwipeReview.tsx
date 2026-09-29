@@ -12,6 +12,8 @@ interface Props {
   clientId: string;
   candidates: AutopilotCandidate[];
   onComplete: (keptCount: number, keptCandidates: AutopilotCandidate[]) => void;
+  /** Arrow-key shortcuts listen on the window — turn them off while the review is hidden. */
+  keyboardEnabled?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -436,7 +438,7 @@ function CandidatePreview({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function SwipeReview({ planId, clientId, candidates, onComplete }: Props) {
+export default function SwipeReview({ planId, clientId, candidates, onComplete, keyboardEnabled = true }: Props) {
 
   const pending = useMemo(() => candidates.filter(c => c.decision === 'pending'), [candidates]);
 
@@ -465,6 +467,7 @@ export default function SwipeReview({ planId, clientId, candidates, onComplete }
 
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const isProcessing = useRef(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const hasCompleted = useRef(false);
 
   const isDone = currentIndex >= pending.length;
@@ -509,7 +512,8 @@ export default function SwipeReview({ planId, clientId, candidates, onComplete }
         setDirection(null);
         isProcessing.current = false;
         // Cards vary in height now — start the next one from its top
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        const top = rootRef.current?.getBoundingClientRect().top ?? 0;
+        if (top < 0) window.scrollBy({ top: top - 16, behavior: 'smooth' });
 
         // Check if this was the last card
         if (newIndex >= pending.length && !hasCompleted.current) {
@@ -554,6 +558,7 @@ export default function SwipeReview({ planId, clientId, candidates, onComplete }
 
   // Keyboard shortcuts
   useEffect(() => {
+    if (!keyboardEnabled) return;
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === 'ArrowRight') handleDecision('kept');
@@ -566,7 +571,7 @@ export default function SwipeReview({ planId, clientId, candidates, onComplete }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleDecision]);
+  }, [handleDecision, keyboardEnabled]);
 
   const keptCount =
     candidates.filter(c => c.decision === 'kept').length +
@@ -616,7 +621,9 @@ export default function SwipeReview({ planId, clientId, candidates, onComplete }
   );
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    // Sized by its container, not the viewport, so it fits both the full page
+    // and the narrower Content Suite column
+    <div ref={rootRef} className="@container flex flex-col gap-4 w-full">
       {/* Progress bar */}
       <div className="space-y-1.5">
         <div className="flex justify-between text-xs text-gray-500">
@@ -638,7 +645,7 @@ export default function SwipeReview({ planId, clientId, candidates, onComplete }
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,400px)] items-start">
+      <div className="grid gap-6 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,400px)] items-start">
         {/* Full-spec card — animated */}
         <div className="relative" style={{ paddingBottom: stackDepth * 10 }}>
           {/* Edges of the cards still to come */}
@@ -704,7 +711,7 @@ export default function SwipeReview({ planId, clientId, candidates, onComplete }
         </div>
 
         {/* Social preview + actions — stays in view while the card scrolls */}
-        <div className="lg:sticky lg:top-4 space-y-4">
+        <div className="@4xl:sticky @4xl:top-4 space-y-4">
           <div
             className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4 transition-opacity duration-200"
             style={{ opacity: isAnimating ? 0.4 : 1 }}
@@ -765,7 +772,7 @@ export default function SwipeReview({ planId, clientId, candidates, onComplete }
             );
           })}
 
-          <div className="hidden lg:block space-y-2">
+          <div className="hidden @4xl:block space-y-2">
             {actionButtons}
             <p className="text-center text-xs text-gray-300">← arrow to skip · → arrow to keep</p>
           </div>
@@ -773,7 +780,7 @@ export default function SwipeReview({ planId, clientId, candidates, onComplete }
       </div>
 
       {/* Mobile: actions pinned to the bottom so they're reachable below a tall card */}
-      <div className="lg:hidden sticky bottom-3 z-40 py-2">{actionButtons}</div>
+      <div className="@4xl:hidden sticky bottom-3 z-40 py-2">{actionButtons}</div>
     </div>
   );
 }

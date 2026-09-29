@@ -1,11 +1,10 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PortalProvider, usePortal } from "../../../contexts/PortalContext";
 import {
-  LogOut,
   AlertCircle,
   Loader2,
 } from "lucide-react";
@@ -13,13 +12,7 @@ import Link from "next/link";
 
 
 function PortalLayoutContent({ children }: { children: React.ReactNode }) {
-  const { client, party, isLoading, error, logout, pageTitle, topBarActions } = usePortal();
-  const router = useRouter();
-
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
+  const { client, party, isLoading, error, pageTitle, topBarActions } = usePortal();
 
   if (isLoading) {
     return (
@@ -92,10 +85,8 @@ function PortalLayoutContent({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* Right: page actions, then client identity */}
+          {/* Right: client identity, then page actions (e.g. Refresh) */}
           <div className="flex items-center gap-4 min-w-0">
-            {topBarActions}
-
             {party && (
               <div
                 className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium text-white"
@@ -124,15 +115,7 @@ function PortalLayoutContent({ children }: { children: React.ReactNode }) {
               )}
             </div>
 
-            <Button
-              onClick={handleLogout}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2 flex-shrink-0"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Logout</span>
-            </Button>
+            {topBarActions}
           </div>
         </div>
       </header>

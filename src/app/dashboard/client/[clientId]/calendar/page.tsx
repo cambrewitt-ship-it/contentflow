@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, KanbanSquare, AlertCircle, FileDown, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, KanbanSquare, AlertCircle, FileDown, ArrowLeft, ArrowRight, Smartphone } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
@@ -24,6 +24,7 @@ import { CreatePostModal } from '@/components/CreatePostModal';
 import { QuickScheduleDayTimePicker } from '@/components/QuickScheduleDayTimePicker';
 import { VideoThumbnail } from '@/components/VideoThumbnail';
 import { isVideoUrl } from '@/lib/videoUtils';
+import { InstagramFeedPreview, buildFeedPreviewItems } from '@/components/InstagramFeedPreview';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -287,6 +288,7 @@ export default function CalendarPage() {
   const [generatingApprovalLink, setGeneratingApprovalLink] = useState(false);
   const [approvalLinkCopied, setApprovalLinkCopied] = useState(false);
   const [showEventsPanel, setShowEventsPanel] = useState(false);
+  const [showFeedPreview, setShowFeedPreview] = useState(false);
 
   const { eventsByDate: contentEventsByDate, refetch: refetchContentEvents } = useContentEvents(clientId as string);
 
@@ -2622,6 +2624,11 @@ export default function CalendarPage() {
     }
   }, [boardBackground, clientId, saveBoardBackground]);
 
+  const feedPreviewItems = useMemo(
+    () => (showFeedPreview ? buildFeedPreviewItems(scheduledPosts, clientUploads) : []),
+    [showFeedPreview, scheduledPosts, clientUploads]
+  );
+
   // Props shared by the Column view and the Board (beta) view.
   const sharedCalendarProps = {
     weeks: getWeeksToDisplay(),
@@ -3030,6 +3037,13 @@ export default function CalendarPage() {
                     <Calendar className="w-4 h-4" />
                     Events
                   </button>
+                  <button
+                    onClick={() => setShowFeedPreview(true)}
+                    className="px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1.5 hover:bg-white/20"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    Feed preview
+                  </button>
                 </>
               }
               subToolbar={<div className="overflow-x-auto calendar-hscroll">{renderActionBar('board')}</div>}
@@ -3134,6 +3148,13 @@ export default function CalendarPage() {
                     <span className="px-1 py-px rounded bg-blue-100 text-blue-700 text-[9px] font-semibold uppercase leading-none">Beta</span>
                   </button>
                 </div>
+                <button
+                  onClick={() => setShowFeedPreview(true)}
+                  className="ml-3 px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 border text-gray-600 hover:text-gray-900 border-gray-200"
+                >
+                  <Smartphone className="w-4 h-4" />
+                  Feed preview
+                </button>
               </div>
               <MonthViewCalendar
                   posts={Object.values(scheduledPosts).flat()}
@@ -3208,6 +3229,13 @@ export default function CalendarPage() {
                     >
                       <Calendar className="w-4 h-4" />
                       Events
+                    </button>
+                    <button
+                      onClick={() => setShowFeedPreview(true)}
+                      className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 border text-gray-600 hover:text-gray-900 border-gray-200"
+                    >
+                      <Smartphone className="w-4 h-4" />
+                      Feed preview
                     </button>
                   </div>
                   <button
@@ -3455,6 +3483,13 @@ export default function CalendarPage() {
       )}
 
       {/* PDF Export Modal */}
+      <InstagramFeedPreview
+        open={showFeedPreview}
+        onClose={() => setShowFeedPreview(false)}
+        items={feedPreviewItems}
+        accountName={clientName}
+        avatarUrl={clientLogoUrl}
+      />
       <PDFExportModal
         open={showPDFExportModal}
         onClose={() => setShowPDFExportModal(false)}

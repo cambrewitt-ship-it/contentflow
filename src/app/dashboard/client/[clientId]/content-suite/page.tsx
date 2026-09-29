@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Settings, Images, Upload, FileText } from 'lucide-react'
+import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Settings, Images, Upload, FileText, Bot } from 'lucide-react'
 import PhotoSwapDialog from '@/components/PhotoSwapDialog'
 import { isVideoUrl } from '@/lib/videoUtils'
 import Link from 'next/link'
@@ -22,6 +22,7 @@ import { ContentStoreProvider, ContentFocus, CopyTone } from '@/lib/contentStore
 import { useAuth } from '@/contexts/AuthContext'
 import { SchedulePostModal, Platform } from '@/components/SchedulePostModal'
 import { ChatCaptionOption } from '@/components/ChatCaptionOption'
+import ContentAgentPanel from '@/components/ContentAgentPanel'
 
 interface Project {
   id: string
@@ -955,6 +956,18 @@ function ContentSuiteContent({
   
   // State for scheduling
   const [isScheduling, setIsScheduling] = useState(false)
+
+  // Left card mode: build a single post, or run the Content Agent.
+  // ?mode=agent opens straight into the agent.
+  const modeParam = useSearchParams()?.get('mode')
+  const [leftMode, setLeftMode] = useState<'single' | 'agent'>(modeParam === 'agent' ? 'agent' : 'single')
+  // The agent panel stays mounted once opened so a run or swipe survives toggling back
+  const [agentOpened, setAgentOpened] = useState(leftMode === 'agent')
+  const agentMode = leftMode === 'agent' && !isEditing
+  const selectLeftMode = (mode: 'single' | 'agent') => {
+    setLeftMode(mode)
+    if (mode === 'agent') setAgentOpened(true)
+  }
 
   // State for Settings modal
   const [showSettingsModal, setShowSettingsModal] = useState(false)
@@ -2010,9 +2023,33 @@ function ContentSuiteContent({
             {/* Left Column: 2/3 width - Contains All Left Side Elements in One Card */}
             <div className="col-span-2 flex">
               {/* Consolidated Card - All Left Side Elements */}
-              <Card className="flex flex-col overflow-hidden w-full h-full min-h-[600px]">
+              {/* overflow-clip in agent mode so the swipe actions can stick to the viewport */}
+              <Card className={`flex flex-col w-full h-full min-h-[600px] ${agentMode ? 'overflow-clip' : 'overflow-hidden'}`}>
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="card-title-26">Content Creation</CardTitle>
+                  {isEditing ? (
+                    <CardTitle className="card-title-26">Content Creation</CardTitle>
+                  ) : (
+                    <div role="tablist" aria-label="Content creation mode" className="inline-flex rounded-full bg-gray-100 p-1">
+                      {([
+                        { mode: 'single', label: 'Single Post', icon: <FileText className="w-4 h-4" /> },
+                        { mode: 'agent', label: 'Content Agent', icon: <Bot className="w-4 h-4" /> },
+                      ] as const).map(({ mode, label, icon }) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          role="tab"
+                          aria-selected={leftMode === mode}
+                          onClick={() => selectLeftMode(mode)}
+                          className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                            leftMode === mode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                          }`}
+                        >
+                          {icon}
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex flex-col items-end gap-1">
                     {!client?.brand_voice_examples && !client?.caption_dos && !client?.caption_donts && !client?.brand_tov && (
                       <button
@@ -2039,7 +2076,7 @@ function ContentSuiteContent({
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="flex-1 flex flex-col overflow-y-auto">
+                <CardContent className={agentMode ? 'hidden' : 'flex-1 flex flex-col overflow-y-auto'}>
                   {/* Top Section - Natural Height */}
                   <div className="space-y-6">
                     {/* Upload Media Section */}
@@ -2602,6 +2639,11 @@ function ContentSuiteContent({
                     </div>
                   )}
                 </CardContent>
+                {agentOpened && !isEditing && (
+                  <CardContent className={agentMode ? 'flex-1' : 'hidden'}>
+                    <ContentAgentPanel clientId={clientId} compact active={agentMode} />
+                  </CardContent>
+                )}
               </Card>
             </div>
 

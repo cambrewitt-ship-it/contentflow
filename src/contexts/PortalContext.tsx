@@ -30,7 +30,7 @@ interface PortalContextType {
   /** Page title shown in the portal top bar (set by the page, e.g. "Content Calendar"). */
   pageTitle: string | null;
   setPageTitle: (title: string | null) => void;
-  /** Extra controls the page places in the top bar, before the client identity (e.g. Refresh). */
+  /** Extra controls the page places at the right end of the top bar, after the client identity (e.g. Refresh). */
   topBarActions: React.ReactNode;
   setTopBarActions: (actions: React.ReactNode) => void;
 }
