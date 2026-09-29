@@ -31,6 +31,7 @@ import { supabase } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import type { AutopilotPlan, AutopilotCandidate } from '@/types/autopilot';
 import { formatDateRange } from '@/lib/dateUtils';
+import { estimateWorstCaseCredits } from '@/lib/autopilot-agent/constants';
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
@@ -120,8 +121,9 @@ function loadSavedBrief(clientId: string): RunBrief {
   }
 }
 
-// Worst-case credit cost shown before a run (see estimateWorstCaseCredits)
-const RUN_CREDIT_ESTIMATE = 13;
+// Worst-case credit cost shown before a run — must match the server's
+// pre-flight check in /api/autopilot/generate-plan.
+const RUN_CREDIT_ESTIMATE = estimateWorstCaseCredits();
 
 export default function ContentAgentPanel({
   clientId,

@@ -564,9 +564,20 @@ export default function BillingSettingsPage() {
                 /{' '}
                 {subscription.max_ai_credits_per_month === -1
                   ? '∞'
-                  : subscription.max_ai_credits_per_month}
+                  : subscription.max_ai_credits_per_month}{' '}
+                used this month
               </span>
             </div>
+            {subscription.max_ai_credits_per_month !== -1 && (
+              <p className="text-sm text-gray-600 mt-1">
+                {Math.max(
+                  0,
+                  subscription.max_ai_credits_per_month -
+                    subscription.ai_credits_used_this_month
+                )}{' '}
+                credits remaining
+              </p>
+            )}
           </div>
           {subscription.max_ai_credits_per_month !== -1 && (
             <div className="w-full bg-gray-200 rounded-full h-2">
