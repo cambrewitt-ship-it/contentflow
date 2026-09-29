@@ -176,6 +176,81 @@ function CardCover({ url, isVideo, compact }: { url: string; isVideo: boolean; c
   );
 }
 
+// Carousel cover: arrows + dots to click through a multi-photo post without opening it.
+// A fixed square frame stops the card height jumping between differently shaped slides.
+function CarouselCover({ media }: { media: Array<{ url: string; isVideo: boolean }> }) {
+  const [index, setIndex] = useState(0);
+  const current = media[Math.min(index, media.length - 1)];
+
+  // Clicks here must not open the post or start a drag.
+  const step = (e: React.MouseEvent, delta: number) => {
+    e.stopPropagation();
+    setIndex((i) => (i + delta + media.length) % media.length);
+  };
+  const stopPointer = (e: React.PointerEvent) => e.stopPropagation();
+
+  return (
+    <div className="relative overflow-hidden rounded-t-lg bg-[#dcdfe4] aspect-square">
+      {current.isVideo ? (
+        <VideoThumbnail key={current.url} src={current.url} className="w-full h-full" objectFit="cover" />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={current.url}
+          src={current.url}
+          alt=""
+          loading="lazy"
+          draggable={false}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            e.currentTarget.src = '/api/placeholder/100/100';
+          }}
+        />
+      )}
+
+      <button
+        type="button"
+        onPointerDown={stopPointer}
+        onClick={(e) => step(e, -1)}
+        className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 shadow-md flex items-center justify-center text-gray-700 hover:bg-white hover:scale-105 transition"
+        title="Previous photo"
+        aria-label="Previous photo"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      <button
+        type="button"
+        onPointerDown={stopPointer}
+        onClick={(e) => step(e, 1)}
+        className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 shadow-md flex items-center justify-center text-gray-700 hover:bg-white hover:scale-105 transition"
+        title="Next photo"
+        aria-label="Next photo"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
+
+      <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold">
+        {index + 1}/{media.length}
+      </span>
+      <div className="absolute bottom-1.5 inset-x-0 flex justify-center gap-1">
+        {media.map((m, i) => (
+          <button
+            key={`${m.url}-${i}`}
+            type="button"
+            onPointerDown={stopPointer}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIndex(i);
+            }}
+            className={`h-1.5 rounded-full transition-all ${i === index ? 'w-3 bg-white' : 'w-1.5 bg-white/60 hover:bg-white/90'}`}
+            aria-label={`Show photo ${i + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function BoardCard({
   post,
   density,
@@ -347,7 +422,8 @@ function BoardCard({
     >
       {quickActions}
 
-      {!compact && cover && <CardCover url={cover.url} isVideo={cover.isVideo} compact={false} />}
+      {!compact && media.length > 1 && <CarouselCover media={media} />}
+      {!compact && media.length === 1 && <CardCover url={cover.url} isVideo={cover.isVideo} compact={false} />}
 
       <div className={`px-3 pt-2 pb-1.5 ${compact ? 'flex gap-2' : ''}`}>
         {compact && cover && <CardCover url={cover.url} isVideo={cover.isVideo} compact />}
