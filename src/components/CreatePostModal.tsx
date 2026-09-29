@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Loader2, Sparkles, Images, Send, RefreshCw, Brain, Plus, AlertCircle, Upload as UploadIcon } from 'lucide-react';
+import { X, Loader2, Sparkles, Images, Send, RefreshCw, Brain, Plus, AlertCircle, Upload as UploadIcon, Check, Inbox } from 'lucide-react';
 import { ContentStoreProvider, useContentStore } from '@/lib/contentStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { SocialPreviewCard } from '@/components/SocialPreviewCard';
@@ -30,6 +30,15 @@ interface CreatedPost {
   [key: string]: any;
 }
 
+/** A post from the calendar's unscheduled Posts tray. */
+export interface UnscheduledPostOption {
+  id: string;
+  caption: string;
+  image_url: string;
+  media_urls?: string[] | null;
+  [key: string]: any;
+}
+
 interface CreatePostModalProps {
   open: boolean;
   onClose: () => void;
@@ -39,6 +48,10 @@ interface CreatePostModalProps {
   onCreated: (post: CreatedPost) => void;
   accountName?: string;
   accountAvatarUrl?: string;
+  /** Posts from the unscheduled tray that can be picked instead of building a new one. */
+  unscheduledPosts?: UnscheduledPostOption[];
+  /** Schedules a picked tray post; required for the picker to show. */
+  onScheduleExisting?: (post: UnscheduledPostOption, dateKey: string, time: string) => Promise<void>;
 }
 
 const PREVIEW_PLATFORMS = [
@@ -59,7 +72,17 @@ export function CreatePostModal(props: CreatePostModalProps) {
   );
 }
 
-function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCreated, accountName, accountAvatarUrl }: CreatePostModalProps) {
+function CreatePostModalContent({
+  onClose,
+  clientId,
+  weekStart,
+  projects,
+  onCreated,
+  accountName,
+  accountAvatarUrl,
+  unscheduledPosts = [],
+  onScheduleExisting,
+}: CreatePostModalProps) {
   const { getAccessToken } = useAuth();
   const {
     uploadedImages,
@@ -104,6 +127,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
   const [showCreditDialog, setShowCreditDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [existingPost, setExistingPost] = useState<UnscheduledPostOption | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -228,9 +252,31 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
     }
   };
 
-  const canSubmit = allUploaded && !!activeCaptionText.trim() && !!selectedDateKey && !!selectedTime && !isSubmitting;
+  const showPostPicker = !!onScheduleExisting && unscheduledPosts.length > 0;
+  const existingMedia = existingPost
+    ? ((existingPost.media_urls?.length ?? 0) > 1 ? (existingPost.media_urls as string[]) : [existingPost.image_url].filter(Boolean))
+    : [];
+
+  const canSubmit = existingPost
+    ? !!selectedDateKey && !!selectedTime && !isSubmitting
+    : allUploaded && !!activeCaptionText.trim() && !!selectedDateKey && !!selectedTime && !isSubmitting;
 
   const handleSubmit = async () => {
+    if (existingPost) {
+      if (!canSubmit || !selectedDateKey || !onScheduleExisting) return;
+      setIsSubmitting(true);
+      setError(null);
+      try {
+        await onScheduleExisting(existingPost, selectedDateKey, selectedTime);
+        clearAll();
+        onClose();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add post');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
     if (!canSubmit || !selectedDateKey || !activeCaptionText.trim()) return;
     setIsSubmitting(true);
     setError(null);
@@ -322,11 +368,12 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                 platform={selectedPlatform}
                 accountName={accountName || "Your Account"}
                 accountAvatarUrl={accountAvatarUrl}
-                caption={activeCaptionText}
-                imageUrl={activeImage?.blobUrl || activeImage?.preview}
-                mediaUrls={previewUrls}
-                carouselIndex={activeIndex}
+                caption={existingPost ? existingPost.caption : activeCaptionText}
+                imageUrl={existingPost ? existingMedia[0] : activeImage?.blobUrl || activeImage?.preview}
+                mediaUrls={existingPost ? existingMedia : previewUrls}
+                carouselIndex={existingPost ? 0 : activeIndex}
                 onCarouselIndexChange={(i) => {
+                  if (existingPost) return;
                   const img = uploadedImages[i];
                   if (img) setActiveImageId(img.id);
                 }}
@@ -334,7 +381,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
                 scheduledTime={selectedTime}
               />
 
-              {uploadedImages.length > 0 && (
+              {!existingPost && uploadedImages.length > 0 && (
                 <div className="mt-3">
                   <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                     {uploadedImages.length > 1 ? `Carousel · ${uploadedImages.length} photos` : '1 photo'}
@@ -407,6 +454,65 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
               </div>
             )}
 
+            {/* Pick an existing post from the unscheduled Posts tray */}
+            {showPostPicker && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                    <Inbox className="w-3.5 h-3.5" />
+                    Use a post from your Posts
+                  </p>
+                  {existingPost && (
+                    <button
+                      type="button"
+                      onClick={() => setExistingPost(null)}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                    >
+                      Create a new post instead
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {unscheduledPosts.map((post) => {
+                    const isPicked = existingPost?.id === post.id;
+                    return (
+                      <button
+                        key={post.id}
+                        type="button"
+                        onClick={() => setExistingPost(isPicked ? null : post)}
+                        className={`relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
+                          isPicked ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-blue-300'
+                        }`}
+                        title={post.caption || 'Untitled post'}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={post.image_url || '/api/placeholder/100/100'}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.currentTarget.src = '/api/placeholder/100/100'; }}
+                        />
+                        {isPicked && (
+                          <span className="absolute inset-0 bg-blue-600/30 flex items-center justify-center">
+                            <Check className="w-5 h-5 text-white drop-shadow" />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {existingPost ? (
+                  <p className="text-xs text-gray-600 mt-2 line-clamp-3 whitespace-pre-wrap">
+                    {existingPost.caption || <span className="italic text-gray-400">No caption</span>}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-gray-500 mt-1.5">Pick one to schedule it, or build a new post below.</p>
+                )}
+              </div>
+            )}
+
+            {!existingPost && (
+            <>
             {/* Image */}
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Photos</p>
@@ -657,6 +763,9 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
               )}
             </div>
 
+            </>
+            )}
+
             {/* Day / time */}
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Day</p>
@@ -672,7 +781,7 @@ function CreatePostModalContent({ onClose, clientId, weekStart, projects, onCrea
             </div>
 
             {/* Project */}
-            {projects && projects.length > 0 && (
+            {!existingPost && projects && projects.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Project (optional)</p>
                 <select
