@@ -2,12 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, KanbanSquare, AlertCircle, FileDown, Sparkles, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, KanbanSquare, AlertCircle, FileDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import { ColumnViewCalendar, type ColumnViewCalendarHandle } from '@/components/ColumnViewCalendar';
-import { StripCalendar, type StripCalendarHandle } from '@/components/StripCalendar';
 import { TrelloBoardCalendar } from '@/components/TrelloBoardCalendar';
 import { CalendarEventModal, type CalendarEvent } from '@/components/CalendarEventModal';
 import Link from 'next/link';
@@ -23,6 +22,8 @@ import { ClientPostDetailModal, type ClientPostDetailItem } from '@/components/C
 import { ClientUploadDetailModal, type ClientUploadDetailItem } from '@/components/ClientUploadDetailModal';
 import { CreatePostModal } from '@/components/CreatePostModal';
 import { QuickScheduleDayTimePicker } from '@/components/QuickScheduleDayTimePicker';
+import { VideoThumbnail } from '@/components/VideoThumbnail';
+import { isVideoUrl } from '@/lib/videoUtils';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -218,8 +219,8 @@ export default function CalendarPage() {
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
   const [postDetailModal, setPostDetailModal] = useState<ClientPostDetailItem | null>(null);
   const [uploadDetailModal, setUploadDetailModal] = useState<ClientUploadDetailItem | null>(null);
-  const [viewMode, setViewModeState] = useState<'month' | 'column' | 'strip' | 'board'>('column');
-  const setViewMode = useCallback((mode: 'month' | 'column' | 'strip' | 'board') => {
+  const [viewMode, setViewModeState] = useState<'month' | 'column' | 'board'>('board');
+  const setViewMode = useCallback((mode: 'month' | 'column' | 'board') => {
     setViewModeState(mode);
     try {
       window.localStorage.setItem('calendarViewMode', mode);
@@ -229,13 +230,12 @@ export default function CalendarPage() {
   }, []);
   const calendarScrollRef = useRef<HTMLDivElement>(null);
   const columnViewRef = useRef<ColumnViewCalendarHandle>(null);
-  const stripViewRef = useRef<StripCalendarHandle>(null);
 
   // Restore the last calendar view the user picked.
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem('calendarViewMode');
-      if (saved === 'month' || saved === 'column' || saved === 'strip' || saved === 'board') {
+      if (saved === 'month' || saved === 'column' || saved === 'board') {
         setViewModeState(saved);
       }
     } catch {
@@ -2509,7 +2509,7 @@ export default function CalendarPage() {
   };
 
 
-  // Shared by the Strip, Column and Board views: open the right detail modal for a card.
+  // Shared by the Column and Board views: open the right detail modal for a card.
   const handleCalendarCardClick = (post: any) => {
     const isUpload =
       post.post_type === 'client-upload' ||
@@ -2585,6 +2585,28 @@ export default function CalendarPage() {
       if (!res.ok) console.error('❌ Failed to save board background:', res.status);
     } catch (err) {
       console.error('💥 Failed to save board background:', err);
+    }
+  }, [clientId, requireAccessToken]);
+
+  // Upload a photo as the board background (also saved on the client for the portal).
+  const uploadBoardBackground = useCallback(async (imageData: string, filename: string) => {
+    try {
+      const accessToken = requireAccessToken();
+      const res = await fetch('/api/board-background', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, imageData, filename }),
+      });
+      if (!res.ok) {
+        console.error('❌ Failed to upload board background:', res.status);
+        return null;
+      }
+      const { background } = await res.json();
+      setBoardBackground(background);
+      return background as string;
+    } catch (err) {
+      console.error('💥 Failed to upload board background:', err);
+      return null;
     }
   }, [clientId, requireAccessToken]);
 
@@ -2671,7 +2693,7 @@ export default function CalendarPage() {
           disabled={isDeleting || selectedPosts.size === 0}
           className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
             isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' :
-            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-red-600' :
             'bg-red-600 hover:bg-red-700'
           }`}
         >
@@ -2686,7 +2708,7 @@ export default function CalendarPage() {
           disabled={exportingPDF || selectedPosts.size === 0}
           className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
             exportingPDF ? 'opacity-50 cursor-not-allowed bg-blue-500' :
-            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-blue-600' :
             'bg-blue-600 hover:bg-blue-700'
           }`}
           title={selectedPosts.size === 0 ? 'Select posts to export' : 'Export selected posts to PDF'}
@@ -2709,7 +2731,7 @@ export default function CalendarPage() {
           disabled={generatingApprovalLink || selectedPosts.size === 0}
           className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
             generatingApprovalLink ? 'opacity-50 cursor-not-allowed bg-purple-500' :
-            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-gray-400' :
+            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-purple-600' :
             'bg-purple-600 hover:bg-purple-700'
           }`}
           title={selectedPosts.size === 0 ? 'Select posts to create approval link' : 'Create approval link for client'}
@@ -2743,7 +2765,7 @@ export default function CalendarPage() {
         {(connectedAccounts.length > 0 || selectedPosts.size > 0) && (
           <span
             className={`text-sm py-2 transition-colors ${
-            selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-400'
+            selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-900'
             }`}
           >
             {selectedPosts.size || 0} selected:
@@ -2782,7 +2804,7 @@ export default function CalendarPage() {
             });
 
             const isDisabled = isScheduling || hasEmptyCaptions || selectedPosts.size === 0;
-            const platformBgColor = selectedPosts.size === 0 ? 'bg-gray-400' :
+            const platformBgColor =
               account.platform === 'facebook' ? 'bg-blue-600 hover:bg-blue-700' :
               account.platform === 'twitter' ? 'bg-sky-500 hover:bg-sky-600' :
               account.platform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
@@ -2845,20 +2867,11 @@ export default function CalendarPage() {
           ))}
         </select>
 
-        {/* Autopilot Button */}
-        <Link
-          href={`/dashboard/client/${clientId}/autopilot`}
-          className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white rounded-md shadow-sm hover:shadow-md transition-all duration-300 text-sm font-medium"
-        >
-          <Sparkles className="w-4 h-4 mr-1.5" />
-          Autopilot
-        </Link>
-
       </div>
     </div>
   );
 
-  // Unscheduled posts tray — the left sidebar in Column/Month/Strip, a drawer in the Board view.
+  // Unscheduled posts tray — the left sidebar in Column/Month, a drawer in the Board view.
   const postsTrayContent = (
     <>
       {/* Sidebar Header */}
@@ -2917,7 +2930,10 @@ export default function CalendarPage() {
                     </div>
                   ) : (
                     <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {post.image_url && isVideoUrl(post.image_url) ? (
+                        <VideoThumbnail src={post.image_url} className="w-full h-full" objectFit="cover" />
+                      ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={post.image_url || '/api/placeholder/100/100'}
                         alt="Post"
@@ -2932,6 +2948,7 @@ export default function CalendarPage() {
                           e.currentTarget.src = '/api/placeholder/100/100';
                         }}
                       />
+                      )}
                       {/* Action buttons */}
                       <div className="absolute top-1 right-1 flex flex-col gap-1">
                         {/* Edit button */}
@@ -2987,13 +3004,33 @@ export default function CalendarPage() {
               ref={columnViewRef}
               {...sharedCalendarProps}
               toolbar={
-                <button
-                  onClick={() => setShowEventsPanel(v => !v)}
-                  className={`px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1.5 ${showEventsPanel ? 'bg-white/30' : 'hover:bg-white/20'}`}
-                >
-                  <Calendar className="w-4 h-4" />
-                  Events
-                </button>
+                <>
+                  <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-black/20">
+                    {([
+                      ['month', 'Month', Calendar],
+                      ['column', 'Column', Columns],
+                      ['board', 'Board', KanbanSquare],
+                    ] as const).map(([mode, label, Icon]) => (
+                      <button
+                        key={mode}
+                        onClick={() => setViewMode(mode)}
+                        className={`px-2.5 py-1 text-sm rounded-md font-medium transition-colors flex items-center gap-1.5 ${
+                          viewMode === mode ? 'bg-white/30' : 'hover:bg-white/20'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setShowEventsPanel(v => !v)}
+                    className={`px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1.5 ${showEventsPanel ? 'bg-white/30' : 'hover:bg-white/20'}`}
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Events
+                  </button>
+                </>
               }
               subToolbar={<div className="overflow-x-auto calendar-hscroll">{renderActionBar('board')}</div>}
               leftDrawer={
@@ -3003,30 +3040,12 @@ export default function CalendarPage() {
               }
               rightPanel={
                 showEventsPanel ? (
-                  <EventsPanel clientId={clientId as string} onClose={() => setShowEventsPanel(false)} />
+                  <EventsPanel clientId={clientId as string} onClose={() => setShowEventsPanel(false)} onEventsChange={refetchContentEvents} />
                 ) : null
               }
               background={boardBackground}
               onBackgroundChange={saveBoardBackground}
-              bottomDock={([
-                ['month', 'Month', Calendar],
-                ['column', 'Column', Columns],
-                ['strip', 'Strip', ArrowRight],
-                ['board', 'Board', KanbanSquare],
-              ] as const).map(([mode, label, Icon]) => (
-                <button
-                  key={mode}
-                  onClick={() => setViewMode(mode)}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1.5 ${
-                    viewMode === mode
-                      ? 'bg-[#e9f2ff] text-[#0c66e4] shadow-[inset_0_-2px_0_#0c66e4]'
-                      : 'hover:bg-[#091e420f] hover:text-[#172b4d]'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {label}
-                </button>
-              ))}
+              onBackgroundUpload={uploadBoardBackground}
             />
           </div>
         </div>
@@ -3106,17 +3125,6 @@ export default function CalendarPage() {
                     Column
                   </button>
                   <button
-                    onClick={() => setViewMode('strip')}
-                    className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                      viewMode === 'strip'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                    Strip
-                  </button>
-                  <button
                     onClick={() => setViewMode('board')}
                     className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
                     title="Trello-style board (beta)"
@@ -3144,52 +3152,6 @@ export default function CalendarPage() {
             </>
             ) : viewMode === 'board' ? (
               <div className="flex-1" />
-            ) : viewMode === 'strip' ? (
-            <>
-              <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center justify-center">
-                {/* View Toggle */}
-                <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                  <button
-                    onClick={() => setViewMode('month')}
-                    className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
-                  >
-                    <Calendar className="w-4 h-4" />
-                    Month
-                  </button>
-                  <button
-                    onClick={() => setViewMode('column')}
-                    className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
-                  >
-                    <Columns className="w-4 h-4" />
-                    Column
-                  </button>
-                  <button
-                    onClick={() => setViewMode('strip')}
-                    className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 bg-white text-gray-900 shadow-sm"
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                    Strip
-                  </button>
-                  <button
-                    onClick={() => setViewMode('board')}
-                    className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
-                    title="Trello-style board (beta)"
-                  >
-                    <KanbanSquare className="w-4 h-4" />
-                    Board
-                    <span className="px-1 py-px rounded bg-blue-100 text-blue-700 text-[9px] font-semibold uppercase leading-none">Beta</span>
-                  </button>
-                </div>
-              </div>
-              <StripCalendar
-                ref={stripViewRef}
-                scheduledPosts={scheduledPosts as any}
-                clientUploads={clientUploads}
-                loading={isLoadingScheduledPosts}
-                onPostMove={handleColumnPostMove}
-                onPostClick={handleCalendarCardClick}
-              />
-            </>
             ) : (
               <>
                 <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center justify-between">
@@ -3225,17 +3187,6 @@ export default function CalendarPage() {
                       >
                         <Columns className="w-4 h-4" />
                         Column
-                      </button>
-                      <button
-                        onClick={() => setViewMode('strip')}
-                        className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                          viewMode === 'strip'
-                            ? 'bg-white text-gray-900 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                        }`}
-                      >
-                        <ArrowRight className="w-4 h-4" />
-                        Strip
                       </button>
                       <button
                         onClick={() => setViewMode('board')}
@@ -3279,6 +3230,7 @@ export default function CalendarPage() {
                   <EventsPanel
                     clientId={clientId as string}
                     onClose={() => setShowEventsPanel(false)}
+                    onEventsChange={refetchContentEvents}
                   />
                 )}
                 </div>

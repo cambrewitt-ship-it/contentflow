@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleApiError, handleDatabaseError } from '@/lib/apiErrorHandler';
 import { sanitizeUUID } from '@/lib/validators';
-import { isBoardBackgroundId } from '@/lib/boardBackgrounds';
+import { isValidBoardBackground } from '@/lib/boardBackgrounds';
 import logger from '@/lib/logger';
 import { decrementUsage } from '@/lib/subscriptionHelpers';
 import { requireClientOwnership } from '@/lib/authHelpers';
@@ -284,7 +284,7 @@ export async function PUT(
     // Add updated_at timestamp
     // Board background (Board view) — merged into portal_settings so the client portal uses it too.
     if (body.board_background !== undefined) {
-      if (!isBoardBackgroundId(body.board_background)) {
+      if (!isValidBoardBackground(body.board_background)) {
         return NextResponse.json({ error: 'Invalid board_background' }, { status: 400 });
       }
       const { data: current, error: currentError } = await supabase

@@ -229,8 +229,8 @@
   background: conic-gradient(
     from var(--prompt-glow-angle),
     transparent 0deg,
-    transparent 190deg,
-    #60a5fa 260deg,
+    transparent 220deg,
+    #60a5fa 275deg,
     #818cf8 305deg,
     #c4b5fd 340deg,
     transparent 360deg
@@ -247,8 +247,8 @@
 }
 
 .prompt-glow::after {
-  inset: -4px;
-  filter: blur(12px);
+  inset: -3px;
+  filter: blur(10px);
   z-index: -1;
 }
 
@@ -261,15 +261,15 @@
 
 @keyframes prompt-glow-sweep {
   0% { --prompt-glow-angle: 0deg; opacity: 0; }
-  15% { opacity: 1; }
-  75% { opacity: 1; }
+  15% { opacity: 0.55; }
+  75% { opacity: 0.55; }
   100% { --prompt-glow-angle: 360deg; opacity: 0; }
 }
 
 @keyframes prompt-glow-halo {
   0% { --prompt-glow-angle: 0deg; opacity: 0; }
-  20% { opacity: 0.5; }
-  70% { opacity: 0.5; }
+  20% { opacity: 0.22; }
+  70% { opacity: 0.22; }
   100% { --prompt-glow-angle: 360deg; opacity: 0; }
 }
 

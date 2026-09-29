@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { use } from 'react'
+import { useInputGlide } from '@/hooks/useInputGlide'
+import { GeneratePromptBox, ChatRefineInput } from '@/components/CaptionPrompt'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Send, Settings, Images, Upload, FileText } from 'lucide-react'
+import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Settings, Images, Upload, FileText } from 'lucide-react'
 import PhotoSwapDialog from '@/components/PhotoSwapDialog'
 import { isVideoUrl } from '@/lib/videoUtils'
 import Link from 'next/link'
@@ -1568,22 +1570,34 @@ function ContentSuiteContent({
     }
   }, [chatMessages])
 
-  // Chat mode is on by default — auto-initialize once an image becomes active.
-  // initializeChat/sendChatMessage/handleEnterChatMode/selectChatCaption now live in the
-  // shared content store so the new calendar creation modal can reuse the same implementation
-  // (including credit-error classification) instead of duplicating it.
-  useEffect(() => {
-    if (chatMode && activeImage && chatMessages.length === 0) {
-      const accessToken = getAccessToken()
-      handleEnterChatMode(accessToken || undefined).catch((error: unknown) => {
-        if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
-          const details = (error as Error & { details?: string }).details
-          setCreditDialogMessage(details || null)
-          setShowCreditDialog(true)
-        }
-      })
+  // Chat mode starts on the "Generate Text" button (with optional Post Notes as the prompt)
+  // rather than auto-generating. initializeChat/sendChatMessage/handleEnterChatMode/selectChatCaption
+  // live in the shared content store so the calendar creation modal can reuse the same implementation.
+  const handleStartChat = useCallback(() => {
+    const accessToken = getAccessToken()
+    handleEnterChatMode(accessToken || undefined).catch((error: unknown) => {
+      if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
+        const details = (error as Error & { details?: string }).details
+        setCreditDialogMessage(details || null)
+        setShowCreditDialog(true)
+      }
+    })
+  }, [getAccessToken, handleEnterChatMode])
+
+  // Shared "Generate Text" action for the notes box — Standard fills the caption cards,
+  // Chat starts the conversation (the box then becomes the refinement input at the bottom)
+  const isGeneratingText = chatMode ? chatLoading : generatingCaptions
+  const showChatWindow = chatMode && !customMode && chatMessages.length > 0
+  // Prompt box glides down to become the chat refine input once the conversation starts
+  const inputGlide = useInputGlide(showChatWindow, chatContainerRef)
+  const handleGenerateText = () => {
+    if (chatMode) {
+      inputGlide.captureStart()
+      handleStartChat()
+    } else {
+      handleGenerateCaptions()
     }
-  }, [chatMode, activeImage, chatMessages.length, getAccessToken, handleEnterChatMode])
+  }
 
   // Helper functions for Content Focus and Copy Tone
   const getContentFocusDisplayText = (focus: ContentFocus): string => {
@@ -2285,7 +2299,7 @@ function ContentSuiteContent({
                   )}
 
                   {/* ── Caption Mode Toggle ── */}
-                  <div className="flex items-center justify-between border-t border-gray-200 pt-4 pb-1">
+                  <div ref={inputGlide.anchorRef} className="flex items-center justify-between border-t border-gray-200 pt-4 pb-1">
                     <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Caption Mode</span>
                     <div className="flex items-center bg-gray-100 rounded-full p-1 gap-0.5">
                       <button
@@ -2299,17 +2313,7 @@ function ContentSuiteContent({
                         Standard
                       </button>
                       <button
-                        onClick={() => {
-                          setCustomMode(false)
-                          const accessToken = getAccessToken()
-                          handleEnterChatMode(accessToken || undefined).catch((error: unknown) => {
-                            if (error instanceof Error && error.message === 'INSUFFICIENT_CREDITS') {
-                              const details = (error as Error & { details?: string }).details
-                              setCreditDialogMessage(details || null)
-                              setShowCreditDialog(true)
-                            }
-                          })
-                        }}
+                        onClick={() => { setCustomMode(false); setChatMode(true) }}
                         className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
                           chatMode && !customMode
                             ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-sm'
@@ -2348,10 +2352,10 @@ function ContentSuiteContent({
                     </div>
                   )}
 
-                  {/* ── Standard Mode: notes input + generate button ── */}
-                  {!chatMode && !customMode && (
+                  {/* ── Notes input + generate button (Standard mode, and Chat mode before the first generation) ── */}
+                  {!customMode && (!chatMode || chatMessages.length === 0) && (
                     <>
-                      <div className="border-t border-gray-200 pt-6">
+                      <div className={chatMode ? 'pt-3' : 'border-t border-gray-200 pt-6'}>
                         {/* Video Notice */}
                         {isVideoSelected && (
                           <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -2379,56 +2383,22 @@ function ContentSuiteContent({
                         )}
 
                         {/* Unified input container */}
-                        <div className="relative flex items-end gap-2 border-2 border-gray-300 rounded-3xl bg-white focus-within:border-blue-500 focus-within:shadow-lg transition-all">
-                          <Textarea
-                            value={postNotes}
-                            onChange={(e) => setPostNotes(e.target.value)}
-                            placeholder="Add notes, context, or instructions for your post..."
-                            className="h-14 min-h-[56px] max-h-[200px] resize-none border-0 focus:outline-none focus:ring-0 shadow-none rounded-3xl pr-36 pt-[18px] pb-[18px] pl-4 leading-5"
-                            rows={1}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                                e.preventDefault()
-                                if (!generatingCaptions && activeImage && !(isVideoSelected && !postNotes.trim())) {
-                                  handleGenerateCaptions()
-                                }
-                              }
-                            }}
-                          />
-                          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
-                            <Button
-                              onClick={() => {
-                                const isDisabled = generatingCaptions || !activeImage || (isVideoSelected && !postNotes.trim())
-                                if (isDisabled && !activeImage) {
-                                  setBounceHelperText(true)
-                                  setTimeout(() => setBounceHelperText(false), 600)
-                                } else if (!isDisabled) {
-                                  handleGenerateCaptions()
-                                }
-                              }}
-                              disabled={generatingCaptions || !activeImage || (isVideoSelected && !postNotes.trim())}
-                              className="h-9 px-6 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white disabled:bg-blue-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-2 font-semibold text-sm"
-                              title={generatingCaptions ? 'Generating...' : `Generate ${copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy`}
-                            >
-                              {generatingCaptions ? (
-                                <>
-                                  <RefreshCw className="w-4 h-4 animate-spin" />
-                                  Generating...
-                                </>
-                              ) : (
-                                <>
-                                  <Brain className="w-4 h-4 text-white" />
-                                  Generate Text
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
+                        <GeneratePromptBox
+                          boxRef={inputGlide.fromRef}
+                          value={postNotes}
+                          onChange={setPostNotes}
+                          onGenerate={handleGenerateText}
+                          disabled={isGeneratingText || !activeImage || (isVideoSelected && !postNotes.trim())}
+                          generating={isGeneratingText}
+                          title={`Generate ${copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy`}
+                        />
 
                         {/* Helper text */}
                         <div className="mt-2">
                           <p className="text-xs text-gray-500 text-center">
-                            AI will analyze your image and Post Notes to generate captions
+                            {chatMode
+                              ? 'Notes are optional — generate captions, then refine them in chat'
+                              : 'AI will analyze your image and Post Notes to generate captions'}
                           </p>
                           {isVideoSelected && postNotes.trim() && (
                             <p className="text-xs text-gray-500 text-center">
@@ -2439,37 +2409,24 @@ function ContentSuiteContent({
                       </div>
 
                       {/* OR divider */}
-                      <div className="flex items-center my-6">
-                        <div className="flex-1 border-t border-gray-300"></div>
-                        <span className="px-4 text-sm font-bold text-gray-700">OR</span>
-                        <div className="flex-1 border-t border-gray-300"></div>
-                      </div>
+                      {!chatMode && (
+                        <div className="flex items-center my-6">
+                          <div className="flex-1 border-t border-gray-300"></div>
+                          <span className="px-4 text-sm font-bold text-gray-700">OR</span>
+                          <div className="flex-1 border-t border-gray-300"></div>
+                        </div>
+                      )}
                     </>
                   )}
 
-                  {/* ── Chat Mode: scrollable conversation window ── */}
-                  {chatMode && !customMode && (
+                  {/* ── Chat Mode: scrollable conversation window (after the first generation) ── */}
+                  {showChatWindow && (
                     <div className="pt-3">
                       {/* Messages window */}
                       <div
                         ref={chatContainerRef}
                         className="h-[440px] overflow-y-auto rounded-2xl bg-gray-50 border border-gray-200 p-4 space-y-5"
                       >
-                        {/* Empty state */}
-                        {chatMessages.length === 0 && (
-                          <div className="flex flex-col items-center justify-center h-full text-center gap-3">
-                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
-                              <Brain className="w-7 h-7 text-white" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-gray-700">Chat Mode</p>
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {activeImage ? 'Auto-generating captions…' : 'Upload an image first'}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-
                         {/* Message list */}
                         {chatMessages.map((msg, msgIdx) => (
                           <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -2527,36 +2484,17 @@ function ContentSuiteContent({
                       </div>
 
                       {/* Chat input */}
-                      <div className="mt-3 relative flex items-end border-2 border-gray-300 rounded-2xl bg-white focus-within:border-blue-500 focus-within:shadow-lg transition-all">
-                        <Textarea
+                      <div className="mt-3">
+                        <ChatRefineInput
+                          boxRef={inputGlide.toRef}
+                          hintRef={inputGlide.hintRef}
                           value={chatInput}
-                          onChange={(e) => setChatInput(e.target.value)}
-                          placeholder='Try "make it shorter", "add a CTA", "more casual and fun"…'
-                          className="min-h-[48px] max-h-[120px] resize-none border-0 focus:outline-none focus:ring-0 shadow-none rounded-2xl pr-14 pt-3 pb-3 pl-4 leading-5 text-sm flex-1"
-                          rows={1}
-                          disabled={chatLoading}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault()
-                              sendChatMessage(getAccessToken() || undefined)
-                            }
-                          }}
+                          onChange={setChatInput}
+                          onSend={() => sendChatMessage(getAccessToken() || undefined)}
+                          sendDisabled={!chatInput.trim() || chatLoading || !activeImage}
+                          loading={chatLoading}
                         />
-                        <div className="absolute right-2 bottom-2">
-                          <Button
-                            onClick={() => sendChatMessage(getAccessToken() || undefined)}
-                            disabled={!chatInput.trim() || chatLoading || !activeImage}
-                            className="h-9 w-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-200 disabled:text-gray-400 p-0 flex items-center justify-center shadow-sm transition-all"
-                          >
-                            {chatLoading ? (
-                              <RefreshCw className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Send className="w-4 h-4" />
-                            )}
-                          </Button>
-                        </div>
                       </div>
-                      <p className="text-xs text-center text-gray-400 mt-2">Enter to send · Shift+Enter for new line</p>
                     </div>
                   )}
                   </div>

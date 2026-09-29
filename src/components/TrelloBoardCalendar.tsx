@@ -24,6 +24,7 @@ import {
   Paperclip,
   ChevronsRightLeft,
   ChevronsLeftRight,
+  Upload,
 } from 'lucide-react';
 import {
   DndContext,
@@ -44,7 +45,6 @@ import {
   computeInitialStartWeek,
   normalizeToWeekStart,
   DateDivider,
-  AddNoteAffordance,
   type ColumnViewCalendarProps,
   type ColumnViewCalendarHandle,
   type ClientUpload,
@@ -56,7 +56,7 @@ import { getPublishStatus } from '@/components/PublishStatusBadge';
 import { VideoThumbnail } from '@/components/VideoThumbnail';
 import { isVideoUrl } from '@/lib/videoUtils';
 import logger from '@/lib/logger';
-import { BOARD_BACKGROUNDS, isBoardBackgroundId } from '@/lib/boardBackgrounds';
+import { BOARD_BACKGROUNDS, isCustomBoardBackground, isValidBoardBackground, resolveBoardBackground } from '@/lib/boardBackgrounds';
 
 export { BOARD_BACKGROUNDS };
 
@@ -80,6 +80,30 @@ const writeStorage = (key: string, value: string) => {
     // Storage unavailable (private mode etc.) — the preference just won't persist.
   }
 };
+
+// Shrink a photo to at most 2400px on its long side and re-encode it as JPEG, so background
+// uploads stay small (well under the API's request limit) and load quickly on the board.
+const photoToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, 2400 / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error('Canvas unavailable'));
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Could not read that image'));
+    };
+    img.src = url;
+  });
 
 // Trello's card and list elevation.
 const TRELLO_SHADOW = 'shadow-[0_1px_1px_#091e4240,0_0_1px_#091e424f]';
@@ -609,7 +633,6 @@ function BoardList({
       </div>
 
       <div ref={setNodeRef} className="flex-1 min-h-[40px] overflow-y-auto px-2 board-list-scroll">
-        {props.onAddNoteForWeek && <AddNoteAffordance onClick={() => props.onAddNoteForWeek?.(weekStart)} />}
         <SortableContext id={weekStart.toISOString()} items={items} strategy={verticalListSortingStrategy}>
           {entries.map((entry) => {
             if (entry.type === 'divider') {
@@ -685,6 +708,11 @@ export interface TrelloBoardCalendarProps extends ColumnViewCalendarProps {
   background?: string | null;
   /** Called when the user picks a background; omit to hide the picker (read-only). */
   onBackgroundChange?: (id: string) => void;
+  /**
+   * Uploads a photo (a JPEG data URL) as the background and saves it; resolves to the saved
+   * background value (the photo's URL), or null on failure. Omit to hide "Upload photo".
+   */
+  onBackgroundUpload?: (imageData: string, filename: string) => Promise<string | null>;
 }
 
 export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBoardCalendarProps>(function TrelloBoardCalendar(
@@ -692,7 +720,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   ref
 ) {
   const { weeks, scheduledPosts, clientUploads = {}, events = {}, contentEvents, loading, clientId, formatWeekCommencing } = props;
-  const { toolbar, subToolbar, leftDrawer, rightPanel, bottomDock, background, onBackgroundChange } = props;
+  const { toolbar, subToolbar, leftDrawer, rightPanel, bottomDock, background, onBackgroundChange, onBackgroundUpload } = props;
 
   const initialStart = () => {
     const start = new Date(computeInitialStartWeek(weeks));
@@ -707,6 +735,9 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const [bgId, setBgId] = useState<string>('ocean');
   const [density, setDensity] = useState<Density>('cover');
   const [showBgPicker, setShowBgPicker] = useState(false);
+  const [bgUploading, setBgUploading] = useState(false);
+  const [bgUploadError, setBgUploadError] = useState<string | null>(null);
+  const bgFileInputRef = useRef<HTMLInputElement>(null);
   const [labelsExpanded, setLabelsExpanded] = useState(false);
   const [collapsedWeeks, setCollapsedWeeks] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -716,7 +747,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
 
   useEffect(() => {
     const savedBg = readStorage(bgKey);
-    if (savedBg && BOARD_BACKGROUNDS.some((b) => b.id === savedBg)) setBgId(savedBg);
+    if (isValidBoardBackground(savedBg)) setBgId(savedBg);
     const savedDensity = readStorage('boardDensity');
     if (savedDensity === 'cover' || savedDensity === 'compact') setDensity(savedDensity);
     setLabelsExpanded(readStorage('boardLabelsExpanded') === '1');
@@ -757,7 +788,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
 
   // A saved (server-side) background overrides the local one.
   useEffect(() => {
-    if (isBoardBackgroundId(background)) setBgId(background);
+    if (isValidBoardBackground(background)) setBgId(background);
   }, [background]);
 
   const selectBg = (id: string) => {
@@ -765,6 +796,27 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
     writeStorage(bgKey, id);
     setShowBgPicker(false);
     onBackgroundChange?.(id);
+  };
+
+  const uploadBg = async (file: File) => {
+    if (!onBackgroundUpload) return;
+    setBgUploadError(null);
+    setBgUploading(true);
+    try {
+      const saved = await onBackgroundUpload(await photoToDataUrl(file), file.name.replace(/\.[^.]+$/, '') + '.jpg');
+      if (saved) {
+        setBgId(saved);
+        writeStorage(bgKey, saved);
+        setShowBgPicker(false);
+      } else {
+        setBgUploadError('Upload failed — please try again.');
+      }
+    } catch (err) {
+      logger.error('Board background upload failed:', err);
+      setBgUploadError('Could not use that image — try a JPG or PNG.');
+    } finally {
+      setBgUploading(false);
+    }
   };
 
   const toggleDensity = () => {
@@ -837,7 +889,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const isCurrentWeek = (weekStart: Date) =>
     normalizeToWeekStart(weekStart).getTime() === normalizeToWeekStart(new Date()).getTime();
 
-  const bg = BOARD_BACKGROUNDS.find((b) => b.id === bgId) ?? BOARD_BACKGROUNDS[0];
+  const bg = resolveBoardBackground(bgId);
   const activePost = activeId
     ? columns.flatMap((c) => c.entries).find((e) => e.type === 'post' && postKeyOf(e.post) === activeId)
     : undefined;
@@ -847,7 +899,8 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
       {bg.isPhoto && <div className="absolute inset-0 bg-black/20 pointer-events-none" />}
 
       {/* Top bar */}
-      <div className="relative z-10 flex items-center justify-between gap-3 px-4 py-2.5 bg-black/35 backdrop-blur-md text-white">
+      {/* z-30 so its dropdowns (background picker) sit above the sub-toolbar and side panels. */}
+      <div className="relative z-30 flex items-center justify-between gap-3 px-4 py-2.5 bg-black/35 backdrop-blur-md text-white">
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -882,10 +935,11 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
           <button
             type="button"
             onClick={toggleDensity}
-            className="p-1.5 rounded-md hover:bg-white/20 transition-colors"
+            className="px-2.5 py-1 text-sm rounded-md hover:bg-white/20 transition-colors flex items-center gap-1.5"
             title={density === 'cover' ? 'Compact cards' : 'Show image covers'}
           >
             {density === 'cover' ? <Rows3 className="w-4 h-4" /> : <LayoutList className="w-4 h-4" />}
+            {density === 'cover' ? 'Hide post images' : 'Show post images'}
           </button>
           {onBackgroundChange && (
           <div className="relative">
@@ -916,7 +970,44 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
                       {b.id === bgId && <Check className="absolute inset-0 m-auto w-4 h-4 text-white drop-shadow" />}
                     </button>
                   ))}
+                  {isCustomBoardBackground(bgId) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowBgPicker(false)}
+                      className="h-12 rounded-md relative overflow-hidden ring-2 ring-blue-500 ring-offset-1"
+                      style={bg.style}
+                      title="Your photo"
+                    >
+                      <Check className="absolute inset-0 m-auto w-4 h-4 text-white drop-shadow" />
+                    </button>
+                  )}
+                  {onBackgroundUpload && (
+                    <button
+                      type="button"
+                      onClick={() => bgFileInputRef.current?.click()}
+                      disabled={bgUploading}
+                      className="h-12 rounded-md border-2 border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex flex-col items-center justify-center text-[10px] font-medium disabled:opacity-60"
+                      title="Upload your own photo"
+                    >
+                      {bgUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      {bgUploading ? 'Uploading…' : 'Your photo'}
+                    </button>
+                  )}
                 </div>
+                {bgUploadError && <p className="mt-2 text-xs text-red-600">{bgUploadError}</p>}
+                {onBackgroundUpload && (
+                  <input
+                    ref={bgFileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) uploadBg(file);
+                    }}
+                  />
+                )}
               </div>
             )}
           </div>

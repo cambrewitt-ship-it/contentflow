@@ -33,3 +33,27 @@ export const DEFAULT_BOARD_BACKGROUND = 'ocean';
 
 export const isBoardBackgroundId = (id: unknown): id is string =>
   typeof id === 'string' && BOARD_BACKGROUNDS.some((b) => b.id === id);
+
+// A custom background is the public URL of a photo uploaded to our own Supabase storage
+// (see /api/board-background). Only those URLs are accepted, never arbitrary links.
+const STORAGE_PUBLIC_PREFIX = `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''}/storage/v1/object/public/`;
+
+export const isCustomBoardBackground = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  value.startsWith(STORAGE_PUBLIC_PREFIX) &&
+  !/["'()\\\s]/.test(value);
+
+/** A preset id or an uploaded photo URL. */
+export const isValidBoardBackground = (value: unknown): value is string =>
+  isBoardBackgroundId(value) || isCustomBoardBackground(value);
+
+/** Resolve a saved background (preset id or photo URL) to something the board can render. */
+export const resolveBoardBackground = (value: string | null | undefined) => {
+  const preset = BOARD_BACKGROUNDS.find((b) => b.id === value);
+  if (preset) return preset;
+  if (isCustomBoardBackground(value)) {
+    return { id: value, label: 'Your photo', isPhoto: true, style: { background: `url("${value}") center/cover` } as CSSProperties };
+  }
+  return BOARD_BACKGROUNDS[0];
+};

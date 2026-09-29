@@ -5,29 +5,14 @@ import {
   X,
   Loader2,
   ListOrdered,
-  Film,
   FileText,
-  Check,
-  AlertTriangle,
-  Minus,
   Columns,
   Calendar,
-  Kanban,
   KanbanSquare,
   GalleryHorizontal,
-  ChevronDown,
+  Plus,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { VideoThumbnail } from "@/components/VideoThumbnail";
-import { extractVideoThumbnail } from "@/lib/videoUtils";
-
-interface UploadedFile {
-  file: File;
-  preview: string;
-  thumbnail?: string;
-  id: string;
-}
 
 interface QueueItem {
   id: string;
@@ -59,50 +44,28 @@ function queueStatusBadge(status: string | undefined) {
   return null;
 }
 
-interface StatusSummary {
-  approved: number;
-  rejected: number;
-  needsAttention: number;
-  pending: number;
-}
+type PortalViewMode = "board" | "column" | "month";
 
-type PortalViewMode = "board" | "column" | "month" | "kanban" | "strip";
-
-const VIEW_OPTIONS: Array<{ id: PortalViewMode; label: string; Icon: typeof Columns }> = [
+export const VIEW_OPTIONS: Array<{ id: PortalViewMode; label: string; Icon: typeof Columns }> = [
   { id: "board", label: "Board", Icon: KanbanSquare },
   { id: "column", label: "Column", Icon: Columns },
   { id: "month", label: "Month", Icon: Calendar },
-  { id: "kanban", label: "Kanban", Icon: Kanban },
-  { id: "strip", label: "Strip", Icon: GalleryHorizontal },
 ];
 
 interface Props {
   token: string;
   onCalendarSuccess?: () => void;
   onQueueItemClick?: (items: QueueItem[]) => void;
-  statusSummary?: StatusSummary;
-  viewMode?: PortalViewMode;
-  onViewModeChange?: (mode: PortalViewMode) => void;
   refreshTrigger?: number;
   externalQueueItems?: QueueItem[];
   isExternalQueueLoading?: boolean;
   hideQueueStrip?: boolean;
+  /** Shows "+ Upload Content" in the queue header (and keeps the queue visible when empty). */
+  onUploadClick?: () => void;
 }
 
-export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick, statusSummary, viewMode, onViewModeChange, refreshTrigger, externalQueueItems, isExternalQueueLoading, hideQueueStrip }: Props) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick, refreshTrigger, externalQueueItems, isExternalQueueLoading, hideQueueStrip, onUploadClick }: Props) {
   const queueScrollRef = useRef<HTMLDivElement>(null);
-
-  const [dragOver, setDragOver] = useState(false);
-  // The Content Creation card starts collapsed so the calendar gets the space.
-  const [isFormExpanded, setIsFormExpanded] = useState(false);
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [caption, setCaption] = useState("");
-  const [targetDate, setTargetDate] = useState("");
-
-  const [isAddingQueue, setIsAddingQueue] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [isLoadingQueue, setIsLoadingQueue] = useState(false);
@@ -127,137 +90,6 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
   const displayQueueItems = externalQueueItems ?? queueItems;
   const displayIsLoadingQueue = externalQueueItems !== undefined ? (isExternalQueueLoading ?? false) : isLoadingQueue;
 
-  const addFiles = useCallback((newFiles: FileList | File[]) => {
-    const fileArray = Array.from(newFiles);
-    const mapped: UploadedFile[] = fileArray.map((f) => ({
-      file: f,
-      preview: URL.createObjectURL(f),
-      id: `${f.name}-${Date.now()}-${Math.random()}`,
-    }));
-    setFiles((prev) => [...prev, ...mapped]);
-
-    // Extract thumbnails for video files after adding
-    fileArray.forEach((f, i) => {
-      if (f.type.startsWith("video/")) {
-        const entry = mapped[i];
-        extractVideoThumbnail(f)
-          .then((thumb) => {
-            setFiles((prev) =>
-              prev.map((item) =>
-                item.id === entry.id ? { ...item, thumbnail: thumb } : item
-              )
-            );
-          })
-          .catch(() => {/* leave without thumbnail */});
-      }
-    });
-  }, []);
-
-  const removeFile = (id: string) => {
-    setFiles((prev) => {
-      const toRemove = prev.find((f) => f.id === id);
-      if (toRemove) URL.revokeObjectURL(toRemove.preview);
-      return prev.filter((f) => f.id !== id);
-    });
-  };
-
-  const resetForm = () => {
-    files.forEach((f) => URL.revokeObjectURL(f.preview));
-    setFiles([]);
-    setCaption("");
-    setTargetDate("");
-    setErrorMsg(null);
-  };
-
-  const uploadFiles = async (targetDateValue: string | null, groupId?: string | null): Promise<QueueItem[]> => {
-    const notes = caption.trim() || null;
-    const created: QueueItem[] = [];
-
-    for (const [index, uploadedFile] of files.entries()) {
-      // Step 1: Get a signed upload URL — file goes straight to Supabase Storage,
-      // bypassing the Vercel function body size limit (which would cause a 413 for videos).
-      const urlRes = await fetch(
-        `/api/portal/upload?token=${encodeURIComponent(token)}&action=signed-url` +
-        `&fileName=${encodeURIComponent(uploadedFile.file.name)}` +
-        `&fileType=${encodeURIComponent(uploadedFile.file.type)}` +
-        `&fileSize=${uploadedFile.file.size}`
-      );
-      if (!urlRes.ok) {
-        const text = await urlRes.text();
-        let errMsg = `Could not prepare upload for ${uploadedFile.file.name}`;
-        try { errMsg = JSON.parse(text).error || errMsg; } catch { /* plain-text response */ }
-        throw new Error(errMsg);
-      }
-      const { signedUrl, publicUrl } = await urlRes.json();
-
-      // Step 2: Upload directly to Supabase Storage using the signed URL.
-      const uploadRes = await fetch(signedUrl, {
-        method: "PUT",
-        body: uploadedFile.file,
-        headers: { "Content-Type": uploadedFile.file.type },
-      });
-      if (!uploadRes.ok) {
-        throw new Error(`Failed to upload ${uploadedFile.file.name} (storage error)`);
-      }
-
-      // Step 3: Record metadata via the API (only JSON — no large body).
-      const metaRes = await fetch("/api/portal/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token,
-          fileName: uploadedFile.file.name,
-          fileType: uploadedFile.file.type,
-          fileSize: uploadedFile.file.size,
-          fileUrl: publicUrl,
-          notes,
-          targetDate: targetDateValue,
-          carouselGroupId: groupId ?? null,
-          carouselOrder: index,
-        }),
-      });
-      if (!metaRes.ok) {
-        const text = await metaRes.text();
-        let errMsg = `Failed to save ${uploadedFile.file.name}`;
-        try { errMsg = JSON.parse(text).error || errMsg; } catch { /* plain-text response */ }
-        throw new Error(errMsg);
-      }
-      const data = await metaRes.json();
-      if (data.upload) created.push(data.upload);
-    }
-
-    return created;
-  };
-
-const handleAddToQueue = async () => {
-    if (files.length === 0) { setErrorMsg("Please upload at least one file."); return; }
-    setIsAddingQueue(true);
-    setErrorMsg(null);
-    try {
-      // Group all files uploaded together as a carousel when there are multiple files
-      const groupId = files.length > 1 ? crypto.randomUUID() : null;
-      const created = await uploadFiles(null, groupId);
-      resetForm();
-      setSuccessMsg("Added to queue!");
-      setTimeout(() => setSuccessMsg(null), 4000);
-      if (externalQueueItems !== undefined) {
-        onCalendarSuccess?.();
-      } else if (created.length > 0) {
-        // Immediately show the new items without a round-trip re-fetch
-        setQueueItems((prev) => [...created.filter((u) => !u.target_date), ...prev]);
-      } else {
-        fetchQueue();
-      }
-      setTimeout(() => {
-        queueScrollRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }, 300);
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setIsAddingQueue(false);
-    }
-  };
-
   const handleDeleteQueueItem = async (id: string) => {
     setDeletingId(id);
     try {
@@ -276,9 +108,6 @@ const handleAddToQueue = async () => {
       setDeletingId(null);
     }
   };
-
-  const isLoading = isAddingQueue;
-  const hasFiles = files.length > 0;
 
   // Group queue items: items sharing a carousel_group_id appear as one card
   const groupQueueItems = (items: QueueItem[]): QueueItem[][] => {
@@ -302,243 +131,8 @@ const handleAddToQueue = async () => {
 
   return (
     <div className="space-y-3">
-      {/* ── FORM CARD ── */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {/* Header — click to expand/collapse; the view toggle stays visible either way */}
-        <div className={`flex flex-wrap items-center gap-3 px-6 py-3 ${isFormExpanded ? 'border-b border-gray-100' : ''}`}>
-          <button
-            type="button"
-            onClick={() => setIsFormExpanded((v) => !v)}
-            className="flex-1 min-w-[220px] flex items-center gap-3 text-left group"
-            aria-expanded={isFormExpanded}
-          >
-            <ChevronDown
-              className={`w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-transform ${isFormExpanded ? '' : '-rotate-90'}`}
-            />
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Content Creation</h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Upload media and copy, then add to the calendar or drop it in the queue
-              </p>
-            </div>
-          </button>
-
-          {onViewModeChange && (
-            <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
-              {VIEW_OPTIONS.map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => onViewModeChange(id)}
-                  className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    viewMode === id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 3-column grid: upload | copy | approval */}
-        {isFormExpanded && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
-
-          {/* ── COL 1: Upload + Actions ── */}
-          <div className="p-5 flex flex-col gap-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              Upload Media
-            </p>
-
-            {/* Upload zone — full-bleed blue button when empty (Content Suite style) */}
-            <div
-              className={`relative rounded-xl transition-all cursor-pointer overflow-hidden ${
-                files.length === 0
-                  ? dragOver
-                    ? "ring-2 ring-primary"
-                    : ""
-                  : dragOver
-                  ? "ring-2 ring-primary/50"
-                  : ""
-              }`}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {files.length === 0 ? (
-                /* Content-Suite style blue upload button */
-                <div className="flex flex-col items-center justify-center gap-3 min-h-[180px] rounded-xl bg-gradient-to-br from-[#1e3a8a] to-[#1d4ed8] hover:from-[#1e3a8a] hover:to-[#1e40af] transition-all shadow-sm">
-                  <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center">
-                    <span className="text-white text-4xl font-light leading-none select-none">+</span>
-                  </div>
-                  <p className="text-white/90 text-sm font-medium">Click or drag to upload</p>
-                  <p className="text-white/60 text-xs">Images, videos, PDFs</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-2 p-1">
-                  {files.map((f, index) => (
-                    <div key={f.id} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-200">
-                      {f.file.type.startsWith("image/") ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={f.preview} alt={f.file.name} className="w-full h-full object-cover" />
-                      ) : f.file.type.startsWith("video/") ? (
-                        f.thumbnail ? (
-                          <div className="relative w-full h-full">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={f.thumbnail} alt={f.file.name} className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center">
-                                <Film className="w-3.5 h-3.5 text-white" />
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gray-100 animate-pulse">
-                            <Film className="w-5 h-5 text-gray-400" />
-                          </div>
-                        )
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                          <FileText className="w-5 h-5 text-gray-400" />
-                        </div>
-                      )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); removeFile(f.id); }}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                      {files.length > 1 && (
-                        <span className="absolute top-1 left-1 w-5 h-5 rounded-full bg-black/70 text-white text-[10px] font-bold flex items-center justify-center leading-none pointer-events-none">
-                          {index + 1}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                  {/* Add-more tile */}
-                  <div
-                    className="aspect-square rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-400 hover:border-primary/40 hover:text-primary/60 transition-colors"
-                    onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                  >
-                    <span className="text-xl font-light">+</span>
-                  </div>
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,video/*,.pdf"
-                className="hidden"
-                onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }}
-              />
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex flex-col gap-2">
-              <Button
-                onClick={handleAddToQueue}
-                disabled={isLoading || !hasFiles}
-                className="w-full h-10 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold gap-2 shadow-sm"
-              >
-                {isAddingQueue ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</>
-                ) : (
-                  <><ListOrdered className="w-4 h-4" /> Add to Queue</>
-                )}
-              </Button>
-            </div>
-
-            {/* Feedback */}
-            {errorMsg && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                {errorMsg}
-              </p>
-            )}
-            {successMsg && (
-              <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                {successMsg}
-              </p>
-            )}
-          </div>
-
-          {/* ── COL 2: Copy ── */}
-          <div className="p-5 flex flex-col gap-4">
-            <div className="flex-1 flex flex-col">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-3">
-                Copy
-              </label>
-              <Textarea
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                placeholder="Type your caption or copy here..."
-                className="flex-1 min-h-[180px] resize-none text-sm border-2 border-blue-100 focus:border-blue-300 rounded-lg"
-              />
-            </div>
-
-            {/* Target date */}
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
-                Target Date{" "}
-                <span className="font-normal normal-case text-gray-400">(optional)</span>
-              </label>
-              <input
-                type="date"
-                value={targetDate}
-                onChange={(e) => setTargetDate(e.target.value)}
-                className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-              />
-            </div>
-          </div>
-
-          {/* ── COL 3: Approval Status Summary + actions ── */}
-          <div className="p-5 flex flex-col gap-4">
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-3">
-                Approval Summary
-              </label>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-green-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Check className="w-3.5 h-3.5 text-green-600" />
-                    <span className="text-xs font-medium text-green-800">Approved</span>
-                  </div>
-                  <div className="text-xl font-bold text-green-900">{statusSummary?.approved ?? 0}</div>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Minus className="w-3.5 h-3.5 text-gray-500" />
-                    <span className="text-xs font-medium text-gray-700">Pending</span>
-                  </div>
-                  <div className="text-xl font-bold text-gray-900">{statusSummary?.pending ?? 0}</div>
-                </div>
-                <div className="bg-orange-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
-                    <span className="text-xs font-medium text-orange-800">Attention</span>
-                  </div>
-                  <div className="text-xl font-bold text-orange-900">{statusSummary?.needsAttention ?? 0}</div>
-                </div>
-                <div className="bg-red-50 rounded-lg p-3 flex flex-col items-center justify-center text-center">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <X className="w-3.5 h-3.5 text-red-500" />
-                    <span className="text-xs font-medium text-red-800">Rejected</span>
-                  </div>
-                  <div className="text-xl font-bold text-red-900">{statusSummary?.rejected ?? 0}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        )}
-      </div>
-
       {/* ── QUEUE STRIP ── */}
-      {!hideQueueStrip && (displayQueueItems.length > 0 || displayIsLoadingQueue) && (
+      {!hideQueueStrip && (displayQueueItems.length > 0 || displayIsLoadingQueue || onUploadClick) && (
         <div ref={queueScrollRef} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -550,9 +144,21 @@ const handleAddToQueue = async () => {
                 </span>
               )}
             </div>
-            {displayIsLoadingQueue && displayQueueItems.length > 0 && (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-300" />
-            )}
+            <div className="flex items-center gap-2">
+              {displayIsLoadingQueue && displayQueueItems.length > 0 && (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-300" />
+              )}
+              {onUploadClick && (
+                <button
+                  type="button"
+                  onClick={onUploadClick}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-[#1d4ed8] to-[#1e3a8a] hover:from-[#1e40af] hover:to-[#172554] text-white text-sm font-semibold shadow-sm transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Upload Content
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex gap-3 overflow-x-auto pb-1">

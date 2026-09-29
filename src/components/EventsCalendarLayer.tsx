@@ -51,10 +51,15 @@ interface UseContentEventsResult {
   refetch: () => void;
 }
 
+/**
+ * Load content events for a client. Pass `portalToken` to load them from the client portal
+ * (token auth) instead of with the agency session.
+ */
 export function useContentEvents(
   clientId: string,
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  portalToken?: string
 ): UseContentEventsResult {
   const { getAccessToken } = useAuth();
   const [events, setEvents] = useState<ContentEvent[]>([]);
@@ -71,19 +76,19 @@ export function useContentEvents(
     const end = endDate ?? new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
 
     const params = new URLSearchParams({
-      clientId,
+      ...(portalToken ? { token: portalToken } : { clientId }),
       startDate: start.toISOString().split('T')[0],
       endDate: end.toISOString().split('T')[0],
     });
 
-    const token = getAccessToken();
-    if (!token) return;
+    const token = portalToken ? null : getAccessToken();
+    if (!portalToken && !token) return;
 
     setLoading(true);
     setError(null);
 
-    fetch(`/api/events?${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    fetch(portalToken ? `/api/portal/content-events?${params}` : `/api/events?${params}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     })
       .then(r => r.json())
       .then(data => {
@@ -96,7 +101,7 @@ export function useContentEvents(
       .catch(() => setError('Failed to load events'))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, tick]);
+  }, [clientId, portalToken, tick]);
 
   const eventsByDate: Record<string, ContentEvent[]> = {};
   for (const event of events) {

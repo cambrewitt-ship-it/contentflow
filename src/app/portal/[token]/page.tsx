@@ -2,16 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns, Inbox, Upload, Image as ImageIcon, Film, Trash2, Sparkles, File, ListOrdered, FileDown, Link as LinkIcon, Copy, CheckCheck, Settings2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, Check, X, AlertTriangle, Minus, CheckCircle, XCircle, FileText, Calendar, Columns, Inbox, Upload, Image as ImageIcon, Film, Trash2, Sparkles, File, ListOrdered, FileDown, Link as LinkIcon, Copy, CheckCheck, Settings2, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import { PortalColumnViewCalendar, type PortalCalendarRef } from '@/components/PortalColumnViewCalendar';
 import { TrelloBoardCalendar } from '@/components/TrelloBoardCalendar';
-import { StripCalendar, type StripCalendarHandle } from '@/components/StripCalendar';
-import { PortalContentInbox } from '@/components/PortalContentInbox';
-import { PortalKanbanBoard, type KanbanItem, type KanbanCalendarPost } from '@/components/PortalKanbanBoard';
+import { VideoThumbnail } from '@/components/VideoThumbnail';
+import { PortalContentInbox, VIEW_OPTIONS as PORTAL_VIEW_OPTIONS } from '@/components/PortalContentInbox';
 import { PortalItemModal, type ModalItem } from '@/components/PortalItemModal';
 import { type CalendarEvent } from '@/components/CalendarEventModal';
 import { PDFExportModal } from '@/components/PDFExportModal';
@@ -20,6 +19,8 @@ import logger from '@/lib/logger';
 import { WeekDayChooser } from '@/components/WeekDayChooser';
 import { PortalCreatePostModal } from '@/components/PortalCreatePostModal';
 import { QuickScheduleDayTimePicker } from '@/components/QuickScheduleDayTimePicker';
+import EventsPanel from '@/components/EventsPanel';
+import { useContentEvents } from '@/components/EventsCalendarLayer';
 
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -294,7 +295,7 @@ function PortalCalendarEventModal({
 export default function PortalCalendarPage() {
   const params = useParams();
   const token = params?.token as string;
-  const { party, client, setClientLogo, setPageTitle } = usePortal();
+  const { party, client, setClientLogo, setBoardBackground, setPageTitle, setTopBarActions } = usePortal();
 
   // Modal state
   const [modalItem, setModalItem] = useState<ModalItem | null>(null);
@@ -375,17 +376,24 @@ export default function PortalCalendarPage() {
   const brandInitializedRef = useRef(false);
 
   // View mode state
-  const [viewMode, setViewMode] = useState<'board' | 'column' | 'month' | 'kanban' | 'inbox' | 'strip'>('board');
+  const [viewMode, setViewMode] = useState<'board' | 'column' | 'month' | 'inbox'>('board');
 
   // Show the view's title in the portal top bar.
-  const pageTitle = viewMode === 'inbox' ? 'Content Inbox' : viewMode === 'kanban' ? 'Content Pipeline' : 'Content Calendar';
+  const pageTitle = viewMode === 'inbox' ? 'Content Inbox' : 'Content Calendar';
   useEffect(() => {
     setPageTitle(pageTitle);
     return () => setPageTitle(null);
   }, [pageTitle, setPageTitle]);
 
-  const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0);
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
+  // Events panel on the board (holidays + custom events), shared with the agency calendar.
+  const [showEventsPanel, setShowEventsPanel] = useState(false);
+  const { eventsByDate: contentEventsByDate, refetch: refetchContentEvents } = useContentEvents(
+    client?.id ?? '',
+    undefined,
+    undefined,
+    token
+  );
   const [monthDragOverDate, setMonthDragOverDate] = useState<string | null>(null);
 
   // Calendar event modal state (for Note feature)
@@ -395,6 +403,8 @@ export default function PortalCalendarPage() {
   // Trello-style "+" add-card: click opens the quick-add modal, drag-drop opens a quick
   // day/time picker for the dropped queue photo.
   const [quickAddModal, setQuickAddModal] = useState<{ open: boolean; weekStart: Date } | null>(null);
+  // "+ Upload Content" at the top of the Queue: the new-post modal, saving to the queue instead of a date.
+  const [queueUploadOpen, setQueueUploadOpen] = useState(false);
   const [quickScheduleQueueDrop, setQuickScheduleQueueDrop] = useState<{
     weekStart: Date;
     uploadIds: string[];
@@ -423,7 +433,6 @@ export default function PortalCalendarPage() {
   const [inboxError, setInboxError] = useState<string | null>(null);
   const inboxFileInputRef = useRef<HTMLInputElement | null>(null);
   const portalCalendarRef = useRef<PortalCalendarRef>(null);
-  const portalStripRef = useRef<StripCalendarHandle>(null);
   
   // Client timezone for calendar display
   const [clientTimezone, setClientTimezone] = useState<string>('Pacific/Auckland');
@@ -627,6 +636,29 @@ export default function PortalCalendarPage() {
       setIsLoadingUploads(false);
     }
   }, [token]);
+
+  // Refresh lives in the portal top bar.
+  const isRefreshing = isLoadingScheduledPosts || isLoadingUploads;
+  useEffect(() => {
+    setTopBarActions(
+      <Button
+        onClick={() => {
+          if (!isRefreshing) {
+            fetchScheduledPosts(0, true);
+            fetchUploads();
+          }
+        }}
+        disabled={isRefreshing}
+        variant="outline"
+        size="sm"
+        className="flex-shrink-0"
+      >
+        <RefreshCw className={`h-4 w-4 sm:mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+        <span className="hidden sm:inline">Refresh</span>
+      </Button>
+    );
+  }, [isRefreshing, fetchScheduledPosts, fetchUploads, setTopBarActions]);
+  useEffect(() => () => setTopBarActions(null), [setTopBarActions]);
 
   // Handle notes editing
   const handleEditNotes = (uploadId: string, currentNotes: string) => {
@@ -1293,7 +1325,6 @@ export default function PortalCalendarPage() {
       
       logger.debug('🔄 Refreshing calendar data...');
       await fetchScheduledPosts(0, true);
-      setKanbanRefreshKey(k => k + 1);
       logger.debug('✅ Calendar data refreshed');
 
       // Show success message
@@ -1358,6 +1389,29 @@ export default function PortalCalendarPage() {
     
     return `${hour12}:${minutes} ${ampm}`;
   };
+
+  // Board background — saved on the client, so the agency's calendar board shows the same one.
+  const postBoardBackground = async (body: Record<string, unknown>) => {
+    try {
+      const res = await fetch('/api/board-background', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, ...body }),
+      });
+      if (!res.ok) {
+        logger.error('Failed to save board background:', res.status);
+        return null;
+      }
+      const { background } = await res.json();
+      setBoardBackground(background);
+      return background as string;
+    } catch (err) {
+      logger.error('Failed to save board background:', err);
+      return null;
+    }
+  };
+  const saveBoardBackground = (background: string) => { void postBoardBackground({ background }); };
+  const uploadBoardBackground = (imageData: string, filename: string) => postBoardBackground({ imageData, filename });
 
   const handleColumnPostMove = async (postKey: string, newDate: string) => {
     const firstHyphenIndex = postKey.indexOf('-');
@@ -1543,6 +1597,17 @@ export default function PortalCalendarPage() {
               {isLoadingUploads && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-300" />}
             </div>
 
+            <div className="px-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setQueueUploadOpen(true)}
+                className="w-full inline-flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg bg-gradient-to-r from-[#1d4ed8] to-[#1e3a8a] hover:from-[#1e40af] hover:to-[#172554] text-white text-sm font-semibold shadow-sm transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Upload Content
+              </button>
+            </div>
+
             {/* Sidebar content */}
             <div className="flex-1 overflow-y-auto p-2">
               {isLoadingUploads && groupedQueue.length === 0 ? (
@@ -1592,10 +1657,7 @@ export default function PortalCalendarPage() {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={item.file_url} alt={item.file_name} draggable={false} className="w-full h-full object-cover" />
                           ) : isVideo ? (
-                            <div className="flex flex-col items-center gap-1 text-gray-400">
-                              <Film className="w-6 h-6" />
-                              <span className="text-xs">Video</span>
-                            </div>
+                            <VideoThumbnail src={item.file_url} className="w-full h-full" objectFit="cover" />
                           ) : (
                             <div className="flex flex-col items-center gap-1 text-gray-400">
                               <FileText className="w-6 h-6" />
@@ -1633,7 +1695,7 @@ export default function PortalCalendarPage() {
         ? 'flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-xl shadow-sm px-3 py-1.5 w-max min-w-full'
         : 'flex items-center gap-2 mb-4 pb-3 border-b border-gray-200 flex-wrap'}
     >
-      <span className={`text-sm font-medium ${calendarSelectedPostIds.size > 0 ? 'text-gray-800' : 'text-gray-400'}`}>
+      <span className={`text-sm font-medium ${calendarSelectedPostIds.size > 0 ? 'text-gray-800' : 'text-gray-900'}`}>
         {calendarSelectedPostIds.size > 0 ? `${calendarSelectedPostIds.size} post${calendarSelectedPostIds.size !== 1 ? 's' : ''} selected` : 'Select posts to use toolbar'}
       </span>
 
@@ -1662,7 +1724,7 @@ export default function PortalCalendarPage() {
           disabled={isDeletingSelected || calendarSelectedPostIds.size === 0}
           className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
             isDeletingSelected ? 'bg-red-400 cursor-not-allowed opacity-70'
-            : calendarSelectedPostIds.size === 0 ? 'bg-gray-300 cursor-not-allowed'
+            : calendarSelectedPostIds.size === 0 ? 'bg-red-600 opacity-40 cursor-not-allowed'
             : 'bg-red-600 hover:bg-red-700'
           }`}
         >
@@ -1676,7 +1738,7 @@ export default function PortalCalendarPage() {
         disabled={exportingPDF || calendarSelectedPostIds.size === 0}
         className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
           exportingPDF ? 'bg-blue-400 cursor-not-allowed opacity-70'
-          : calendarSelectedPostIds.size === 0 ? 'bg-gray-300 cursor-not-allowed'
+          : calendarSelectedPostIds.size === 0 ? 'bg-blue-600 opacity-40 cursor-not-allowed'
           : 'bg-blue-600 hover:bg-blue-700'
         }`}
       >
@@ -1689,7 +1751,7 @@ export default function PortalCalendarPage() {
         disabled={generatingApprovalLink || calendarSelectedPostIds.size === 0}
         className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
           generatingApprovalLink ? 'bg-purple-400 cursor-not-allowed opacity-70'
-          : calendarSelectedPostIds.size === 0 ? 'bg-gray-300 cursor-not-allowed'
+          : calendarSelectedPostIds.size === 0 ? 'bg-purple-600 opacity-40 cursor-not-allowed'
           : 'bg-purple-600 hover:bg-purple-700'
         }`}
       >
@@ -1881,7 +1943,6 @@ export default function PortalCalendarPage() {
         fetchUploads();
         // Refresh scheduled posts so approval_status/comments stay visible
         fetchScheduledPosts(0, true);
-        setKanbanRefreshKey(k => k + 1);
         setQueueRefreshKey(k => k + 1);
       } catch {
         // silent fail
@@ -1920,7 +1981,6 @@ export default function PortalCalendarPage() {
         await fetchUploads();
         // Refresh scheduled posts so approval_status/comments stay visible
         fetchScheduledPosts(0, true);
-        setKanbanRefreshKey(k => k + 1);
         setQueueRefreshKey(k => k + 1);
       } catch {
         // silent fail — user can retry
@@ -1932,27 +1992,10 @@ export default function PortalCalendarPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header — the page title lives in the portal top bar */}
-      <div className="flex items-center justify-end">
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={() => {
-              if (!isLoadingScheduledPosts && !isLoadingUploads) {
-                fetchScheduledPosts(0, true);
-                fetchUploads();
-              }
-            }}
-            disabled={isLoadingScheduledPosts || isLoadingUploads}
-            variant="outline"
-            size="sm"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${(isLoadingScheduledPosts || isLoadingUploads) ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-      </div>
-
+    <div
+      className={`space-y-6 ${viewMode === 'board' ? 'flex-1 min-h-0 flex flex-col' : ''}`}
+      data-fill-height={viewMode === 'board' ? '' : undefined}
+    >
       {/* Submit Approvals Section */}
       {Object.keys(selectedPosts).length > 0 && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -2169,10 +2212,7 @@ export default function PortalCalendarPage() {
                               className="w-full h-full object-cover"
                             />
                           ) : isVideo ? (
-                            <div className="flex flex-col items-center gap-2 text-gray-500">
-                              <Film className="h-8 w-8" />
-                              <span className="text-xs">Video</span>
-                            </div>
+                            <VideoThumbnail src={upload.file_url} className="w-full h-full" objectFit="cover" />
                           ) : (
                             <div className="flex flex-col items-center gap-2 text-gray-500">
                               <File className="h-8 w-8" />
@@ -2228,87 +2268,94 @@ export default function PortalCalendarPage() {
         </div>
       )}
 
-      {/* Content Inbox — above the calendar (queue strip hidden in column view, shown as sidebar instead) */}
-      {viewMode !== 'inbox' && (
+      {/* View toggle for Column / Month (the Board view has its own, next to Events) */}
+      {(viewMode === 'column' || viewMode === 'month') && (
+        <div className="flex items-center justify-end">
+          <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
+            {PORTAL_VIEW_OPTIONS.map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setViewMode(id)}
+                className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  viewMode === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Queue strip — Month view only (Column and Board show the queue as a sidebar) */}
+      {viewMode === 'month' && (
         <PortalContentInbox
           token={token}
-          viewMode={viewMode === 'inbox' ? 'column' : viewMode}
-          onViewModeChange={(mode) => setViewMode(mode)}
           refreshTrigger={queueRefreshKey}
           externalQueueItems={allUploads.filter(u => !u.target_date)}
           isExternalQueueLoading={isLoadingUploads}
-          hideQueueStrip={viewMode === 'column' || viewMode === 'strip' || viewMode === 'board'}
+          onUploadClick={() => setQueueUploadOpen(true)}
           onCalendarSuccess={() => {
             fetchUploads();
             fetchScheduledPosts(0, true);
-            setKanbanRefreshKey(k => k + 1);
           }}
           onQueueItemClick={(items) => {
             const upload = items[0] as any;
             const carouselItems = items.length > 1 ? items as any[] : undefined;
             setModalItem({ type: 'upload', data: upload, carouselItems });
           }}
-          statusSummary={(() => {
-            const allPosts = Object.values(scheduledPosts).flat();
-            return {
-              approved: allPosts.filter(p => p.approval_status === 'approved').length,
-              rejected: allPosts.filter(p => p.approval_status === 'rejected').length,
-              needsAttention: allPosts.filter(p => p.approval_status === 'needs_attention').length,
-              pending: allPosts.filter(p => p.approval_status === 'pending' || !p.approval_status).length,
-            };
-          })()}
-        />
-      )}
-
-      {/* Kanban Board */}
-      {viewMode === 'kanban' && (
-        <PortalKanbanBoard
-          token={token}
-          refreshTrigger={kanbanRefreshKey}
-          onStatusChange={() => setQueueRefreshKey(k => k + 1)}
-          onItemClick={(item: KanbanItem) =>
-            setModalItem({
-              type: 'upload',
-              data: {
-                id: item.id,
-                file_name: item.file_name,
-                file_type: item.file_type,
-                file_url: item.file_url,
-                notes: item.notes,
-                review_notes: item.review_notes,
-                created_at: item.created_at,
-                target_date: null,
-                status: item.status,
-              },
-            })
-          }
-          onPostClick={(post: KanbanCalendarPost) =>
-            setModalItem({
-              type: 'post',
-              data: {
-                id: post.id,
-                caption: post.caption,
-                image_url: post.image_url,
-                scheduled_date: post.scheduled_date,
-                scheduled_time: post.scheduled_time,
-                approval_status: post.approval_status,
-                approval_steps: post.approval_steps,
-                platforms_scheduled: post.platforms_scheduled ?? undefined,
-                late_status: post.late_status ?? null,
-                tags: post.tags,
-              },
-            })
-          }
         />
       )}
 
       {/* Calendar — Board View (Trello-style; the default). Queue on the left, selection toolbar on top. */}
       {viewMode === 'board' && (
-        <div className="h-[calc(100vh-7rem)] min-h-[520px] rounded-xl overflow-hidden shadow">
+        // Full-bleed: cancel the portal's p-6 so the background reaches both sides and the bottom of the screen.
+        // Min height fits ~1.75 cards per list (cards are up to ~340px tall) plus the board's top bar and toolbar.
+        <div className="flex-1 min-h-[850px] -mx-6 -mb-6 overflow-hidden">
           <TrelloBoardCalendar
             {...(portalCalendarProps as any)}
             clientId={`portal-${token}`}
             background={(client?.portal_settings?.board_background as string | undefined) ?? null}
+            onBackgroundChange={saveBoardBackground}
+            onBackgroundUpload={uploadBoardBackground}
+            contentEvents={contentEventsByDate}
+            toolbar={
+              <>
+                <div className="flex items-center bg-white/15 rounded-lg p-0.5">
+                  {PORTAL_VIEW_OPTIONS.map(({ id, label, Icon }) => (
+                    <button
+                      key={id}
+                      onClick={() => setViewMode(id)}
+                      className={`px-2.5 py-1 text-sm rounded-md transition-all flex items-center gap-1.5 ${
+                        viewMode === id ? 'bg-white text-gray-900 shadow-sm' : 'text-white/90 hover:bg-white/20'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="hidden lg:inline">{label}</span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setShowEventsPanel(v => !v)}
+                  className={`px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1.5 ${showEventsPanel ? 'bg-white/30' : 'hover:bg-white/20'}`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  Events
+                </button>
+              </>
+            }
+            rightPanel={
+              showEventsPanel && client?.id ? (
+                <EventsPanel
+                  clientId={client.id}
+                  portalToken={token}
+                  onClose={() => setShowEventsPanel(false)}
+                  onEventsChange={refetchContentEvents}
+                />
+              ) : null
+            }
             selectedPosts={calendarSelectedPostIds}
             onTogglePostSelection={handleToggleCalendarPostSelection}
             subToolbar={<div className="overflow-x-auto calendar-hscroll">{renderSelectionToolbar('board')}</div>}
@@ -2334,77 +2381,6 @@ export default function PortalCalendarPage() {
               {...portalCalendarProps}
             />
           </div>
-        </div>
-      )}
-
-      {/* Calendar — Strip View */}
-      {viewMode === 'strip' && (
-        <div className="bg-white rounded-lg shadow overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: '500px' }}>
-          <StripCalendar
-            ref={portalStripRef}
-            scheduledPosts={scheduledPosts}
-            clientUploads={uploads}
-            loading={isLoadingScheduledPosts}
-            onPostMove={handleColumnPostMove}
-            onPostClick={(post) => {
-              const isUpload =
-                post.post_type === 'client-upload' ||
-                post.post_type === 'client_upload' ||
-                (post as any).isClientUpload;
-              if (isUpload) {
-                const uploadData = (post as any).client_upload || (post as any).upload || post;
-                const carouselUploads = (post as any).carouselUploads as any[] | undefined;
-                setModalItem({
-                  type: 'upload',
-                  data: {
-                    id: post.id,
-                    file_name: uploadData.file_name || post.caption || 'Upload',
-                    file_type: uploadData.file_type || 'image/jpeg',
-                    file_url: uploadData.file_url || post.image_url || '',
-                    notes: uploadData.notes || null,
-                    review_notes: null,
-                    created_at: uploadData.created_at || new Date().toISOString(),
-                    target_date: uploadData.target_date ?? null,
-                    status: uploadData.status,
-                    one_time_approval: uploadData.one_time_approval ?? null,
-                  },
-                  carouselItems: carouselUploads && carouselUploads.length > 1
-                    ? carouselUploads.map(u => ({
-                        id: u.id,
-                        file_name: u.file_name || '',
-                        file_type: u.file_type || '',
-                        file_url: u.file_url || '',
-                        notes: u.notes ?? null,
-                        review_notes: u.review_notes ?? null,
-                        created_at: u.created_at || new Date().toISOString(),
-                        target_date: u.target_date ?? null,
-                        status: u.status,
-                        carousel_order: u.carousel_order ?? 0,
-                      }))
-                    : undefined,
-                });
-              } else {
-                setModalItem({
-                  type: 'post',
-                  data: {
-                    id: post.id,
-                    caption: post.caption,
-                    image_url: post.image_url,
-                    media_urls: (post as any).media_urls ?? null,
-                    scheduled_date: post.scheduled_date,
-                    scheduled_time: post.scheduled_time,
-                    approval_status: post.approval_status,
-                    approval_steps: post.approval_steps,
-                    platforms_scheduled: post.platforms_scheduled ?? undefined,
-                    late_status: post.late_status ?? null,
-                    target_platforms: (post as any).target_platforms ?? [],
-                    tags: post.tags,
-                    one_time_approval: (post as any).one_time_approval ?? null,
-                  },
-                });
-              }
-            }}
-          />
         </div>
       )}
 
@@ -2479,7 +2455,6 @@ export default function PortalCalendarPage() {
             setModalItem(null);
             fetchScheduledPosts(0, true);
             fetchUploads();
-            setKanbanRefreshKey(k => k + 1);
             setQueueRefreshKey(k => k + 1);
           }}
           onTagsChange={handleTagsChange}
@@ -2527,6 +2502,8 @@ export default function PortalCalendarPage() {
           onClose={() => setQuickAddModal(null)}
           token={token}
           clientId={client.id}
+          brandName={brandName || client.name}
+          brandLogoUrl={brandLogoUrl || client.logo_url || undefined}
           weekStart={quickAddModal.weekStart}
           onCreated={(post) => {
             const dateKey = post.scheduled_date;
@@ -2536,8 +2513,24 @@ export default function PortalCalendarPage() {
                 [dateKey]: [...(prev[dateKey] || []), post as unknown as Post],
               }));
             }
-            setKanbanRefreshKey(k => k + 1);
             setQuickAddModal(null);
+          }}
+        />
+      )}
+
+      {client && (
+        <PortalCreatePostModal
+          open={queueUploadOpen}
+          onClose={() => setQueueUploadOpen(false)}
+          token={token}
+          clientId={client.id}
+          brandName={brandName || client.name}
+          brandLogoUrl={brandLogoUrl || client.logo_url || undefined}
+          mode="queue"
+          onCreated={() => {}}
+          onQueued={() => {
+            fetchUploads();
+            setQueueRefreshKey(k => k + 1);
           }}
         />
       )}
@@ -2561,7 +2554,6 @@ export default function PortalCalendarPage() {
               ));
               await fetchUploads();
               fetchScheduledPosts(0, true);
-              setKanbanRefreshKey(k => k + 1);
               setQueueRefreshKey(k => k + 1);
               setQuickScheduleQueueDrop(null);
             } finally {
@@ -2603,7 +2595,6 @@ export default function PortalCalendarPage() {
                 ));
                 await fetchUploads();
                 fetchScheduledPosts(0, true);
-                setKanbanRefreshKey(k => k + 1);
                 setQueueRefreshKey(k => k + 1);
               }
               setMoveToWeekModal(null);

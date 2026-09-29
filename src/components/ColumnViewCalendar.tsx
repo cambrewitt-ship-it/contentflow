@@ -51,6 +51,24 @@ export function EventIndicatorsInline({ events }: { events: ContentEvent[] }) {
   );
 }
 
+// Board view: content events as labelled chips (dot + name), so they read without hovering.
+export function EventChips({ events }: { events: ContentEvent[] }) {
+  return (
+    <div className="space-y-1">
+      {events.map(event => (
+        <div
+          key={`${event.id}-${event.occurrence_date || event.event_date}`}
+          className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/80 border border-[#091e4224] text-xs font-medium text-[#172b4d] min-w-0"
+          title={event.description ? `${event.title} — ${event.description}` : event.title}
+        >
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${EVENT_TYPE_COLORS[event.event_type]}`} />
+          <span className="truncate">{event.title}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export interface ClientUpload {
   id: string;
   file_name?: string;
@@ -1101,8 +1119,8 @@ export function DateDivider({
       </div>
 
       {contentEventIndicators && contentEventIndicators.length > 0 && (
-        <div className="mt-1">
-          <EventIndicatorsInline events={contentEventIndicators} />
+        <div className={isBoard ? 'mt-1.5' : 'mt-1'}>
+          {isBoard ? <EventChips events={contentEventIndicators} /> : <EventIndicatorsInline events={contentEventIndicators} />}
         </div>
       )}
 

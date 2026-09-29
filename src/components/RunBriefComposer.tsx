@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Play, Settings } from 'lucide-react';
+import { useSporadicGlow } from '@/hooks/useSporadicGlow';
 import { TARGET_PLATFORM_IDS, TARGET_PLATFORM_LABELS } from '@/lib/targetPlatforms';
 import {
   AD_OBJECTIVES,
@@ -36,11 +37,6 @@ const LENGTH_LABELS: Record<RunBrief['captionLength'], string> = {
   long: 'Long',
 };
 
-// Sweep length must match the prompt-glow-sweep animation in globals.css
-const GLOW_SWEEP_MS = 2800;
-const GLOW_REST_MIN_MS = 4000;
-const GLOW_REST_MAX_MS = 11000;
-
 interface RunBriefComposerProps {
   value: RunBrief;
   onChange: (brief: RunBrief) => void;
@@ -65,7 +61,6 @@ export default function RunBriefComposer({
 }: RunBriefComposerProps) {
   const [showSettings, setShowSettings] = useState(true);
   const [focused, setFocused] = useState(false);
-  const [glowOn, setGlowOn] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const set = <K extends keyof RunBrief>(key: K, v: RunBrief[K]) => onChange({ ...brief, [key]: v });
@@ -75,26 +70,8 @@ export default function RunBriefComposer({
   const organic = organicEnabled(brief);
   const ads = adsEnabled(brief);
 
-  // Sporadic glow: one sweep, then a random rest. Paused while the user is
-  // typing into the box so it doesn't distract.
-  const glowPaused = focused && brief.prompt.length > 0;
-  useEffect(() => {
-    if (glowPaused) {
-      setGlowOn(false);
-      return;
-    }
-    let timer: ReturnType<typeof setTimeout>;
-    const rest = () => GLOW_REST_MIN_MS + Math.random() * (GLOW_REST_MAX_MS - GLOW_REST_MIN_MS);
-    const sweep = () => {
-      setGlowOn(true);
-      timer = setTimeout(() => {
-        setGlowOn(false);
-        timer = setTimeout(sweep, rest());
-      }, GLOW_SWEEP_MS);
-    };
-    timer = setTimeout(sweep, 700);
-    return () => clearTimeout(timer);
-  }, [glowPaused]);
+  // Sporadic glow, paused while the user is typing into the box so it doesn't distract
+  const glow = useSporadicGlow(focused && brief.prompt.length > 0);
 
   // Grow the textarea with its content, up to a cap
   useEffect(() => {
@@ -135,7 +112,7 @@ export default function RunBriefComposer({
       {/* ── Prompt box ── */}
       <div
         className="prompt-glow rounded-[28px] shadow-[0_8px_30px_rgba(15,23,42,0.06)]"
-        data-glow={glowOn ? 'on' : 'off'}
+        data-glow={glow}
       >
         <div
           className={`rounded-[28px] bg-white border px-5 pt-5 pb-4 transition-colors ${

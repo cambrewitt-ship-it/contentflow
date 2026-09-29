@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Loader2, Sparkles, Send, RefreshCw, Plus, AlertCircle, Upload as UploadIcon } from 'lucide-react';
+import { X, Loader2, Sparkles, RefreshCw, Plus, AlertCircle, Upload as UploadIcon } from 'lucide-react';
 import { uploadMediaToBlob, getMediaType } from '@/lib/blobUpload';
 import { extractVideoThumbnail } from '@/lib/videoUtils';
 import { prepareImageDataForAI } from '@/lib/imageCompression';
 import { SocialPreviewCard } from '@/components/SocialPreviewCard';
 import { WeekDayChooser } from '@/components/WeekDayChooser';
 import { ChatCaptionOption } from '@/components/ChatCaptionOption';
+import { GeneratePromptBox, ChatRefineInput } from '@/components/CaptionPrompt';
+import { useInputGlide } from '@/hooks/useInputGlide';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -50,8 +52,16 @@ interface PortalCreatePostModalProps {
   onClose: () => void;
   token: string;
   clientId: string;
-  weekStart: Date;
+  /** Week offered in the day chooser (calendar mode only). */
+  weekStart?: Date;
+  /** 'queue' drops the day/time picker and saves the media as unscheduled queue uploads. */
+  mode?: 'calendar' | 'queue';
   onCreated: (post: CreatedPost) => void;
+  /** Called after a queue-mode save (the new uploads are in the queue). */
+  onQueued?: () => void;
+  /** Name and logo shown on the social preview (the portal's brand settings / client). */
+  brandName?: string;
+  brandLogoUrl?: string;
 }
 
 const PREVIEW_PLATFORMS = [
@@ -63,14 +73,15 @@ const PREVIEW_PLATFORMS = [
 ] as const;
 type PreviewPlatform = (typeof PREVIEW_PLATFORMS)[number]['id'];
 
-export function PortalCreatePostModal({ open, onClose, token, clientId, weekStart, onCreated }: PortalCreatePostModalProps) {
+export function PortalCreatePostModal({ open, onClose, token, clientId, weekStart, mode = 'calendar', onCreated, onQueued, brandName, brandLogoUrl }: PortalCreatePostModalProps) {
+  const isQueue = mode === 'queue';
   const [mediaList, setMediaList] = useState<UploadedMedia[]>([]);
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null);
   const [postNotes, setPostNotes] = useState('');
   const [captions, setCaptions] = useState<Caption[]>([]);
   const [selectedCaptionId, setSelectedCaptionId] = useState<string | null>(null);
   const [customCaption, setCustomCaption] = useState('');
-  const [chatMode, setChatMode] = useState(false);
+  const [chatMode, setChatMode] = useState(true);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -85,6 +96,9 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const showChatWindow = chatMode && chatMessages.length > 0;
+  // Prompt box glides down to become the chat refine input once the conversation starts
+  const inputGlide = useInputGlide(showChatWindow, chatContainerRef);
 
   const reset = () => {
     mediaList.forEach((m) => { if (m.preview.startsWith('blob:')) URL.revokeObjectURL(m.preview); });
@@ -94,7 +108,7 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
     setCaptions([]);
     setSelectedCaptionId(null);
     setCustomCaption('');
-    setChatMode(false);
+    setChatMode(true);
     setChatMessages([]);
     setChatInput('');
     setSelectedDateKey(null);
@@ -298,17 +312,13 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
     return (data.captions || []) as string[];
   };
 
-  const handleEnterChatMode = async () => {
-    setChatMode(true);
+  // Chat mode starts on "Generate Text" (post notes are an optional prompt)
+  const handleStartChat = async () => {
     if (!media || chatMessages.length > 0) return;
 
     const isVideo = media.mediaType === 'video';
     if (isVideo && !postNotes.trim()) {
-      setChatMessages([{
-        id: `msg-${Date.now()}`,
-        role: 'assistant',
-        content: 'This is a video. Please add post notes describing your video content, then switch back to Chat mode.',
-      }]);
+      setError('This is a video — add notes describing it before generating captions.');
       return;
     }
 
@@ -393,7 +403,64 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
     );
   };
 
-  const canSubmit = allUploaded && !!activeCaptionText.trim() && !!selectedDateKey && !!selectedTime && !isSubmitting;
+  // Single "Generate Text" entry point for both caption modes
+  const isGenerating = chatMode ? chatLoading : generatingCaptions;
+  const isVideoWithoutNotes = media?.mediaType === 'video' && !postNotes.trim();
+  const isGenerateDisabled = !media || isGenerating || isVideoWithoutNotes;
+  const handleGenerateText = () => {
+    if (chatMode) {
+      inputGlide.captureStart();
+      handleStartChat();
+    } else {
+      handleGenerateCaptions();
+    }
+  };
+
+  const canSubmit = isQueue
+    ? allUploaded && !isSubmitting
+    : allUploaded && !!activeCaptionText.trim() && !!selectedDateKey && !!selectedTime && !isSubmitting;
+
+  // Queue mode: save each photo as an unscheduled portal upload (several photos = one carousel group),
+  // the same records the Content Upload form's "Add to Queue" creates.
+  const handleAddToQueue = async () => {
+    if (!canSubmit) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const groupId = mediaList.length > 1 ? crypto.randomUUID() : null;
+      const notes = activeCaptionText.trim() || postNotes.trim() || null;
+      for (const [index, m] of mediaList.entries()) {
+        const response = await fetch('/api/portal/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            fileName: m.file.name,
+            fileType: m.file.type,
+            fileSize: m.file.size,
+            fileUrl: m.blobUrl,
+            notes,
+            targetDate: null,
+            carouselGroupId: groupId,
+            carouselOrder: index,
+          }),
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          let message = `Failed to add ${m.file.name} to the queue`;
+          try { message = JSON.parse(text).error || message; } catch { /* plain-text response */ }
+          throw new Error(message);
+        }
+      }
+      onQueued?.();
+      reset();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add to queue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!canSubmit || !selectedDateKey) return;
@@ -445,7 +512,7 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="w-4 h-4 text-purple-500" />
-            <span className="text-sm font-semibold text-gray-900">New post</span>
+            <span className="text-sm font-semibold text-gray-900">{isQueue ? 'Upload content' : 'New post'}</span>
           </div>
           <button
             onClick={handleClose}
@@ -479,7 +546,8 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
             <div className="flex-1 px-3 pb-4">
               <SocialPreviewCard
                 platform={selectedPlatform}
-                accountName="Your Account"
+                accountName={brandName || 'Your Account'}
+                accountAvatarUrl={brandLogoUrl}
                 caption={activeCaptionText}
                 imageUrl={media?.blobUrl || media?.preview}
                 mediaUrls={mediaList.map((m) => m.blobUrl || m.preview)}
@@ -563,7 +631,7 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
 
             {/* Photo */}
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Photos</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{isQueue ? 'Media' : 'Photos'}</p>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -582,7 +650,7 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
                 className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 <UploadIcon className="w-3.5 h-3.5" />
-                {mediaList.length > 0 ? 'Add photos' : 'Upload photos'}
+                {isQueue ? 'Add Media' : mediaList.length > 0 ? 'Add photos' : 'Upload photos'}
               </button>
               <p className="text-[11px] text-gray-500 mt-1.5">
                 {hasFailedUpload
@@ -591,21 +659,9 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
               </p>
             </div>
 
-            {/* Notes */}
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Post notes (optional)</p>
-              <Textarea
-                value={postNotes}
-                onChange={(e) => setPostNotes(e.target.value)}
-                placeholder="Anything the AI should know about this post..."
-                rows={2}
-                className="text-sm"
-              />
-            </div>
-
             {/* Caption generation */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div ref={inputGlide.anchorRef} className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Caption</p>
                 <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-0.5">
                   <button
@@ -619,9 +675,8 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
                   </button>
                   <button
                     type="button"
-                    onClick={handleEnterChatMode}
-                    disabled={!media}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-40 ${
+                    onClick={() => setChatMode(true)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                       chatMode ? 'bg-blue-600 text-white' : 'text-gray-500'
                     }`}
                   >
@@ -630,17 +685,30 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
                 </div>
               </div>
 
+              {/* Prompt box — notes + Generate Text (Standard, and Chat before the first generation) */}
+              {!showChatWindow && (
+                <div className="mb-3">
+                  <GeneratePromptBox
+                    size="sm"
+                    boxRef={inputGlide.fromRef}
+                    value={postNotes}
+                    onChange={setPostNotes}
+                    onGenerate={handleGenerateText}
+                    disabled={isGenerateDisabled}
+                    generating={isGenerating}
+                  />
+                  <p className="text-[11px] text-gray-500 text-center mt-1.5">
+                    {isVideoWithoutNotes
+                      ? 'Add notes describing your video to generate captions'
+                      : chatMode
+                        ? 'Notes are optional — generate captions, then refine them in chat'
+                        : 'AI will analyze your photo and your notes to generate captions'}
+                  </p>
+                </div>
+              )}
+
               {!chatMode ? (
                 <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={handleGenerateCaptions}
-                    disabled={!media || generatingCaptions}
-                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {generatingCaptions ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                    Generate captions
-                  </button>
                   <div className="space-y-1.5 max-h-56 overflow-y-auto">
                     {captions.map((cap) => (
                       <button
@@ -673,13 +741,9 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
                   </div>
                 </div>
               ) : (
-                <div className="border border-gray-200 rounded-lg flex flex-col h-64">
-                  <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-3 space-y-3">
-                    {chatMessages.length === 0 && (
-                      <p className="text-xs text-gray-400 text-center mt-6">
-                        {media ? 'Generating captions...' : 'Select a photo to start'}
-                      </p>
-                    )}
+                showChatWindow && (
+                <div>
+                  <div ref={chatContainerRef} className="h-72 overflow-y-auto rounded-2xl bg-gray-50 border border-gray-200 p-3 space-y-3">
                     {chatMessages.map((msg) => (
                       <div key={msg.id} className={msg.role === 'user' ? 'text-right' : ''}>
                         {msg.role === 'user' ? (
@@ -707,30 +771,20 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
                       </div>
                     ))}
                   </div>
-                  <div className="flex items-center gap-2 p-2 border-t border-gray-100">
-                    <input
+                  <div className="mt-3">
+                    <ChatRefineInput
+                      size="sm"
+                      boxRef={inputGlide.toRef}
+                      hintRef={inputGlide.hintRef}
                       value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendChatMessage();
-                        }
-                      }}
-                      placeholder='Try "make it shorter"...'
-                      disabled={chatLoading}
-                      className="flex-1 text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      onChange={setChatInput}
+                      onSend={handleSendChatMessage}
+                      sendDisabled={!chatInput.trim() || chatLoading || !media}
+                      loading={chatLoading}
                     />
-                    <button
-                      type="button"
-                      onClick={handleSendChatMessage}
-                      disabled={!chatInput.trim() || chatLoading || !media}
-                      className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-blue-600 text-white disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
-                    >
-                      {chatLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    </button>
                   </div>
                 </div>
+                )
               )}
 
               <div className="pt-2">
@@ -750,7 +804,8 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
               </div>
             </div>
 
-            {/* Day / time */}
+            {/* Day / time (calendar mode only — queued posts get a date later) */}
+            {!isQueue && weekStart && (
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Day</p>
               <WeekDayChooser weekStart={weekStart} selectedDateKey={selectedDateKey} onSelect={setSelectedDateKey} />
@@ -763,16 +818,17 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
                 />
               </div>
             </div>
+            )}
 
             {/* Submit */}
             <button
               type="button"
-              onClick={handleSubmit}
+              onClick={isQueue ? handleAddToQueue : handleSubmit}
               disabled={!canSubmit}
               className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Add to calendar
+              {isQueue ? 'Add to Queue' : 'Add to calendar'}
             </button>
           </div>
         </div>

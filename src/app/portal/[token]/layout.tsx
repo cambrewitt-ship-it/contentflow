@@ -13,7 +13,7 @@ import Link from "next/link";
 
 
 function PortalLayoutContent({ children }: { children: React.ReactNode }) {
-  const { client, party, isLoading, error, logout, pageTitle } = usePortal();
+  const { client, party, isLoading, error, logout, pageTitle, topBarActions } = usePortal();
   const router = useRouter();
 
   const handleLogout = () => {
@@ -92,8 +92,10 @@ function PortalLayoutContent({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* Right: client identity */}
+          {/* Right: page actions, then client identity */}
           <div className="flex items-center gap-4 min-w-0">
+            {topBarActions}
+
             {party && (
               <div
                 className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium text-white"
@@ -137,7 +139,8 @@ function PortalLayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Page Content - Scrollable content area only */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="p-6 min-h-[400px]">
+        {/* A full-height page (the Board view) pins this to the viewport so the board gets a fixed height. */}
+        <div className="p-6 min-h-full flex flex-col has-[[data-fill-height]]:h-full has-[[data-fill-height]]:pt-0">
           {children}
         </div>
       </main>

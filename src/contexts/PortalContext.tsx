@@ -25,9 +25,14 @@ interface PortalContextType {
   logout: () => void;
   validateToken: (token: string) => Promise<boolean>;
   setClientLogo: (logoUrl: string) => void;
+  /** Update the board background after the portal saves a new one. */
+  setBoardBackground: (background: string) => void;
   /** Page title shown in the portal top bar (set by the page, e.g. "Content Calendar"). */
   pageTitle: string | null;
   setPageTitle: (title: string | null) => void;
+  /** Extra controls the page places in the top bar, before the client identity (e.g. Refresh). */
+  topBarActions: React.ReactNode;
+  setTopBarActions: (actions: React.ReactNode) => void;
 }
 
 const PortalContext = createContext<PortalContextType | undefined>(undefined);
@@ -116,11 +121,13 @@ export function PortalProvider({
    * picks it up immediately.
    */
   const [pageTitle, setPageTitle] = useState<string | null>(null);
+  const [topBarActions, setTopBarActions] = useState<React.ReactNode>(null);
 
-  const setClientLogo = (logoUrl: string) => {
+  // Patch the client in state and in the session cache so the change survives a reload.
+  const patchClient = (patch: (prev: PortalClient) => PortalClient) => {
     setClient(prev => {
       if (!prev) return prev;
-      const next = { ...prev, logo_url: logoUrl };
+      const next = patch(prev);
       try {
         const cacheKey = `portal_validated_v2_${token}`;
         const cached = sessionStorage.getItem(cacheKey);
@@ -137,6 +144,11 @@ export function PortalProvider({
       return next;
     });
   };
+
+  const setClientLogo = (logoUrl: string) => patchClient(prev => ({ ...prev, logo_url: logoUrl }));
+
+  const setBoardBackground = (background: string) =>
+    patchClient(prev => ({ ...prev, portal_settings: { ...prev.portal_settings, board_background: background } }));
 
   const logout = () => {
     setClient(null);
@@ -171,8 +183,11 @@ export function PortalProvider({
     logout,
     validateToken,
     setClientLogo,
+    setBoardBackground,
     pageTitle,
     setPageTitle,
+    topBarActions,
+    setTopBarActions,
   };
 
   return <PortalContext.Provider value={value}>{children}</PortalContext.Provider>;

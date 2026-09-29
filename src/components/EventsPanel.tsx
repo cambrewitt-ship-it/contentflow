@@ -45,9 +45,18 @@ const REGIONS = [
 interface EventsPanelProps {
   clientId: string;
   onClose: () => void;
+  /** Client portal mode: load/save through the portal token; holidays are read-only. */
+  portalToken?: string;
+  /** Called after an event is added, deleted or seeded, so the calendar can refresh. */
+  onEventsChange?: () => void;
 }
 
-export default function EventsPanel({ clientId, onClose }: EventsPanelProps) {
+const todayKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+export default function EventsPanel({ clientId, onClose, portalToken, onEventsChange }: EventsPanelProps) {
   const { getAccessToken } = useAuth();
   const [tab, setTab] = useState<Tab>('upcoming');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -60,12 +69,12 @@ export default function EventsPanel({ clientId, onClose }: EventsPanelProps) {
 
   const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const end = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-  const { events, loading, error, refetch } = useContentEvents(clientId, start, end);
+  const { events, loading, error, refetch } = useContentEvents(clientId, start, end, portalToken);
 
   // Add event form state
   const [newEvent, setNewEvent] = useState({
     title: '',
-    eventDate: '',
+    eventDate: todayKey(),
     eventType: 'custom' as ContentEvent['event_type'],
     description: '',
   });
@@ -82,52 +91,74 @@ export default function EventsPanel({ clientId, onClose }: EventsPanelProps) {
   });
 
   const handleAddEvent = useCallback(async () => {
-    if (!newEvent.title || !newEvent.eventDate) return;
+    // Say what's missing instead of leaving a dead, greyed-out Save button.
+    if (!newEvent.title.trim()) {
+      setSaveError('Give the event a title.');
+      return;
+    }
+    if (!newEvent.eventDate) {
+      setSaveError('Pick a date for the event.');
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     try {
-      const token = getAccessToken();
-      const res = await fetch('/api/events', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          clientId,
-          title: newEvent.title,
-          eventDate: newEvent.eventDate,
-          eventType: newEvent.eventType,
-          description: newEvent.description || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Failed to create event');
-      setNewEvent({ title: '', eventDate: '', eventType: 'custom', description: '' });
+      const body = {
+        title: newEvent.title.trim(),
+        eventDate: newEvent.eventDate,
+        eventType: newEvent.eventType,
+        description: newEvent.description || undefined,
+      };
+      const res = portalToken
+        ? await fetch('/api/portal/content-events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: portalToken, ...body }),
+          })
+        : await fetch('/api/events', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${getAccessToken()}`,
+            },
+            body: JSON.stringify({ clientId, ...body }),
+          });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to create event');
+      setNewEvent({ title: '', eventDate: todayKey(), eventType: 'custom', description: '' });
       setShowAddForm(false);
       refetch();
+      onEventsChange?.();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Failed to create event');
     } finally {
       setSaving(false);
     }
-  }, [clientId, getAccessToken, newEvent, refetch]);
+  }, [clientId, getAccessToken, newEvent, refetch, portalToken, onEventsChange]);
 
   const handleDelete = useCallback(
     async (event: ContentEvent) => {
       setDeletingId(event.id);
       try {
-        const token = getAccessToken();
-        await fetch(`/api/events/${event.id}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        if (portalToken) {
+          await fetch('/api/portal/content-events', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: portalToken, id: event.id }),
+          });
+        } else {
+          await fetch(`/api/events/${event.id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${getAccessToken()}` },
+          });
+        }
         refetch();
+        onEventsChange?.();
       } finally {
         setDeletingId(null);
       }
     },
-    [getAccessToken, refetch]
+    [getAccessToken, refetch, portalToken, onEventsChange]
   );
 
   const handleSeed = useCallback(async () => {
@@ -147,11 +178,12 @@ export default function EventsPanel({ clientId, onClose }: EventsPanelProps) {
       if (data.success) {
         setSeedResult({ inserted: data.inserted, skipped: data.skipped });
         refetch();
+        onEventsChange?.();
       }
     } finally {
       setSeeding(false);
     }
-  }, [clientId, getAccessToken, seedRegion, seedYear, refetch]);
+  }, [clientId, getAccessToken, seedRegion, seedYear, refetch, onEventsChange]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr + 'T00:00:00Z');
@@ -202,15 +234,17 @@ export default function EventsPanel({ clientId, onClose }: EventsPanelProps) {
           <Plus className="h-3 w-3 mr-1" />
           Add Event
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs px-2"
-          onClick={() => setShowSeedSection(v => !v)}
-          title="Seed public holidays"
-        >
-          <Globe className="h-3 w-3" />
-        </Button>
+        {!portalToken && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs px-2"
+            onClick={() => setShowSeedSection(v => !v)}
+            title="Seed public holidays"
+          >
+            <Globe className="h-3 w-3" />
+          </Button>
+        )}
       </div>
 
       {/* Add Event Form */}
@@ -219,13 +253,19 @@ export default function EventsPanel({ clientId, onClose }: EventsPanelProps) {
           <Input
             placeholder="Event title"
             value={newEvent.title}
-            onChange={e => setNewEvent(prev => ({ ...prev, title: e.target.value }))}
+            onChange={e => {
+              setNewEvent(prev => ({ ...prev, title: e.target.value }));
+              setSaveError(null);
+            }}
             className="h-7 text-xs"
           />
           <Input
             type="date"
             value={newEvent.eventDate}
-            onChange={e => setNewEvent(prev => ({ ...prev, eventDate: e.target.value }))}
+            onChange={e => {
+              setNewEvent(prev => ({ ...prev, eventDate: e.target.value }));
+              setSaveError(null);
+            }}
             className="h-7 text-xs"
           />
           <Select
@@ -257,7 +297,7 @@ export default function EventsPanel({ clientId, onClose }: EventsPanelProps) {
               size="sm"
               className="flex-1 h-7 text-xs"
               onClick={handleAddEvent}
-              disabled={saving || !newEvent.title || !newEvent.eventDate}
+              disabled={saving}
             >
               {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
             </Button>
@@ -274,7 +314,7 @@ export default function EventsPanel({ clientId, onClose }: EventsPanelProps) {
       )}
 
       {/* Seed Holidays Section */}
-      {showSeedSection && (
+      {showSeedSection && !portalToken && (
         <div className="px-3 py-3 border-b border-gray-100 space-y-2 bg-blue-50">
           <p className="text-xs font-medium text-blue-800">Seed Public Holidays</p>
           <Select value={seedRegion} onValueChange={setSeedRegion}>
@@ -375,6 +415,7 @@ export default function EventsPanel({ clientId, onClose }: EventsPanelProps) {
                   </div>
                 )}
               </div>
+              {(!portalToken || event.event_source === 'user') && (
               <button
                 onClick={() => handleDelete(event)}
                 disabled={deletingId === event.id}
@@ -386,6 +427,7 @@ export default function EventsPanel({ clientId, onClose }: EventsPanelProps) {
                   <Trash2 className="h-3 w-3" />
                 )}
               </button>
+              )}
             </div>
           );
         })}

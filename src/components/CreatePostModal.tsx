@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Loader2, Sparkles, Images, Send, RefreshCw, Brain, Plus, AlertCircle, Upload as UploadIcon, Check, Inbox } from 'lucide-react';
+import { X, Loader2, Sparkles, Images, RefreshCw, Plus, AlertCircle, Upload as UploadIcon, Check, Inbox } from 'lucide-react';
 import { ContentStoreProvider, useContentStore } from '@/lib/contentStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { SocialPreviewCard } from '@/components/SocialPreviewCard';
 import PhotoSwapDialog from '@/components/PhotoSwapDialog';
 import { WeekDayChooser } from '@/components/WeekDayChooser';
 import { ChatCaptionOption } from '@/components/ChatCaptionOption';
+import { GeneratePromptBox, ChatRefineInput } from '@/components/CaptionPrompt';
+import { useInputGlide } from '@/hooks/useInputGlide';
 import { PlatformPicker } from '@/components/PlatformBadges';
 import { normalizeTargetPlatforms, type TargetPlatform } from '@/lib/targetPlatforms';
 import { Textarea } from '@/components/ui/textarea';
@@ -104,7 +106,6 @@ function CreatePostModalContent({
     chatInput,
     chatLoading,
     setChatMode,
-    setChatMessages,
     setChatInput,
     sendChatMessage,
     handleEnterChatMode,
@@ -130,6 +131,8 @@ function CreatePostModalContent({
   const [existingPost, setExistingPost] = useState<UnscheduledPostOption | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const showChatWindow = chatMode && !customMode && chatMessages.length > 0;
+  const inputGlide = useInputGlide(showChatWindow, chatContainerRef);
 
   // Fresh session each time the modal opens — contentStore's localStorage hydration is not
   // scoped by clientId, so without this a reopen could silently show a different client's
@@ -156,17 +159,6 @@ function CreatePostModalContent({
     }
     return false;
   };
-
-  // Auto-enter chat mode once an image becomes active (mirrors content-suite page's behavior)
-  useEffect(() => {
-    if (chatMode && activeImage && chatMessages.length === 0) {
-      const accessToken = getAccessToken();
-      handleEnterChatMode(accessToken || undefined).catch((err: unknown) => {
-        handleCreditError(err);
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatMode, activeImage, chatMessages.length]);
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -238,15 +230,17 @@ function CreatePostModalContent({
     }
   };
 
-  // Single "Generate Text" entry point for both Standard and Chat caption modes.
-  // In chat mode, clearing chatMessages lets the existing auto-generate effect
-  // (below) re-run initializeChat with the latest notes — avoids a duplicate call.
+  // Single "Generate Text" entry point for both Standard and Chat caption modes. In Chat mode
+  // (the default) the notes are an optional prompt; once captions exist the box glides down
+  // to become the chat refine input.
   const isGenerating = chatMode ? chatLoading : generatingCaptions;
-  const isGenerateDisabled = !activeImage || isGenerating;
+  const isVideoWithoutNotes = activeImage?.mediaType === 'video' && !postNotes.trim();
+  const isGenerateDisabled = !activeImage || isGenerating || isVideoWithoutNotes;
   const handleGenerateClick = () => {
     if (!activeImage) return;
     if (chatMode) {
-      setChatMessages([]);
+      inputGlide.captureStart();
+      handleEnterChatMode(getAccessToken() || undefined).catch((err: unknown) => handleCreditError(err));
     } else {
       handleGenerateCaptions();
     }
@@ -568,53 +562,9 @@ function CreatePostModalContent({
               />
             </div>
 
-            {/* Prompt bar — notes + caption generation, works in both Standard and Chat modes */}
-            {!customMode && (
-            <div>
-              <div className="relative flex items-end border-2 border-gray-300 rounded-3xl bg-white focus-within:border-blue-500 focus-within:shadow-lg transition-all">
-                <Textarea
-                  value={postNotes}
-                  onChange={(e) => setPostNotes(e.target.value)}
-                  placeholder="Add notes, context, or instructions for your post..."
-                  rows={1}
-                  className="h-14 min-h-[56px] max-h-[160px] resize-none border-0 focus:outline-none focus:ring-0 shadow-none rounded-3xl pr-32 pt-[18px] pb-[18px] pl-4 text-sm leading-5"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                      e.preventDefault();
-                      if (!isGenerateDisabled) handleGenerateClick();
-                    }
-                  }}
-                />
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
-                  <button
-                    type="button"
-                    onClick={handleGenerateClick}
-                    disabled={isGenerateDisabled}
-                    className="h-8 px-4 rounded-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white disabled:bg-blue-300 disabled:cursor-not-allowed shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 font-semibold text-xs"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="w-3.5 h-3.5" />
-                        Generate Text
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-              <p className="text-[11px] text-gray-500 text-center mt-1.5">
-                AI will analyze your image and your notes to generate captions
-              </p>
-            </div>
-            )}
-
             {/* Caption generation */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div ref={inputGlide.anchorRef} className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Caption</p>
                 <div className="inline-flex items-center gap-1 bg-gray-100 rounded-full p-0.5">
                   <button
@@ -628,11 +578,7 @@ function CreatePostModalContent({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setCustomMode(false);
-                      const accessToken = getAccessToken();
-                      handleEnterChatMode(accessToken || undefined).catch((err: unknown) => handleCreditError(err));
-                    }}
+                    onClick={() => { setCustomMode(false); setChatMode(true); }}
                     className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                       chatMode && !customMode ? 'bg-blue-600 text-white' : 'text-gray-500'
                     }`}
@@ -650,6 +596,28 @@ function CreatePostModalContent({
                   </button>
                 </div>
               </div>
+
+              {/* Prompt box — notes + Generate Text (Standard, and Chat before the first generation) */}
+              {!customMode && !showChatWindow && (
+                <div className="mb-3">
+                  <GeneratePromptBox
+                    size="sm"
+                    boxRef={inputGlide.fromRef}
+                    value={postNotes}
+                    onChange={setPostNotes}
+                    onGenerate={handleGenerateClick}
+                    disabled={isGenerateDisabled}
+                    generating={isGenerating}
+                  />
+                  <p className="text-[11px] text-gray-500 text-center mt-1.5">
+                    {isVideoWithoutNotes
+                      ? 'Add notes describing your video to generate captions'
+                      : chatMode
+                        ? 'Notes are optional — generate captions, then refine them in chat'
+                        : 'AI will analyze your image and your notes to generate captions'}
+                  </p>
+                </div>
+              )}
 
               {customMode ? (
                 <div className="space-y-1">
@@ -702,13 +670,9 @@ function CreatePostModalContent({
                   </div>
                 </div>
               ) : (
-                <div className="border border-gray-200 rounded-lg flex flex-col h-64">
-                  <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-3 space-y-3">
-                    {chatMessages.length === 0 && (
-                      <p className="text-xs text-gray-400 text-center mt-6">
-                        {activeImage ? 'Generating captions...' : 'Select a photo to start'}
-                      </p>
-                    )}
+                showChatWindow && (
+                <div>
+                  <div ref={chatContainerRef} className="h-72 overflow-y-auto rounded-2xl bg-gray-50 border border-gray-200 p-3 space-y-3">
                     {chatMessages.map((msg) => (
                       <div key={msg.id} className={msg.role === 'user' ? 'text-right' : ''}>
                         {msg.role === 'user' ? (
@@ -736,30 +700,20 @@ function CreatePostModalContent({
                       </div>
                     ))}
                   </div>
-                  <div className="flex items-center gap-2 p-2 border-t border-gray-100">
-                    <input
+                  <div className="mt-3">
+                    <ChatRefineInput
+                      size="sm"
+                      boxRef={inputGlide.toRef}
+                      hintRef={inputGlide.hintRef}
                       value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          sendChatMessage(getAccessToken() || undefined);
-                        }
-                      }}
-                      placeholder='Try "make it shorter"...'
-                      disabled={chatLoading}
-                      className="flex-1 text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      onChange={setChatInput}
+                      onSend={() => sendChatMessage(getAccessToken() || undefined)}
+                      sendDisabled={!chatInput.trim() || chatLoading || !activeImage}
+                      loading={chatLoading}
                     />
-                    <button
-                      type="button"
-                      onClick={() => sendChatMessage(getAccessToken() || undefined)}
-                      disabled={!chatInput.trim() || chatLoading || !activeImage}
-                      className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-blue-600 text-white disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
-                    >
-                      {chatLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    </button>
                   </div>
                 </div>
+                )
               )}
             </div>
 
