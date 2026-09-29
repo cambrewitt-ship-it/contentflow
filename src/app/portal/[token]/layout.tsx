@@ -13,7 +13,7 @@ import Link from "next/link";
 
 
 function PortalLayoutContent({ children }: { children: React.ReactNode }) {
-  const { client, party, isLoading, error, logout } = usePortal();
+  const { client, party, isLoading, error, logout, pageTitle } = usePortal();
   const router = useRouter();
 
   const handleLogout = () => {
@@ -76,14 +76,21 @@ function PortalLayoutContent({ children }: { children: React.ReactNode }) {
       {/* Top Bar */}
       <header className="bg-card border-b border-border shadow-sm flex-shrink-0">
         <div className="px-6 py-3 flex items-center justify-between gap-4">
-          {/* Left: CM logo -> home */}
-          <Link href="/" className="flex-shrink-0">
-            <img
-              src="/cm-logo.png"
-              alt="CM Logo"
-              className="h-10 w-auto cursor-pointer"
-            />
-          </Link>
+          {/* Left: CM logo -> home, then the page title */}
+          <div className="flex items-center gap-4 min-w-0">
+            <Link href="/" className="flex-shrink-0">
+              <img
+                src="/cm-logo.png"
+                alt="CM Logo"
+                className="h-10 w-auto cursor-pointer"
+              />
+            </Link>
+            {pageTitle && (
+              <h1 className="text-xl font-semibold text-card-foreground truncate border-l border-border pl-4">
+                {pageTitle}
+              </h1>
+            )}
+          </div>
 
           {/* Right: client identity */}
           <div className="flex items-center gap-4 min-w-0">

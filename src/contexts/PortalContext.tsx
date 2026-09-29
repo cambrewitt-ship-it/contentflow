@@ -25,6 +25,9 @@ interface PortalContextType {
   logout: () => void;
   validateToken: (token: string) => Promise<boolean>;
   setClientLogo: (logoUrl: string) => void;
+  /** Page title shown in the portal top bar (set by the page, e.g. "Content Calendar"). */
+  pageTitle: string | null;
+  setPageTitle: (title: string | null) => void;
 }
 
 const PortalContext = createContext<PortalContextType | undefined>(undefined);
@@ -112,6 +115,8 @@ export function PortalProvider({
    * full re-validation — used after a portal-side logo upload so the top bar
    * picks it up immediately.
    */
+  const [pageTitle, setPageTitle] = useState<string | null>(null);
+
   const setClientLogo = (logoUrl: string) => {
     setClient(prev => {
       if (!prev) return prev;
@@ -166,6 +171,8 @@ export function PortalProvider({
     logout,
     validateToken,
     setClientLogo,
+    pageTitle,
+    setPageTitle,
   };
 
   return <PortalContext.Provider value={value}>{children}</PortalContext.Provider>;

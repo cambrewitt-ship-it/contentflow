@@ -294,7 +294,7 @@ function PortalCalendarEventModal({
 export default function PortalCalendarPage() {
   const params = useParams();
   const token = params?.token as string;
-  const { party, client, setClientLogo } = usePortal();
+  const { party, client, setClientLogo, setPageTitle } = usePortal();
 
   // Modal state
   const [modalItem, setModalItem] = useState<ModalItem | null>(null);
@@ -376,6 +376,14 @@ export default function PortalCalendarPage() {
 
   // View mode state
   const [viewMode, setViewMode] = useState<'board' | 'column' | 'month' | 'kanban' | 'inbox' | 'strip'>('board');
+
+  // Show the view's title in the portal top bar.
+  const pageTitle = viewMode === 'inbox' ? 'Content Inbox' : viewMode === 'kanban' ? 'Content Pipeline' : 'Content Calendar';
+  useEffect(() => {
+    setPageTitle(pageTitle);
+    return () => setPageTitle(null);
+  }, [pageTitle, setPageTitle]);
+
   const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0);
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
   const [monthDragOverDate, setMonthDragOverDate] = useState<string | null>(null);
@@ -1925,16 +1933,8 @@ export default function PortalCalendarPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-card-foreground">
-            {viewMode === 'inbox' ? 'Content Inbox' : viewMode === 'kanban' ? 'Content Pipeline' : 'Content Calendar'}
-          </h2>
-          <p className="text-muted-foreground">
-            View your scheduled posts, upload content, and manage your content calendar
-          </p>
-        </div>
+      {/* Header — the page title lives in the portal top bar */}
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-2">
           <Button
             onClick={() => {
