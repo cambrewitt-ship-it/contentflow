@@ -94,21 +94,26 @@ interface ContentAgentPanelProps {
   compact?: boolean;
   /** False while the panel is mounted but hidden — keeps swipe keyboard shortcuts from firing. */
   active?: boolean;
+  /**
+   * Open a draft in the Content Suite editor. The Content Suite passes this to
+   * load it in place; elsewhere the panel navigates there with ?draftId=.
+   */
+  onEditDraft?: (draft: AutopilotCandidate) => void;
 }
 
 // Plans the page can still act on. Anything else (saved to drafts, already sent
 // to the calendar, failed) is finished business and leaves the page idle.
 const ACTIONABLE_STATUSES = ['generating', 'pending_approval'];
 
-// Run settings are remembered per client (the written prompt is not — it's
-// usually specific to one run).
+// Run settings are remembered per client (the written prompt and picked photos
+// are not — they're usually specific to one run).
 const briefStorageKey = (clientId: string) => `contentAgentBrief:${clientId}`;
 
 function loadSavedBrief(clientId: string): RunBrief {
   try {
     const raw = localStorage.getItem(briefStorageKey(clientId));
     if (!raw) return DEFAULT_RUN_BRIEF;
-    const parsed = runBriefSchema.safeParse({ ...JSON.parse(raw), prompt: '' });
+    const parsed = runBriefSchema.safeParse({ ...JSON.parse(raw), prompt: '', mediaIds: [] });
     return parsed.success ? parsed.data : DEFAULT_RUN_BRIEF;
   } catch {
     return DEFAULT_RUN_BRIEF;
@@ -118,7 +123,12 @@ function loadSavedBrief(clientId: string): RunBrief {
 // Worst-case credit cost shown before a run (see estimateWorstCaseCredits)
 const RUN_CREDIT_ESTIMATE = 13;
 
-export default function ContentAgentPanel({ clientId, compact = false, active = true }: ContentAgentPanelProps) {
+export default function ContentAgentPanel({
+  clientId,
+  compact = false,
+  active = true,
+  onEditDraft,
+}: ContentAgentPanelProps) {
   const { getAccessToken, user } = useAuth();
   const router = useRouter();
 
@@ -154,7 +164,7 @@ export default function ContentAgentPanel({ clientId, compact = false, active = 
     (next: RunBrief) => {
       setBrief(next);
       try {
-        localStorage.setItem(briefStorageKey(clientId), JSON.stringify({ ...next, prompt: undefined }));
+        localStorage.setItem(briefStorageKey(clientId), JSON.stringify({ ...next, prompt: undefined, mediaIds: undefined }));
       } catch {
         // storage unavailable — settings just won't be remembered
       }
@@ -226,6 +236,26 @@ export default function ContentAgentPanel({ clientId, compact = false, active = 
   const handleDraftRemoved = useCallback((candidateId: string) => {
     setDrafts(prev => prev.filter(d => d.id !== candidateId));
   }, []);
+
+  const handleDraftUpdated = useCallback((draft: AutopilotCandidate) => {
+    setDrafts(prev => prev.map(d => (d.id === draft.id ? draft : d)));
+  }, []);
+
+  const handleEditDraft = useCallback(
+    (draft: AutopilotCandidate) => {
+      if (onEditDraft) onEditDraft(draft);
+      else router.push(`/dashboard/client/${clientId}/content-suite?draftId=${draft.id}`);
+    },
+    [onEditDraft, router, clientId]
+  );
+
+  // A draft may have been added to the calendar from the Content Suite editor
+  // while this panel was hidden — refresh the list whenever it's shown again.
+  const wasActive = useRef(active);
+  useEffect(() => {
+    if (active && !wasActive.current) fetchDrafts();
+    wasActive.current = active;
+  }, [active, fetchDrafts]);
 
   // ── Determine view from plan state ─────────────────────────────────────────
 
@@ -460,6 +490,7 @@ export default function ContentAgentPanel({ clientId, compact = false, active = 
 
   const composer = (inModal: boolean) => (
     <RunBriefComposer
+      clientId={clientId}
       value={brief}
       onChange={updateBrief}
       onSubmit={handleGenerate}
@@ -619,9 +650,12 @@ export default function ContentAgentPanel({ clientId, compact = false, active = 
           {/* ── DRAFTS ── */}
           {pageView !== 'swipe' && pageView !== 'review' && (
             <AutopilotDrafts
+              clientId={clientId}
               drafts={drafts}
               loading={loadingDrafts}
               onDraftRemoved={handleDraftRemoved}
+              onDraftUpdated={handleDraftUpdated}
+              onEditDraft={handleEditDraft}
             />
           )}
         </>

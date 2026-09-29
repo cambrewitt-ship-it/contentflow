@@ -201,18 +201,26 @@ export async function fetchBrandContext(clientId: string): Promise<BrandContext>
 
 export async function getAvailableGalleryItems(
   clientId: string,
-  limit: number
+  limit: number,
+  // Photos picked for this run in the composer; overrides the saved selection
+  runMediaIds?: string[]
 ): Promise<GalleryItem[]> {
   const admin = createSupabaseAdmin();
 
-  // A hand-picked selection (Content Agent settings → Photos) replaces the
-  // default "freshest N photos" pool; null means no selection was made.
-  const { data: clientRow } = await admin
-    .from('clients')
-    .select('agent_media_ids')
-    .eq('id', clientId)
-    .single();
-  const selectedIds = (clientRow?.agent_media_ids as string[] | null) ?? null;
+  // A hand-picked selection (the run's own, else Content Agent settings →
+  // Photos) replaces the default "freshest N photos" pool; null means no
+  // selection was made.
+  let selectedIds: string[] | null = null;
+  if (runMediaIds && runMediaIds.length > 0) {
+    selectedIds = runMediaIds;
+  } else {
+    const { data: clientRow } = await admin
+      .from('clients')
+      .select('agent_media_ids')
+      .eq('id', clientId)
+      .single();
+    selectedIds = (clientRow?.agent_media_ids as string[] | null) ?? null;
+  }
 
   let query = admin
     .from('media_gallery')

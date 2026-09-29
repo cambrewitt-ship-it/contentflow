@@ -23,6 +23,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { SchedulePostModal, Platform } from '@/components/SchedulePostModal'
 import { ChatCaptionOption } from '@/components/ChatCaptionOption'
 import ContentAgentPanel from '@/components/ContentAgentPanel'
+import { publishedCaption } from '@/lib/candidateCaption'
+import type { AutopilotCandidate } from '@/types/autopilot'
 
 interface Project {
   id: string
@@ -525,11 +527,11 @@ export default function ContentSuitePage({ params }: PageProps) {
   const handleSendToScheduler = async (
     selectedCaption: string,
     uploadedImages: { preview: string; id: string; file?: File; blobUrl?: string }[]
-  ) => {
+  ): Promise<boolean> => {
     // If editing, update the post instead of sending to scheduler
     if (isEditing) {
       await handleUpdatePost(selectedCaption, uploadedImages)
-      return
+      return false
     }
     
     console.log('Adding to calendar - caption length:', selectedCaption?.length || 0, 'images count:', uploadedImages.length, 'project_id:', selectedProjectId)
@@ -537,12 +539,12 @@ export default function ContentSuitePage({ params }: PageProps) {
     // Validate we have required content
     if (!selectedCaption || selectedCaption.trim() === '') {
       alert('Please provide a caption for your post')
-      return
+      return false
     }
     
     if (uploadedImages.length === 0) {
       alert('Please upload an image for your post')
-      return
+      return false
     }
     
     setIsSendingToScheduler(true)
@@ -694,7 +696,7 @@ export default function ContentSuitePage({ params }: PageProps) {
       
       // Optional: Clear the form or reset state here if desired
       // This allows users to add multiple posts without navigation
-      
+      return true
     } catch (error) {
       console.error('❌ Error adding to calendar:', error)
       setMessage({ 
@@ -706,6 +708,7 @@ export default function ContentSuitePage({ params }: PageProps) {
       setTimeout(() => {
         setMessage(null)
       }, 7000)
+      return false
     } finally {
       setIsSendingToScheduler(false)
     }
@@ -782,7 +785,7 @@ interface ContentSuiteContentProps {
   setProjects: (projects: Project[]) => void
   selectedProjectId: string | null
   setSelectedProjectId: (projectId: string | null) => void
-  handleSendToScheduler: (selectedCaption: string, uploadedImages: { preview: string; id: string; file?: File; blobUrl?: string }[]) => Promise<void>
+  handleSendToScheduler: (selectedCaption: string, uploadedImages: { preview: string; id: string; file?: File; blobUrl?: string }[]) => Promise<boolean>
   isSendingToScheduler: boolean
   addingToProject: string | null
   setAddingToProject: (projectId: string | null) => void
@@ -968,6 +971,71 @@ function ContentSuiteContent({
     setLeftMode(mode)
     if (mode === 'agent') setAgentOpened(true)
   }
+
+  // A Content Agent draft opened in the editor: its photo and caption load into
+  // Single Post (as a Custom caption, so it's edited as written). Adding it to
+  // the calendar or scheduling it from here takes it out of Drafts.
+  const [editorDraft, setEditorDraft] = useState<AutopilotCandidate | null>(null)
+  const loadDraftIntoEditor = useCallback((draft: AutopilotCandidate) => {
+    const imageId = `draft-${draft.id}`
+    setUploadedImages([{
+      id: imageId,
+      file: new File([], 'draft-photo.jpg', { type: 'image/jpeg' }),
+      preview: draft.media_url,
+      blobUrl: draft.media_url,
+    }])
+    setActiveImageId(imageId)
+    setCaptions([{ id: CUSTOM_MODE_CAPTION_ID, text: publishedCaption(draft) }])
+    setSelectedCaptions([CUSTOM_MODE_CAPTION_ID])
+    setChatMode(false)
+    setCustomMode(true)
+    setEditorDraft(draft)
+    setLeftMode('single')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const clearEditorDraft = useCallback(async () => {
+    if (!editorDraft) return
+    const draftId = editorDraft.id
+    setEditorDraft(null)
+    try {
+      await fetch(`/api/autopilot/drafts/${draftId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
+      })
+    } catch (err) {
+      console.error('Failed to remove the draft after adding it to the calendar:', err)
+    }
+  }, [editorDraft, getAccessToken])
+
+  const sendToScheduler = async (
+    selectedCaption: string,
+    images: { preview: string; id: string; file?: File; blobUrl?: string }[]
+  ) => {
+    const added = await handleSendToScheduler(selectedCaption, images)
+    if (added) await clearEditorDraft()
+  }
+
+  // ?draftId= opens a draft straight into the editor (from the Content Agent page)
+  const draftIdParam = useSearchParams()?.get('draftId')
+  useEffect(() => {
+    if (!draftIdParam || isEditing) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/autopilot/drafts?clientId=${clientId}`, {
+          headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
+        })
+        const data = await res.json()
+        const draft = (data.drafts as AutopilotCandidate[] | undefined)?.find(d => d.id === draftIdParam)
+        if (!cancelled && draft) loadDraftIntoEditor(draft)
+      } catch (err) {
+        console.error('Failed to load draft:', err)
+      }
+    })()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftIdParam, clientId, isEditing])
 
   // State for Settings modal
   const [showSettingsModal, setShowSettingsModal] = useState(false)
@@ -1172,6 +1240,7 @@ function ContentSuiteContent({
 
       // Close modal and show success
       setIsScheduleModalOpen(false)
+      await clearEditorDraft()
       // Note: message state is in parent, so we'll use alert for now
       alert(`Post scheduled successfully for ${date} at ${time} to ${platform.name}!`)
 
@@ -2077,6 +2146,30 @@ function ContentSuiteContent({
                   </div>
                 </CardHeader>
                 <CardContent className={agentMode ? 'hidden' : 'flex-1 flex flex-col overflow-y-auto'}>
+                  {editorDraft && (
+                    <div className="mb-4 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2">
+                      <FileText className="h-4 w-4 shrink-0 text-blue-600" />
+                      <p className="flex-1 text-xs text-blue-900">
+                        Editing a Content Agent draft. Adding it to the calendar or scheduling it removes it from Drafts.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => { setEditorDraft(null); selectLeftMode('agent') }}
+                        className="text-xs font-medium text-blue-700 hover:text-blue-900 whitespace-nowrap"
+                      >
+                        Back to drafts
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditorDraft(null)}
+                        aria-label="Keep in drafts and stop tracking"
+                        title="Keep it in Drafts — posts from here won't remove it"
+                        className="text-blue-400 hover:text-blue-700"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                   {/* Top Section - Natural Height */}
                   <div className="space-y-6">
                     {/* Upload Media Section */}
@@ -2641,7 +2734,12 @@ function ContentSuiteContent({
                 </CardContent>
                 {agentOpened && !isEditing && (
                   <CardContent className={agentMode ? 'flex-1' : 'hidden'}>
-                    <ContentAgentPanel clientId={clientId} compact active={agentMode} />
+                    <ContentAgentPanel
+                      clientId={clientId}
+                      compact
+                      active={agentMode}
+                      onEditDraft={loadDraftIntoEditor}
+                    />
                   </CardContent>
                 )}
               </Card>
@@ -2653,7 +2751,7 @@ function ContentSuiteContent({
                 clientId={clientId}
                 clientName={client?.name}
                 clientLogo={client?.logo_url}
-                handleSendToScheduler={handleSendToScheduler}
+                handleSendToScheduler={sendToScheduler}
                 isSendingToScheduler={isSendingToScheduler || updatingPost}
                 isEditing={isEditing}
                 updatingPost={updatingPost}

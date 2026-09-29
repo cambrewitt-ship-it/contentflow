@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Play, Settings } from 'lucide-react';
+import { ImageIcon, Play, Settings, X } from 'lucide-react';
+import AgentPhotoGrid, { useAgentPhotos } from '@/components/AgentPhotoGrid';
 import { useSporadicGlow } from '@/hooks/useSporadicGlow';
 import { TARGET_PLATFORM_IDS, TARGET_PLATFORM_LABELS } from '@/lib/targetPlatforms';
 import {
@@ -38,6 +39,7 @@ const LENGTH_LABELS: Record<RunBrief['captionLength'], string> = {
 };
 
 interface RunBriefComposerProps {
+  clientId: string;
   value: RunBrief;
   onChange: (brief: RunBrief) => void;
   onSubmit: () => void;
@@ -50,6 +52,7 @@ interface RunBriefComposerProps {
 }
 
 export default function RunBriefComposer({
+  clientId,
   value: brief,
   onChange,
   onSubmit,
@@ -61,6 +64,7 @@ export default function RunBriefComposer({
 }: RunBriefComposerProps) {
   const [showSettings, setShowSettings] = useState(true);
   const [focused, setFocused] = useState(false);
+  const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const set = <K extends keyof RunBrief>(key: K, v: RunBrief[K]) => onChange({ ...brief, [key]: v });
@@ -95,6 +99,7 @@ export default function RunBriefComposer({
     `${brief.postCount} ${countLabel}`,
     organic && (brief.window === 'next_two_weeks' ? 'Next 2 weeks' : 'Next week'),
     brief.tone !== 'brand' && TONE_LABELS[brief.tone],
+    brief.mediaIds.length > 0 && `${brief.mediaIds.length} picked ${brief.mediaIds.length === 1 ? 'photo' : 'photos'}`,
   ].filter(Boolean).join(' · ');
 
   return (
@@ -177,6 +182,13 @@ export default function RunBriefComposer({
 
       {/* ── Primary toggles ── */}
       <div className="space-y-3">
+        <RunPhotosField
+          clientId={clientId}
+          mediaIds={brief.mediaIds}
+          onChange={ids => set('mediaIds', ids)}
+          pickerOpen={photoPickerOpen}
+          setPickerOpen={setPhotoPickerOpen}
+        />
         {organic && (
           <Field label={brief.format === 'both' ? 'Organic writing style' : 'Writing style'} hint="none = client's content mix">
             {ORGANIC_GOALS.map(g => (
@@ -258,6 +270,141 @@ export default function RunBriefComposer({
         </div>
       )}
     </div>
+  );
+}
+
+// ── Photos for this run ───────────────────────────────────────────────────────
+// "All photos" leaves the agent on its usual pool; picking photos limits this
+// run to exactly those.
+
+function RunPhotosField({
+  clientId,
+  mediaIds,
+  onChange,
+  pickerOpen,
+  setPickerOpen,
+}: {
+  clientId: string;
+  mediaIds: string[];
+  onChange: (ids: string[]) => void;
+  pickerOpen: boolean;
+  setPickerOpen: (open: boolean) => void;
+}) {
+  // Loaded once the picker opens (or a selection needs thumbnails)
+  const gallery = useAgentPhotos(clientId, pickerOpen || mediaIds.length > 0);
+  const [pending, setPending] = useState<Set<string>>(new Set(mediaIds));
+
+  const openPicker = () => {
+    setPending(new Set(mediaIds));
+    setPickerOpen(true);
+  };
+
+  const confirm = () => {
+    // Keep gallery order, and drop anything no longer available
+    onChange(gallery.photos.filter(p => pending.has(p.id)).map(p => p.id));
+    setPickerOpen(false);
+  };
+
+  const picked = gallery.photos.filter(p => mediaIds.includes(p.id));
+  const pendingCount = gallery.photos.filter(p => pending.has(p.id)).length;
+
+  return (
+    <>
+      <Field label="Photos" hint={mediaIds.length === 0 ? 'agent picks from the gallery' : undefined}>
+        <Chip active={mediaIds.length === 0} onClick={() => onChange([])}>All photos</Chip>
+        <Chip active={mediaIds.length > 0} onClick={openPicker}>
+          <span className="inline-flex items-center gap-1">
+            <ImageIcon className="h-3 w-3" />
+            {mediaIds.length > 0 ? `${mediaIds.length} selected · change` : 'Choose photos…'}
+          </span>
+        </Chip>
+        {picked.length > 0 && (
+          <button
+            type="button"
+            onClick={openPicker}
+            className="flex items-center -space-x-2 ml-1"
+            title="Change the photos for this run"
+          >
+            {picked.slice(0, 6).map(p => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={p.id}
+                src={p.media_url}
+                alt=""
+                className="h-7 w-7 rounded-md object-cover ring-2 ring-white"
+              />
+            ))}
+            {picked.length > 6 && (
+              <span className="h-7 w-7 rounded-md bg-gray-100 ring-2 ring-white text-[10px] font-medium text-gray-600 flex items-center justify-center">
+                +{picked.length - 6}
+              </span>
+            )}
+          </button>
+        )}
+      </Field>
+
+      {pickerOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
+          onClick={() => setPickerOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Choose photos for this run"
+            className="relative bg-white rounded-3xl shadow-2xl max-w-3xl w-full p-6 max-h-[90vh] flex flex-col gap-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Choose photos for this run</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  The agent only writes posts for the photos you pick.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(false)}
+                aria-label="Close"
+                className="h-8 w-8 shrink-0 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-hidden flex flex-col">
+              <AgentPhotoGrid
+                photos={gallery.photos}
+                unanalyzedCount={gallery.unanalyzedCount}
+                loading={gallery.loading}
+                error={gallery.error}
+                selected={pending}
+                onChange={setPending}
+                gridClassName="grid-cols-3 sm:grid-cols-5 max-h-[55vh]"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setPickerOpen(false)}
+                className="px-4 py-2 rounded-full text-sm font-medium text-gray-600 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirm}
+                disabled={gallery.loading || pendingCount === 0}
+                className="px-5 py-2 rounded-full text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-950 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {pendingCount === 0 ? 'Pick at least one photo' : `Use ${pendingCount} ${pendingCount === 1 ? 'photo' : 'photos'}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

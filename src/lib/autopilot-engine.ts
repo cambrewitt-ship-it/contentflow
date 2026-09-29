@@ -78,7 +78,7 @@ export async function generateContentPlan(
       getEventsForRange(clientId, startDate, endDate),
       getRecentPosts(clientId, 14),
       getExistingPostsInRange(clientId, startDate, endDate),
-      getAvailableGalleryItems(clientId, 40),
+      getAvailableGalleryItems(clientId, 40, brief?.mediaIds),
       getOrCreateDefaultProject(clientId, userId),
       getStylePreferences(clientId),
       getCaptionRuleTexts(clientId),
@@ -170,8 +170,11 @@ export async function generateContentPlan(
       .from('autopilot_plans')
       .update({ status: 'failed', ai_plan_summary: 'No analyzed photos available in gallery.' })
       .eq('id', planRow.id);
-    await notifyFailure('No analyzed photos available — upload and analyze photos first, or check the photos selected in Content Agent settings.');
-    throw new Error('No analyzed photos available. Upload and analyze photos first, or check the photos selected in Content Agent settings.');
+    const reason = brief?.mediaIds.length
+      ? 'None of the photos picked for this run are available — they may have been archived or not analyzed yet. Pick different photos and run again.'
+      : 'No analyzed photos available. Upload and analyze photos first, or check the photos selected in Content Agent settings.';
+    await notifyFailure(reason);
+    throw new Error(reason);
   }
 
   // Step 3: Run the agentic tool-calling loop

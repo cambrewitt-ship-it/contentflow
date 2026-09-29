@@ -6,6 +6,7 @@ import type { AutopilotCandidate } from '@/types/autopilot';
 import { PostSocialPreview } from '@/components/PostSocialPreview';
 import PostFeedbackPanel from '@/components/PostFeedbackPanel';
 import { authedFetchJson } from '@/lib/authedFetch';
+import { normalizeHashtags, publishedCaption } from '@/lib/candidateCaption';
 
 interface Props {
   planId: string;
@@ -96,16 +97,6 @@ const AD_LIMITS: Record<string, { headline: number; primary: number; description
   meta: { headline: 40, primary: 125, description: 30 },
   google: { headline: 30, primary: 90, description: 90 },
 };
-
-function normalizeHashtags(tags: string[] | null | undefined): string[] {
-  return (tags ?? []).map(t => t.trim()).filter(Boolean).map(t => (t.startsWith('#') ? t : `#${t}`));
-}
-
-/** The caption exactly as it would be published: copy, then hashtags. */
-function publishedCaption(candidate: AutopilotCandidate): string {
-  const tags = normalizeHashtags(candidate.hashtags);
-  return tags.length > 0 ? `${candidate.caption}\n\n${tags.join(' ')}` : candidate.caption;
-}
 
 function SpecField({
   label,

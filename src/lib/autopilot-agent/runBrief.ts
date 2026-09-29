@@ -28,6 +28,9 @@ export const runBriefSchema = z.object({
   useEmojis: z.boolean().default(true),
   useHashtags: z.boolean().default(true),
   preferFreshMedia: z.boolean().default(true),
+  // Photos hand-picked for this run. Empty = the usual pool (the client's saved
+  // selection, else the freshest photos).
+  mediaIds: z.array(z.string().uuid()).max(200).default([]),
   postCount: z.union([z.literal(6), z.literal(9), z.literal(12)]).default(12),
   window: z.enum(RUN_WINDOWS).default('next_week'),
 });
@@ -146,7 +149,9 @@ export function formatRunBriefPrompt(brief: RunBrief): string {
       : '- No hard call to action — let the content speak for itself.'
   );
   lines.push(brief.useEmojis ? '- Emojis: sparingly, only where they fit the brand.' : '- Emojis: NONE.');
-  if (brief.preferFreshMedia) {
+  if (brief.mediaIds.length > 0) {
+    lines.push(`- Photos: the account manager hand-picked the ${brief.mediaIds.length} photo${brief.mediaIds.length === 1 ? '' : 's'} in the gallery for this run — build every post around them.`);
+  } else if (brief.preferFreshMedia) {
     lines.push('- Strongly prefer photos with times_used = 0; only reuse a photo if nothing unused fits.');
   }
 
