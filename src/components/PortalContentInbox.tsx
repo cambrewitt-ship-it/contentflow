@@ -13,7 +13,9 @@ import {
   Columns,
   Calendar,
   Kanban,
+  KanbanSquare,
   GalleryHorizontal,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,7 +66,15 @@ interface StatusSummary {
   pending: number;
 }
 
-type PortalViewMode = "column" | "month" | "kanban" | "strip";
+type PortalViewMode = "board" | "column" | "month" | "kanban" | "strip";
+
+const VIEW_OPTIONS: Array<{ id: PortalViewMode; label: string; Icon: typeof Columns }> = [
+  { id: "board", label: "Board", Icon: KanbanSquare },
+  { id: "column", label: "Column", Icon: Columns },
+  { id: "month", label: "Month", Icon: Calendar },
+  { id: "kanban", label: "Kanban", Icon: Kanban },
+  { id: "strip", label: "Strip", Icon: GalleryHorizontal },
+];
 
 interface Props {
   token: string;
@@ -84,6 +94,8 @@ export function PortalContentInbox({ token, onCalendarSuccess, onQueueItemClick,
   const queueScrollRef = useRef<HTMLDivElement>(null);
 
   const [dragOver, setDragOver] = useState(false);
+  // The Content Creation card starts collapsed so the calendar gets the space.
+  const [isFormExpanded, setIsFormExpanded] = useState(false);
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [caption, setCaption] = useState("");
   const [targetDate, setTargetDate] = useState("");
@@ -292,14 +304,46 @@ const handleAddToQueue = async () => {
     <div className="space-y-3">
       {/* ── FORM CARD ── */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">Content Creation</h2>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Upload media and copy, then add to the calendar or drop it in the queue
-          </p>
+        {/* Header — click to expand/collapse; the view toggle stays visible either way */}
+        <div className={`flex flex-wrap items-center gap-3 px-6 py-3 ${isFormExpanded ? 'border-b border-gray-100' : ''}`}>
+          <button
+            type="button"
+            onClick={() => setIsFormExpanded((v) => !v)}
+            className="flex-1 min-w-[220px] flex items-center gap-3 text-left group"
+            aria-expanded={isFormExpanded}
+          >
+            <ChevronDown
+              className={`w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-transform ${isFormExpanded ? '' : '-rotate-90'}`}
+            />
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Content Creation</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Upload media and copy, then add to the calendar or drop it in the queue
+              </p>
+            </div>
+          </button>
+
+          {onViewModeChange && (
+            <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
+              {VIEW_OPTIONS.map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => onViewModeChange(id)}
+                  className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    viewMode === id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 3-column grid: upload | copy | approval */}
+        {isFormExpanded && (
         <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
 
           {/* ── COL 1: Upload + Actions ── */}
@@ -488,59 +532,9 @@ const handleAddToQueue = async () => {
                 </div>
               </div>
             </div>
-
-            {/* View toggle — underneath the approval summary */}
-            {onViewModeChange && (
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">
-                  View
-                </label>
-                <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
-                  <button
-                    type="button"
-                    onClick={() => onViewModeChange("column")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      viewMode === "column" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    <Columns className="w-3.5 h-3.5" />
-                    Column
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onViewModeChange("month")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      viewMode === "month" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    <Calendar className="w-3.5 h-3.5" />
-                    Month
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onViewModeChange("kanban")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      viewMode === "kanban" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    <Kanban className="w-3.5 h-3.5" />
-                    Kanban
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onViewModeChange("strip")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      viewMode === "strip" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    <GalleryHorizontal className="w-3.5 h-3.5" />
-                    Strip
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
+        )}
       </div>
 
       {/* ── QUEUE STRIP ── */}

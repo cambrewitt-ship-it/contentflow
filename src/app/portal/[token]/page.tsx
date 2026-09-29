@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import { PortalColumnViewCalendar, type PortalCalendarRef } from '@/components/PortalColumnViewCalendar';
+import { TrelloBoardCalendar } from '@/components/TrelloBoardCalendar';
 import { StripCalendar, type StripCalendarHandle } from '@/components/StripCalendar';
 import { PortalContentInbox } from '@/components/PortalContentInbox';
 import { PortalKanbanBoard, type KanbanItem, type KanbanCalendarPost } from '@/components/PortalKanbanBoard';
@@ -374,7 +375,7 @@ export default function PortalCalendarPage() {
   const brandInitializedRef = useRef(false);
 
   // View mode state
-  const [viewMode, setViewMode] = useState<'column' | 'month' | 'kanban' | 'inbox' | 'strip'>('column');
+  const [viewMode, setViewMode] = useState<'board' | 'column' | 'month' | 'kanban' | 'inbox' | 'strip'>('board');
   const [kanbanRefreshKey, setKanbanRefreshKey] = useState(0);
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
   const [monthDragOverDate, setMonthDragOverDate] = useState<string | null>(null);
@@ -1494,6 +1495,434 @@ export default function PortalCalendarPage() {
     );
   }
 
+  // Queue sidebar — left of the Column calendar, and the left drawer of the Board view.
+  const renderQueueSidebar = (variant: 'column' | 'board') => {
+        const queueItems = allUploads.filter(u => !u.target_date);
+        // Group items by carousel_group_id
+        const groupedQueue: Upload[][] = [];
+        const seenGroups = new Set<string>();
+        for (const item of queueItems) {
+          if (item.carousel_group_id) {
+            if (!seenGroups.has(item.carousel_group_id)) {
+              seenGroups.add(item.carousel_group_id);
+              const group = queueItems
+                .filter(i => i.carousel_group_id === item.carousel_group_id)
+                .sort((a, b) => (a.carousel_order ?? 0) - (b.carousel_order ?? 0));
+              groupedQueue.push(group);
+            }
+          } else {
+            groupedQueue.push([item]);
+          }
+        }
+        return (
+          <div
+            className={variant === 'board'
+              ? 'relative z-10 w-44 flex-shrink-0 m-3 mr-0 rounded-xl bg-[#f1f2f4] shadow-[0_1px_1px_#091e4240,0_0_1px_#091e424f] flex flex-col overflow-hidden'
+              : 'bg-white rounded-lg shadow flex flex-col flex-shrink-0 w-44 sticky top-0'}
+            style={variant === 'board' ? undefined : { height: 'calc(100vh - 112px)' }}
+          >
+            {/* Sidebar header */}
+            <div className="flex items-center justify-between px-3 py-3 border-b border-gray-100">
+              <div className="flex items-center gap-1.5">
+                <ListOrdered className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-semibold text-gray-700">Queue</span>
+                {groupedQueue.length > 0 && (
+                  <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5 font-medium leading-none">
+                    {groupedQueue.length}
+                  </span>
+                )}
+              </div>
+              {isLoadingUploads && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-300" />}
+            </div>
+
+            {/* Sidebar content */}
+            <div className="flex-1 overflow-y-auto p-2">
+              {isLoadingUploads && groupedQueue.length === 0 ? (
+                <div className="flex flex-col gap-2">
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="rounded-lg border border-gray-100 bg-gray-50 overflow-hidden animate-pulse">
+                      <div className="h-28 bg-gray-200" />
+                      <div className="p-2 space-y-1.5">
+                        <div className="h-2.5 bg-gray-200 rounded w-3/4" />
+                        <div className="h-2 bg-gray-100 rounded w-1/2" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : groupedQueue.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-6 px-2">No items in queue</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {groupedQueue.map(group => {
+                    const item = group[0];
+                    const isCarousel = group.length > 1;
+                    const isImage = item.file_type?.startsWith('image/');
+                    const isVideo = item.file_type?.startsWith('video/');
+                    const isMoving = group.some(g => movingUploadId === g.id);
+                    return (
+                      <div
+                        key={isCarousel ? (item.carousel_group_id ?? item.id) : item.id}
+                        draggable={!isMoving}
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/portal-upload', JSON.stringify(isCarousel ? group : item));
+                          draggingQueueItemRef.current = group;
+                        }}
+                        onDragEnd={() => {
+                          draggingQueueItemRef.current = null;
+                        }}
+                        onClick={() => !isMoving && setModalItem({ type: 'upload', data: item as any, carouselItems: isCarousel ? group as any[] : undefined })}
+                        className={`relative rounded-lg border border-gray-100 bg-gray-50 overflow-hidden transition-all ${isMoving ? 'opacity-50 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing hover:shadow-md hover:border-gray-200'}`}
+                      >
+                        {isMoving && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-10">
+                            <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                          </div>
+                        )}
+                        <div className="h-28 bg-gray-200 flex items-center justify-center overflow-hidden relative">
+                          {isImage ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={item.file_url} alt={item.file_name} draggable={false} className="w-full h-full object-cover" />
+                          ) : isVideo ? (
+                            <div className="flex flex-col items-center gap-1 text-gray-400">
+                              <Film className="w-6 h-6" />
+                              <span className="text-xs">Video</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-1 text-gray-400">
+                              <FileText className="w-6 h-6" />
+                              <span className="text-xs">{item.file_type?.split('/')[1]?.toUpperCase() ?? 'File'}</span>
+                            </div>
+                          )}
+                          {isCarousel && (
+                            <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                              {group.length}
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-2">
+                          <p className="text-xs font-medium text-gray-700 truncate" title={isCarousel ? `Carousel (${group.length})` : item.file_name}>
+                            {isCarousel ? `Carousel (${group.length})` : item.file_name}
+                          </p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+  };
+
+  // Delete / Export PDF / One-Time Link toolbar — above the Column calendar and inside the Board view.
+  const renderSelectionToolbar = (variant: 'column' | 'board') => (
+    <div
+      className={variant === 'board'
+        ? 'flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-xl shadow-sm px-3 py-1.5 w-max min-w-full'
+        : 'flex items-center gap-2 mb-4 pb-3 border-b border-gray-200 flex-wrap'}
+    >
+      <span className={`text-sm font-medium ${calendarSelectedPostIds.size > 0 ? 'text-gray-800' : 'text-gray-400'}`}>
+        {calendarSelectedPostIds.size > 0 ? `${calendarSelectedPostIds.size} post${calendarSelectedPostIds.size !== 1 ? 's' : ''} selected` : 'Select posts to use toolbar'}
+      </span>
+
+      {pendingDeleteConfirm ? (
+        <div className="inline-flex items-center gap-1.5">
+          <span className="text-sm text-red-700 font-medium">
+            Delete {calendarSelectedPostIds.size} post{calendarSelectedPostIds.size !== 1 ? 's' : ''}?
+          </span>
+          <button
+            onClick={handleCalendarDeleteSelectedPosts}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded text-white bg-red-600 hover:bg-red-700 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Yes, delete
+          </button>
+          <button
+            onClick={() => setPendingDeleteConfirm(false)}
+            className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => calendarSelectedPostIds.size > 0 && setPendingDeleteConfirm(true)}
+          disabled={isDeletingSelected || calendarSelectedPostIds.size === 0}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
+            isDeletingSelected ? 'bg-red-400 cursor-not-allowed opacity-70'
+            : calendarSelectedPostIds.size === 0 ? 'bg-gray-300 cursor-not-allowed'
+            : 'bg-red-600 hover:bg-red-700'
+          }`}
+        >
+          {isDeletingSelected ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+          {isDeletingSelected ? 'Deleting…' : 'Delete'}
+        </button>
+      )}
+
+      <button
+        onClick={handleCalendarExportToPDF}
+        disabled={exportingPDF || calendarSelectedPostIds.size === 0}
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
+          exportingPDF ? 'bg-blue-400 cursor-not-allowed opacity-70'
+          : calendarSelectedPostIds.size === 0 ? 'bg-gray-300 cursor-not-allowed'
+          : 'bg-blue-600 hover:bg-blue-700'
+        }`}
+      >
+        {exportingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+        {exportingPDF ? 'Exporting…' : `Export PDF${calendarSelectedPostIds.size > 0 ? ` (${calendarSelectedPostIds.size})` : ''}`}
+      </button>
+
+      <button
+        onClick={handleCalendarGenerateApprovalLink}
+        disabled={generatingApprovalLink || calendarSelectedPostIds.size === 0}
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
+          generatingApprovalLink ? 'bg-purple-400 cursor-not-allowed opacity-70'
+          : calendarSelectedPostIds.size === 0 ? 'bg-gray-300 cursor-not-allowed'
+          : 'bg-purple-600 hover:bg-purple-700'
+        }`}
+      >
+        {generatingApprovalLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LinkIcon className="w-3.5 h-3.5" />}
+        {generatingApprovalLink ? 'Generating…' : `One-Time Link${calendarSelectedPostIds.size > 0 ? ` (${calendarSelectedPostIds.size})` : ''}`}
+      </button>
+
+      {/* Calendar nav buttons (the Board view has its own in its header) */}
+      {variant === 'column' && (
+      <>
+      <button
+        onClick={() => portalCalendarRef.current?.navigatePrev()}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors flex-shrink-0"
+      >
+        <ChevronLeft className="w-3.5 h-3.5" /> Previous
+      </button>
+      <button
+        onClick={() => portalCalendarRef.current?.navigateNext()}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors flex-shrink-0"
+      >
+        Next <ChevronRight className="w-3.5 h-3.5" />
+      </button>
+      </>
+      )}
+
+      {/* Brand Settings button — always visible, on the right end */}
+      <button
+        onClick={openBrandSettings}
+        className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition-colors flex-shrink-0"
+        title="Set brand name & logo for previews"
+      >
+        {brandLogoUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={brandLogoUrl} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
+        ) : (
+          <Settings2 className="w-3.5 h-3.5" />
+        )}
+        {brandName ? <span className="max-w-[120px] truncate">{brandName}</span> : 'Brand'}
+      </button>
+
+      {calendarSelectedPostIds.size > 0 && (
+        <button
+          onClick={() => { setCalendarSelectedPostIds(new Set()); setPendingDeleteConfirm(false); }}
+          className="text-xs text-gray-500 hover:text-gray-700 underline"
+        >
+          Clear selection
+        </button>
+      )}
+    </div>
+  );
+
+  // Shared by the Column calendar and the Board view.
+  const portalCalendarProps: Omit<React.ComponentProps<typeof PortalColumnViewCalendar>, 'ref'> = {
+    weeks: getWeeksToDisplay(3),
+    scheduledPosts: scheduledPosts,
+    clientUploads: uploads,
+    events: calendarEvents,
+    loading: isLoadingScheduledPosts,
+    onPostMove: handleColumnPostMove,
+    formatWeekCommencing: formatWeekCommencing,
+    formatTimeTo12Hour: formatTimeTo12Hour,
+    portalToken: token,
+    onAddCardClick: (weekStart) => setQuickAddModal({ open: true, weekStart }),
+    onAddButtonDrop: (e: React.DragEvent, weekStart: Date) => {
+      const refData = draggingQueueItemRef.current;
+      const parsedData = (() => {
+        try {
+          const raw = e.dataTransfer.getData('text/portal-upload');
+          return raw ? JSON.parse(raw) : null;
+        } catch { return null; }
+      })();
+      draggingQueueItemRef.current = null;
+      const uploadsDropped: Upload[] = refData ?? (Array.isArray(parsedData) ? parsedData : (parsedData ? [parsedData] : []));
+      if (uploadsDropped.length === 0) return;
+      setQuickScheduleQueueDrop({
+        weekStart,
+        uploadIds: uploadsDropped.map(u => u.id),
+        imageUrl: uploadsDropped[0]?.file_url,
+      });
+    },
+    onAddNoteForWeek: (weekStart) => {
+      setPortalEventModalWeekStart(weekStart);
+      setPortalEventModal({ date: weekStart.toLocaleDateString('en-CA') });
+    },
+    onPostMoveToWeek: (postKey, weekStart) => {
+      const firstHyphenIndex = postKey.indexOf('-');
+      const postId = firstHyphenIndex >= 0 ? postKey.substring(firstHyphenIndex + 1) : postKey;
+      let found: Post | undefined;
+      Object.values(scheduledPosts).forEach(posts => {
+        const match = posts.find(p => p.id === postId);
+        if (match) found = match;
+      });
+      if (!found) return;
+      setMoveToWeekModal({ weekStart, kind: 'post', id: postId, imageUrl: found.image_url });
+    },
+    onUploadMoveToWeek: (uploadId, weekStart) => {
+      const upload = allUploads.find(u => u.id === uploadId);
+      setMoveToWeekModal({ weekStart, kind: 'upload', id: uploadId, imageUrl: upload?.file_url });
+    },
+    selectedPosts: selectedPosts,
+    onPostSelection: handlePostSelection,
+    comments: comments,
+    onCommentChange: handleCommentChange,
+    editedCaptions: editedCaptions,
+    onCaptionChange: handleCaptionChange,
+    onDeleteClientUpload: (upload) => handleDeleteUploadFromCalendar(upload as unknown as Upload),
+    deletingUploadIds: deletingUploadIds,
+    onPostClick: (post) => {
+      const isUpload =
+        post.post_type === 'client-upload' ||
+        post.post_type === 'client_upload' ||
+        (post as any).isClientUpload;
+      if (isUpload) {
+        const uploadData = (post as any).client_upload || (post as any).upload || post;
+        const carouselUploads = (post as any).carouselUploads as any[] | undefined;
+        setModalItem({
+          type: 'upload',
+          data: {
+            id: post.id,
+            file_name: uploadData.file_name || post.caption || 'Upload',
+            file_type: uploadData.file_type || 'image/jpeg',
+            file_url: uploadData.file_url || post.image_url || '',
+            notes: uploadData.notes || null,
+            review_notes: uploadData.review_notes || null,
+            created_at: uploadData.created_at || new Date().toISOString(),
+            target_date: uploadData.target_date ?? null,
+            status: uploadData.status ?? (post as any).status,
+            one_time_approval: uploadData.one_time_approval ?? null,
+          },
+          carouselItems: carouselUploads && carouselUploads.length > 1
+            ? carouselUploads.map(u => ({
+                id: u.id,
+                file_name: u.file_name || '',
+                file_type: u.file_type || '',
+                file_url: u.file_url || '',
+                notes: u.notes ?? null,
+                review_notes: u.review_notes ?? null,
+                created_at: u.created_at || new Date().toISOString(),
+                target_date: u.target_date ?? null,
+                status: u.status,
+                carousel_order: u.carousel_order ?? 0,
+              }))
+            : undefined,
+        });
+      } else {
+        setModalItem({
+          type: 'post',
+          data: {
+            id: post.id,
+            caption: post.caption,
+            image_url: post.image_url,
+            media_urls: (post as any).media_urls ?? null,
+            scheduled_date: post.scheduled_date,
+            scheduled_time: post.scheduled_time ?? null,
+            approval_status: post.approval_status,
+            approval_steps: post.approval_steps,
+            platforms_scheduled: post.platforms_scheduled,
+            late_status: post.late_status ?? null,
+            target_platforms: (post as any).target_platforms ?? [],
+            tags: post.tags ?? [],
+            one_time_approval: (post as any).one_time_approval ?? null,
+          },
+        });
+      }
+    },
+    movingToDate: movingToDate,
+    movingUploadId: movingUploadId,
+    calendarSelectedPostIds: calendarSelectedPostIds,
+    onToggleCalendarPostSelection: handleToggleCalendarPostSelection,
+    onTagsChange: handleTagsChange,
+    onEventAdd: (dateKey) => setPortalEventModal({ date: dateKey }),
+    onEventClick: (event) => setPortalEventModal({ date: event.date, event }),
+    onQueueItemDrop: async (uploadId, dateKey) => {
+      // Move all members of a carousel group together
+      const upload = allUploads.find(u => u.id === uploadId);
+      const groupIds = upload?.carousel_group_id
+        ? allUploads.filter(u => u.carousel_group_id === upload.carousel_group_id).map(u => u.id)
+        : [uploadId];
+      setMovingUploadId(uploadId);
+      setMovingToDate(dateKey);
+      try {
+        await Promise.all(groupIds.map(id =>
+          fetch('/api/portal/upload', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, uploadId: id, targetDate: dateKey }),
+          })
+        ));
+        fetchUploads();
+        // Refresh scheduled posts so approval_status/comments stay visible
+        fetchScheduledPosts(0, true);
+        setKanbanRefreshKey(k => k + 1);
+        setQueueRefreshKey(k => k + 1);
+      } catch {
+        // silent fail
+      } finally {
+        setMovingUploadId(null);
+        setMovingToDate(null);
+      }
+    },
+    onDrop: async (e, dateKey) => {
+      // Use ref first (most reliable), fall back to DataTransfer
+      const refData = draggingQueueItemRef.current;
+      const parsedData = (() => {
+        try {
+          const raw = e.dataTransfer.getData('text/portal-upload');
+          return raw ? JSON.parse(raw) : null;
+        } catch { return null; }
+      })();
+      draggingQueueItemRef.current = null;
+
+      // Normalise: could be an array (carousel) or a single upload
+      const uploads: Upload[] = refData ?? (
+        Array.isArray(parsedData) ? parsedData : (parsedData ? [parsedData] : [])
+      );
+      if (uploads.length === 0) return;
+
+      setMovingUploadId(uploads[0].id);
+      setMovingToDate(dateKey);
+      try {
+        await Promise.all(uploads.map(u =>
+          fetch('/api/portal/upload', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, uploadId: u.id, targetDate: dateKey }),
+          })
+        ));
+        await fetchUploads();
+        // Refresh scheduled posts so approval_status/comments stay visible
+        fetchScheduledPosts(0, true);
+        setKanbanRefreshKey(k => k + 1);
+        setQueueRefreshKey(k => k + 1);
+      } catch {
+        // silent fail — user can retry
+      } finally {
+        setMovingUploadId(null);
+        setMovingToDate(null);
+      }
+    },
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1803,12 +2232,12 @@ export default function PortalCalendarPage() {
       {viewMode !== 'inbox' && (
         <PortalContentInbox
           token={token}
-          viewMode={viewMode === 'inbox' ? 'column' : viewMode as 'column' | 'month' | 'kanban' | 'strip'}
+          viewMode={viewMode === 'inbox' ? 'column' : viewMode}
           onViewModeChange={(mode) => setViewMode(mode)}
           refreshTrigger={queueRefreshKey}
           externalQueueItems={allUploads.filter(u => !u.target_date)}
           isExternalQueueLoading={isLoadingUploads}
-          hideQueueStrip={viewMode === 'column' || viewMode === 'strip'}
+          hideQueueStrip={viewMode === 'column' || viewMode === 'strip' || viewMode === 'board'}
           onCalendarSuccess={() => {
             fetchUploads();
             fetchScheduledPosts(0, true);
@@ -1873,427 +2302,35 @@ export default function PortalCalendarPage() {
         />
       )}
 
+      {/* Calendar — Board View (Trello-style; the default). Queue on the left, selection toolbar on top. */}
+      {viewMode === 'board' && (
+        <div className="h-[calc(100vh-7rem)] min-h-[520px] rounded-xl overflow-hidden shadow">
+          <TrelloBoardCalendar
+            {...(portalCalendarProps as any)}
+            clientId={`portal-${token}`}
+            selectedPosts={calendarSelectedPostIds}
+            onTogglePostSelection={handleToggleCalendarPostSelection}
+            subToolbar={<div className="overflow-x-auto calendar-hscroll">{renderSelectionToolbar('board')}</div>}
+            leftDrawer={renderQueueSidebar('board')}
+          />
+        </div>
+      )}
+
       {/* Calendar — Column View (sidebar + calendar, no overflow-hidden so sticky works) */}
       {viewMode === 'column' && (
         <div className="flex gap-4 items-start">
 
           {/* ── Queue Sidebar — sticky, never scrolls past top of content area ── */}
-          {(() => {
-            const queueItems = allUploads.filter(u => !u.target_date);
-            // Group items by carousel_group_id
-            const groupedQueue: Upload[][] = [];
-            const seenGroups = new Set<string>();
-            for (const item of queueItems) {
-              if (item.carousel_group_id) {
-                if (!seenGroups.has(item.carousel_group_id)) {
-                  seenGroups.add(item.carousel_group_id);
-                  const group = queueItems
-                    .filter(i => i.carousel_group_id === item.carousel_group_id)
-                    .sort((a, b) => (a.carousel_order ?? 0) - (b.carousel_order ?? 0));
-                  groupedQueue.push(group);
-                }
-              } else {
-                groupedQueue.push([item]);
-              }
-            }
-            return (
-              <div
-                className="bg-white rounded-lg shadow flex flex-col flex-shrink-0 w-44 sticky top-0"
-                style={{ height: 'calc(100vh - 112px)' }}
-              >
-                {/* Sidebar header */}
-                <div className="flex items-center justify-between px-3 py-3 border-b border-gray-100">
-                  <div className="flex items-center gap-1.5">
-                    <ListOrdered className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm font-semibold text-gray-700">Queue</span>
-                    {groupedQueue.length > 0 && (
-                      <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5 font-medium leading-none">
-                        {groupedQueue.length}
-                      </span>
-                    )}
-                  </div>
-                  {isLoadingUploads && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-300" />}
-                </div>
-
-                {/* Sidebar content */}
-                <div className="flex-1 overflow-y-auto p-2">
-                  {isLoadingUploads && groupedQueue.length === 0 ? (
-                    <div className="flex flex-col gap-2">
-                      {[0, 1, 2].map(i => (
-                        <div key={i} className="rounded-lg border border-gray-100 bg-gray-50 overflow-hidden animate-pulse">
-                          <div className="h-28 bg-gray-200" />
-                          <div className="p-2 space-y-1.5">
-                            <div className="h-2.5 bg-gray-200 rounded w-3/4" />
-                            <div className="h-2 bg-gray-100 rounded w-1/2" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : groupedQueue.length === 0 ? (
-                    <p className="text-xs text-gray-400 text-center py-6 px-2">No items in queue</p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {groupedQueue.map(group => {
-                        const item = group[0];
-                        const isCarousel = group.length > 1;
-                        const isImage = item.file_type?.startsWith('image/');
-                        const isVideo = item.file_type?.startsWith('video/');
-                        const isMoving = group.some(g => movingUploadId === g.id);
-                        return (
-                          <div
-                            key={isCarousel ? (item.carousel_group_id ?? item.id) : item.id}
-                            draggable={!isMoving}
-                            onDragStart={(e) => {
-                              e.dataTransfer.effectAllowed = 'move';
-                              e.dataTransfer.setData('text/portal-upload', JSON.stringify(isCarousel ? group : item));
-                              draggingQueueItemRef.current = group;
-                            }}
-                            onDragEnd={() => {
-                              draggingQueueItemRef.current = null;
-                            }}
-                            onClick={() => !isMoving && setModalItem({ type: 'upload', data: item as any, carouselItems: isCarousel ? group as any[] : undefined })}
-                            className={`relative rounded-lg border border-gray-100 bg-gray-50 overflow-hidden transition-all ${isMoving ? 'opacity-50 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing hover:shadow-md hover:border-gray-200'}`}
-                          >
-                            {isMoving && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-10">
-                                <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                              </div>
-                            )}
-                            <div className="h-28 bg-gray-200 flex items-center justify-center overflow-hidden relative">
-                              {isImage ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={item.file_url} alt={item.file_name} draggable={false} className="w-full h-full object-cover" />
-                              ) : isVideo ? (
-                                <div className="flex flex-col items-center gap-1 text-gray-400">
-                                  <Film className="w-6 h-6" />
-                                  <span className="text-xs">Video</span>
-                                </div>
-                              ) : (
-                                <div className="flex flex-col items-center gap-1 text-gray-400">
-                                  <FileText className="w-6 h-6" />
-                                  <span className="text-xs">{item.file_type?.split('/')[1]?.toUpperCase() ?? 'File'}</span>
-                                </div>
-                              )}
-                              {isCarousel && (
-                                <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
-                                  {group.length}
-                                </div>
-                              )}
-                            </div>
-                            <div className="p-2">
-                              <p className="text-xs font-medium text-gray-700 truncate" title={isCarousel ? `Carousel (${group.length})` : item.file_name}>
-                                {isCarousel ? `Carousel (${group.length})` : item.file_name}
-                              </p>
-                              <p className="text-[10px] text-gray-400 mt-0.5">
-                                {new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+          {renderQueueSidebar('column')}
 
           {/* ── Column Calendar ── */}
           <div className="flex-1 min-w-0 bg-white rounded-lg shadow p-4">
 
-            {/* Selection toolbar */}
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-200 flex-wrap">
-              <span className={`text-sm font-medium ${calendarSelectedPostIds.size > 0 ? 'text-gray-800' : 'text-gray-400'}`}>
-                {calendarSelectedPostIds.size > 0 ? `${calendarSelectedPostIds.size} post${calendarSelectedPostIds.size !== 1 ? 's' : ''} selected` : 'Select posts to use toolbar'}
-              </span>
-
-              {pendingDeleteConfirm ? (
-                <div className="inline-flex items-center gap-1.5">
-                  <span className="text-sm text-red-700 font-medium">
-                    Delete {calendarSelectedPostIds.size} post{calendarSelectedPostIds.size !== 1 ? 's' : ''}?
-                  </span>
-                  <button
-                    onClick={handleCalendarDeleteSelectedPosts}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded text-white bg-red-600 hover:bg-red-700 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Yes, delete
-                  </button>
-                  <button
-                    onClick={() => setPendingDeleteConfirm(false)}
-                    className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => calendarSelectedPostIds.size > 0 && setPendingDeleteConfirm(true)}
-                  disabled={isDeletingSelected || calendarSelectedPostIds.size === 0}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
-                    isDeletingSelected ? 'bg-red-400 cursor-not-allowed opacity-70'
-                    : calendarSelectedPostIds.size === 0 ? 'bg-gray-300 cursor-not-allowed'
-                    : 'bg-red-600 hover:bg-red-700'
-                  }`}
-                >
-                  {isDeletingSelected ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                  {isDeletingSelected ? 'Deleting…' : 'Delete'}
-                </button>
-              )}
-
-              <button
-                onClick={handleCalendarExportToPDF}
-                disabled={exportingPDF || calendarSelectedPostIds.size === 0}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
-                  exportingPDF ? 'bg-blue-400 cursor-not-allowed opacity-70'
-                  : calendarSelectedPostIds.size === 0 ? 'bg-gray-300 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-              >
-                {exportingPDF ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
-                {exportingPDF ? 'Exporting…' : `Export PDF${calendarSelectedPostIds.size > 0 ? ` (${calendarSelectedPostIds.size})` : ''}`}
-              </button>
-
-              <button
-                onClick={handleCalendarGenerateApprovalLink}
-                disabled={generatingApprovalLink || calendarSelectedPostIds.size === 0}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
-                  generatingApprovalLink ? 'bg-purple-400 cursor-not-allowed opacity-70'
-                  : calendarSelectedPostIds.size === 0 ? 'bg-gray-300 cursor-not-allowed'
-                  : 'bg-purple-600 hover:bg-purple-700'
-                }`}
-              >
-                {generatingApprovalLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LinkIcon className="w-3.5 h-3.5" />}
-                {generatingApprovalLink ? 'Generating…' : `One-Time Link${calendarSelectedPostIds.size > 0 ? ` (${calendarSelectedPostIds.size})` : ''}`}
-              </button>
-
-              {/* Calendar nav buttons — always visible */}
-              <button
-                onClick={() => portalCalendarRef.current?.navigatePrev()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors flex-shrink-0"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" /> Previous
-              </button>
-              <button
-                onClick={() => portalCalendarRef.current?.navigateNext()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors flex-shrink-0"
-              >
-                Next <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-
-              {/* Brand Settings button — always visible, on the right end */}
-              <button
-                onClick={openBrandSettings}
-                className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded border border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition-colors flex-shrink-0"
-                title="Set brand name & logo for previews"
-              >
-                {brandLogoUrl ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={brandLogoUrl} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
-                ) : (
-                  <Settings2 className="w-3.5 h-3.5" />
-                )}
-                {brandName ? <span className="max-w-[120px] truncate">{brandName}</span> : 'Brand'}
-              </button>
-
-              {calendarSelectedPostIds.size > 0 && (
-                <button
-                  onClick={() => { setCalendarSelectedPostIds(new Set()); setPendingDeleteConfirm(false); }}
-                  className="text-xs text-gray-500 hover:text-gray-700 underline"
-                >
-                  Clear selection
-                </button>
-              )}
-            </div>
+            {renderSelectionToolbar('column')}
 
             <PortalColumnViewCalendar
               ref={portalCalendarRef}
-              weeks={getWeeksToDisplay(3)}
-              scheduledPosts={scheduledPosts}
-              clientUploads={uploads}
-              events={calendarEvents}
-              loading={isLoadingScheduledPosts}
-              onPostMove={handleColumnPostMove}
-              formatWeekCommencing={formatWeekCommencing}
-              formatTimeTo12Hour={formatTimeTo12Hour}
-              portalToken={token}
-              onAddCardClick={(weekStart) => setQuickAddModal({ open: true, weekStart })}
-              onAddButtonDrop={(e: React.DragEvent, weekStart: Date) => {
-                const refData = draggingQueueItemRef.current;
-                const parsedData = (() => {
-                  try {
-                    const raw = e.dataTransfer.getData('text/portal-upload');
-                    return raw ? JSON.parse(raw) : null;
-                  } catch { return null; }
-                })();
-                draggingQueueItemRef.current = null;
-                const uploadsDropped: Upload[] = refData ?? (Array.isArray(parsedData) ? parsedData : (parsedData ? [parsedData] : []));
-                if (uploadsDropped.length === 0) return;
-                setQuickScheduleQueueDrop({
-                  weekStart,
-                  uploadIds: uploadsDropped.map(u => u.id),
-                  imageUrl: uploadsDropped[0]?.file_url,
-                });
-              }}
-              onAddNoteForWeek={(weekStart) => {
-                setPortalEventModalWeekStart(weekStart);
-                setPortalEventModal({ date: weekStart.toLocaleDateString('en-CA') });
-              }}
-              onPostMoveToWeek={(postKey, weekStart) => {
-                const firstHyphenIndex = postKey.indexOf('-');
-                const postId = firstHyphenIndex >= 0 ? postKey.substring(firstHyphenIndex + 1) : postKey;
-                let found: Post | undefined;
-                Object.values(scheduledPosts).forEach(posts => {
-                  const match = posts.find(p => p.id === postId);
-                  if (match) found = match;
-                });
-                if (!found) return;
-                setMoveToWeekModal({ weekStart, kind: 'post', id: postId, imageUrl: found.image_url });
-              }}
-              onUploadMoveToWeek={(uploadId, weekStart) => {
-                const upload = allUploads.find(u => u.id === uploadId);
-                setMoveToWeekModal({ weekStart, kind: 'upload', id: uploadId, imageUrl: upload?.file_url });
-              }}
-              selectedPosts={selectedPosts}
-              onPostSelection={handlePostSelection}
-              comments={comments}
-              onCommentChange={handleCommentChange}
-              editedCaptions={editedCaptions}
-              onCaptionChange={handleCaptionChange}
-              onDeleteClientUpload={handleDeleteUploadFromCalendar}
-              deletingUploadIds={deletingUploadIds}
-              onPostClick={(post) => {
-                const isUpload =
-                  post.post_type === 'client-upload' ||
-                  post.post_type === 'client_upload' ||
-                  (post as any).isClientUpload;
-                if (isUpload) {
-                  const uploadData = (post as any).client_upload || (post as any).upload || post;
-                  const carouselUploads = (post as any).carouselUploads as any[] | undefined;
-                  setModalItem({
-                    type: 'upload',
-                    data: {
-                      id: post.id,
-                      file_name: uploadData.file_name || post.caption || 'Upload',
-                      file_type: uploadData.file_type || 'image/jpeg',
-                      file_url: uploadData.file_url || post.image_url || '',
-                      notes: uploadData.notes || null,
-                      review_notes: uploadData.review_notes || null,
-                      created_at: uploadData.created_at || new Date().toISOString(),
-                      target_date: uploadData.target_date ?? null,
-                      status: uploadData.status ?? (post as any).status,
-                      one_time_approval: uploadData.one_time_approval ?? null,
-                    },
-                    carouselItems: carouselUploads && carouselUploads.length > 1
-                      ? carouselUploads.map(u => ({
-                          id: u.id,
-                          file_name: u.file_name || '',
-                          file_type: u.file_type || '',
-                          file_url: u.file_url || '',
-                          notes: u.notes ?? null,
-                          review_notes: u.review_notes ?? null,
-                          created_at: u.created_at || new Date().toISOString(),
-                          target_date: u.target_date ?? null,
-                          status: u.status,
-                          carousel_order: u.carousel_order ?? 0,
-                        }))
-                      : undefined,
-                  });
-                } else {
-                  setModalItem({
-                    type: 'post',
-                    data: {
-                      id: post.id,
-                      caption: post.caption,
-                      image_url: post.image_url,
-                      media_urls: (post as any).media_urls ?? null,
-                      scheduled_date: post.scheduled_date,
-                      scheduled_time: post.scheduled_time ?? null,
-                      approval_status: post.approval_status,
-                      approval_steps: post.approval_steps,
-                      platforms_scheduled: post.platforms_scheduled,
-                      late_status: post.late_status ?? null,
-                      target_platforms: (post as any).target_platforms ?? [],
-                      tags: post.tags ?? [],
-                      one_time_approval: (post as any).one_time_approval ?? null,
-                    },
-                  });
-                }
-              }}
-              movingToDate={movingToDate}
-              movingUploadId={movingUploadId}
-              calendarSelectedPostIds={calendarSelectedPostIds}
-              onToggleCalendarPostSelection={handleToggleCalendarPostSelection}
-              onTagsChange={handleTagsChange}
-              onEventAdd={(dateKey) => setPortalEventModal({ date: dateKey })}
-              onEventClick={(event) => setPortalEventModal({ date: event.date, event })}
-              onQueueItemDrop={async (uploadId, dateKey) => {
-                // Move all members of a carousel group together
-                const upload = allUploads.find(u => u.id === uploadId);
-                const groupIds = upload?.carousel_group_id
-                  ? allUploads.filter(u => u.carousel_group_id === upload.carousel_group_id).map(u => u.id)
-                  : [uploadId];
-                setMovingUploadId(uploadId);
-                setMovingToDate(dateKey);
-                try {
-                  await Promise.all(groupIds.map(id =>
-                    fetch('/api/portal/upload', {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ token, uploadId: id, targetDate: dateKey }),
-                    })
-                  ));
-                  fetchUploads();
-                  // Refresh scheduled posts so approval_status/comments stay visible
-                  fetchScheduledPosts(0, true);
-                  setKanbanRefreshKey(k => k + 1);
-                  setQueueRefreshKey(k => k + 1);
-                } catch {
-                  // silent fail
-                } finally {
-                  setMovingUploadId(null);
-                  setMovingToDate(null);
-                }
-              }}
-              onDrop={async (e, dateKey) => {
-                // Use ref first (most reliable), fall back to DataTransfer
-                const refData = draggingQueueItemRef.current;
-                const parsedData = (() => {
-                  try {
-                    const raw = e.dataTransfer.getData('text/portal-upload');
-                    return raw ? JSON.parse(raw) : null;
-                  } catch { return null; }
-                })();
-                draggingQueueItemRef.current = null;
-
-                // Normalise: could be an array (carousel) or a single upload
-                const uploads: Upload[] = refData ?? (
-                  Array.isArray(parsedData) ? parsedData : (parsedData ? [parsedData] : [])
-                );
-                if (uploads.length === 0) return;
-
-                setMovingUploadId(uploads[0].id);
-                setMovingToDate(dateKey);
-                try {
-                  await Promise.all(uploads.map(u =>
-                    fetch('/api/portal/upload', {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ token, uploadId: u.id, targetDate: dateKey }),
-                    })
-                  ));
-                  await fetchUploads();
-                  // Refresh scheduled posts so approval_status/comments stay visible
-                  fetchScheduledPosts(0, true);
-                  setKanbanRefreshKey(k => k + 1);
-                  setQueueRefreshKey(k => k + 1);
-                } catch {
-                  // silent fail — user can retry
-                } finally {
-                  setMovingUploadId(null);
-                  setMovingToDate(null);
-                }
-              }}
+              {...portalCalendarProps}
             />
           </div>
         </div>
