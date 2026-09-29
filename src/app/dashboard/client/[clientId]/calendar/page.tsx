@@ -275,6 +275,8 @@ export default function CalendarPage() {
   const [showPDFExportModal, setShowPDFExportModal] = useState(false);
   const [clientName, setClientName] = useState<string>('');
   const [clientLogoUrl, setClientLogoUrl] = useState<string | null>(null);
+  // Board background saved on the client (shared with the client portal). undefined = not loaded yet.
+  const [boardBackground, setBoardBackground] = useState<string | null | undefined>(undefined);
 
   // Client timezone for calendar display
   const [clientTimezone, setClientTimezone] = useState<string>('Pacific/Auckland');
@@ -782,6 +784,7 @@ export default function CalendarPage() {
           if (clientData?.logo_url) {
             setClientLogoUrl(clientData.logo_url);
           }
+          setBoardBackground((clientData?.portal_settings?.board_background as string | undefined) ?? null);
         } else {
           console.error('❌ Error fetching client data:', clientRes.status);
         }
@@ -2513,6 +2516,34 @@ export default function CalendarPage() {
     setQuickSchedule({ weekStart, post, mode: 'schedule' });
   };
 
+  // Save the board background on the client so the client portal shows the same one.
+  const saveBoardBackground = useCallback(async (id: string) => {
+    setBoardBackground(id);
+    try {
+      const accessToken = requireAccessToken();
+      const res = await fetch(`/api/clients/${clientId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ board_background: id }),
+      });
+      if (!res.ok) console.error('❌ Failed to save board background:', res.status);
+    } catch (err) {
+      console.error('💥 Failed to save board background:', err);
+    }
+  }, [clientId, requireAccessToken]);
+
+  // One-off: a background picked before it was saved server-side lives only in localStorage —
+  // push it up so the portal picks it up too.
+  useEffect(() => {
+    if (boardBackground !== null || !clientId) return;
+    try {
+      const local = window.localStorage.getItem(`boardBg:${clientId}`);
+      if (local && local !== 'ocean') saveBoardBackground(local);
+    } catch {
+      // Storage unavailable — nothing to migrate.
+    }
+  }, [boardBackground, clientId, saveBoardBackground]);
+
   // Props shared by the Column view and the Board (beta) view.
   const sharedCalendarProps = {
     weeks: getWeeksToDisplay(),
@@ -2919,6 +2950,8 @@ export default function CalendarPage() {
                   <EventsPanel clientId={clientId as string} onClose={() => setShowEventsPanel(false)} />
                 ) : null
               }
+              background={boardBackground}
+              onBackgroundChange={saveBoardBackground}
               bottomDock={([
                 ['month', 'Month', Calendar],
                 ['column', 'Column', Columns],

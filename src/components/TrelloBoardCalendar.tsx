@@ -56,37 +56,14 @@ import { getPublishStatus } from '@/components/PublishStatusBadge';
 import { VideoThumbnail } from '@/components/VideoThumbnail';
 import { isVideoUrl } from '@/lib/videoUtils';
 import logger from '@/lib/logger';
+import { BOARD_BACKGROUNDS, isBoardBackgroundId } from '@/lib/boardBackgrounds';
+
+export { BOARD_BACKGROUNDS };
 
 const VISIBLE_WEEK_COUNT = 10;
 
 type Density = 'cover' | 'compact';
 
-export const BOARD_BACKGROUNDS: Array<{ id: string; label: string; style: React.CSSProperties; isPhoto?: boolean }> = [
-  { id: 'ocean', label: 'Ocean', style: { background: 'linear-gradient(135deg, #0079bf 0%, #5067c5 100%)' } },
-  { id: 'grape', label: 'Grape', style: { background: 'linear-gradient(135deg, #89609e 0%, #cd5a91 100%)' } },
-  { id: 'forest', label: 'Forest', style: { background: 'linear-gradient(135deg, #1f845a 0%, #4bbf6b 100%)' } },
-  { id: 'sunset', label: 'Sunset', style: { background: 'linear-gradient(135deg, #f97316 0%, #db2777 100%)' } },
-  { id: 'night', label: 'Night', style: { background: 'linear-gradient(135deg, #0c1a3a 0%, #3b2a6b 100%)' } },
-  { id: 'slate', label: 'Slate', style: { background: 'linear-gradient(135deg, #475569 0%, #1e293b 100%)' } },
-  {
-    id: 'mountains',
-    label: 'Mountains',
-    isPhoto: true,
-    style: { background: 'url(https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=2400&q=70) center/cover' },
-  },
-  {
-    id: 'beach',
-    label: 'Beach',
-    isPhoto: true,
-    style: { background: 'url(https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2400&q=70) center/cover' },
-  },
-  {
-    id: 'leaves',
-    label: 'Leaves',
-    isPhoto: true,
-    style: { background: 'url(https://images.unsplash.com/photo-1470058869958-2a77ade41c02?auto=format&fit=crop&w=2400&q=70) center/cover' },
-  },
-];
 
 const readStorage = (key: string) => {
   try {
@@ -701,6 +678,13 @@ export interface TrelloBoardCalendarProps extends ColumnViewCalendarProps {
   rightPanel?: React.ReactNode;
   /** Optional floating dock centred at the bottom of the board (Trello-style view switcher). */
   bottomDock?: React.ReactNode;
+  /**
+   * Saved background id. When given, it wins over this browser's local choice (so the client
+   * portal matches the agency's calendar).
+   */
+  background?: string | null;
+  /** Called when the user picks a background; omit to hide the picker (read-only). */
+  onBackgroundChange?: (id: string) => void;
 }
 
 export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBoardCalendarProps>(function TrelloBoardCalendar(
@@ -708,7 +692,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   ref
 ) {
   const { weeks, scheduledPosts, clientUploads = {}, events = {}, contentEvents, loading, clientId, formatWeekCommencing } = props;
-  const { toolbar, subToolbar, leftDrawer, rightPanel, bottomDock } = props;
+  const { toolbar, subToolbar, leftDrawer, rightPanel, bottomDock, background, onBackgroundChange } = props;
 
   const initialStart = () => {
     const start = new Date(computeInitialStartWeek(weeks));
@@ -771,10 +755,16 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
 
   useImperativeHandle(ref, () => ({ navigate }));
 
+  // A saved (server-side) background overrides the local one.
+  useEffect(() => {
+    if (isBoardBackgroundId(background)) setBgId(background);
+  }, [background]);
+
   const selectBg = (id: string) => {
     setBgId(id);
     writeStorage(bgKey, id);
     setShowBgPicker(false);
+    onBackgroundChange?.(id);
   };
 
   const toggleDensity = () => {
@@ -897,6 +887,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
           >
             {density === 'cover' ? <Rows3 className="w-4 h-4" /> : <LayoutList className="w-4 h-4" />}
           </button>
+          {onBackgroundChange && (
           <div className="relative">
             <button
               type="button"
@@ -929,6 +920,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
               </div>
             )}
           </div>
+          )}
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleApiError, handleDatabaseError } from '@/lib/apiErrorHandler';
 import { sanitizeUUID } from '@/lib/validators';
+import { isBoardBackgroundId } from '@/lib/boardBackgrounds';
 import logger from '@/lib/logger';
 import { decrementUsage } from '@/lib/subscriptionHelpers';
 import { requireClientOwnership } from '@/lib/authHelpers';
@@ -239,6 +240,7 @@ export async function PUT(
       autopilot_settings?: Record<string, unknown>;
       ad_copy_settings?: Record<string, unknown>;
       agent_media_ids?: string[] | null;
+      portal_settings?: Record<string, unknown>;
       updated_at?: string;
     } = {};
 
@@ -280,6 +282,30 @@ export async function PUT(
     }
 
     // Add updated_at timestamp
+    // Board background (Board view) — merged into portal_settings so the client portal uses it too.
+    if (body.board_background !== undefined) {
+      if (!isBoardBackgroundId(body.board_background)) {
+        return NextResponse.json({ error: 'Invalid board_background' }, { status: 400 });
+      }
+      const { data: current, error: currentError } = await supabase
+        .from('clients')
+        .select('portal_settings')
+        .eq('id', clientId)
+        .single();
+      if (currentError) {
+        return handleDatabaseError(currentError, {
+          route: '/api/clients/[clientId]',
+          operation: 'read_portal_settings',
+          userId: user.id,
+          clientId: clientId,
+        }, 'Failed to update client');
+      }
+      updateData.portal_settings = {
+        ...((current?.portal_settings as Record<string, unknown> | null) ?? {}),
+        board_background: body.board_background,
+      };
+    }
+
     updateData.updated_at = new Date().toISOString();
 
     const { data: updatedClient, error } = await supabase

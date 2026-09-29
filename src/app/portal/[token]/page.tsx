@@ -2308,6 +2308,7 @@ export default function PortalCalendarPage() {
           <TrelloBoardCalendar
             {...(portalCalendarProps as any)}
             clientId={`portal-${token}`}
+            background={(client?.portal_settings?.board_background as string | undefined) ?? null}
             selectedPosts={calendarSelectedPostIds}
             onTogglePostSelection={handleToggleCalendarPostSelection}
             subToolbar={<div className="overflow-x-auto calendar-hscroll">{renderSelectionToolbar('board')}</div>}
