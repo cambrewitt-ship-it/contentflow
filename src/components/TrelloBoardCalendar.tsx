@@ -584,7 +584,7 @@ function BoardList({
   return (
     <div
       data-board-list
-      className={`w-[272px] flex-shrink-0 max-h-full flex flex-col rounded-xl bg-[#f1f2f4] ${TRELLO_SHADOW} ${
+      className={`w-[300px] flex-shrink-0 max-h-full flex flex-col rounded-xl bg-[#f1f2f4] ${TRELLO_SHADOW} ${
         isCurrent ? 'ring-2 ring-white' : ''
       }`}
     >
@@ -972,7 +972,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
 
             <DragOverlay>
               {activePost && activePost.type === 'post' ? (
-                <div className="w-[256px] rotate-3 rounded-lg bg-white shadow-2xl px-3 py-2 text-sm text-[#172b4d] line-clamp-3">
+                <div className="w-[284px] rotate-3 rounded-lg bg-white shadow-2xl px-3 py-2 text-sm text-[#172b4d] line-clamp-3">
                   {activePost.post.caption || 'Post'}
                 </div>
               ) : null}

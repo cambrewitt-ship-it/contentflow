@@ -768,6 +768,51 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     }
   };
 
+  // ── Improve: comment + "needs_attention" status in one go (posts) ─────────
+
+  const handleImprove = async () => {
+    if (!isPost) return;
+    const feedback = newComment.trim();
+    if (!feedback) {
+      setActionError("Write what needs improving in the comment box first.");
+      return;
+    }
+    const postId = (item.data as ModalPost).id;
+    setIsActioning(true);
+    setActionError(null);
+    try {
+      const res = await fetch("/api/portal/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: portalToken,
+          post_id: postId,
+          post_type: "planner_scheduled",
+          approval_status: "needs_attention",
+          client_comments: feedback,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionError(data.error ?? "Failed to submit");
+        return;
+      }
+      // Also leave the feedback in the comment thread so the agency sees it there.
+      await handlePostComment();
+      setStatusOverride("needs_attention");
+      onApprovalStatusChange?.(postId, "needs_attention");
+      setActionDone("Improve requested");
+      setTimeout(() => {
+        onActioned();
+      }, 1500);
+    } catch (err) {
+      logger.error("Improve request error:", err);
+      setActionError("Failed to submit. Please try again.");
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
   // ── Download ─────────────────────────────────────────────────────────────
 
   const handleDownload = async () => {
@@ -1503,6 +1548,17 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                             {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
                             Approve
                           </button>
+                          {isPost && (
+                            <button
+                              onClick={handleImprove}
+                              disabled={isActioning || isPostingComment || !newComment.trim()}
+                              title={newComment.trim() ? "Request changes with this comment" : "Write what needs improving first"}
+                              className="h-8 rounded-full bg-amber-500 text-white flex items-center justify-center gap-1.5 px-3 hover:bg-amber-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium"
+                            >
+                              {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+                              Improve
+                            </button>
+                          )}
                           <button
                             onClick={() => isPost ? handleDirectApproval("rejected") : handleUploadApproval("rejected")}
                             disabled={isActioning}
