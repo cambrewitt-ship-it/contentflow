@@ -1234,6 +1234,43 @@ export default function CalendarPage() {
     }
   };
 
+  // Set or clear ("pending") a post's approval status from its detail modal.
+  const handleSetApprovalStatus = async (
+    postId: string,
+    status: 'pending' | 'approved' | 'needs_attention' | 'rejected'
+  ): Promise<boolean> => {
+    try {
+      const accessToken = requireAccessToken();
+      const response = await fetch(`/api/posts/${postId}/approval-status`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_type: 'calendar_scheduled', approval_status: status }),
+      });
+      if (!response.ok) throw new Error(`Failed to update status (${response.status})`);
+
+      setScheduledPosts(prevScheduled => {
+        const updated = { ...prevScheduled };
+        Object.keys(updated).forEach(date => {
+          updated[date] = updated[date].map(p =>
+            p.id === postId
+              ? {
+                  ...p,
+                  approval_status: status,
+                  needs_attention: status === 'needs_attention',
+                  ...(status === 'pending' ? { client_feedback: undefined } : {}),
+                }
+              : p
+          );
+        });
+        return updated;
+      });
+      return true;
+    } catch (error) {
+      console.error('Error updating approval status:', error);
+      return false;
+    }
+  };
+
   const handleResubmitPost = async (postId: string): Promise<boolean> => {
     try {
       setResubmittingPostIds(prev => new Set([...prev, postId]));
@@ -2157,11 +2194,13 @@ export default function CalendarPage() {
     }
   };
 
-  const handleScheduleToPlatform = async (account: ConnectedAccount) => {
-    if (selectedPosts.size === 0) return;
+  // Schedules the selected posts — or just `postIds` (e.g. one post from its detail modal).
+  const handleScheduleToPlatform = async (account: ConnectedAccount, postIds?: string[]) => {
+    const idsToSchedule = postIds ? new Set(postIds) : selectedPosts;
+    if (idsToSchedule.size === 0) return;
     
     const allScheduledPosts = Object.values(scheduledPosts).flat();
-    const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
+    const postsToSchedule = allScheduledPosts.filter(p => idsToSchedule.has(p.id));
     
     // Validate that all posts have captions
     console.log('🔍 Pre-scheduling validation:', {
@@ -2188,7 +2227,11 @@ export default function CalendarPage() {
       return;
     }
     
-    const confirmed = confirm(`Schedule ${selectedPosts.size} posts to ${account.platform}?`);
+    const confirmed = confirm(
+      idsToSchedule.size === 1
+        ? `Schedule this post to ${account.platform}?`
+        : `Schedule ${idsToSchedule.size} posts to ${account.platform}?`
+    );
     if (!confirmed) return;
 
     let accessToken: string;
@@ -2335,7 +2378,7 @@ export default function CalendarPage() {
             setShowPlanRestrictionDialog(true);
             setSchedulingPlatform(null);
             setSchedulingPostIds(new Set());
-            setSelectedPosts(new Set());
+            if (!postIds) setSelectedPosts(new Set());
             return;
           }
 
@@ -2398,7 +2441,7 @@ export default function CalendarPage() {
     setSchedulingPostIds(new Set()); // Clear any remaining scheduling states
     
     // Clear selection (no need to refresh - posts are already visible)
-    setSelectedPosts(new Set());
+    if (!postIds) setSelectedPosts(new Set());
     
     // Show results
     if (failCount === 0) {
@@ -2515,6 +2558,19 @@ export default function CalendarPage() {
     const post = JSON.parse(postData);
     setQuickSchedule({ weekStart, post, mode: 'schedule' });
   };
+
+  // Keep an open post modal in step with the calendar (e.g. after scheduling it from the modal).
+  useEffect(() => {
+    if (!postDetailModal) return;
+    const fresh = Object.values(scheduledPosts).flat().find(p => p.id === postDetailModal.id);
+    if (!fresh) return;
+    if (
+      fresh.late_status !== postDetailModal.late_status ||
+      (fresh.platforms_scheduled ?? []).join() !== (postDetailModal.platforms_scheduled ?? []).join()
+    ) {
+      setPostDetailModal(prev => prev ? { ...prev, late_status: fresh.late_status ?? null, platforms_scheduled: fresh.platforms_scheduled } : prev);
+    }
+  }, [scheduledPosts, postDetailModal]);
 
   // Save the board background on the client so the client portal shows the same one.
   const saveBoardBackground = useCallback(async (id: string) => {
@@ -3351,6 +3407,14 @@ export default function CalendarPage() {
             if (ok) setPostDetailModal(prev => prev ? { ...prev, target_platforms: platforms } : prev);
             return ok;
           }}
+          onChangeApprovalStatus={async (status) => {
+            const ok = await handleSetApprovalStatus(postDetailModal.id, status);
+            if (ok) setPostDetailModal(prev => prev ? { ...prev, approval_status: status } : prev);
+            return ok;
+          }}
+          scheduleAccounts={connectedAccounts}
+          schedulingPlatform={schedulingPlatform}
+          onSchedule={(account) => handleScheduleToPlatform(account as ConnectedAccount, [postDetailModal.id])}
         />
       )}
 

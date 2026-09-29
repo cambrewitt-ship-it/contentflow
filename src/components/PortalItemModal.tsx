@@ -25,6 +25,7 @@ import { PortalTagDropdown } from "@/components/PortalTagDropdown";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
 import { PlatformBadges } from "@/components/PlatformBadges";
 import { PublishStatusBadge } from "@/components/PublishStatusBadge";
+import { ApprovalStatusEditor, type EditableApprovalStatus } from "@/components/ApprovalStatusEditor";
 import { normalizeTargetPlatforms } from "@/lib/targetPlatforms";
 import { PortalParty } from "@/contexts/PortalContext";
 import logger from "@/lib/logger";
@@ -134,6 +135,8 @@ interface Props {
   onNotesChange?: (uploadId: string, notes: string | null) => void;
   onCaptionChange?: (postId: string, caption: string) => void;
   onDeleteUpload?: (uploadIds: string[]) => void;
+  /** Called after the status is set/cleared from the modal (the modal stays open). */
+  onApprovalStatusChange?: (postId: string, status: EditableApprovalStatus) => void;
   brandName?: string;
   brandLogoUrl?: string;
 }
@@ -228,7 +231,7 @@ function PipelineSteps({
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function PortalItemModal({ item, portalToken, party, onClose, onActioned, onTagsChange, onNotesChange, onCaptionChange, onDeleteUpload, brandName, brandLogoUrl }: Props) {
+export function PortalItemModal({ item, portalToken, party, onClose, onActioned, onTagsChange, onNotesChange, onCaptionChange, onDeleteUpload, onApprovalStatusChange, brandName, brandLogoUrl }: Props) {
   const isPost = item.type === "post";
   const isUpload = item.type === "upload";
 
@@ -505,6 +508,36 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
       setActionError("Failed to submit. Please try again.");
     } finally {
       setIsActioning(false);
+    }
+  };
+
+  // ── Set / clear status from the modal (posts) ───────────────────────────
+
+  const [statusOverride, setStatusOverride] = useState<EditableApprovalStatus | null>(null);
+
+  const handleSetStatus = async (status: EditableApprovalStatus): Promise<boolean> => {
+    if (!isPost) return false;
+    const postId = (item.data as ModalPost).id;
+    try {
+      const res = await fetch("/api/portal/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: portalToken,
+          post_id: postId,
+          post_type: "planner_scheduled",
+          approval_status: status,
+          client_comments: "",
+        }),
+      });
+      if (!res.ok) return false;
+      setStatusOverride(status);
+      onApprovalStatusChange?.(postId, status);
+      fetchApprovalHistory();
+      return true;
+    } catch (err) {
+      logger.error("Status update error:", err);
+      return false;
     }
   };
 
@@ -804,7 +837,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   const title = isPost ? "Post" : (item.data as ModalUpload).file_name;
 
   const approvalStatus = isPost
-    ? (item.data as ModalPost).approval_status
+    ? statusOverride ?? (item.data as ModalPost).approval_status
     : ((item.data as ModalUpload).one_time_approval?.approval_status ?? mapUploadStatus((item.data as ModalUpload).status));
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -1254,6 +1287,11 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                     ) : null;
                   })()}
                 </div>
+                {isPost && (
+                  <div className="mb-3">
+                    <ApprovalStatusEditor status={approvalStatus} onChange={handleSetStatus} />
+                  </div>
+                )}
                 {isPost && (
                   isLoadingPipeline ? (
                     <div className="flex items-center gap-2 text-sm text-gray-400">

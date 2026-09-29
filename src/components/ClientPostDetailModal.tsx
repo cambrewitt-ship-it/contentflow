@@ -17,6 +17,7 @@ import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
 import { PlatformBadges, PlatformPicker } from "@/components/PlatformBadges";
 import { PublishStatusBadge } from "@/components/PublishStatusBadge";
+import { ApprovalStatusEditor, type EditableApprovalStatus } from "@/components/ApprovalStatusEditor";
 import { normalizeTargetPlatforms, type TargetPlatform } from "@/lib/targetPlatforms";
 import logger from "@/lib/logger";
 
@@ -67,6 +68,13 @@ interface Props {
   onChangeDate?: (newDateKey: string) => Promise<boolean>;
   isChangingDate?: boolean;
   onChangeTargetPlatforms?: (platforms: TargetPlatform[]) => Promise<boolean>;
+  /** Set or clear ("pending") the approval status. */
+  onChangeApprovalStatus?: (status: EditableApprovalStatus) => Promise<boolean>;
+  /** Connected social accounts this post can be scheduled to from the modal. */
+  scheduleAccounts?: Array<{ _id: string; platform: string; name?: string }>;
+  onSchedule?: (account: { _id: string; platform: string; name?: string }) => Promise<void>;
+  /** Platform currently being scheduled to (shows a spinner on that button). */
+  schedulingPlatform?: string | null;
 }
 
 function weekStartForDateKey(dateKey: string): Date {
@@ -165,7 +173,7 @@ function PipelineSteps({ steps }: { steps: ApprovalStep[] }) {
   );
 }
 
-export function ClientPostDetailModal({ post, onClose, getAccessToken, authorName, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate, onChangeTargetPlatforms }: Props) {
+export function ClientPostDetailModal({ post, onClose, getAccessToken, authorName, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate, onChangeTargetPlatforms, onChangeApprovalStatus, scheduleAccounts = [], onSchedule, schedulingPlatform }: Props) {
   const [targetPlatforms, setTargetPlatforms] = useState<TargetPlatform[]>(() =>
     normalizeTargetPlatforms(post.target_platforms)
   );
@@ -450,6 +458,50 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
               {/* Scheduled/posted-to platforms + when */}
               <PublishStatusBadge post={post} variant="panel" />
 
+              {/* Schedule this post to a connected account */}
+              {onSchedule && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                    Schedule
+                  </p>
+                  {scheduleAccounts.length === 0 ? (
+                    <p className="text-xs text-gray-500">
+                      Connect a social account on the Brand Dashboard to schedule posts.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {scheduleAccounts.map((account) => {
+                        const isScheduling = schedulingPlatform === account.platform;
+                        const alreadyScheduled = (post.platforms_scheduled ?? []).includes(account.platform);
+                        return (
+                          <button
+                            key={account._id}
+                            type="button"
+                            onClick={() => onSchedule(account)}
+                            disabled={!!schedulingPlatform || !editedCaption.trim() || alreadyScheduled}
+                            title={
+                              alreadyScheduled
+                                ? `Already scheduled to ${account.platform}`
+                                : !editedCaption.trim()
+                                ? "Add a caption before scheduling"
+                                : `Schedule to ${account.name || account.platform}`
+                            }
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isScheduling ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <PlatformBadges platforms={[account.platform]} size={14} />
+                            )}
+                            {alreadyScheduled ? "Scheduled" : "Schedule"} to {account.name || account.platform}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Tags */}
               {(post.tags ?? []).length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
@@ -578,6 +630,18 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                 </div>
                 {resubmitError && (
                   <p className="text-xs text-red-600 mb-3">{resubmitError}</p>
+                )}
+                {onChangeApprovalStatus && (
+                  <div className="mb-3">
+                    <ApprovalStatusEditor
+                      status={post.approval_status}
+                      onChange={async (status) => {
+                        const ok = await onChangeApprovalStatus(status);
+                        if (ok) fetchPipeline();
+                        return ok;
+                      }}
+                    />
+                  </div>
                 )}
                 {isLoadingPipeline ? (
                   <div className="flex items-center gap-2 text-sm text-gray-400">

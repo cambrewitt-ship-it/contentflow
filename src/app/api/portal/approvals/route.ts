@@ -179,8 +179,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate approval_status
-    const validStatuses = ['approved', 'rejected', 'needs_attention'];
+    // Validate approval_status ('pending' = clear the status from the post modal)
+    const validStatuses = ['approved', 'rejected', 'needs_attention', 'pending'];
     if (!validStatuses.includes(approval_status)) {
       return NextResponse.json(
         { success: false, error: `Invalid approval status: ${approval_status}` },
@@ -193,6 +193,22 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
+    }
+
+    // Calendar posts must belong to this portal's client.
+    if (post_type === 'planner_scheduled') {
+      const { data: ownedPost } = await supabase
+        .from('calendar_scheduled_posts')
+        .select('id')
+        .eq('id', post_id)
+        .eq('client_id', client.id)
+        .maybeSingle();
+      if (!ownedPost) {
+        return NextResponse.json(
+          { success: false, error: 'Post not found' },
+          { status: 404 }
+        );
+      }
     }
 
     // Update post caption if client edited it
@@ -234,6 +250,9 @@ export async function POST(request: NextRequest) {
     if (approval_status === 'needs_attention') {
       statusUpdate.needs_attention = true;
       statusUpdate.client_feedback = client_comments;
+    } else if (approval_status === 'pending') {
+      statusUpdate.needs_attention = false;
+      statusUpdate.client_feedback = null;
     } else {
       statusUpdate.needs_attention = false;
       statusUpdate.client_feedback = client_comments || null;

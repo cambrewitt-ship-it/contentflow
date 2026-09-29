@@ -2484,6 +2484,15 @@ export default function PortalCalendarPage() {
           }}
           onTagsChange={handleTagsChange}
           onNotesChange={handleNotesChange}
+          onApprovalStatusChange={(postId, status) => {
+            setScheduledPosts(prev => {
+              const updated = { ...prev };
+              Object.keys(updated).forEach(date => {
+                updated[date] = updated[date].map(p => (p.id === postId ? { ...p, approval_status: status } : p));
+              });
+              return updated;
+            });
+          }}
           onCaptionChange={handleCaptionSaved}
           onDeleteUpload={(uploadIds) => {
             const primaryId = uploadIds[0];
