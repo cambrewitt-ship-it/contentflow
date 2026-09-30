@@ -325,7 +325,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
             <h3 className={getThemeClasses(
               "text-sm font-medium text-gray-500 mb-3",
               "text-sm font-medium glass-text-muted mb-3"
-            )}>Client</h3>
+            )}>Current Profile</h3>
           )}
           <nav className="space-y-1">
             {[
@@ -354,13 +354,13 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                 active: !pathname?.includes("/autopilot-settings") && !!pathname?.includes("/autopilot"),
               },
               {
-                name: "Connect",
+                name: "Social Accounts",
                 href: `/dashboard/client/${clientIdFromPath}/connect-platforms`,
                 icon: Link2,
                 active: !!pathname?.includes("/connect-platforms"),
               },
               {
-                name: "Settings",
+                name: "Agent Settings",
                 href: `/dashboard/client/${clientIdFromPath}/autopilot-settings`,
                 icon: Settings,
                 active: !!pathname?.includes("/autopilot-settings"),

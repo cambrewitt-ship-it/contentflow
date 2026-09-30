@@ -466,7 +466,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                   </p>
                   {scheduleAccounts.length === 0 ? (
                     <p className="text-xs text-gray-500">
-                      Connect a social account on the Brand Dashboard to schedule posts.
+                      Connect a social account in Social Accounts to schedule posts.
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-2">

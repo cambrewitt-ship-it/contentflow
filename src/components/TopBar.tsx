@@ -22,7 +22,7 @@ export default function TopBar({ className = "" }: TopBarProps) {
   const { getThemeClasses } = useUIThemeStyles();
   const pathname = usePathname();
 
-  // On a client's pages, the Brand Dashboard / Content Suite / Calendar toggle lives here.
+  // On a client's pages, the Dashboard / Content Suite / Calendar toggle lives here.
   const clientMatch = pathname?.match(/^\/dashboard\/client\/([^/]+)(?:\/([^/]+))?/);
   const clientId = clientMatch?.[1];
   const clientSection = clientMatch?.[2];

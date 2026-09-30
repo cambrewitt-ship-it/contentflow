@@ -1,5 +1,5 @@
 /**
- * Timezone utilities for ContentFlow
+ * Timezone utilities for Content Manager
  * Centralized timezone options and helper functions
  */
 

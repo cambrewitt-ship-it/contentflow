@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     if (!force && !clientRow?.autopilot_enabled) {
       return NextResponse.json(
-        { success: false, error: 'Autopilot is not enabled for this client. Enable it in Autopilot Settings or pass force: true.' },
+        { success: false, error: 'Autopilot is not enabled for this client. Enable it in Content Agent Settings or pass force: true.' },
         { status: 400 }
       );
     }

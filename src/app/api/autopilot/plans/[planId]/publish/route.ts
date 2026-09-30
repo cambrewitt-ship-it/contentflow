@@ -54,7 +54,7 @@ async function scheduleViaLate(params: {
   platforms: Array<{ platform: string; accountId: string }>;
 }): Promise<string | null> {
   const body = {
-    content: params.caption.trim() || 'Posted via ContentFlow',
+    content: params.caption.trim() || 'Posted via Content Manager',
     platforms: params.platforms,
     scheduledFor: params.scheduledFor,
     timezone: params.timezone,
