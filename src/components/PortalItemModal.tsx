@@ -889,10 +889,10 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div className="relative bg-white rounded-none sm:rounded-2xl shadow-2xl w-full max-w-4xl h-dvh sm:h-auto max-h-dvh sm:max-h-[92vh] pt-[env(safe-area-inset-top)] sm:pt-0 flex flex-col overflow-hidden">
 
         {/* ── Header ── */}
         <div className="flex items-start justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">

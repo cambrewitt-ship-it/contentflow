@@ -65,28 +65,28 @@ function PortalLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="h-screen bg-background overflow-hidden flex flex-col">
+    <div className="h-dvh bg-background overflow-hidden flex flex-col">
       {/* Top Bar */}
       <header className="bg-card border-b border-border shadow-sm flex-shrink-0">
-        <div className="px-6 py-3 flex items-center justify-between gap-4">
+        <div className="px-3 py-2 md:px-6 md:py-3 flex items-center justify-between gap-2 md:gap-4">
           {/* Left: CM logo -> home, then the page title */}
-          <div className="flex items-center gap-4 min-w-0">
+          <div className="flex items-center gap-2 md:gap-4 min-w-0">
             <Link href="/" className="flex-shrink-0">
               <img
                 src="/cm-logo.png"
                 alt="CM Logo"
-                className="h-10 w-auto cursor-pointer"
+                className="h-8 md:h-10 w-auto cursor-pointer"
               />
             </Link>
             {pageTitle && (
-              <h1 className="text-xl font-semibold text-card-foreground truncate border-l border-border pl-4">
+              <h1 className="hidden sm:block text-xl font-semibold text-card-foreground truncate border-l border-border pl-4">
                 {pageTitle}
               </h1>
             )}
           </div>
 
           {/* Right: client identity, then page actions (e.g. Refresh) */}
-          <div className="flex items-center gap-4 min-w-0">
+          <div className="flex items-center gap-2 md:gap-4 min-w-0">
             {party && (
               <div
                 className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium text-white"
@@ -96,7 +96,7 @@ function PortalLayoutContent({ children }: { children: React.ReactNode }) {
               </div>
             )}
 
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 md:gap-3 min-w-0">
               <span className="text-sm font-semibold text-card-foreground truncate">
                 {client.name}
               </span>
@@ -104,10 +104,10 @@ function PortalLayoutContent({ children }: { children: React.ReactNode }) {
                 <img
                   src={client.logo_url}
                   alt={`${client.name} logo`}
-                  className="h-10 w-10 rounded-lg object-contain bg-white border border-border flex-shrink-0"
+                  className="h-8 w-8 md:h-10 md:w-10 rounded-lg object-contain bg-white border border-border flex-shrink-0"
                 />
               ) : (
-                <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="h-8 w-8 md:h-10 md:w-10 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="text-primary-foreground font-semibold text-lg">
                     {client.name.charAt(0).toUpperCase()}
                   </span>
@@ -123,7 +123,7 @@ function PortalLayoutContent({ children }: { children: React.ReactNode }) {
       {/* Page Content - Scrollable content area only */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
         {/* A full-height page (the Board view) pins this to the viewport so the board gets a fixed height. */}
-        <div className="p-6 min-h-full flex flex-col has-[[data-fill-height]]:h-full has-[[data-fill-height]]:pt-0">
+        <div className="p-3 md:p-6 min-h-full flex flex-col has-[[data-fill-height]]:h-full has-[[data-fill-height]]:pt-0">
           {children}
         </div>
       </main>

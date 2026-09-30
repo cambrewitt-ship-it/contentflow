@@ -18,6 +18,7 @@ import { usePortal } from '@/contexts/PortalContext';
 import logger from '@/lib/logger';
 import { WeekDayChooser } from '@/components/WeekDayChooser';
 import { PortalCreatePostModal } from '@/components/PortalCreatePostModal';
+import { PortalMobileReview } from '@/components/PortalMobileReview';
 import { QuickScheduleDayTimePicker } from '@/components/QuickScheduleDayTimePicker';
 import EventsPanel from '@/components/EventsPanel';
 import { useContentEvents } from '@/components/EventsCalendarLayer';
@@ -378,6 +379,9 @@ export default function PortalCalendarPage() {
 
   // View mode state
   const [viewMode, setViewMode] = useState<'board' | 'column' | 'month' | 'inbox'>('board');
+  // Phones hide the queue column behind a toolbar toggle
+  const [showMobileQueue, setShowMobileQueue] = useState(false);
+  const [showMobileReview, setShowMobileReview] = useState(false);
 
   // Show the view's title in the portal top bar.
   const pageTitle = viewMode === 'inbox' ? 'Content Inbox' : 'Content Calendar';
@@ -387,6 +391,20 @@ export default function PortalCalendarPage() {
   }, [pageTitle, setPageTitle]);
 
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
+
+  // Posts still waiting on the client: not yet approved/rejected, not already sent back for changes, not published
+  const postsAwaitingReview = useMemo(
+    () =>
+      Object.values(scheduledPosts)
+        .flat()
+        .filter(p =>
+          (!p.approval_status || p.approval_status === 'pending') &&
+          p.late_status !== 'published' &&
+          p.status !== 'published'
+        )
+        .sort((a, b) => `${a.scheduled_date ?? ''}${a.scheduled_time ?? ''}`.localeCompare(`${b.scheduled_date ?? ''}${b.scheduled_time ?? ''}`)),
+    [scheduledPosts]
+  );
   // Events panel on the board (holidays + custom events), shared with the agency calendar.
   const [showEventsPanel, setShowEventsPanel] = useState(false);
   // Instagram grid mock-up of the calendar's posts, in publish order
@@ -1586,7 +1604,7 @@ export default function PortalCalendarPage() {
         return (
           <div
             className={variant === 'board'
-              ? 'relative z-10 w-44 flex-shrink-0 m-3 mr-0 rounded-xl bg-[#f1f2f4] shadow-[0_1px_1px_#091e4240,0_0_1px_#091e424f] flex flex-col overflow-hidden'
+              ? `${showMobileQueue ? 'flex absolute inset-y-0 left-0 z-20 shadow-2xl' : 'hidden'} md:relative md:z-10 md:flex md:shadow-[0_1px_1px_#091e4240,0_0_1px_#091e424f] w-44 flex-shrink-0 m-3 mr-0 rounded-xl bg-[#f1f2f4] flex-col overflow-hidden`
               : 'bg-white rounded-lg shadow flex flex-col flex-shrink-0 w-44 sticky top-0'}
             style={variant === 'board' ? undefined : { height: 'calc(100vh - 112px)' }}
           >
@@ -2003,6 +2021,33 @@ export default function PortalCalendarPage() {
       className={`space-y-6 ${viewMode === 'board' ? 'flex-1 min-h-0 flex flex-col' : ''}`}
       data-fill-height={viewMode === 'board' ? '' : undefined}
     >
+      {/* Phones: one-tap entry into the one-post-at-a-time review */}
+      {!party && postsAwaitingReview.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowMobileReview(true)}
+          className="md:hidden w-full flex items-center justify-between gap-3 rounded-xl bg-green-600 px-4 py-3 text-left text-white shadow-md active:bg-green-700"
+        >
+          <span>
+            <span className="block font-semibold">
+              {postsAwaitingReview.length} post{postsAwaitingReview.length === 1 ? '' : 's'} waiting for your review
+            </span>
+            <span className="block text-sm text-white/80">Approve or request changes in a few taps</span>
+          </span>
+          <ChevronRight className="w-5 h-5 flex-shrink-0" />
+        </button>
+      )}
+      {showMobileReview && (
+        <PortalMobileReview
+          token={token}
+          posts={postsAwaitingReview}
+          onClose={() => setShowMobileReview(false)}
+          onReviewed={() => {
+            fetchScheduledPosts(0, true);
+            setQueueRefreshKey(k => k + 1);
+          }}
+        />
+      )}
       {/* Submit Approvals Section */}
       {Object.keys(selectedPosts).length > 0 && (
         <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -2328,7 +2373,7 @@ export default function PortalCalendarPage() {
       {viewMode === 'board' && (
         // Full-bleed: cancel the portal's p-6 so the background reaches both sides and the bottom of the screen.
         // Min height fits ~1.75 cards per list (cards are up to ~340px tall) plus the board's top bar and toolbar.
-        <div className="flex-1 min-h-[850px] -mx-6 -mb-6 overflow-hidden">
+        <div className="flex-1 md:min-h-[850px] -mx-3 -mb-3 md:-mx-6 md:-mb-6 overflow-hidden">
           <TrelloBoardCalendar
             {...(portalCalendarProps as any)}
             clientId={`portal-${token}`}
@@ -2357,7 +2402,7 @@ export default function PortalCalendarPage() {
                   className={`px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1.5 ${showEventsPanel ? 'bg-white/30' : 'hover:bg-white/20'}`}
                 >
                   <Calendar className="w-4 h-4" />
-                  Events
+                  <span className="hidden sm:inline">Events</span>
                 </button>
                 <button
                   onClick={() => setShowFeedPreview(true)}
@@ -2365,6 +2410,13 @@ export default function PortalCalendarPage() {
                 >
                   <Smartphone className="w-4 h-4" />
                   <span className="hidden lg:inline">Feed preview</span>
+                </button>
+                <button
+                  onClick={() => setShowMobileQueue(v => !v)}
+                  className={`md:hidden px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1.5 ${showMobileQueue ? 'bg-white/30' : 'hover:bg-white/20'}`}
+                >
+                  <ListOrdered className="w-4 h-4" />
+                  Queue
                 </button>
               </>
             }

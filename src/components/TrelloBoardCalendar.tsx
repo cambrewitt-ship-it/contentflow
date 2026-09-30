@@ -32,7 +32,8 @@ import {
   DragOverEvent,
   DragOverlay,
   DragStartEvent,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCorners,
@@ -608,7 +609,8 @@ function BoardList({
   return (
     <div
       data-board-list
-      className={`w-[300px] flex-shrink-0 max-h-full flex flex-col rounded-xl bg-[#f1f2f4] ${TRELLO_SHADOW} ${
+      data-current-week={isCurrent ? '' : undefined}
+      className={`w-[300px] max-w-[calc(100vw-3rem)] snap-center flex-shrink-0 max-h-full flex flex-col rounded-xl bg-[#f1f2f4] ${TRELLO_SHADOW} ${
         isCurrent ? 'ring-2 ring-white' : ''
       }`}
     >
@@ -766,7 +768,11 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
     [startWeek, scheduledPosts, clientUploads, events, contentEvents]
   );
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(
+    // Mouse drags after a small move; touch needs a long-press so a swipe still scrolls the board
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
+  );
 
   const navigate = (direction: 'left' | 'right') => {
     setStartWeek((prev) => {
@@ -781,8 +787,24 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
     const start = normalizeToWeekStart(new Date());
     start.setDate(start.getDate() - 7);
     setStartWeek(start);
-    scrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
+    scrollToCurrentWeek('smooth');
   };
+
+  // The board starts a week back so desktop shows last week alongside this one. Phones only fit one
+  // list, so bring the current week into view instead of an (often empty) past week.
+  const scrollToCurrentWeek = (behavior: ScrollBehavior) => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const current = container.querySelector<HTMLElement>('[data-current-week]');
+    const isPhone = window.matchMedia('(max-width: 767px)').matches;
+    container.scrollTo({ left: isPhone && current ? current.offsetLeft - 12 : 0, behavior });
+  };
+
+  // The lists remount whenever a load finishes (the spinner replaces them), which resets the scroll.
+  useEffect(() => {
+    if (loading) return;
+    requestAnimationFrame(() => scrollToCurrentWeek('auto'));
+  }, [loading]);
 
   useImperativeHandle(ref, () => ({ navigate }));
 
@@ -900,7 +922,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
 
       {/* Top bar */}
       {/* z-30 so its dropdowns (background picker) sit above the sub-toolbar and side panels. */}
-      <div className="relative z-30 flex items-center justify-between gap-3 px-4 py-2.5 bg-black/35 backdrop-blur-md text-white">
+      <div className="relative z-30 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 md:px-4 py-2 md:py-2.5 bg-black/35 backdrop-blur-md text-white">
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -930,7 +952,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1 md:gap-2">
           {toolbar}
           <button
             type="button"
@@ -939,7 +961,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
             title={density === 'cover' ? 'Compact cards' : 'Show image covers'}
           >
             {density === 'cover' ? <Rows3 className="w-4 h-4" /> : <LayoutList className="w-4 h-4" />}
-            {density === 'cover' ? 'Hide post images' : 'Show post images'}
+            <span className="hidden sm:inline">{density === 'cover' ? 'Hide post images' : 'Show post images'}</span>
           </button>
           {onBackgroundChange && (
           <div className="relative">
@@ -1015,7 +1037,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
         </div>
       </div>
 
-      {subToolbar && <div className="relative z-10 flex-shrink-0 bg-black/20 backdrop-blur-sm px-4 py-2">{subToolbar}</div>}
+      {subToolbar && <div className="relative z-10 flex-shrink-0 bg-black/20 backdrop-blur-sm px-3 md:px-4 py-2">{subToolbar}</div>}
 
       <div className="relative flex-1 min-h-0 flex">
         {leftDrawer}
@@ -1034,7 +1056,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
           >
             <div
               ref={scrollRef}
-              className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden calendar-hscroll"
+              className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden calendar-hscroll snap-x snap-mandatory md:snap-none"
               onMouseDown={onPanStart}
               onMouseMove={onPanMove}
               onMouseUp={onPanEnd}

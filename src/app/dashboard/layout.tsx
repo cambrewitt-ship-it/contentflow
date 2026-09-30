@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, Clock, ArrowRight, AlertCircle, CreditCard } from "lucide-react";
+import { Clock, ArrowRight, AlertCircle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
@@ -25,6 +26,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [portalLoading, setPortalLoading] = useState(false);
 
   const isOnNewClientPage = pathname === '/dashboard/clients/new';
+  const clientIdForNav = pathname?.match(/^\/dashboard\/client\/([^/]+)/)?.[1] ?? null;
+
+  // Sidebar is a collapsible column on desktop and an always-expanded drawer on mobile
+  const [isDesktop, setIsDesktop] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  // Close the mobile drawer whenever the route changes
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   // While checking the business-profile gate we show a loading state
   const [profileGateLoading, setProfileGateLoading] = useState(
@@ -282,89 +299,46 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
   
-  const hideTopBar = false;
-
   return (
-    <div className="h-screen bg-background overflow-hidden">
-      {/* Mobile Menu Button */}
-      <div className="md:hidden fixed top-4 left-4 z-50">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="bg-background/80 backdrop-blur-sm"
-        >
-          {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-        </Button>
+    <div className="h-dvh bg-background overflow-hidden flex">
+      {/* Sidebar: static column on desktop, slide-in drawer on mobile */}
+      <div
+        className={`
+          fixed inset-y-0 left-0 z-50 shadow-xl md:shadow-none
+          md:static md:z-auto md:flex-shrink-0 md:h-full
+          transform transition-transform duration-300 ease-in-out md:transform-none
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}
+      >
+        <Sidebar
+          collapsed={isDesktop ? sidebarCollapsed : false}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
       </div>
 
-      {/* Desktop Layout - CSS Grid */}
-      <div className="hidden md:grid md:grid-cols-[auto_1fr] md:h-full">
-        {/* Left Sidebar */}
-        <div className={`
-          transform transition-all duration-300 ease-in-out
-          ${sidebarCollapsed ? 'w-16' : 'w-64'}
-        `}>
-          <Sidebar 
-            collapsed={sidebarCollapsed} 
-            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          />
+      {/* Mobile drawer backdrop */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        <div className="flex-shrink-0">
+          <TopBar onMenuClick={() => setSidebarOpen(true)} />
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex flex-col min-h-0 overflow-hidden">
-          {/* Top Bar - Conditionally visible */}
-          {!hideTopBar && (
-            <div className="flex-shrink-0">
-              <TopBar />
-            </div>
-          )}
-          
-          {/* Page Content - Scrollable content area only */}
-          <div className="flex-1 overflow-y-auto">
-            {children}
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile Layout - Overlay Sidebar */}
-      <div className="md:hidden h-full relative">
-        {/* Mobile Sidebar Overlay */}
-        <div className={`
-          fixed inset-y-0 left-0 z-40
-          transform transition-all duration-300 ease-in-out
-          shadow-lg
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          ${sidebarCollapsed ? 'w-16' : 'w-64'}
-        `}>
-          <Sidebar 
-            collapsed={sidebarCollapsed} 
-            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          />
+        {/* Page Content - leaves room for the mobile bottom nav */}
+        <div className={`flex-1 overflow-y-auto overflow-x-hidden ${clientIdForNav ? 'pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0' : ''}`}>
+          {children}
         </div>
 
-        {/* Mobile Overlay */}
-        {sidebarOpen && (
-          <div 
-            className="fixed inset-0 bg-black/50 z-30"
-            onClick={() => setSidebarOpen(false)}
-          />
+        {clientIdForNav && (
+          <MobileBottomNav clientId={clientIdForNav} onMenuClick={() => setSidebarOpen(true)} />
         )}
-
-        {/* Mobile Main Content */}
-        <div className="flex flex-col h-full">
-          {/* Top Bar - Conditionally visible */}
-          {!hideTopBar && (
-            <div className="flex-shrink-0">
-              <TopBar />
-            </div>
-          )}
-          
-          {/* Page Content */}
-          <div className="flex-1 overflow-y-auto">
-            {children}
-          </div>
-        </div>
       </div>
     </div>
   );
