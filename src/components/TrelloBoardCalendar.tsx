@@ -16,6 +16,7 @@ import {
   Sparkles,
   Clock,
   Check,
+  Minus,
   Image as ImageIcon,
   Palette,
   Rows3,
@@ -586,6 +587,20 @@ function BoardList({
   const today = new Date().toDateString();
   const projectName = (id?: string | null) => (id ? props.projects?.find((p) => p.id === id)?.name : undefined);
 
+  // Select-all for the week: covers the selectable posts in this list (client uploads can't be selected).
+  const selectablePostIds = postEntries.filter((e) => !isUploadPost(e.post)).map((e) => e.post.id);
+  const selectedCount = selectablePostIds.filter((id) => props.selectedPosts?.has(id)).length;
+  const allSelected = selectablePostIds.length > 0 && selectedCount === selectablePostIds.length;
+  const someSelected = selectedCount > 0 && !allSelected;
+  const toggleSelectWeek = () => {
+    const toggle = props.onTogglePostSelection;
+    if (!toggle) return;
+    // Toggle only the posts whose state differs, so the whole week ends up selected (or cleared).
+    selectablePostIds
+      .filter((id) => (props.selectedPosts?.has(id) ?? false) === allSelected)
+      .forEach((id) => toggle(id));
+  };
+
   // Collapsed list: a narrow vertical strip, like Trello's collapse-list control.
   if (collapsed) {
     return (
@@ -624,6 +639,24 @@ function BoardList({
           )}
         </h3>
         <span className="text-xs text-[#626f86] flex-shrink-0 px-1">{postEntries.length}</span>
+        {props.onTogglePostSelection && selectablePostIds.length > 0 && (
+          <button
+            type="button"
+            onClick={toggleSelectWeek}
+            className="p-1.5 rounded-md hover:bg-[#091e4224] transition-colors flex-shrink-0"
+            title={allSelected ? 'Deselect all posts this week' : 'Select all posts this week'}
+            aria-label={allSelected ? 'Deselect all posts this week' : 'Select all posts this week'}
+            aria-pressed={allSelected ? true : someSelected ? 'mixed' : false}
+          >
+            <span
+              className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
+                allSelected || someSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-[#8590a2] text-transparent'
+              }`}
+            >
+              {someSelected ? <Minus className="w-3 h-3" /> : <Check className="w-3 h-3" />}
+            </span>
+          </button>
+        )}
         <button
           type="button"
           onClick={onToggleCollapsed}
