@@ -1,6 +1,6 @@
 // Original 120 BPM soundtrack + key-matched SFX for the Content Manager brag video.
 const fs = require('fs');
-const SR = 48000, DUR = 23.0, N = Math.round(SR * DUR);
+const SR = 48000, DUR = 26.0, N = Math.round(SR * DUR);
 const BEAT = 0.5;
 const L = new Float32Array(N), R = new Float32Array(N);      // dry bus
 const RL = new Float32Array(N), RR = new Float32Array(N);    // reverb send
@@ -103,11 +103,11 @@ const CH = [
   { root: 29, pad: [57, 60, 64, 65], arp: [69, 72, 77, 76, 72, 69] },
   { root: 31, pad: [59, 62, 64, 67], arp: [71, 74, 79, 76, 74, 71] },
 ];
-const END = 22.0;
+const END = 25.0;
 for (let bar = 0; bar * 2 < END; bar++) {
   const t0 = bar * 2, c = CH[bar % 4];
-  // outro lands on C from 19.5: keep progression but force final bars to C/F
-  const chord = t0 >= 20 ? CH[0] : (t0 >= 18 ? CH[3] : c);
+  // land on C for the outro (22.5), G the bar before
+  const chord = t0 >= 22 ? CH[0] : (t0 >= 20 ? CH[3] : c);
   pad(t0, chord.pad, 2.15, 0.028);
   for (let b = 0; b < 4; b++) {
     const tb = t0 + b * BEAT;
@@ -116,11 +116,9 @@ for (let bar = 0; bar * 2 < END; bar++) {
     if (!quiet) kick(tb);
     if (b % 2 === 1 && tb >= 4) clap(tb);
     hat(tb + BEAT / 2, tb >= 4 ? 0.07 : 0.045);
-    if (tb >= 7.5) hat(tb + BEAT / 4, 0.03); if (tb >= 7.5) hat(tb + 3 * BEAT / 4, 0.03);
-    // bass: root on 8ths with octave pop
+    if (tb >= 7) { hat(tb + BEAT / 4, 0.03); hat(tb + 3 * BEAT / 4, 0.03); }
     if (!quiet) { bass(tb, chord.root, 0.22); bass(tb + 0.25, chord.root + (b === 3 ? 12 : 0), 0.2, 0.26); }
   }
-  // arp 16ths, starts soft
   for (let k = 0; k < 16; k++) {
     const t = t0 + k * 0.125; if (t >= END) break;
     if (t >= 3.5 && t < 4.0) continue;
@@ -128,35 +126,46 @@ for (let bar = 0; bar * 2 < END; bar++) {
     pluck(t, m, (t < 4 ? 0.035 : 0.05) * (k % 4 === 0 ? 1.25 : 1), (k % 2 ? 0.35 : -0.35), 9, 0.3);
   }
 }
-// final ring-out chord
-pad(22.0, [48, 55, 60, 64, 67, 71], 1.0, 0.03);
-bass(22.0, 36, 0.9, 0.3); kick(22.0);
-bell(22.0, 84, 0.08);
+pad(25.0, [48, 55, 60, 64, 67, 71], 1.0, 0.03);
+bass(25.0, 36, 0.9, 0.3); kick(25.0);
+bell(25.0, 84, 0.08);
 
 // ---------- SFX (in key, under the music) ----------
-// transitions
-[4.0, 7.5, 12.5, 16.5, 19.5].forEach(t => whoosh(t, 0.45, 0.3, t === 4.0 || t === 19.5 ? 0.14 : 0.09));
-// hook: soft plucks on each word landing
+// original scene timeline -> final cut (mirrors toOld() in brag.html)
+function N_(o) {
+  if (o < 4) return o;
+  if (o < 7.5) return 4 + (o - 4) * 3 / 3.5;
+  if (o < 12.5) return 12.5 + (o - 7.5) / 1.25;
+  if (o < 16.5) return 16.5 + (o - 12.5) * 3.5 / 4;
+  if (o < 19.5) return 20 + (o - 16.5) / 1.2;
+  return o + 3;
+}
+[4.0, 7.0, 12.5, 16.5, 20.0, 22.5].forEach(t => whoosh(t, 0.45, 0.3, t === 4.0 || t === 22.5 ? 0.14 : 0.09));
 [.1, .3, .5, .7, .85, 1.0, 1.2, 1.38].forEach((t, i) => pluck(t + 0.08, [72, 76, 79, 72, 76, 79, 84, 88][i], 0.05, (i % 2 ? .2 : -.2), 10, 0.4));
-// reveal chime
 bell(4.05, 84, 0.13, -0.1); bell(4.05, 79, 0.08, 0.15); clap(4.0, 0.12);
-// typing ticks
-for (let t = 8.05; t < 8.85; t += 0.055) tick(t + rnd() * 0.012, 0.035);
-for (let t = 14.0; t < 14.55; t += 0.055) tick(t + rnd() * 0.012, 0.035);
-// clicks: [9.35 generate, 10.5 select, 13.7 approve, 17.3 schedule]
-[9.35, 10.5, 13.7, 17.3].forEach(t => { tick(t, 0.08); pluck(t, 91, 0.05, 0.1, 18, 0.2); });
-// captions pop in
-[9.95, 10.08, 10.21].forEach((t, i) => pluck(t + .05, [76, 79, 84][i], 0.07, [-0.3, 0, 0.3][i], 8));
-// approved chime
-pluck(13.75, 79, 0.07, 0, 6); pluck(13.86, 84, 0.08, 0, 5);
-// client upload drop
-pluck(14.95, 72, 0.06, 0.4, 7); pluck(15.05, 79, 0.05, 0.4, 7);
-// scheduled confirmation
-[72, 76, 79].forEach((m, i) => pluck(17.32 + i * 0.06, m + 12, 0.06, 0, 7));
-// platform icons: ascending C pentatonic
-[72, 74, 76, 79, 81, 84, 86].forEach((m, i) => pluck(17.5 + i * 0.17, m, 0.065, -0.45 + i * 0.15, 8));
-// outro
-bell(19.55, 84, 0.15, -0.1); bell(19.55, 76, 0.09, 0.2); bell(19.6, 72, 0.08, 0);
+
+// Content Agent (7.0–12.5)
+for (let i = 0; i < 8; i++) pluck(7.62 + i * 0.08, [60, 62, 64, 67, 69, 72, 74, 76][i], 0.05, -0.4 + i * 0.11, 9);        // photos land
+for (let i = 0; i < 8; i++) {                                                                                                  // AI scan shimmer
+  const sa = 7.95 + i * 0.08;
+  put(sa, (x) => Math.sin(2 * Math.PI * 2637 * x + 3 * Math.sin(2 * Math.PI * 9 * x)) * Math.sin(Math.PI * x / 0.42), 0.42, { gain: 0.012, pan: -0.4 + i * 0.11, send: 0.4 });
+  pluck(sa + 0.42, 96, 0.03, -0.4 + i * 0.11, 16, 0.3);                                                                     // tick
+}
+tick(9.3, 0.08); pluck(9.3, 91, 0.05, 0.1, 18, 0.2);                                                                          // Run Agent
+for (let k = 0; k < 6; k++) pluck(9.58 + k * 0.16, [79, 81, 84, 86, 88, 91][k], 0.03, (k % 2 ? .3 : -.3), 10, 0.5);           // drafting
+bell(10.75, 84, 0.08, 0);                                                                                                     // plan ready
+for (let i = 0; i < 7; i++) pluck(10.85 + i * 0.09, [72, 74, 76, 79, 81, 84, 86][i], 0.055, -0.45 + i * 0.15, 8);
+
+// remaining scenes, retimed
+for (let t = 8.05; t < 8.85; t += 0.055) tick(N_(t + rnd() * 0.012), 0.035);
+for (let t = 14.0; t < 14.55; t += 0.055) tick(N_(t + rnd() * 0.012), 0.035);
+[9.35, 10.5, 13.7, 17.3].forEach(t => { tick(N_(t), 0.08); pluck(N_(t), 91, 0.05, 0.1, 18, 0.2); });
+[9.95, 10.08, 10.21].forEach((t, i) => pluck(N_(t + .05), [76, 79, 84][i], 0.07, [-0.3, 0, 0.3][i], 8));
+pluck(N_(13.75), 79, 0.07, 0, 6); pluck(N_(13.86), 84, 0.08, 0, 5);
+if (!process.env.VERT) { pluck(N_(14.95), 72, 0.06, 0.4, 7); pluck(N_(15.05), 79, 0.05, 0.4, 7); }
+[72, 76, 79].forEach((m, i) => pluck(N_(17.32) + i * 0.06, m + 12, 0.06, 0, 7));
+[72, 74, 76, 79, 81, 84, 86].forEach((m, i) => pluck(N_(17.5 + i * 0.17), m, 0.065, -0.45 + i * 0.15, 8));
+bell(N_(19.55), 84, 0.15, -0.1); bell(N_(19.55), 76, 0.09, 0.2); bell(N_(19.6), 72, 0.08, 0);
 
 // ---------- mix ----------
 // sidechain duck for bass+pads
@@ -194,5 +203,5 @@ for (let i = 0; i < N; i++) {
   const l = Math.tanh(L[i] * norm * 1.1) * fade, r = Math.tanh(R[i] * norm * 1.1) * fade;
   buf.writeInt16LE(Math.round(l * 32000), 44 + i * 4); buf.writeInt16LE(Math.round(r * 32000), 46 + i * 4);
 }
-fs.writeFileSync('soundtrack_raw.wav', buf);
+fs.writeFileSync(process.env.VERT ? 'soundtrack_v_raw.wav' : 'soundtrack_raw.wav', buf);
 console.log('peak', peak.toFixed(3));

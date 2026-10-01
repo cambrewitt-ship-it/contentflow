@@ -3,3 +3,6 @@ work/stills/
 work/ref/
 work/*.wav
 work/*.png
+work/frames_v/
+work/stills_v/
+work/*.log

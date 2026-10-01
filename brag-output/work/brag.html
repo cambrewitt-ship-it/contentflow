@@ -133,6 +133,119 @@ body{font-family:Poppins,sans-serif;color:#111827;-webkit-font-smoothing:antiali
 
 #cursor{position:absolute;left:0;top:0;width:52px;height:52px;z-index:50;opacity:0;filter:drop-shadow(0 6px 10px rgba(0,0,0,.3))}
 #ripple{position:absolute;width:90px;height:90px;margin:-45px 0 0 -45px;border-radius:50%;border:4px solid #2563eb;z-index:49;opacity:0}
+
+
+/* content agent */
+#agCard{position:absolute;left:150px;top:215px;width:1620px;height:790px;padding:34px 44px}
+.agH{display:flex;align-items:center;gap:14px;font-size:38px;font-weight:700;color:#111827}
+.agH svg{color:#2563eb}
+.agSub{font-size:21px;color:#6b7280;margin-top:2px}
+.ph3{position:absolute;left:44px;right:44px;top:140px;bottom:30px}
+#agPick{display:flex;gap:44px}
+.gridH{display:flex;justify-content:space-between;font-size:20px;color:#4b5563;margin-bottom:12px;width:1044px}
+.gridH b{color:#111827}.gridH .lk{color:#2563eb}
+.pgrid{display:grid;grid-template-columns:repeat(4,250px);gap:14px}
+.ptile{position:relative;width:250px;height:250px;border-radius:14px;overflow:hidden;border:3px solid transparent}
+.ptile.on{border-color:#3b82f6}
+.photo{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:130px;font-family:'Noto Color Emoji',sans-serif}
+.photo:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.35),rgba(255,255,255,0) 45%),radial-gradient(circle at 50% 120%,rgba(0,0,0,.28),rgba(0,0,0,0) 60%)}
+.photo span{display:block;filter:drop-shadow(0 10px 14px rgba(0,0,0,.28))}
+.scan{position:absolute;left:0;right:0;height:60px;background:linear-gradient(180deg,rgba(99,102,241,0),rgba(99,102,241,.45) 80%,rgba(255,255,255,.95) 100%);opacity:0}
+.tick{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:8px;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;opacity:0}
+.ailbl{position:absolute;left:10px;bottom:10px;background:rgba(17,24,39,.72);color:#fff;font-size:17px;border-radius:8px;padding:3px 10px;opacity:0;display:flex;gap:6px;align-items:center}
+.comp{flex:1;display:flex;flex-direction:column;gap:18px;padding-top:40px}
+.cbox{border-radius:28px;border:1.5px solid #c7d2fe;background:#fff;padding:22px 24px 18px;box-shadow:0 0 0 6px rgba(165,180,252,.18)}
+.cbox .ph{font-size:21px;color:#9ca3af;line-height:1.45;min-height:92px}
+.cbox .row{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+.gear{width:46px;height:46px;border-radius:50%;border:2px solid #e5e7eb;display:flex;align-items:center;justify-content:center;color:#6b7280}
+.sum{font-size:17px;color:#9ca3af;margin-left:12px;flex:1}
+.run{height:56px;border-radius:40px;padding:0 24px 0 28px;display:flex;align-items:center;gap:10px;font-size:22px;font-weight:600;color:#fff;background:linear-gradient(90deg,#3b82f6,#172554);box-shadow:0 6px 20px rgba(30,58,138,.35)}
+.chips{display:flex;gap:10px;flex-wrap:wrap}
+.chip{border-radius:30px;padding:8px 18px;font-size:19px;border:1.5px solid #e5e7eb;color:#4b5563;background:#fff}
+.chip.on{border-color:#a5b4fc;background:#eef2ff;color:#4338ca}
+.flab{font-size:18px;color:#6b7280;font-weight:600;margin-bottom:-6px}
+#agRun{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px}
+.orb{position:relative;width:130px;height:130px}
+.orb .in{position:absolute;inset:0;border-radius:50%;background:#f3e8ff;display:flex;align-items:center;justify-content:center;color:#c084fc}
+.orb .ring{position:absolute;inset:-6px;border-radius:50%;border:6px solid transparent;border-top-color:#d8b4fe;border-right-color:#d8b4fe}
+.rt{font-size:34px;font-weight:500;color:#374151}
+.rs{font-size:26px;color:#a855f7;height:36px}
+.bar{width:560px;height:12px;background:#f3f4f6;border-radius:8px;overflow:hidden}
+.bar div{height:100%;border-radius:8px;background:linear-gradient(90deg,#c084fc,#6366f1)}
+.pct{font-size:20px;color:#9ca3af}
+.planH{display:flex;justify-content:space-between;align-items:flex-end}
+.planH h3{font-size:32px;font-weight:600;color:#111827}
+.planH p{font-size:20px;color:#6b7280}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:20px}
+.dcol{border:1.5px solid #e5e7eb;border-radius:16px;padding:10px;background:#fafafa}
+.dcol.today{border-color:#93c5fd;background:#eff6ff}
+.dl{text-align:center;font-size:19px;font-weight:600;color:#4b5563;padding-bottom:8px;border-bottom:1px solid #e5e7eb;margin-bottom:10px}
+.dcol.today .dl{color:#2563eb}
+.pc{background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}
+.pc .im{position:relative;height:185px}
+.pc .im .photo{font-size:96px}
+.pc .tm{font-size:16px;color:#6b7280;padding:8px 10px 0}
+.pc .cp{font-size:17.5px;line-height:1.4;color:#1f2937;padding:2px 10px 10px;height:84px;overflow:hidden}
+.pbtns{display:flex;justify-content:flex-end;gap:14px;margin-top:22px}
+.pb1{border:1.5px solid #d1d5db;border-radius:14px;padding:12px 24px;font-size:21px;font-weight:500;color:#374151;display:flex;gap:10px;align-items:center;background:#fff}
+.pb2{border-radius:14px;padding:12px 28px;font-size:21px;font-weight:600;color:#fff;display:flex;gap:10px;align-items:center;background:linear-gradient(90deg,#a855f7,#4f46e5)}
+html.v #agCard{left:50px;top:470px;width:980px;height:1060px;padding:30px}
+html.v .ph3{left:30px;right:30px;top:120px}
+html.v #agPick{flex-direction:column;gap:12px}
+html.v .gridH{width:auto}
+html.v .pgrid{grid-template-columns:repeat(4,215px);gap:12px}
+html.v .ptile{width:215px;height:215px}
+html.v .comp{padding-top:10px}
+html.v .cbox .ph{min-height:60px}
+html.v .chips-wrap{display:none}
+html.v .agSub{font-size:19px}
+html.v .days{grid-template-columns:repeat(4,1fr);gap:12px}
+html.v .pc .im{height:140px}
+html.v .pc .cp{height:72px;font-size:15.5px}
+html.v .planH{flex-direction:column;align-items:flex-start;gap:4px}
+html.v .bar{width:600px}
+
+/* ---------- vertical 1080x1920 ---------- */
+html.v,html.v body{width:1080px;height:1920px}
+html.v #stage{width:1080px;height:1920px}
+html.v .cap{top:230px;padding:0 70px;font-size:68px;line-height:1.12}
+html.v .hl{font-size:124px;line-height:1.04}
+html.v #rvLogo{width:460px}
+html.v #rvWord{font-size:136px;line-height:1.02;text-align:center}
+html.v #rvSub{font-size:50px;text-align:center;max-width:900px;line-height:1.3}
+html.v #suite .left{left:60px;top:470px;width:960px;height:auto;padding:36px 36px 40px}
+html.v .dds{grid-template-columns:auto 240px;gap:14px 14px}
+html.v .dds .l{font-size:23px}
+html.v .dd{font-size:22px;padding:8px 14px}
+html.v .upl{width:170px;height:170px}
+html.v .thumb{width:140px;height:140px}
+html.v .capc{height:300px;padding:14px}
+html.v .capc .t{font-size:21px}
+html.v .capc .btn{font-size:17px;padding:5px 10px;gap:5px}
+html.v .caps{gap:16px}
+html.v #suite .right{left:400px;top:1000px;width:540px;height:auto;padding:16px;transform-origin:70% 80%}
+html.v #suite .right .sch,html.v #suite .right .cal,html.v #suite .right .icns{display:none}
+html.v #suite .right .prev{margin-top:0}
+html.v #suite .glow{left:80px!important;top:520px!important;width:920px!important;height:900px!important}
+html.v .col{top:500px;width:470px;padding:18px}
+html.v #k1{left:60px!important}html.v #k2{left:550px!important}html.v #k3{display:none}
+html.v .colh{font-size:22px}
+html.v .pimg{height:300px}
+html.v .pimg img{width:360px}
+html.v .ptxt{font-size:21px}
+html.v .ph,html.v .badge{font-size:20px}
+html.v .ab{font-size:20px;padding:8px 12px}
+html.v .fbk{font-size:21px;height:56px}
+html.v #schCard{left:240px;top:560px;width:600px}
+html.v .plats{top:950px;left:90px;right:90px;flex-wrap:wrap;gap:60px 56px}
+html.v .plat .ci{width:170px;height:170px}
+html.v .plat span{font-size:30px}
+html.v #oLogo img{width:300px}
+html.v #oLine{font-size:108px;text-align:center;line-height:1.05;margin-top:70px}
+html.v #oUrl{font-size:56px;margin-top:44px}
+html.v #oCta{flex-direction:column;gap:22px;margin-top:56px}
+html.v #oCta .b{font-size:40px;padding:22px 48px}
+html.v #oCta .n{font-size:34px}
 </style>
 </head>
 <body>
@@ -153,6 +266,49 @@ body{font-family:Poppins,sans-serif;color:#111827;-webkit-font-smoothing:antiali
     <img id="rvLogo" src="assets/cm-mark-a.png">
     <div id="rvWord"><span class="c">Content</span> <span class="m">Manager</span></div>
     <div id="rvSub">AI social media software for marketing managers &amp; agencies</div>
+  </div>
+
+
+  <!-- 3a CONTENT AGENT -->
+  <div class="scene" id="agent">
+    <div class="cap" id="capA1">Upload your photos. <em>AI scans</em> every one.</div>
+    <div class="cap" id="capA2">AI builds your <em>content calendar</em> in one click.</div>
+    <div class="glow" style="left:200px;top:260px;width:1520px;height:740px"></div>
+    <div class="card" id="agCard">
+      <div class="agH"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg>Content Agent</div>
+      <div class="agSub">AI-generated content — swipe to keep, then save to drafts or add to your calendar</div>
+      <div class="ph3" id="agPick">
+        <div>
+          <div class="gridH"><span><b id="selN">0</b> of 8 selected</span><span><span class="lk">Select all</span>&nbsp;&nbsp; Clear</span></div>
+          <div class="pgrid" id="pgrid"></div>
+        </div>
+        <div class="comp">
+          <div class="cbox">
+            <div class="ph">Anything to focus on? e.g. push the new winter menu, and mention we’re closed Monday…</div>
+            <div class="row"><div class="gear"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.650 1.650 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.830l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="sum">Organic posts · Next week</div>
+              <div class="run" id="runBtn">Run Agent <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8-14 8z"/></svg></div></div>
+          </div>
+          <div class="chips-wrap">
+            <div class="flab">Photos</div>
+            <div class="chips" style="margin-top:14px"><div class="chip">All photos</div><div class="chip on" id="useN">Use 8 photos</div></div>
+            <div class="flab" style="margin-top:20px">Posts to generate</div>
+            <div class="chips" style="margin-top:14px"><div class="chip on">Organic posts</div><div class="chip">Paid ads</div><div class="chip on">Next week</div><div class="chip">Next 2 weeks</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="ph3" id="agRun">
+        <div class="orb"><div class="ring" id="orbRing"></div><div class="in"><svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/><path d="M19 15l.7 2.1L22 18l-2.3.9L19 21l-.7-2.1L16 18l2.3-.9z"/></svg></div></div>
+        <div class="rt">Your AI agent is researching and drafting…</div>
+        <div class="rs" id="runStep"></div>
+        <div class="bar"><div id="runBar"></div></div>
+        <div class="pct" id="runPct">0%</div>
+      </div>
+      <div class="ph3" id="agPlan">
+        <div class="planH"><h3>Your plan for the week <span style="font-family:'Noto Color Emoji'">✨</span></h3><p>7 posts selected · drag to reschedule, click caption to edit</p></div>
+        <div class="days" id="days"></div>
+        <div class="pbtns"><div class="pb1"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Add To Calendar</div><div class="pb2"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/></svg>Schedule &amp; Publish</div></div>
+      </div>
+    </div>
   </div>
 
   <!-- 3 CONTENT SUITE -->
@@ -259,6 +415,19 @@ body{font-family:Poppins,sans-serif;color:#111827;-webkit-font-smoothing:antiali
 </div>
 
 <script>
+const V=location.search.includes('v');
+if(V){
+  document.documentElement.classList.add('v');
+  document.querySelector('#hook').innerHTML=`
+    <div class="hl"><span class="w">Manage</span></div>
+    <div class="hl"><span class="w b">weeks</span><span class="w">of</span></div>
+    <div class="hl"><span class="w">social</span><span class="w">media</span></div>
+    <div class="hl"><span class="w">content</span><span class="w">in</span></div>
+    <div class="hl"><span class="w b" id="tenmin">10 minutes</span><span class="w b" style="margin-left:-.13em;font-style:normal">.</span></div>
+    <div id="uline"></div>`;
+  document.querySelector('#rvWord').innerHTML='<span class="c">Content</span><br><span class="m">Manager</span>';
+  document.querySelector('#oLine').innerHTML='Like ChatGPT<br>for Social Media';
+}
 // Icon paths: copied from src/components/social-icons.tsx
 const P={
 fb:'M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z',
@@ -301,6 +470,12 @@ function measure(){
 let CK;
 function buildCursor(){
   const g=PTS.gen,c=PTS.c1b,a=PTS.ap,s=PTS.sch;
+  const k=(t,p,dx,dy,o)=>({t,x:p[0]+dx,y:p[1]+dy,o});
+  if(V){CK=[
+   k(8.5,g,250,300,0),k(8.7,g,200,240,1),k(9.3,g,0,0,1),k(9.9,g,10,6,1),
+   k(10.45,c,0,0,1),k(10.6,c,0,0,1),k(11.0,c,40,95,1),k(11.3,c,40,100,0),
+   k(13.0,a,250,300,0),k(13.15,a,200,240,1),k(13.65,a,0,0,1),k(13.8,a,0,0,1),k(14.2,a,300,-200,1),k(14.5,a,305,-205,0),
+   k(16.7,s,250,300,0),k(16.85,s,200,240,1),k(17.25,s,0,0,1),k(17.4,s,0,0,1),k(17.8,s,260,60,1),k(18.1,s,265,65,0)];return;}
   CK=[
    {t:8.5,x:1500,y:1000,o:0},{t:8.7,x:1450,y:920,o:1},{t:9.3,x:g[0],y:g[1],o:1},{t:9.9,x:g[0]+10,y:g[1]+6,o:1},
    {t:10.45,x:c[0],y:c[1],o:1},{t:10.6,x:c[0],y:c[1],o:1},{t:11.0,x:c[0]+60,y:c[1]+70,o:1},{t:12.2,x:c[0]+70,y:c[1]+75,o:1},{t:12.4,x:c[0]+70,y:c[1]+75,o:0},
@@ -318,7 +493,7 @@ const NOTES='This is our Content Manager logo';
 const FBT='Unlock productivity with Content Manager - your ultimate social media partner.';
 const FEED='Looking good!';
 
-function render(t){
+function renderOld(t){
   // backgrounds
   $('bgBlue').style.opacity=eio(pr(t,19.3,.45));
 
@@ -340,7 +515,7 @@ function render(t){
   // 3 SUITE
   const su=$('suite');sceneSet(su,t,...T.suite);
   pop($('cap3'),t,7.55,.45,30);
-  pop($('sl'),t,7.65,.55,80);pop($('sr'),t,7.8,.55,80);
+  pop($('sl'),t,7.65,.55,80);if(V){const p=pr(t,10.62,.5);S($('sr'),{o:eo(cl(p*5)),y:(1-eo(p))*120,s:.85+.15*eb(p)});}else pop($('sr'),t,7.8,.55,80);
   const nn=Math.round(cl((t-8.05)/.8)*NOTES.length);
   $('notesT').textContent=NOTES.slice(0,nn);
   $('notesC').style.opacity=(t<9.35&&(Math.floor(t*3)%2===0||nn<NOTES.length))?1:0;
@@ -392,6 +567,84 @@ function render(t){
   const rp=$('ripple');let ro=0,rs=.3;
   CLICKS.forEach(k=>{const p=pr(t,k,.45);if(t>=k&&p<1){ro=(1-p)*.8;rs=.3+.9*eo(p);}});
   rp.style.left=c.x+'px';rp.style.top=c.y+'px';rp.style.opacity=ro;rp.style.transform=`scale(${rs})`;
+}
+
+
+// ---------- Content Agent scene (new timeline) ----------
+const PH=[ // emoji, gradient, AI label
+ ['☕','linear-gradient(135deg,#d6a77a,#7c4a2d)','latte art'],
+ ['🥐','linear-gradient(135deg,#fde68a,#d97706)','croissants'],
+ ['🥗','linear-gradient(135deg,#bbf7d0,#15803d)','harvest bowl'],
+ ['🪴','linear-gradient(135deg,#e7e5e4,#78716c)','café interior'],
+ ['🍰','linear-gradient(135deg,#fbcfe8,#db2777)','berry cake'],
+ ['🍳','linear-gradient(135deg,#fef08a,#ea8a0c)','weekend brunch'],
+ ['🍵','linear-gradient(135deg,#d9f99d,#4d7c0f)','matcha'],
+ ['🧁','linear-gradient(135deg,#ddd6fe,#7c3aed)','cupcakes']];
+const photo=(i)=>`<div class="photo" style="background:${PH[i][1]}"><span>${PH[i][0]}</span></div>`;
+document.getElementById('pgrid').innerHTML=PH.map((p,i)=>`<div class="ptile" id="pt${i}">${photo(i)}<div class="scan" id="sc${i}"></div><div class="tick" id="tk${i}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6L9 17l-5-5"/></svg></div><div class="ailbl" id="al${i}">✦ ${p[2]}</div></div>`).join('');
+const PLAN=[['Mon 10',0,'9:00 am','Monday fuel. Oat lattes are back on the menu.'],['Tue 11',1,'7:30 am','Fresh out of the oven at 7am. Get in early.'],['Wed 12',2,'12:00 pm','Lunch that keeps up with you. Meet the harvest bowl.'],['Thu 13',3,'3:00 pm','Your new favourite corner is waiting for you.'],['Fri 14',4,'2:00 pm',"Friday deserves cake. We don't make the rules."],['Sat 15',5,'8:00 am','Weekend brunch, 8am till 2pm. Bring the crew.'],['Sun 16',6,'10:00 am','Slow Sunday. Matcha and a good book.']];
+document.getElementById('days').innerHTML=PLAN.map((d,i)=>`<div class="dcol ${i===0?'today':''}" id="dc${i}"><div class="dl">${d[0]}</div><div class="pc" id="pc${i}"><div class="im">${photo(d[1])}</div><div class="tm">${d[2]}</div><div class="cp">${d[3]}</div></div></div>`).join('');
+const STEPS=['Analysing media library','Reading tone of voice','Reviewing brand guidelines','Checking upcoming dates','Writing captions','Polishing the shortlist'];
+const AG=[7,12.5];
+function renderAgent(t){
+  const ag=$('agent');sceneSet(ag,t,...AG);
+  if(t<AG[0]-.05||t>AG[1]+.05)return false;
+  // captions: A until 9.25, B from 9.4
+  {const pi=pr(t,7.05,.45),po=pr(t,9.0,.25);const e=$('capA1');S(e,{o:Math.min(eo(cl(pi*2)),1-eio(po)),y:(1-eo(pi))*30-20*eio(po)});}
+  pop($('capA2'),t,9.3,.45,30);if(t<9.3)$('capA2').style.opacity=0;
+  pop($('agCard'),t,7.15,.55,80);
+  // phases
+  const pk=$('agPick'),rn=$('agRun'),pl=$('agPlan');
+  pk.style.opacity=1-eio(pr(t,9.38,.2));pk.style.display=t>9.6?'none':'';
+  {const p=pr(t,9.55,.3);rn.style.opacity=t<10.55?eo(p):1-eio(pr(t,10.55,.2));rn.style.display=(t<9.5||t>10.8)?'none':'';rn.style.transform=`translateY(${(1-eo(p))*20}px)`;}
+  pl.style.display=t<10.7?'none':'';pl.style.opacity=eo(pr(t,10.75,.25));
+  // upload + scan
+  let nsel=0;
+  for(let i=0;i<8;i++){
+    const a=7.4+i*.08;const p=pr(t,a,.45);
+    S($('pt'+i),{o:eo(cl(p*2.5)),y:(1-eb(p))*-90,s:.8+.2*eb(p)});
+    const sa=7.95+i*.08,sp=pr(t,sa,.42);const sc=$('sc'+i);
+    sc.style.opacity=(t>sa&&sp<1)?Math.sin(Math.PI*sp)*1:0;sc.style.top=(-60+(V?275:310)*eio(sp))+'px';
+    const done=t>=sa+.42;if(done)nsel++;
+    const tp=pr(t,sa+.42,.3);$('tk'+i).style.opacity=done?eo(tp):0;$('tk'+i).style.transform=`scale(${done?.5+.5*eb(tp):.5})`;
+    $('al'+i).style.opacity=done?eo(pr(t,sa+.5,.3)):0;
+    $('pt'+i).classList.toggle('on',done);
+  }
+  $('selN').textContent=nsel;
+  $('runBtn').style.transform=`scale(${1-.07*Math.sin(Math.PI*pr(t,9.22,.18))})`;
+  // run
+  $('orbRing').style.transform=`rotate(${t*540}deg)`;
+  const rp=pr(t,9.55,.95);$('runBar').style.width=(100*eio(rp))+'%';$('runPct').textContent=Math.floor(100*eio(rp))+'%';
+  const si=Math.min(STEPS.length-1,Math.floor(cl((t-9.55)/.95)*STEPS.length));$('runStep').textContent=STEPS[si]+'…';
+  $('runStep').style.opacity=.4+.6*eo(cl(((t-9.55)%(.95/STEPS.length))/.08));
+  // plan
+  for(let i=0;i<7;i++)pop($('dc'+i),t,10.8+i*.09,.45,50);
+  return true;
+}
+let AGC=null;
+function agentCursor(t){
+  if(!AGC){const r=ctr($('runBtn'),.5,.6);AGC=r;}
+  const r=AGC,K=[{t:8.75,x:r[0]+260,y:r[1]+260,o:0},{t:8.9,x:r[0]+200,y:r[1]+200,o:1},{t:9.25,x:r[0],y:r[1],o:1},{t:9.45,x:r[0],y:r[1],o:1},{t:9.7,x:r[0]+40,y:r[1]+60,o:0}];
+  let c={x:0,y:0,o:0};
+  for(let i=0;i<K.length-1;i++){const A=K[i],B=K[i+1];if(t>=A.t&&t<=B.t){const p=eio((t-A.t)/(B.t-A.t));c={x:A.x+(B.x-A.x)*p,y:A.y+(B.y-A.y)*p,o:A.o+(B.o-A.o)*p};}}
+  const press=Math.sin(Math.PI*pr(t,9.24,.16));
+  const cu=$('cursor');cu.style.opacity=c.o;cu.style.transform=`translate(${c.x-8}px,${c.y-4}px) scale(${1-.15*press})`;
+  const rp=$('ripple');const p=pr(t,9.3,.45);
+  if(t>=9.3&&p<1){rp.style.left=c.x+'px';rp.style.top=c.y+'px';rp.style.opacity=(1-p)*.8;rp.style.transform=`scale(${.3+.9*eo(p)})`;}
+}
+// new timeline -> original scene timeline
+function toOld(t){
+  if(t<4)return t;
+  if(t<7)return 4+(t-4)*3.5/3;
+  if(t<12.5)return -1;
+  if(t<16.5)return 7.5+(t-12.5)*1.25;
+  if(t<20)return 12.5+(t-16.5)*4/3.5;
+  if(t<22.5)return 16.5+(t-20)*1.2;
+  return t-3;
+}
+function render(t){
+  renderOld(toOld(t));
+  if(renderAgent(t))agentCursor(t);
 }
 
 window.ready=(async()=>{
