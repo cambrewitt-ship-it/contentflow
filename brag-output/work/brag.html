@@ -642,7 +642,10 @@ function toOld(t){
   if(t<22.5)return 16.5+(t-20)*1.2;
   return t-3;
 }
+// The logo reveal (4.0–7.0 on the cut above) is skipped: the hook goes straight to the Content Agent.
+const SKIP=[4,3];
 function render(t){
+  if(t>=SKIP[0])t+=SKIP[1];
   renderOld(toOld(t));
   if(renderAgent(t))agentCursor(t);
 }

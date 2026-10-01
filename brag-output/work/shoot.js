@@ -13,7 +13,7 @@ const path=require('path');
       await pg.screenshot({path:`${SD}/s_${t.toFixed(2)}.jpg`,quality:80,type:'jpeg'});
     }
   } else {
-    const fps=30,dur=26,N=Math.round(fps*dur);
+    const fps=30,dur=23,N=Math.round(fps*dur);
     for(let i=0;i<N;i++){
       await pg.evaluate(t=>render(t),i/fps);
       await pg.screenshot({path:`${FD}/f_${String(i).padStart(4,'0')}.png`});

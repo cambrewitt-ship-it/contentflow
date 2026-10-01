@@ -1,6 +1,6 @@
 // Original 120 BPM soundtrack + key-matched SFX for the Content Manager brag video.
 const fs = require('fs');
-const SR = 48000, DUR = 26.0, N = Math.round(SR * DUR);
+const SR = 48000, DUR = 23.0, N = Math.round(SR * DUR);
 const BEAT = 0.5;
 const L = new Float32Array(N), R = new Float32Array(N);      // dry bus
 const RL = new Float32Array(N), RR = new Float32Array(N);    // reverb send
@@ -103,11 +103,11 @@ const CH = [
   { root: 29, pad: [57, 60, 64, 65], arp: [69, 72, 77, 76, 72, 69] },
   { root: 31, pad: [59, 62, 64, 67], arp: [71, 74, 79, 76, 74, 71] },
 ];
-const END = 25.0;
+const END = 22.0;
 for (let bar = 0; bar * 2 < END; bar++) {
   const t0 = bar * 2, c = CH[bar % 4];
-  // land on C for the outro (22.5), G the bar before
-  const chord = t0 >= 22 ? CH[0] : (t0 >= 20 ? CH[3] : c);
+  // land on C for the outro (19.5), G the bar before
+  const chord = t0 >= 18 ? CH[0] : (t0 >= 16 ? CH[3] : c);
   pad(t0, chord.pad, 2.15, 0.028);
   for (let b = 0; b < 4; b++) {
     const tb = t0 + b * BEAT;
@@ -116,7 +116,7 @@ for (let bar = 0; bar * 2 < END; bar++) {
     if (!quiet) kick(tb);
     if (b % 2 === 1 && tb >= 4) clap(tb);
     hat(tb + BEAT / 2, tb >= 4 ? 0.07 : 0.045);
-    if (tb >= 7) { hat(tb + BEAT / 4, 0.03); hat(tb + 3 * BEAT / 4, 0.03); }
+    if (tb >= 4) { hat(tb + BEAT / 4, 0.03); hat(tb + 3 * BEAT / 4, 0.03); }
     if (!quiet) { bass(tb, chord.root, 0.22); bass(tb + 0.25, chord.root + (b === 3 ? 12 : 0), 0.2, 0.26); }
   }
   for (let k = 0; k < 16; k++) {
@@ -126,13 +126,16 @@ for (let bar = 0; bar * 2 < END; bar++) {
     pluck(t, m, (t < 4 ? 0.035 : 0.05) * (k % 4 === 0 ? 1.25 : 1), (k % 2 ? 0.35 : -0.35), 9, 0.3);
   }
 }
-pad(25.0, [48, 55, 60, 64, 67, 71], 1.0, 0.03);
-bass(25.0, 36, 0.9, 0.3); kick(25.0);
-bell(25.0, 84, 0.08);
+pad(22.0, [48, 55, 60, 64, 67, 71], 1.0, 0.03);
+bass(22.0, 36, 0.9, 0.3); kick(22.0);
+bell(22.0, 84, 0.08);
 
 // ---------- SFX (in key, under the music) ----------
 // original scene timeline -> final cut (mirrors toOld() in brag.html)
-function N_(o) {
+// The logo reveal (4.0–7.0 of the 26s cut) is removed, so later events move 3s earlier.
+const C_ = (t) => (t < 4 ? t : t - 3);
+function N_(o) { return C_(N26(o)); }
+function N26(o) {
   if (o < 4) return o;
   if (o < 7.5) return 4 + (o - 4) * 3 / 3.5;
   if (o < 12.5) return 12.5 + (o - 7.5) / 1.25;
@@ -140,21 +143,21 @@ function N_(o) {
   if (o < 19.5) return 20 + (o - 16.5) / 1.2;
   return o + 3;
 }
-[4.0, 7.0, 12.5, 16.5, 20.0, 22.5].forEach(t => whoosh(t, 0.45, 0.3, t === 4.0 || t === 22.5 ? 0.14 : 0.09));
+[4.0, 9.5, 13.5, 17.0, 19.5].forEach(t => whoosh(t, 0.45, 0.3, t === 4.0 || t === 19.5 ? 0.14 : 0.09));
 [.1, .3, .5, .7, .85, 1.0, 1.2, 1.38].forEach((t, i) => pluck(t + 0.08, [72, 76, 79, 72, 76, 79, 84, 88][i], 0.05, (i % 2 ? .2 : -.2), 10, 0.4));
-bell(4.05, 84, 0.13, -0.1); bell(4.05, 79, 0.08, 0.15); clap(4.0, 0.12);
+clap(4.0, 0.1);
 
-// Content Agent (7.0–12.5)
-for (let i = 0; i < 8; i++) pluck(7.62 + i * 0.08, [60, 62, 64, 67, 69, 72, 74, 76][i], 0.05, -0.4 + i * 0.11, 9);        // photos land
+// Content Agent (4.0–9.5)
+for (let i = 0; i < 8; i++) pluck(C_(7.62 + i * 0.08), [60, 62, 64, 67, 69, 72, 74, 76][i], 0.05, -0.4 + i * 0.11, 9);        // photos land
 for (let i = 0; i < 8; i++) {                                                                                                  // AI scan shimmer
-  const sa = 7.95 + i * 0.08;
+  const sa = C_(7.95 + i * 0.08);
   put(sa, (x) => Math.sin(2 * Math.PI * 2637 * x + 3 * Math.sin(2 * Math.PI * 9 * x)) * Math.sin(Math.PI * x / 0.42), 0.42, { gain: 0.012, pan: -0.4 + i * 0.11, send: 0.4 });
   pluck(sa + 0.42, 96, 0.03, -0.4 + i * 0.11, 16, 0.3);                                                                     // tick
 }
-tick(9.3, 0.08); pluck(9.3, 91, 0.05, 0.1, 18, 0.2);                                                                          // Run Agent
-for (let k = 0; k < 6; k++) pluck(9.58 + k * 0.16, [79, 81, 84, 86, 88, 91][k], 0.03, (k % 2 ? .3 : -.3), 10, 0.5);           // drafting
-bell(10.75, 84, 0.08, 0);                                                                                                     // plan ready
-for (let i = 0; i < 7; i++) pluck(10.85 + i * 0.09, [72, 74, 76, 79, 81, 84, 86][i], 0.055, -0.45 + i * 0.15, 8);
+tick(C_(9.3), 0.08); pluck(C_(9.3), 91, 0.05, 0.1, 18, 0.2);                                                                          // Run Agent
+for (let k = 0; k < 6; k++) pluck(C_(9.58 + k * 0.16), [79, 81, 84, 86, 88, 91][k], 0.03, (k % 2 ? .3 : -.3), 10, 0.5);           // drafting
+bell(C_(10.75), 84, 0.08, 0);                                                                                                     // plan ready
+for (let i = 0; i < 7; i++) pluck(C_(10.85 + i * 0.09), [72, 74, 76, 79, 81, 84, 86][i], 0.055, -0.45 + i * 0.15, 8);
 
 // remaining scenes, retimed
 for (let t = 8.05; t < 8.85; t += 0.055) tick(N_(t + rnd() * 0.012), 0.035);
