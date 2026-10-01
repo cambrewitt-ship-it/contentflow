@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, KanbanSquare, AlertCircle, FileDown, ArrowLeft, ArrowRight, Smartphone } from 'lucide-react';
+import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, KanbanSquare, AlertCircle, FileDown, ArrowLeft, ArrowRight, Smartphone, Inbox } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { MonthViewCalendar } from '@/components/MonthViewCalendar';
@@ -221,6 +221,8 @@ export default function CalendarPage() {
   const [postDetailModal, setPostDetailModal] = useState<ClientPostDetailItem | null>(null);
   const [uploadDetailModal, setUploadDetailModal] = useState<ClientUploadDetailItem | null>(null);
   const [viewMode, setViewModeState] = useState<'month' | 'column' | 'board'>('board');
+  // Phones hide the unscheduled-posts tray behind a toolbar toggle
+  const [showMobileTray, setShowMobileTray] = useState(false);
   const setViewMode = useCallback((mode: 'month' | 'column' | 'board') => {
     setViewModeState(mode);
     try {
@@ -3026,7 +3028,7 @@ export default function CalendarPage() {
                         }`}
                       >
                         <Icon className="w-4 h-4" />
-                        {label}
+                        <span className="hidden sm:inline">{label}</span>
                       </button>
                     ))}
                   </div>
@@ -3035,20 +3037,27 @@ export default function CalendarPage() {
                     className={`px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1.5 ${showEventsPanel ? 'bg-white/30' : 'hover:bg-white/20'}`}
                   >
                     <Calendar className="w-4 h-4" />
-                    Events
+                    <span className="hidden sm:inline">Events</span>
                   </button>
                   <button
                     onClick={() => setShowFeedPreview(true)}
                     className="px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1.5 hover:bg-white/20"
                   >
                     <Smartphone className="w-4 h-4" />
-                    Feed preview
+                    <span className="hidden sm:inline">Feed preview</span>
+                  </button>
+                  <button
+                    onClick={() => setShowMobileTray(v => !v)}
+                    className={`md:hidden px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1.5 ${showMobileTray ? 'bg-white/30' : 'hover:bg-white/20'}`}
+                  >
+                    <Inbox className="w-4 h-4" />
+                    Posts
                   </button>
                 </>
               }
               subToolbar={<div className="overflow-x-auto calendar-hscroll">{renderActionBar('board')}</div>}
               leftDrawer={
-                <div className="relative z-10 w-44 flex-shrink-0 m-3 mr-0 rounded-xl bg-[#f1f2f4] shadow-[0_1px_1px_#091e4240,0_0_1px_#091e424f] flex flex-col overflow-hidden">
+                <div className={`${showMobileTray ? 'flex absolute inset-y-0 left-0 z-20 shadow-2xl' : 'hidden'} md:relative md:z-10 md:flex md:shadow-none w-44 flex-shrink-0 m-3 mr-0 rounded-xl bg-[#f1f2f4] md:shadow-[0_1px_1px_#091e4240,0_0_1px_#091e424f] flex-col overflow-hidden`}>
                   {postsTrayContent}
                 </div>
               }

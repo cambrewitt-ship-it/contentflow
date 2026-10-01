@@ -201,7 +201,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
 
   if (loading) {
     return (
-      <div className="w-64 bg-white border-r border-gray-200 p-4 h-screen">
+      <div className="w-64 bg-white border-r border-gray-200 p-4 h-full">
         <div className="flex items-center justify-center h-32">
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
@@ -211,7 +211,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
 
   if (error) {
     return (
-      <div className="w-64 bg-white border-r border-gray-200 p-4 h-screen">
+      <div className="w-64 bg-white border-r border-gray-200 p-4 h-full">
         <div className="text-center p-4">
           <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
           <p className="text-sm text-red-600 mb-2">Failed to load profiles</p>
@@ -226,10 +226,10 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
   return (
     <div 
       className={getThemeClasses(
-        `bg-white border-r border-gray-200 h-screen flex flex-col transition-all duration-300 ${
+        `bg-white border-r border-gray-200 h-full flex flex-col transition-all duration-300 ${
           collapsed ? 'w-16' : 'w-64'
         }`,
-        `glass-sidebar h-screen flex flex-col transition-all duration-300 ${
+        `glass-sidebar h-full flex flex-col transition-all duration-300 ${
           collapsed ? 'w-16' : 'w-64'
         }`
       )}
@@ -251,7 +251,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                 src="/cm-logo.png" 
                 alt="CM Logo" 
                 className={`object-contain transition-all duration-300 cursor-pointer hover:opacity-80 ${
-                  collapsed ? 'h-8 w-8' : 'h-24 w-auto'
+                  collapsed ? 'h-8 w-8' : 'h-16 md:h-24 w-auto'
                 }`}
               />
             </Link>
@@ -325,7 +325,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
             <h3 className={getThemeClasses(
               "text-sm font-medium text-gray-500 mb-3",
               "text-sm font-medium glass-text-muted mb-3"
-            )}>Client</h3>
+            )}>Current Profile</h3>
           )}
           <nav className="space-y-1">
             {[
@@ -354,13 +354,13 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                 active: !pathname?.includes("/autopilot-settings") && !!pathname?.includes("/autopilot"),
               },
               {
-                name: "Connect",
+                name: "Social Accounts",
                 href: `/dashboard/client/${clientIdFromPath}/connect-platforms`,
                 icon: Link2,
                 active: !!pathname?.includes("/connect-platforms"),
               },
               {
-                name: "Settings",
+                name: "Agent Settings",
                 href: `/dashboard/client/${clientIdFromPath}/autopilot-settings`,
                 icon: Settings,
                 active: !!pathname?.includes("/autopilot-settings"),

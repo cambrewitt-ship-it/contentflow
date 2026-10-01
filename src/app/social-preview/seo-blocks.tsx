@@ -124,7 +124,7 @@ export function ProductCta() {
         This preview tool is a free standalone feature of <strong className="text-foreground">Content Manager</strong> — an AI-powered platform built for marketing agencies. With a full account you can generate brand-trained captions using AI, schedule posts across every platform, manage multiple clients from a shared workspace, and get content approved through a built-in client portal. No more copy-pasting between tools.
       </p>
       <Link href="/auth/signup">
-        <Button size="lg">Start Your Free 14-Day Trial</Button>
+        <Button size="lg">Start Your Free 7-Day Trial</Button>
       </Link>
     </section>
   )

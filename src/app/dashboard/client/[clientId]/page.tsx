@@ -653,7 +653,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   const getPlatformLabel = (platform: string, defaultLabel: string) => {
     if (connectingPlatform === platform) return 'Connecting...';
-    if (isPlatformConnected(platform)) return 'CONNECTED';
+    if (isPlatformConnected(platform)) return 'Connected';
     return defaultLabel;
   };
 
@@ -956,7 +956,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="px-8 pt-6 pb-8 max-w-7xl mx-auto">
+      <div className="px-4 pt-4 pb-8 md:px-8 md:pt-6 max-w-7xl mx-auto">
         {/* Onboarding Checklist */}
         <OnboardingChecklist clientId={clientId} refreshKey={connectedAccounts.length} />
 
@@ -967,11 +967,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Client Details Card - Takes ~55% of width */}
             <Card className="flex-[1.1] shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
-              <CardContent className="p-6 h-full">
-                <div className="flex items-center space-x-6 h-full">
+              <CardContent className="p-4 md:p-6 h-full">
+                <div className="flex items-center gap-4 md:gap-6 h-full">
                   {/* Logo Display/Upload Section */}
-                  <div className="relative">
-                    <div className={`w-24 h-24 rounded-xl flex items-center justify-center overflow-hidden ${
+                  <div className="relative flex-shrink-0">
+                    <div className={`w-16 h-16 md:w-24 md:h-24 rounded-xl flex items-center justify-center overflow-hidden ${
                       client?.logo_url 
                         ? 'shadow-sm' 
                         : 'bg-gradient-to-br from-gray-100 to-gray-200 border-2 border-gray-300'
@@ -1039,9 +1039,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     )}
                   </div>
                   
-                  <div className="flex-1 flex flex-col justify-center">
-                    <div className="flex items-center justify-between mb-3">
-                      <h1 className="text-3xl font-bold text-gray-800">
+                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2 md:mb-3">
+                      <h1 className="text-2xl md:text-3xl font-bold text-gray-800 break-words min-w-0">
                         {client?.name || 'Business Profile Dashboard'}
                       </h1>
                       
@@ -1067,11 +1067,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         </Button>
                       )}
                     </div>
-                    <div className="flex items-center space-x-2 text-gray-600">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="flex items-center space-x-2 text-gray-600 min-w-0">
+                      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                       </svg>
-                      <span className="text-base">{website || 'No website set'}</span>
+                      <span className="text-sm md:text-base truncate">{website || 'No website set'}</span>
                     </div>
                   </div>
                 </div>
@@ -1079,7 +1079,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             </Card>
             
             {/* Action Buttons Container - Takes ~45% of width, right edge aligns with Content Calendar */}
-            <div className="flex-[0.9] flex gap-6">
+            {/* Hidden on phones, where the bottom nav covers Create/Calendar */}
+            <div className="flex-[0.9] hidden md:flex gap-6">
               {/* Create Content Button */}
               <Button
                 onClick={() => router.push(`/dashboard/client/${clientId}/content-suite`)}
@@ -1132,7 +1133,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           {/* Client Activity Hub - Takes 40% */}
           <div className="flex flex-col">
             <div className="flex items-center gap-3 mb-6">
-              <h2 className="text-2xl font-bold text-gray-800" style={{ fontSize: '24px' }}>Client Activity Hub</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-gray-800">Client Activity Hub</h2>
               {unreadCount > 0 && (
                 <div className="bg-red-500 text-white text-sm font-bold rounded-full px-3 py-1 shadow-lg">
                   {unreadCount > 99 ? '99+' : unreadCount}
@@ -1141,8 +1142,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             </div>
             
             {activityLoading ? (
-              <Card className="shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px', height: '879px' }}>
-                <CardContent className="p-6 h-full flex items-center justify-center">
+              <Card className="shadow-md hover:shadow-lg transition-all duration-300 h-60 lg:h-[879px]" style={{ borderRadius: '16px' }}>
+                <CardContent className="p-4 md:p-6 h-full flex items-center justify-center">
                   <div className="flex items-center justify-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mr-3"></div>
                     <span className="text-gray-600">Loading activity...</span>
@@ -1150,8 +1151,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                 </CardContent>
               </Card>
             ) : (
-              <Card className="bg-white shadow-md hover:shadow-lg transition-all duration-300 flex flex-col" style={{ borderRadius: '16px', height: '879px' }}>
-                <CardContent className="p-6 flex-1 flex flex-col min-h-0">
+              <Card className="bg-white shadow-md hover:shadow-lg transition-all duration-300 flex flex-col max-h-[70vh] lg:max-h-none lg:h-[879px]" style={{ borderRadius: '16px' }}>
+                <CardContent className="p-4 md:p-6 flex-1 flex flex-col min-h-0">
                   {/* Scrollable Content Container */}
                   <div className="flex-1 overflow-y-auto space-y-6 pr-2">
                     {/* Upcoming Posts Section */}
@@ -1250,12 +1251,12 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           
           {/* Month View Calendar with Post Status - Takes 60% */}
           <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-6" style={{ fontSize: '24px' }}>Content Calendar</h2>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 md:mb-6">Content Calendar</h2>
             <Card className="bg-white shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
-              <CardContent className="p-6">
+              <CardContent className="p-4 md:p-6">
                 {/* Post Status Grid - Single Row Layout */}
                 <div className="mb-6">
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {(() => {
                       const approved = scheduledPosts.filter(p => p.approval_status === 'approved').length;
                       const rejected = scheduledPosts.filter(p => p.approval_status === 'rejected').length;
@@ -1315,11 +1316,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         {/* Unified Card - Social Media Platforms, Brand Information, and Delete Client */}
         {/* This card spans full width to match the combined Activity Hub + Calendar above */}
         <Card className="mt-8 shadow-md hover:shadow-lg transition-all" style={{ borderRadius: '16px' }}>
-            <CardContent className="p-8 space-y-10">
+            <CardContent className="p-4 md:p-8 space-y-10">
               {/* Social Media Platforms Section */}
               <div id="social-media-platforms">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-2xl font-bold text-gray-800" style={{ fontSize: '24px' }}>Social Media Platforms</h3>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
+                  <h3 className="text-xl md:text-2xl font-bold text-gray-800">Social Media Platforms</h3>
                   {/* Powered by LATE */}
                   <div className="flex items-center space-x-2 text-gray-500">
                     <span className="text-sm">Powered by</span>
@@ -1357,7 +1358,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                 )}
 
                 {/* Social Media Buttons Grid */}
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                   {/* Facebook */}
                   <button
                     onClick={() => handlePlatformConnect('facebook')}
@@ -1576,9 +1577,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
               {/* Delete Client Section */}
               <div className="border-t-2 pt-8">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-2xl font-bold text-red-900" style={{ fontSize: '24px' }}>Delete Business Profile</h3>
+                    <h3 className="text-xl md:text-2xl font-bold text-red-900">Delete Business Profile</h3>
                     <p className="text-sm text-red-700 mt-2">
                       Permanently delete this business profile and all associated data. This action cannot be undone.
                     </p>

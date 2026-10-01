@@ -160,7 +160,7 @@ export async function generateContentPlan(
       userId,
       clientId,
       type: 'autopilot_failed',
-      title: `Autopilot couldn't generate a plan for ${client.name}`,
+      title: `Content Agent couldn't generate a plan for ${client.name}`,
       body: reason,
       link: `/dashboard/client/${clientId}/autopilot`,
     });

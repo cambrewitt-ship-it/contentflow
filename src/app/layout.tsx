@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { poppins, montserrat } from "./fonts";
 import "./globals.css";
 import "../styles/glassmorphism.css";
@@ -9,6 +9,13 @@ import { GoogleTagManager, GoogleTagManagerNoScript } from "../components/Google
 
 // Validate environment variables on server startup
 import "../lib/validateEnv";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#ffffff",
+};
 
 export const metadata: Metadata = {
   title: {

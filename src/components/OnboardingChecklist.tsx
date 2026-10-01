@@ -28,6 +28,11 @@ export default function OnboardingChecklist({ clientId, onLoad, refreshKey }: On
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
 
+  // Start collapsed on phones so the checklist doesn't fill the first screen
+  useEffect(() => {
+    if (window.matchMedia('(max-width: 767px)').matches) setCollapsed(true);
+  }, []);
+
   const fetchChecklist = useCallback(async () => {
     const token = getAccessToken();
     if (!token) return;

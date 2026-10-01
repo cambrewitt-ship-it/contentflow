@@ -63,7 +63,7 @@ export function GeneratePromptBox({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={1}
-        className={`${TEXTAREA_BASE} ${sm ? 'max-h-[160px] pr-32 text-sm' : 'max-h-[200px] pr-36'}`}
+        className={`${TEXTAREA_BASE} ${sm ? 'max-h-[160px] pr-32 text-sm' : 'max-h-[200px] pr-32 sm:pr-40'}`}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
@@ -78,7 +78,7 @@ export function GeneratePromptBox({
           disabled={disabled}
           title={generating ? 'Generating...' : title}
           className={`rounded-full bg-gradient-to-r from-blue-500 to-blue-950 hover:brightness-110 text-white disabled:opacity-60 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all duration-200 flex items-center font-semibold ${
-            sm ? 'h-8 px-4 gap-1.5 text-xs' : 'h-9 px-6 gap-2 text-sm hover:scale-105'
+            sm ? 'h-8 px-4 gap-1.5 text-xs' : 'h-9 px-4 sm:px-6 gap-2 text-sm hover:scale-105'
           }`}
         >
           {generating ? (
@@ -89,7 +89,8 @@ export function GeneratePromptBox({
           ) : (
             <>
               <Brain className={sm ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
-              Generate Text
+              <span className="sm:hidden">Generate</span>
+              <span className="hidden sm:inline">Generate Text</span>
             </>
           )}
         </button>

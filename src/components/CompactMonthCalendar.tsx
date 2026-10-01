@@ -200,7 +200,7 @@ export function CompactMonthCalendar({ posts, uploads = {}, loading = false }: C
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       {/* Month Header */}
       <div className="text-center mb-6">
-        <h3 className="text-5xl font-bold text-gray-400 uppercase tracking-wide">
+        <h3 className="text-3xl sm:text-5xl font-bold text-gray-400 uppercase tracking-wide truncate">
           {monthNames[calendarData.month]}
         </h3>
       </div>

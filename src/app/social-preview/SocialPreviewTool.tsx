@@ -900,7 +900,7 @@ export default function SocialPreviewTool({
               ) : (
                 <div className="flex items-center space-x-2">
                   <Link href="/auth/login"><Button variant="outline" size="sm" className="bg-white text-gray-900 hover:bg-gray-50 border-gray-300">Sign In</Button></Link>
-                  <Link href="/auth/signup"><Button size="sm">Start 14-Day Free Trial</Button></Link>
+                  <Link href="/auth/signup"><Button size="sm">Start 7-Day Free Trial</Button></Link>
                 </div>
               )}
             </div>
@@ -928,7 +928,7 @@ export default function SocialPreviewTool({
                   ) : (
                     <>
                       <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)}><Button variant="outline" size="sm" className="w-full">Sign In</Button></Link>
-                      <Link href="/auth/signup" onClick={() => setMobileMenuOpen(false)}><Button size="sm" className="w-full">Start 14-Day Free Trial</Button></Link>
+                      <Link href="/auth/signup" onClick={() => setMobileMenuOpen(false)}><Button size="sm" className="w-full">Start 7-Day Free Trial</Button></Link>
                     </>
                   )}
                 </div>

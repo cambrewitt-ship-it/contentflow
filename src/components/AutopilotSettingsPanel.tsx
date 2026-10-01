@@ -666,10 +666,10 @@ function AutopilotControlSection({
       }`}>
         <div>
           <p className={`text-sm font-semibold ${enabled ? 'text-blue-900' : 'text-gray-700'}`}>
-            Enable Autopilot
+            Enable Content Agent
           </p>
           <p className={`text-xs mt-0.5 ${enabled ? 'text-blue-700' : 'text-gray-500'}`}>
-            {enabled ? 'Autopilot will generate and plan content automatically' : 'Autopilot is disabled'}
+            {enabled ? 'Content Agent will generate and plan content automatically' : 'Content Agent is disabled'}
           </p>
         </div>
         <button
@@ -839,7 +839,7 @@ function AdCopySection({
           </p>
           <p className={`text-xs mt-0.5 ${settings.enabled ? 'text-amber-700' : 'text-gray-500'}`}>
             {settings.enabled
-              ? 'Autopilot will also draft ad copy variants alongside each organic plan'
+              ? 'Content Agent will also draft ad copy variants alongside each organic plan'
               : 'Off — only organic posts are generated'}
           </p>
         </div>
@@ -1046,7 +1046,7 @@ function PreferenceStatsSection({ clientId }: { clientId: string }) {
         <div className="text-center py-8 space-y-2">
           <Brain className="h-8 w-8 text-gray-200 mx-auto" />
           <p className="text-sm text-gray-400">No preference data yet.</p>
-          <p className="text-xs text-gray-300">Swipe through an Autopilot plan to start training.</p>
+          <p className="text-xs text-gray-300">Swipe through a Content Agent plan to start training.</p>
         </div>
       ) : (
         <>
@@ -1148,7 +1148,7 @@ export default function AutopilotSettingsPanel({ clientId, client, onUpdate }: A
           <Bot className="h-5 w-5 text-blue-600" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Autopilot Settings</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Content Agent Settings</h2>
           <p className="text-xs text-gray-500">Configure automated content generation for {localClient.name}</p>
         </div>
       </div>
@@ -1158,7 +1158,7 @@ export default function AutopilotSettingsPanel({ clientId, client, onUpdate }: A
         {/* Section D — Autopilot Control */}
         <div className="px-4">
           <SectionHeader
-            title="Autopilot Control"
+            title="Content Agent Control"
             open={openSection === 'autopilot-control'}
             onToggle={() => toggle('autopilot-control')}
           />

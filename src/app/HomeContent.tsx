@@ -567,7 +567,7 @@ export default function HomeContent() {
               </div>
 
               <div className="flex justify-center mt-8">
-                <p className="text-3xl sm:text-5xl font-bold text-foreground whitespace-nowrap">
+                <p className="text-2xl sm:text-5xl font-bold text-foreground text-center sm:whitespace-nowrap">
                   Like ChatGPT for Social Media
                 </p>
               </div>
@@ -664,7 +664,7 @@ export default function HomeContent() {
                 )}
               </div>
               <div className="flex justify-center mt-8">
-                <p className="font-['Poppins'] font-medium text-gray-600 whitespace-nowrap text-2xl sm:text-4xl">
+                <p className="font-['Poppins'] font-medium text-gray-600 text-center text-lg sm:text-4xl lg:whitespace-nowrap">
                   Brand Voice AI + Content Calendar + Social Media Scheduler
                 </p>
               </div>

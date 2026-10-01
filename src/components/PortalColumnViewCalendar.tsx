@@ -17,7 +17,8 @@ import {
   DragOverEvent,
   DragOverlay,
   DragStartEvent,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCenter,
@@ -943,11 +944,9 @@ export const PortalColumnViewCalendar = forwardRef<PortalCalendarRef, PortalColu
   const hasInitializedStartWeek = useRef(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    })
+    // Mouse drags after a small move; touch needs a long-press so a swipe still scrolls the board
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
   );
 
   // Get day name and format date

@@ -279,3 +279,19 @@
     animation: none;
   }
 }
+
+/* ── Mobile ─────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* iOS Safari zooms into any focused field under 16px */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Fixed backgrounds repaint on every scroll frame on mobile browsers */
+  html,
+  body {
+    background-attachment: scroll !important;
+  }
+}

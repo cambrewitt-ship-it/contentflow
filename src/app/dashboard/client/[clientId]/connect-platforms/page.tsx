@@ -115,7 +115,7 @@ export default function ConnectPlatformsPage({ params }: { params: Promise<{ cli
 
   const getPlatformLabel = (platform: string, defaultLabel: string) => {
     if (connectingPlatform === platform) return 'Connecting...'
-    if (isPlatformConnected(platform)) return 'CONNECTED'
+    if (isPlatformConnected(platform)) return 'Connected'
     return defaultLabel
   }
 
@@ -237,7 +237,7 @@ export default function ConnectPlatformsPage({ params }: { params: Promise<{ cli
                 <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
               </div>
             ) : (
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                 {platforms.map(({ id, label, icon: Icon, bgClass }) => {
                   const styles = getPlatformButtonStyles(id)
                   return (

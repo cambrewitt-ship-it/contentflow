@@ -167,17 +167,16 @@ export function ContentIdeasColumn() {
   return (
     <div className="space-y-6 h-full flex flex-col">
       {/* Content Ideas Generation */}
-      <Card className="h-[116px]">
-        <div className="h-full flex items-center justify-between px-6">
+      <Card className="md:h-[116px]">
+        <div className="h-full flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 md:py-0 md:px-6">
           <div>
             <CardTitle className="card-title-26">Content Ideas</CardTitle>
-            <p className="text-sm text-gray-500 mt-1">AI-powered social media content ideas<br />tailored to your brand & context.</p>
+            <p className="text-sm text-gray-500 mt-1">AI-powered social media content ideas<br className="hidden md:inline" /> tailored to your brand & context.</p>
           </div>
           <Button
             onClick={handleGenerateIdeas}
             disabled={generatingIdeas}
-            className="bg-purple-600 hover:bg-purple-700 text-white h-11"
-            style={{ width: '326px' }}
+            className="bg-purple-600 hover:bg-purple-700 text-white h-11 w-full md:w-[326px]"
           >
             {generatingIdeas ? (
               <RefreshCw className="w-4 h-4 mr-2 animate-spin" />

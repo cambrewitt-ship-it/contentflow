@@ -2013,7 +2013,7 @@ function ContentSuiteContent({
 
       {/* Top Section: Content Ideas - Full Width */}
       <div className="w-full">
-        <div className="px-6 py-4">
+        <div className="px-3 py-3 md:px-6 md:py-4">
           <ContentIdeasColumn />
         </div>
       </div>
@@ -2021,7 +2021,7 @@ function ContentSuiteContent({
       {/* Full-width Generated Ideas Section */}
       {contentIdeas.length > 0 && (
         <div className="w-full">
-          <div className="px-6 py-4">
+          <div className="px-3 py-3 md:px-6 md:py-4">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-2xl font-semibold text-gray-800">Generated Ideas</h2>
@@ -2087,14 +2087,14 @@ function ContentSuiteContent({
 
       {/* Main Content: Two Columns (2/3 and 1/3) */}
       <div className="w-full">
-        <div className="px-6 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+        <div className="px-3 py-3 md:px-6 md:py-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
             {/* Left Column: 2/3 width - Contains All Left Side Elements in One Card */}
-            <div className="col-span-2 flex">
+            <div className="lg:col-span-2 flex min-w-0">
               {/* Consolidated Card - All Left Side Elements */}
               {/* overflow-clip in agent mode so the swipe actions can stick to the viewport */}
               <Card className={`flex flex-col w-full h-full min-h-[600px] ${agentMode ? 'overflow-clip' : 'overflow-hidden'}`}>
-                <CardHeader className="flex flex-row items-center justify-between">
+                <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 md:px-6">
                   {isEditing ? (
                     <CardTitle className="card-title-26">Content Creation</CardTitle>
                   ) : (
@@ -2176,11 +2176,11 @@ function ContentSuiteContent({
                     <div>
                       <h3 className="text-lg font-semibold text-gray-700 mb-4">Upload Media</h3>
                   {/* Top Row: Square Upload Box + Thumbnails + Dropdowns */}
-                  <div className="grid grid-cols-[200px_1fr_320px] gap-4 mb-4 items-start">
+                  <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr_320px] gap-4 mb-4 items-start">
                     {/* Square Upload Box on Left */}
-                    <div className="flex flex-col gap-2 w-[200px]">
+                    <div className="flex flex-col gap-2 w-full lg:w-[200px]">
                       <div
-                        className="rounded-2xl p-4 text-center transition-colors cursor-pointer w-[200px] h-[200px] flex flex-col items-center justify-center bg-gradient-to-br from-blue-700/90 to-blue-400/90"
+                        className="rounded-2xl p-4 text-center transition-colors cursor-pointer w-full lg:w-[200px] h-[140px] lg:h-[200px] flex flex-col items-center justify-center bg-gradient-to-br from-blue-700/90 to-blue-400/90"
                         onDragOver={handleDragOver}
                         onDrop={handleDrop}
                         onClick={() => document.getElementById('media-upload-v2')?.click()}
@@ -2303,7 +2303,7 @@ function ContentSuiteContent({
                     </div>
 
                     {/* Dropdowns on Right - Fixed position */}
-                    <div className="flex flex-col gap-4 w-[320px] flex-shrink-0">
+                    <div className="flex flex-col gap-4 w-full lg:w-[320px] lg:flex-shrink-0 min-w-0">
                       {/* Copy Type (moved to top) */}
                       <div className="flex items-center gap-4">
                         <h4 className="text-lg font-semibold text-gray-700 whitespace-nowrap w-32 flex-shrink-0 text-right">Copy Type</h4>
@@ -2746,7 +2746,7 @@ function ContentSuiteContent({
             </div>
 
             {/* Right Column: 1/3 width - Social Preview */}
-            <div className="col-span-1 flex h-full">
+            <div className="col-span-1 flex h-full min-w-0">
               <SocialPreviewColumn
                 clientId={clientId}
                 clientName={client?.name}
