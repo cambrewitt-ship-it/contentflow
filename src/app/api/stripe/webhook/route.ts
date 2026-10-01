@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { verifyWebhookSignature, getTierByPriceId, stripe } from '@/lib/stripe';
+import { verifyWebhookSignature, getTierByPriceId, stripe, SUBSCRIPTION_TIERS } from '@/lib/stripe';
 import {
   upsertSubscription,
   updateSubscriptionStatus,
@@ -13,6 +13,17 @@ import {
 } from '@/lib/subscriptionHelpers';
 import { getCreditPackageByPriceId } from '@/lib/creditPackages';
 import logger from '@/lib/logger';
+import {
+  sendWelcomeEmail,
+  sendSubscriptionStartedEmail,
+  sendTrialEndingEmail,
+  sendPaymentFailedEmail,
+  sendSubscriptionCanceledEmail,
+} from '@/lib/emails';
+
+function planName(tier: string | null | undefined): string {
+  return SUBSCRIPTION_TIERS[tier as keyof typeof SUBSCRIPTION_TIERS]?.name ?? 'Content Manager';
+}
 
 // Force dynamic rendering - prevents static generation at build time
 export const dynamic = 'force-dynamic';
@@ -133,6 +144,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   let currentPeriodStart: Date | undefined;
   let currentPeriodEnd: Date | undefined;
   let cancelAtPeriodEnd: boolean = false;
+  let trialEnd: Date | null = null;
 
   if (subscriptionId) {
     try {
@@ -141,6 +153,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       priceId = stripeSubscription.items.data[0]?.price.id;
       subscriptionStatus = stripeSubscription.status;
       cancelAtPeriodEnd = stripeSubscription.cancel_at_period_end;
+      trialEnd = stripeSubscription.trial_end ? new Date(stripeSubscription.trial_end * 1000) : null;
       
       if (priceId) {
         const determinedTier = getTierByPriceId(priceId);
@@ -187,6 +200,18 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     });
 
     logger.info(`✅ Subscription created/updated for user ${userId}, tier: ${tier}, status: ${subscriptionStatus}`);
+
+    // Welcome covers signups that skipped email confirmation (no /auth/callback
+    // visit); both senders are deduped so a repeat webhook is a no-op.
+    await sendWelcomeEmail(userId);
+    if (subscriptionId) {
+      await sendSubscriptionStartedEmail({
+        userId,
+        subscriptionId,
+        planName: planName(tier),
+        trialEnd,
+      });
+    }
   } catch (error) {
     logger.error(`Failed to upsert subscription for user ${userId}:`, error);
     throw error; // Re-throw to be caught by outer try-catch
@@ -246,6 +271,11 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     stripe_subscription_id: subscription.id,
     subscription_status: 'canceled',
     cancel_at_period_end: false,
+  });
+
+  await sendSubscriptionCanceledEmail({
+    userId: dbSubscription.user_id,
+    subscriptionId: subscription.id,
   });
 }
 
@@ -313,7 +343,21 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     );
   }
 
-  // TODO: Send email notification to user about failed payment
+  if (invoice.id) {
+    await sendPaymentFailedEmail({
+      userId: dbSubscription.user_id,
+      invoiceId: invoice.id,
+      attempt: invoice.attempt_count ?? 1,
+      amount: new Intl.NumberFormat('en-NZ', {
+        style: 'currency',
+        currency: (invoice.currency || 'usd').toUpperCase(),
+      }).format((invoice.amount_due ?? 0) / 100),
+      nextAttempt: invoice.next_payment_attempt
+        ? new Date(invoice.next_payment_attempt * 1000)
+        : null,
+      invoiceUrl: invoice.hosted_invoice_url,
+    });
+  }
 }
 
 async function handleTrialWillEnd(subscription: Stripe.Subscription) {
@@ -329,6 +373,12 @@ async function handleTrialWillEnd(subscription: Stripe.Subscription) {
   // Log the event for monitoring
   logger.info(`Trial ending soon for user ${dbSubscription.user_id}, subscription ${subscription.id}`);
 
-  // TODO: Send email reminder to user about trial ending
-  // This could integrate with an email service like SendGrid, Resend, etc.
+  if (subscription.trial_end) {
+    await sendTrialEndingEmail({
+      userId: dbSubscription.user_id,
+      subscriptionId: subscription.id,
+      planName: planName(getTierByPriceId(subscription.items.data[0]?.price.id)),
+      trialEnd: new Date(subscription.trial_end * 1000),
+    });
+  }
 }

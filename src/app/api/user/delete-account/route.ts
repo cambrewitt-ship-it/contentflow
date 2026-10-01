@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin, getAuthenticatedUser } from '@/lib/supabaseServer';
 import { handleApiError, extractErrorContext } from '@/lib/secureErrorHandler';
 import logger from '@/lib/logger';
+import { getUserContact, sendAccountDeletedEmail } from '@/lib/emails';
 
 export async function DELETE(req: NextRequest) {
   const errorContext = extractErrorContext(req);
@@ -39,6 +40,9 @@ export async function DELETE(req: NextRequest) {
       email: user.email,
     });
 
+    // Capture name/email now — the auth user is gone by the time we email.
+    const contact = await getUserContact(user.id);
+
     // Start a transaction-like operation to delete user data
     try {
       // First, delete the user profile (this will cascade to related data due to foreign key constraints)
@@ -72,6 +76,11 @@ export async function DELETE(req: NextRequest) {
         userId: user.id,
         email: user.email,
       });
+
+      const deletedEmail = contact?.email ?? user.email;
+      if (deletedEmail) {
+        await sendAccountDeletedEmail({ email: deletedEmail, name: contact?.name });
+      }
 
       return NextResponse.json({
         success: true,

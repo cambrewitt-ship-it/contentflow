@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserSubscription } from '@/lib/subscriptionHelpers';
 import { startCheckoutForUser } from '@/lib/checkoutHelpers';
+import { sendWelcomeEmail } from '@/lib/emails';
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -40,6 +41,9 @@ export async function GET(request: NextRequest) {
     }
     
     console.log('✅ OAuth callback successful, redirecting to dashboard for user:', data.user.email);
+
+    // First confirmed sign-in for a new account → welcome email (deduped, never throws)
+    await sendWelcomeEmail(data.user.id);
 
     // If this user hasn't completed Checkout yet (this is the "email
     // confirmation required" branch of signup), resume it now — every

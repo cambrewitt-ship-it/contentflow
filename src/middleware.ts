@@ -63,6 +63,7 @@ export async function middleware(req: NextRequest) {
     '/api/portal/', // Client portal (uses token auth)
     '/api/auth/',   // Auth endpoints
     '/api/stripe/webhook', // Stripe webhooks
+    '/api/webhooks/', // Signed inbound webhooks (e.g. Supabase auth email hook)
     '/api/stripe/callback', // Stripe checkout callback (handles auth internally)
     '/api/late/oauth-callback', // Social OAuth return from LATE (handles auth internally)
     '/api/late/facebook-callback', // Facebook OAuth return from LATE

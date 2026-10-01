@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
+import { sendContactFormNotification } from '@/lib/emails';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,16 +35,31 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
 
-    // TODO: Here you can add additional processing:
-    // 1. Store in database (create a contact_submissions table)
-    // 2. Send email notification using Resend, SendGrid, or similar
-    // 3. Send to a CRM or ticketing system
-    // 4. Add rate limiting to prevent spam
+    if (
+      String(name).length > 200 ||
+      String(email).length > 320 ||
+      String(subject).length > 300 ||
+      String(message).length > 10000
+    ) {
+      return NextResponse.json({ error: 'Message is too long' }, { status: 400 });
+    }
 
-    // For now, we'll just log and return success
-    // You can extend this to:
-    // - Store in Supabase: const { data, error } = await supabase.from('contact_submissions').insert({...})
-    // - Send email: await resend.emails.send({ from: '...', to: '...', subject: '...', html: '...' })
+    // Notify the team inbox (SUPPORT_EMAIL); reply-to is the sender. No
+    // auto-reply to the sender — this form is unauthenticated, so that would
+    // let anyone use us to send mail to arbitrary addresses.
+    const result = await sendContactFormNotification({
+      name: String(name),
+      email: String(email),
+      subject: String(subject),
+      message: String(message),
+    });
+    if (!result.success) {
+      logger.error('Contact form notification failed', { error: result.error });
+      return NextResponse.json(
+        { error: 'Failed to send your message. Please try again later.' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       {

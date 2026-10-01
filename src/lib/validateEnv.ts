@@ -24,6 +24,9 @@ const productionOnlyVars = [
 const optionalEnvVars = [
   'NEXT_PUBLIC_GTM_ID',
   'RESEND_API_KEY',
+  'RESEND_FROM_EMAIL',
+  'SEND_EMAIL_HOOK_SECRET',
+  'SUPPORT_EMAIL',
   'NEXT_PUBLIC_SENTRY_DSN',
   'SENTRY_AUTH_TOKEN',
 ] as const;

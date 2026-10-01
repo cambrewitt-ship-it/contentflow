@@ -1,5 +1,7 @@
 # Custom Password Reset Email Template Setup
 
+> **Superseded:** auth emails are now sent by the app via the Supabase Send Email Hook. See `EMAIL_SETUP.md`.
+
 ## Overview
 
 This document provides instructions for implementing the custom-branded password reset email template in Supabase.

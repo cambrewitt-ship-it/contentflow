@@ -1,27 +1,10 @@
 /**
- * Email utility using Resend.
- * Requires RESEND_API_KEY in environment variables.
- * RESEND_FROM_EMAIL defaults to 'noreply@content-manager.io'.
+ * Approval + Content Agent notification emails (Resend).
+ * Shared client/config lives in @/lib/emails/client; transactional
+ * auth/lifecycle/billing emails live in @/lib/emails.
  */
-import { Resend } from 'resend';
 import logger from '@/lib/logger';
-
-let resendClient: Resend | null = null;
-
-function getResend(): Resend | null {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    logger.warn('RESEND_API_KEY not set — email notifications disabled');
-    return null;
-  }
-  if (!resendClient) {
-    resendClient = new Resend(apiKey);
-  }
-  return resendClient;
-}
-
-const FROM_EMAIL =
-  process.env.RESEND_FROM_EMAIL ?? 'Content Manager <noreply@content-manager.io>';
+import { FROM_EMAIL, getAppUrl, getResend } from '@/lib/emails/client';
 
 export interface ApprovalEmailParams {
   to: string;
@@ -32,10 +15,6 @@ export interface ApprovalEmailParams {
   portalToken: string; // The party's portal_token
   scheduledDate: string | null;
   stepLabel: string | null;
-}
-
-function getAppUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL ?? 'https://content-manager.io';
 }
 
 export async function sendApprovalRequestEmail(

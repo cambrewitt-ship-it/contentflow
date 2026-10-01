@@ -25,6 +25,7 @@ export type RateLimitTier = keyof typeof rateLimits;
 // Route patterns
 const routePatterns: Record<string, RateLimitTier> = {
   '/api/stripe/webhook': 'webhook', // Stripe webhooks need high limits (must be before /api/stripe)
+  '/api/webhooks': 'webhook',       // Supabase auth email hook — all users' auth emails come from a few Supabase IPs
   '/api/stripe': 'authenticated',   // All other Stripe calls — per-user, high limit
   '/api/ai': 'ai',
   '/api/analyze-website-temp': 'ai',
