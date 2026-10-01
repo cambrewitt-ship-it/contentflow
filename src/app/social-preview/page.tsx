@@ -9,6 +9,7 @@ import {
   RelatedTools,
   SeoContent,
 } from './seo-blocks'
+import { DEMO_VIDEO, ProductShowcase } from './product-showcase'
 
 const BASE_URL = 'https://content-manager.io'
 const PAGE_URL = `${BASE_URL}/social-preview`
@@ -136,6 +137,45 @@ const schema = {
       ],
     },
     {
+      '@type': 'SoftwareApplication',
+      '@id': `${BASE_URL}/#software`,
+      name: 'Content Manager',
+      url: BASE_URL,
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      description:
+        'AI social media management platform for marketing agencies, freelancers and in-house teams: brand-trained AI captions, content ideas, a content calendar, client approval portal and scheduling to Facebook, Instagram, LinkedIn, Twitter/X, TikTok, YouTube and Threads.',
+      featureList: [
+        'Brand voice AI copywriter for social media captions',
+        'AI content ideas generator',
+        'Content calendar',
+        'Client approval portal',
+        'Client dashboards',
+        'One-click scheduling to Facebook, Instagram, LinkedIn, Twitter/X, TikTok, YouTube and Threads',
+      ],
+      // Monthly USD plans, matching the pricing page (In-House, Freelancer, Agency)
+      offers: {
+        '@type': 'AggregateOffer',
+        priceCurrency: 'USD',
+        lowPrice: '29',
+        highPrice: '113',
+        offerCount: 3,
+        url: `${BASE_URL}/pricing`,
+      },
+      publisher: { '@type': 'Organization', name: 'Content Manager', url: BASE_URL },
+    },
+    {
+      '@type': 'VideoObject',
+      '@id': `${PAGE_URL}#demo-video`,
+      name: DEMO_VIDEO.name,
+      description: DEMO_VIDEO.description,
+      contentUrl: `${BASE_URL}${DEMO_VIDEO.contentUrl}`,
+      thumbnailUrl: `${BASE_URL}${DEMO_VIDEO.thumbnailUrl}`,
+      uploadDate: DEMO_VIDEO.uploadDate,
+      duration: DEMO_VIDEO.duration,
+      publisher: { '@type': 'Organization', name: 'Content Manager', url: BASE_URL },
+    },
+    {
       '@type': 'BreadcrumbList',
       '@id': `${PAGE_URL}#breadcrumb`,
       itemListElement: [
@@ -157,6 +197,9 @@ export default function SocialPreviewPage() {
         <SocialPreviewTool>
           <SeoContent>
             <AnswerBox question="What is a social media post preview tool?" answer={FAQS[0].a} />
+          </SeoContent>
+          <ProductShowcase />
+          <SeoContent>
             {SECTIONS.map((s) => (
               <ContentSection key={s.h2} section={s} />
             ))}

@@ -12,6 +12,7 @@ import {
   SeoContent,
   SpecTable,
 } from '../seo-blocks'
+import { ProductShowcase } from '../product-showcase'
 
 const BASE_URL = 'https://content-manager.io'
 
@@ -141,6 +142,9 @@ export default async function PlatformPreviewPage({
         >
           <SeoContent>
             <AnswerBox question={`What is a ${page.shortName.toLowerCase()} preview tool?`} answer={page.answer} />
+          </SeoContent>
+          <ProductShowcase />
+          <SeoContent>
             {page.sections.map((s) => (
               <ContentSection key={s.h2} section={s} />
             ))}
