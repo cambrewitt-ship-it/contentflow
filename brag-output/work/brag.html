@@ -1,0 +1,406 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@font-face{font-family:Poppins;font-weight:400;src:url(assets/poppins-400.woff2)}
+@font-face{font-family:Poppins;font-weight:500;src:url(assets/poppins-500.woff2)}
+@font-face{font-family:Poppins;font-weight:600;src:url(assets/poppins-600.woff2)}
+@font-face{font-family:Poppins;font-weight:700;src:url(assets/poppins-700.woff2)}
+@font-face{font-family:Poppins;font-weight:800;src:url(assets/poppins-800.woff2)}
+@font-face{font-family:Poppins;font-weight:900;src:url(assets/poppins-900.woff2)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#fff}
+body{font-family:Poppins,sans-serif;color:#111827;-webkit-font-smoothing:antialiased}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden}
+.bg{position:absolute;inset:0}
+#bgLight{background:linear-gradient(135deg,#ffffff 0%,#f8fafc 25%,#e0f2fe 55%,#bae6fd 80%,#7dd3fc 100%)}
+#bgBlue{background:radial-gradient(1200px 700px at 70% 30%,#38bdf8 0%,rgba(56,189,248,0) 60%),linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 55%,#2563eb 100%);opacity:0}
+.scene{position:absolute;inset:0;opacity:0}
+.cap{position:absolute;left:0;right:0;top:64px;text-align:center;font-weight:800;font-size:64px;letter-spacing:-1px;color:#111827}
+.cap em{font-style:italic;color:#2563eb}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:28px;box-shadow:0 30px 80px -20px rgba(30,58,138,.28),0 8px 24px -8px rgba(30,58,138,.12)}
+.glow{position:absolute;border-radius:40px;filter:blur(60px);background:linear-gradient(90deg,rgba(168,85,247,.22),rgba(59,130,246,.25))}
+
+/* hook */
+#hook{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.hl{font-weight:900;font-size:132px;line-height:1.02;letter-spacing:-3px;color:#000;-webkit-text-stroke:2px #000;white-space:nowrap}
+.hl .w{display:inline-block;margin:0 .13em}
+.hl .b{color:#2563eb;-webkit-text-stroke:2px #2563eb;font-style:italic}
+#uline{position:absolute;height:14px;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:8px;transform-origin:left center}
+
+/* reveal */
+#reveal{display:flex;flex-direction:column;align-items:center;justify-content:center}
+#rvLogo{width:420px}
+#rvWord{margin-top:34px;font-weight:800;font-style:italic;font-size:112px;letter-spacing:-2px;line-height:1}
+#rvWord .c{color:#1e3a8a}#rvWord .m{color:#0ea5e9}
+#rvSub{margin-top:30px;font-size:44px;font-weight:500;color:#374151}
+
+/* content suite */
+#suite .left{position:absolute;left:110px;top:200px;width:1190px;height:830px;padding:40px 48px}
+#suite .right{position:absolute;left:1330px;top:200px;width:480px;height:830px;padding:28px}
+.h1u{font-weight:700;font-size:36px;color:#1f2937}
+.h2u{font-weight:600;font-size:25px;color:#1f2937;margin-top:16px}
+.uprow{display:flex;gap:26px;margin-top:16px;align-items:flex-start}
+.upl{width:190px;height:190px;border-radius:20px;background:linear-gradient(135deg,#3b5bdb,#60a5fa);display:flex;align-items:center;justify-content:center;color:#fff;font-size:120px;font-weight:300;line-height:1}
+.thumb{position:relative;width:150px;height:150px;border:3px solid #3b82f6;border-radius:16px;background:#eff6ff;display:flex;align-items:center;justify-content:center}
+.thumb img{width:128px}
+.thumb .x{position:absolute;right:-12px;top:-12px;width:32px;height:32px;border-radius:50%;background:#ef4444;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;font-weight:700}
+.dds{margin-left:auto;display:grid;grid-template-columns:auto 290px;gap:16px 18px;align-items:center}
+.dds .l{font-weight:600;font-size:26px;text-align:right;color:#1f2937}
+.dd{border:1px solid #e5e7eb;border-radius:12px;padding:8px 18px;font-size:25px;display:flex;justify-content:space-between;align-items:center;color:#111827}
+.dd:after{content:"";width:10px;height:10px;border-right:2.5px solid #6b7280;border-bottom:2.5px solid #6b7280;transform:rotate(45deg) translateY(-3px)}
+.notes{margin-top:34px;border:2.5px solid #d1d5db;border-radius:60px;height:84px;display:flex;align-items:center;padding:0 10px 0 30px;font-size:26px;color:#111827}
+.notes .txt{flex:1;white-space:nowrap}
+.caret{display:inline-block;width:2px;height:30px;background:#2563eb;vertical-align:middle;margin-left:2px}
+.gen{background:#2563eb;color:#fff;border-radius:40px;height:64px;padding:0 30px;display:flex;align-items:center;gap:12px;font-size:25px;font-weight:500;white-space:nowrap}
+.spin{width:24px;height:24px;border:3px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%}
+.hint{text-align:center;font-size:20px;color:#6b7280;margin-top:12px}
+.caps{display:flex;gap:22px;margin-top:28px}
+.capc{flex:1;border:1px solid #e5e7eb;border-radius:20px;padding:16px;height:270px;display:flex;flex-direction:column;background:#fff}
+.capc .t{border:2.5px solid #2563eb;border-radius:14px;padding:12px 16px;font-size:20px;line-height:1.5;color:#1f2937;flex:1;overflow:hidden}
+.capc .bt{display:flex;justify-content:space-between;margin-top:12px}
+.btn{border:1px solid #e5e7eb;border-radius:12px;padding:6px 16px;font-size:19px;display:flex;align-items:center;gap:8px;color:#374151;background:#fff}
+.btn.sel{border-color:#bfdbfe;color:#2563eb}
+.btn.on{background:#2563eb;color:#fff;border-color:#2563eb}
+.capc.on{background:#eff6ff;border-color:#3b82f6}
+.sch{height:68px;border-radius:14px;background:linear-gradient(90deg,#3b82f6,#1d4ed8);color:#fff;font-size:26px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:14px}
+.cal{height:68px;border-radius:14px;background:#22a447;color:#fff;font-size:26px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px}
+.ddp{margin-top:16px;border:1px solid #e5e7eb;border-radius:12px;padding:12px 18px;font-size:24px;display:flex;justify-content:space-between}
+.icns{display:flex;justify-content:center;gap:14px;margin-top:22px}
+.icns div{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#f3f4f6;color:#111}
+.icns div.a{background:#dbeafe;color:#1877f2}
+.prev{margin-top:20px;background:#f3f4f6;border-radius:18px;padding:16px 16px 20px}
+.prev .pt{text-align:center;color:#6b7280;font-size:18px;margin-bottom:12px}
+.fb{background:#fff;border-radius:6px;overflow:hidden}
+.fbh{display:flex;gap:12px;align-items:center;padding:14px}
+.fbav{width:48px;height:48px;border-radius:50%;background:#1877f2;color:#fff;display:flex;align-items:center;justify-content:center}
+.fbn{font-size:20px;font-weight:500}.fbs{font-size:15px;color:#6b7280}
+.fbt{padding:0 14px 12px;font-size:19px;line-height:1.45;min-height:56px}
+.fbi{height:190px;background:#f9fafb;display:flex;align-items:center;justify-content:center}
+.fbi img{width:270px}
+.fbf{display:flex;justify-content:space-around;padding:12px 0;font-size:17px;color:#4b5563;border-top:1px solid #f3f4f6}
+
+/* portal */
+.col{position:absolute;top:200px;width:530px;border-radius:24px;padding:22px}
+.col.cur{border:2.5px solid #93c5fd;background:rgba(255,255,255,.55)}
+.colh{display:flex;align-items:center;gap:12px;font-weight:600;font-size:27px;color:#111827;letter-spacing:.5px;padding-bottom:14px;border-bottom:1px solid #e5e7eb}
+.col.cur .colh{color:#1d4ed8}
+.day{margin-top:16px;border:1px solid #e5e7eb;border-radius:20px;padding:16px;background:#fff}
+.col.cur .day{background:#eff6ff;border-color:#bfdbfe}
+.dayh{font-size:22px;color:#374151;letter-spacing:1px;display:flex;justify-content:space-between;padding-bottom:12px}
+.col.cur .dayh{color:#2563eb}
+.post{border:2px solid #e5e7eb;border-radius:18px;padding:16px;background:#fff}
+.post.ok{border-color:#86efac;background:#f0fdf4}
+.post.warn{border-color:#fdba74;background:#fff7ed}
+.post.up{border-color:#60a5fa;background:#eff6ff}
+.ph{display:flex;justify-content:space-between;align-items:flex-start;font-size:19px;color:#374151;line-height:1.4}
+.badge{border-radius:30px;padding:4px 14px;font-size:19px;display:flex;align-items:center;gap:6px}
+.badge.ok{background:#dcfce7;color:#15803d}.badge.warn{background:#ffedd5;color:#c2410c}
+.pimg{margin-top:12px;height:170px;border-radius:12px;background:#f9fafb;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pimg img{width:300px}
+.pimg img.shot{width:100%;height:100%;object-fit:cover;object-position:left top}
+.ptxt{margin-top:12px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;padding:10px 14px;font-size:18px;line-height:1.45;color:#1f2937}
+.acts{display:flex;gap:10px;margin-top:12px}
+.ab{border-radius:12px;padding:7px 14px;font-size:19px;display:flex;align-items:center;gap:6px;border:1.5px solid}
+.ab.ap{color:#16a34a;border-color:#bbf7d0;background:#f0fdf4}
+.ab.ap.on{background:#16a34a;color:#fff;border-color:#16a34a}
+.ab.im{color:#ea580c;border-color:#fed7aa;background:#fff7ed}
+.ab.im.on{background:#ea580c;color:#fff;border-color:#ea580c}
+.ab.rj{color:#dc2626;border-color:#fecaca;background:#fef2f2;padding:7px 10px}
+.fbk{margin-top:12px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;padding:10px 14px;font-size:18px;color:#9ca3af;height:50px}
+.fbk.f{color:#111827}
+.upt{color:#1d4ed8;font-size:21px;letter-spacing:.5px}
+.ups{color:#2563eb;font-size:18px;margin-top:2px}
+
+/* schedule */
+#schCard{position:absolute;left:660px;top:250px;width:600px;padding:30px}
+.plats{position:absolute;top:610px;left:0;right:0;display:flex;justify-content:center;gap:58px}
+.plat{display:flex;flex-direction:column;align-items:center;gap:16px}
+.plat .ci{width:150px;height:150px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 16px 40px -12px rgba(30,58,138,.4)}
+.plat span{font-size:28px;font-weight:500;color:#1f2937}
+.toast{position:absolute;left:50%;top:520px;transform:translateX(-50%);background:#111827;color:#fff;border-radius:40px;padding:12px 30px;font-size:24px;display:flex;gap:10px;align-items:center}
+
+/* outro */
+#outro{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff}
+#oLogo{background:#fff;border-radius:36px;padding:26px 46px;box-shadow:0 30px 80px -20px rgba(0,0,0,.4)}
+#oLogo img{width:250px;display:block}
+#oLine{margin-top:56px;font-weight:900;font-size:112px;letter-spacing:-3px;line-height:1}
+#oUrl{margin-top:34px;font-size:50px;font-weight:600;color:#e0f2fe}
+#oCta{margin-top:44px;display:flex;align-items:center;gap:28px}
+#oCta .b{background:#fff;color:#1d4ed8;font-weight:700;font-size:34px;border-radius:18px;padding:18px 40px}
+#oCta .n{font-size:32px;font-weight:600;color:#fff}
+
+#cursor{position:absolute;left:0;top:0;width:52px;height:52px;z-index:50;opacity:0;filter:drop-shadow(0 6px 10px rgba(0,0,0,.3))}
+#ripple{position:absolute;width:90px;height:90px;margin:-45px 0 0 -45px;border-radius:50%;border:4px solid #2563eb;z-index:49;opacity:0}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="bg" id="bgLight"></div>
+  <div class="bg" id="bgBlue"></div>
+
+  <!-- 1 HOOK -->
+  <div class="scene" id="hook">
+    <div class="hl"><span class="w">Manage</span><span class="w b">weeks</span><span class="w">of</span></div>
+    <div class="hl"><span class="w">social</span><span class="w">media</span><span class="w">content</span></div>
+    <div class="hl"><span class="w">in</span><span class="w b" id="tenmin">10 minutes</span><span class="w b" style="margin-left:-.13em;font-style:normal">.</span></div>
+    <div id="uline"></div>
+  </div>
+
+  <!-- 2 REVEAL -->
+  <div class="scene" id="reveal">
+    <img id="rvLogo" src="assets/cm-mark-a.png">
+    <div id="rvWord"><span class="c">Content</span> <span class="m">Manager</span></div>
+    <div id="rvSub">AI social media software for marketing managers &amp; agencies</div>
+  </div>
+
+  <!-- 3 CONTENT SUITE -->
+  <div class="scene" id="suite">
+    <div class="cap" id="cap3">AI that sounds like <em>your brand</em>, not a robot.</div>
+    <div class="glow" style="left:150px;top:260px;width:1640px;height:740px"></div>
+    <div class="card left" id="sl">
+      <div class="h1u">Content Creation</div>
+      <div class="h2u">Upload Media</div>
+      <div class="uprow">
+        <div class="upl">+</div>
+        <div class="thumb"><img src="assets/cm-mark-a.png"><div class="x">×</div></div>
+        <div class="dds">
+          <div class="l">Copy Type</div><div class="dd">Social Media</div>
+          <div class="l">Content Focus</div><div class="dd">Main focus</div>
+          <div class="l">Copy Tone</div><div class="dd">Promotional</div>
+        </div>
+      </div>
+      <div class="notes"><div class="txt"><span id="notesT"></span><span class="caret" id="notesC"></span></div>
+        <div class="gen" id="genBtn"><span id="genIco"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/><path d="M19 15l.7 2.1L22 18l-2.3.9L19 21l-.7-2.1L16 18l2.3-.9z"/></svg></span><span id="genTxt">Generate Text</span></div>
+      </div>
+      <div class="hint">AI will analyze your image and Post Notes to generate captions</div>
+      <div class="caps">
+        <div class="capc" id="c1"><div class="t">Unlock productivity with Content Manager - your ultimate social media partner.</div><div class="bt"><div class="btn">↻ Remix</div><div class="btn sel" id="c1b">Select</div></div></div>
+        <div class="capc" id="c2"><div class="t">Say hello to the Content Manager logo! Discover the future of social media management today.</div><div class="bt"><div class="btn">↻ Remix</div><div class="btn sel">Select</div></div></div>
+        <div class="capc" id="c3"><div class="t">Introducing our Content Manager logo! Designed for marketing agencies. #EfficiencyUnleashed</div><div class="bt"><div class="btn">↻ Remix</div><div class="btn sel">Select</div></div></div>
+      </div>
+    </div>
+    <div class="card right" id="sr">
+      <div class="sch"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>Schedule</div>
+      <div class="cal"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Add to Calendar</div>
+      <div class="icns"><div class="a" data-ic="fb"></div><div data-ic="ig"></div><div data-ic="x"></div></div>
+      <div class="prev"><div class="pt">Mobile Preview - Facebook</div>
+        <div class="fb">
+          <div class="fbh"><div class="fbav" data-ic="fb" data-s="30"></div><div><div class="fbn">Your Facebook</div><div class="fbs">Just now</div></div></div>
+          <div class="fbt" id="fbt"></div>
+          <div class="fbi"><img id="fbimg" src="assets/cm-mark-a.png"></div>
+          <div class="fbf"><span>👍 Like</span><span>💬 Comment</span><span>↗ Share</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 PORTAL -->
+  <div class="scene" id="portal">
+    <div class="cap" id="cap4">Clients approve in a <em>live, shared</em> workspace.</div>
+    <div class="col cur" id="k1" style="left:120px">
+      <div class="colh"><span data-ic="calo" data-s="28"></span>W/C 10TH NOV (CURRENT)</div>
+      <div class="day"><div class="dayh"><span>MON&nbsp; 10</span><span>+</span></div>
+        <div class="post" id="p1">
+          <div class="ph"><div>10 Nov<br>12:00 PM</div><div class="badge ok" id="p1b">✓ Approved</div></div>
+          <div class="pimg"><img src="assets/cm-mark-a.png"></div>
+          <div class="ptxt">Unlock the future of social media with Content Manager - our new AI tool for social media.</div>
+          <div class="acts"><div class="ab ap" id="p1ap">✓ Approve</div><div class="ab im">⚠ Improve</div><div class="ab rj">✕</div></div>
+          <div class="fbk" id="p1f">Add feedback...</div>
+        </div>
+      </div>
+    </div>
+    <div class="col" id="k2" style="left:695px">
+      <div class="colh"><span data-ic="calo" data-s="28"></span>W/C 17TH NOV</div>
+      <div class="day"><div class="dayh"><span>TUE&nbsp; 18</span><span>+</span></div>
+        <div class="post warn">
+          <div class="ph"><div>18 Nov<br>5:00 PM</div><div class="badge warn">⚠ Needs Attention</div></div>
+          <div class="pimg"><img class="shot" src="assets/content-suite-sc.png"></div>
+          <div class="ptxt">"Elevate your workflow with Content Manager - our AI powered social media tool for in-house marketing &amp; agency teams."</div>
+          <div class="acts"><div class="ab ap">✓ Approve</div><div class="ab im on">⚠ Improve</div><div class="ab rj">✕</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col" id="k3" style="left:1270px">
+      <div class="colh"><span data-ic="calo" data-s="28"></span>W/C 24TH NOV</div>
+      <div class="day"><div class="dayh"><span>TUE&nbsp; 25</span><span>+</span></div>
+        <div class="post up" id="p3">
+          <div class="upt">CLIENT UPLOAD</div><div class="ups">25 Nov • 1:00 pm</div>
+          <div class="pimg" style="margin-top:14px"><img src="assets/cm-mark-a.png"></div>
+          <div class="ptxt" style="border:0;background:transparent;padding:10px 0 0;color:#2563eb">Client Upload</div>
+          <div class="acts"><div class="ab" style="color:#2563eb;border-color:#bfdbfe;background:#fff">⤓ Download</div><div class="ab" style="color:#dc2626;border-color:#fecaca;background:#fff">🗑 Delete</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 SCHEDULE -->
+  <div class="scene" id="sched">
+    <div class="cap" id="cap5">Schedule to <em>every platform</em>.</div>
+    <div class="card" id="schCard">
+      <div class="sch" id="schBtn"><span id="schIco"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg></span><span id="schTxt">Schedule</span></div>
+      <div class="cal"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Add to Calendar</div>
+      <div class="ddp"><span>Launch</span><span style="color:#6b7280">⌄</span></div>
+    </div>
+    <div class="plats" id="plats"></div>
+  </div>
+
+  <!-- 6 OUTRO -->
+  <div class="scene" id="outro">
+    <div id="oLogo"><img src="assets/cm-mark-a.png"></div>
+    <div id="oLine">Like ChatGPT for Social Media</div>
+    <div id="oUrl">content-manager.io</div>
+    <div id="oCta"><div class="b">Start 7-Day Free Trial</div><div class="n">No credit card required.</div></div>
+  </div>
+
+  <div id="ripple"></div>
+  <svg id="cursor" viewBox="0 0 24 24"><path d="M4 2l16 9.5-7 1.6 4.2 7.6-3 1.6-4.2-7.6L5 20z" fill="#111" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+</div>
+
+<script>
+// Icon paths: copied from src/components/social-icons.tsx
+const P={
+fb:'M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z',
+ig:'M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z',
+x:'M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z',
+li:'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z',
+tt:'M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.920.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.130 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z',
+yt:'M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.930.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.930 24 12 24 12s0-3.930-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z',
+th:'M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.350 18.440 1.500 15.586 1.500 12.068c0-3.518.850-6.372 2.495-8.423C5.845 1.205 8.598.024 12.179 0h.007c3.581.024 6.334 1.205 8.184 3.509C22.650 5.560 23.500 8.414 23.500 11.932c0 3.518-.850 6.372-2.495 8.423C19.155 22.795 16.402 23.976 12.821 24h-.007zM12 2.16c-2.9 0-5.2.95-6.7 2.8-1.4 1.75-2.1 4.1-2.1 6.9s.7 5.15 2.1 6.9c1.5 1.85 3.8 2.8 6.7 2.8s5.2-.95 6.7-2.8c1.4-1.75 2.1-4.1 2.1-6.9s-.7-5.15-2.1-6.9C17.2 3.11 14.9 2.16 12 2.16zm0 1.5c2.4 0 4.3.8 5.6 2.3 1.2 1.4 1.8 3.3 1.8 5.5s-.6 4.1-1.8 5.5c-1.3 1.5-3.2 2.3-5.6 2.3s-4.3-.8-5.6-2.3c-1.2-1.4-1.8-3.3-1.8-5.5s.6-4.1 1.8-5.5C7.7 4.46 9.6 3.66 12 3.66zm0 1.2c-1.9 0-3.4.6-4.4 1.8-1 1.1-1.5 2.6-1.5 4.3s.5 3.2 1.5 4.3c1 1.2 2.5 1.8 4.4 1.8s3.4-.6 4.4-1.8c1-1.1 1.5-2.6 1.5-4.3s-.5-3.2-1.5-4.3c-1-1.2-2.5-1.8-4.4-1.8zm0 1.5c1.4 0 2.5.5 3.2 1.3.7.8 1 1.9 1 3.1s-.3 2.3-1 3.1c-.7.8-1.8 1.3-3.2 1.3s-2.5-.5-3.2-1.3c-.7-.8-1-1.9-1-3.1s.3-2.3 1-3.1c.7-.8 1.8-1.3 3.2-1.3z'};
+const svg=(k,s)=>k==='calo'
+ ?`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`
+ :`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="${P[k]}"/></svg>`;
+document.querySelectorAll('[data-ic]').forEach(e=>e.innerHTML=svg(e.dataset.ic,+(e.dataset.s||28)));
+const PL=[['fb','Facebook','#2563eb'],['ig','Instagram','linear-gradient(135deg,#a855f7,#ec4899)'],['x','Twitter','#000'],['li','LinkedIn','#1d4ed8'],['tt','TikTok','#000'],['yt','YouTube','#dc2626'],['th','Threads','#000']];
+document.getElementById('plats').innerHTML=PL.map((p,i)=>`<div class="plat" id="pl${i}"><div class="ci" style="background:${p[2]}">${svg(p[0],72)}</div><span>${p[1]}</span></div>`).join('');
+
+// ---------- time helpers ----------
+const $=id=>document.getElementById(id);
+const cl=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const pr=(t,a,d)=>cl((t-a)/d);
+const eo=x=>1-Math.pow(1-x,3);
+const eio=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+const eb=x=>{const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2)};
+function S(el,{o=1,x=0,y=0,s=1,b=0}={}){el.style.opacity=o;el.style.transform=`translate(${x}px,${y}px) scale(${s})`;el.style.filter=b?`blur(${b}px)`:'none';}
+function pop(el,t,a,d=.45,dy=40){const p=pr(t,a,d);S(el,{o:eo(cl(p*2)),y:(1-eo(p))*dy,s:.94+.06*eb(p)});}
+function sceneOp(t,a,b){return Math.min(eo(pr(t,a,.3)),1-eio(pr(t,b-.28,.28)));}
+function sceneSet(el,t,a,b){const o=sceneOp(t,a,b);const out=pr(t,b-.28,.28);el.style.opacity=(t<a||t>b)?0:o;el.style.transform=`scale(${1+.03*eio(out)})`;el.style.display=(t<a-.05||t>b+.05)?'none':'';}
+
+function off(el){let x=0,y=0,e=el;while(e&&e.id!=='stage'){x+=e.offsetLeft;y+=e.offsetTop;e=e.offsetParent;}return {x,y,w:el.offsetWidth,h:el.offsetHeight};}
+function ctr(el,dx=.5,dy=.6){const r=off(el);return [r.x+r.w*dx,r.y+r.h*dy];}
+
+const T={hook:[0,4],rev:[4,7.5],suite:[7.5,12.5],portal:[12.5,16.5],sched:[16.5,19.5],outro:[19.5,23]};
+let PTS=null;
+function measure(){
+  // measure targets in settled layout (all scenes displayed, no transforms)
+  document.querySelectorAll('.scene').forEach(s=>{s.style.display='';s.style.transform='none'});
+  PTS={gen:ctr($('genBtn'),.5,.55),c1b:ctr($('c1b'),.5,.55),ap:ctr($('p1ap'),.45,.55),sch:ctr($('schBtn'),.5,.55)};
+}
+// cursor keyframes [t,x,y]
+let CK;
+function buildCursor(){
+  const g=PTS.gen,c=PTS.c1b,a=PTS.ap,s=PTS.sch;
+  CK=[
+   {t:8.5,x:1500,y:1000,o:0},{t:8.7,x:1450,y:920,o:1},{t:9.3,x:g[0],y:g[1],o:1},{t:9.9,x:g[0]+10,y:g[1]+6,o:1},
+   {t:10.45,x:c[0],y:c[1],o:1},{t:10.6,x:c[0],y:c[1],o:1},{t:11.0,x:c[0]+60,y:c[1]+70,o:1},{t:12.2,x:c[0]+70,y:c[1]+75,o:1},{t:12.4,x:c[0]+70,y:c[1]+75,o:0},
+   {t:13.0,x:900,y:1020,o:0},{t:13.15,x:820,y:980,o:1},{t:13.65,x:a[0],y:a[1],o:1},{t:13.8,x:a[0],y:a[1],o:1},{t:14.2,x:a[0]+330,y:a[1]-40,o:1},{t:16.2,x:a[0]+340,y:a[1]-30,o:1},{t:16.4,x:a[0]+340,y:a[1]-30,o:0},
+   {t:16.7,x:1300,y:560,o:0},{t:16.85,x:1250,y:500,o:1},{t:17.25,x:s[0],y:s[1],o:1},{t:17.4,x:s[0],y:s[1],o:1},{t:17.8,x:s[0]+380,y:s[1]-10,o:1},{t:19.2,x:s[0]+390,y:s[1],o:1},{t:19.35,x:s[0]+390,y:s[1],o:0}];
+}
+const CLICKS=[9.35,10.5,13.7,17.3];
+function cursorAt(t){
+  if(t<=CK[0].t)return {...CK[0],o:0};
+  for(let i=0;i<CK.length-1;i++){const A=CK[i],B=CK[i+1];if(t>=A.t&&t<=B.t){const p=eio((t-A.t)/(B.t-A.t));return {x:A.x+(B.x-A.x)*p,y:A.y+(B.y-A.y)*p,o:A.o+(B.o-A.o)*p};}}
+  return {...CK[CK.length-1],o:0};
+}
+
+const NOTES='This is our Content Manager logo';
+const FBT='Unlock productivity with Content Manager - your ultimate social media partner.';
+const FEED='Looking good!';
+
+function render(t){
+  // backgrounds
+  $('bgBlue').style.opacity=eio(pr(t,19.3,.45));
+
+  // 1 HOOK
+  const hk=$('hook');sceneSet(hk,t,...T.hook);
+  const words=hk.querySelectorAll('.w');
+  const wt=[.1,.3,.5,.7,.85,1.0,1.2,1.38,1.38];
+  words.forEach((w,i)=>{const p=pr(t,wt[i],.38);S(w,{o:eo(cl(p*2.2)),y:(1-eo(p))*60,s:.85+.15*eb(p)});});
+  const ul=$('uline'),tm=$('tenmin');
+  {const r=off(tm);ul.style.left=r.x+'px';ul.style.top=(r.y+r.h-6)+'px';ul.style.width=r.w+'px';}
+  ul.style.transform=`scaleX(${eio(pr(t,1.75,.45))})`;
+  hk.style.transform+=` scale(${1+.035*pr(t,0,4)})`;
+
+  // 2 REVEAL
+  const rv=$('reveal');sceneSet(rv,t,...T.rev);
+  {const p=pr(t,4.05,.6);S($('rvLogo'),{o:eo(cl(p*2)),s:.6+.4*eb(p),y:(1-eo(p))*30});}
+  pop($('rvWord'),t,4.3,.5,50);pop($('rvSub'),t,4.55,.5,30);
+
+  // 3 SUITE
+  const su=$('suite');sceneSet(su,t,...T.suite);
+  pop($('cap3'),t,7.55,.45,30);
+  pop($('sl'),t,7.65,.55,80);pop($('sr'),t,7.8,.55,80);
+  const nn=Math.round(cl((t-8.05)/.8)*NOTES.length);
+  $('notesT').textContent=NOTES.slice(0,nn);
+  $('notesC').style.opacity=(t<9.35&&(Math.floor(t*3)%2===0||nn<NOTES.length))?1:0;
+  const gen=$('genBtn');const generating=t>=9.35&&t<9.95;
+  gen.style.transform=`scale(${1-.06*Math.sin(Math.PI*pr(t,9.3,.18))})`;
+  $('genTxt').textContent=generating?'Generating...':'Generate Text';
+  $('genIco').innerHTML=generating?`<div class="spin" style="transform:rotate(${t*720}deg)"></div>`:$('genIco').dataset.orig||($('genIco').dataset.orig=$('genIco').innerHTML);
+  ['c1','c2','c3'].forEach((id,i)=>pop($(id),t,9.95+i*.13,.4,30));
+  const sel=t>=10.5;
+  $('c1').classList.toggle('on',sel);
+  const cb=$('c1b');cb.classList.toggle('on',sel);cb.textContent=sel?'✓ Selected':'Select';
+  cb.style.transform=`scale(${1-.08*Math.sin(Math.PI*pr(t,10.45,.18))})`;
+  const fn=Math.round(cl((t-10.6)/.5)*FBT.length);$('fbt').textContent=FBT.slice(0,fn);
+  $('fbimg').style.opacity=t<10.5?.25:.25+.75*eo(pr(t,10.6,.4));
+
+  // 4 PORTAL
+  const po=$('portal');sceneSet(po,t,...T.portal);
+  pop($('cap4'),t,12.55,.45,30);
+  pop($('k1'),t,12.65,.5,70);pop($('k2'),t,12.8,.5,70);
+  {const p=pr(t,14.75,.55);S($('k3'),{o:eo(cl(p*2)),y:(1-eb(p))*-120,s:1});}
+  const ok=t>=13.7;
+  $('p1').classList.toggle('ok',ok);$('p1ap').classList.toggle('on',ok);
+  $('p1ap').style.transform=`scale(${1-.08*Math.sin(Math.PI*pr(t,13.65,.18))})`;
+  {const p=pr(t,13.72,.4);const b=$('p1b');b.style.opacity=ok?eo(p):0;b.style.transform=`scale(${ok?.6+.4*eb(p):.6})`;}
+  const fbn=Math.round(cl((t-14.0)/.55)*FEED.length);
+  const fe=$('p1f');fe.textContent=fbn>0?FEED.slice(0,fbn):'Add feedback...';fe.classList.toggle('f',fbn>0);
+
+  // 5 SCHEDULE
+  const sc=$('sched');sceneSet(sc,t,...T.sched);
+  pop($('cap5'),t,16.55,.45,30);pop($('schCard'),t,16.65,.5,60);
+  $('schBtn').style.transform=`scale(${1-.06*Math.sin(Math.PI*pr(t,17.25,.18))})`;
+  const done=t>=17.3;
+  $('schTxt').textContent=done?'Scheduled':'Schedule';
+  $('schBtn').style.background=done?'linear-gradient(90deg,#22c55e,#16a34a)':'';
+  if(!$('schIco').dataset.orig)$('schIco').dataset.orig=$('schIco').innerHTML;
+  $('schIco').innerHTML=done?'<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>':$('schIco').dataset.orig;
+  PL.forEach((_,i)=>pop($('pl'+i),t,17.45+i*.17,.45,60));
+
+  // 6 OUTRO
+  const ou=$('outro');sceneSet(ou,t,...T.outro);
+  {const p=pr(t,19.55,.55);S($('oLogo'),{o:eo(cl(p*2)),s:.7+.3*eb(p)});}
+  pop($('oLine'),t,19.8,.5,50);pop($('oUrl'),t,20.15,.45,30);pop($('oCta'),t,20.4,.45,30);
+  ou.style.transform+=` scale(${1+.02*pr(t,19.5,3.5)})`;
+
+  // cursor
+  const c=cursorAt(t);const cu=$('cursor');
+  const press=CLICKS.reduce((m,k)=>Math.max(m,Math.sin(Math.PI*pr(t,k-.06,.16))),0);
+  cu.style.opacity=c.o;cu.style.transform=`translate(${c.x-8}px,${c.y-4}px) scale(${1-.15*press})`;
+  const rp=$('ripple');let ro=0,rs=.3;
+  CLICKS.forEach(k=>{const p=pr(t,k,.45);if(t>=k&&p<1){ro=(1-p)*.8;rs=.3+.9*eo(p);}});
+  rp.style.left=c.x+'px';rp.style.top=c.y+'px';rp.style.opacity=ro;rp.style.transform=`scale(${rs})`;
+}
+
+window.ready=(async()=>{
+  await document.fonts.ready;
+  await Promise.all([...document.images].map(i=>i.complete?0:new Promise(r=>{i.onload=i.onerror=r})));
+  await document.fonts.load('900 100px Poppins');
+  measure();buildCursor();render(0);return true;
+})();
+window.render=render;
+</script>
+</body>
+</html>
