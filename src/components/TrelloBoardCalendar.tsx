@@ -26,6 +26,7 @@ import {
   ChevronsRightLeft,
   ChevronsLeftRight,
   Upload,
+  Shuffle,
 } from 'lucide-react';
 import {
   DndContext,
@@ -58,9 +59,26 @@ import { getPublishStatus } from '@/components/PublishStatusBadge';
 import { VideoThumbnail } from '@/components/VideoThumbnail';
 import { isVideoUrl } from '@/lib/videoUtils';
 import logger from '@/lib/logger';
-import { BOARD_BACKGROUNDS, isCustomBoardBackground, isValidBoardBackground, resolveBoardBackground } from '@/lib/boardBackgrounds';
+import {
+  BOARD_BACKGROUNDS,
+  BRAND_STYLES,
+  brandBackgroundStyle,
+  brandBackgroundValue,
+  isBrandBoardBackground,
+  isCustomBoardBackground,
+  isValidBoardBackground,
+  resolveBoardBackground,
+  type BoardBackgroundGroup,
+} from '@/lib/boardBackgrounds';
+import { extractLogoPalette } from '@/lib/logoPalette';
 
 export { BOARD_BACKGROUNDS };
+
+const BG_SECTIONS: Array<{ group: BoardBackgroundGroup; label: string }> = [
+  { group: 'studio', label: 'Studio' },
+  { group: 'classic', label: 'Classic' },
+  { group: 'photo', label: 'Photos' },
+];
 
 const VISIBLE_WEEK_COUNT = 10;
 
@@ -748,6 +766,8 @@ export interface TrelloBoardCalendarProps extends ColumnViewCalendarProps {
    * background value (the photo's URL), or null on failure. Omit to hide "Upload photo".
    */
   onBackgroundUpload?: (imageData: string, filename: string) => Promise<string | null>;
+  /** The client's logo; its colours drive the "Brand" backgrounds in the picker. */
+  logoUrl?: string | null;
 }
 
 export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBoardCalendarProps>(function TrelloBoardCalendar(
@@ -755,7 +775,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   ref
 ) {
   const { weeks, scheduledPosts, clientUploads = {}, events = {}, contentEvents, loading, clientId, formatWeekCommencing } = props;
-  const { toolbar, subToolbar, leftDrawer, rightPanel, bottomDock, background, onBackgroundChange, onBackgroundUpload } = props;
+  const { toolbar, subToolbar, leftDrawer, rightPanel, bottomDock, background, onBackgroundChange, onBackgroundUpload, logoUrl } = props;
 
   const initialStart = () => {
     const start = new Date(computeInitialStartWeek(weeks));
@@ -773,6 +793,8 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const [bgUploading, setBgUploading] = useState(false);
   const [bgUploadError, setBgUploadError] = useState<string | null>(null);
   const bgFileInputRef = useRef<HTMLInputElement>(null);
+  const [brandPalette, setBrandPalette] = useState<[string, string, string] | null>(null);
+  const [brandStatus, setBrandStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [labelsExpanded, setLabelsExpanded] = useState(false);
   const [collapsedWeeks, setCollapsedWeeks] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -874,6 +896,35 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
     }
   };
 
+  // Read the logo's colours the first time the picker opens (and again if the logo changes).
+  useEffect(() => {
+    setBrandPalette(null);
+    setBrandStatus('idle');
+  }, [logoUrl]);
+
+  useEffect(() => {
+    if (!showBgPicker || !logoUrl || brandPalette || brandStatus !== 'idle') return;
+    let cancelled = false;
+    setBrandStatus('loading');
+    extractLogoPalette(logoUrl)
+      .then((palette) => {
+        if (cancelled) return;
+        setBrandPalette(palette);
+        setBrandStatus('idle');
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        logger.error('Could not read logo colours:', err);
+        setBrandStatus('error');
+      });
+    return () => {
+      cancelled = true;
+      // Closed (or logo changed) mid-read: let the next open try again.
+      setBrandStatus((s) => (s === 'loading' ? 'idle' : s));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showBgPicker, logoUrl, brandPalette === null]);
+
   const toggleDensity = () => {
     const next: Density = density === 'cover' ? 'compact' : 'cover';
     setDensity(next);
@@ -945,6 +996,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
     normalizeToWeekStart(weekStart).getTime() === normalizeToWeekStart(new Date()).getTime();
 
   const bg = resolveBoardBackground(bgId);
+  const currentBrand = isBrandBoardBackground(bgId);
   const activePost = activeId
     ? columns.flatMap((c) => c.entries).find((e) => e.type === 'post' && postKeyOf(e.post) === activeId)
     : undefined;
@@ -1007,48 +1059,115 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
               <Palette className="w-4 h-4" />
             </button>
             {showBgPicker && (
-              <div className="absolute right-0 top-full mt-2 w-64 p-3 rounded-lg bg-white shadow-xl text-gray-800 z-20">
+              <div className="absolute right-0 top-full mt-2 w-[19rem] max-h-[min(70vh,560px)] overflow-y-auto p-3 rounded-xl bg-white shadow-2xl ring-1 ring-black/5 text-gray-800 z-20">
                 <p className="text-xs font-semibold text-gray-500 mb-2 flex items-center gap-1">
                   <ImageIcon className="w-3.5 h-3.5" />
                   Board background
                 </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {BOARD_BACKGROUNDS.map((b) => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      onClick={() => selectBg(b.id)}
-                      className={`h-12 rounded-md relative overflow-hidden ${b.id === bgId ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
-                      style={b.style}
-                      title={b.label}
-                    >
-                      {b.id === bgId && <Check className="absolute inset-0 m-auto w-4 h-4 text-white drop-shadow" />}
-                    </button>
-                  ))}
-                  {isCustomBoardBackground(bgId) && (
-                    <button
-                      type="button"
-                      onClick={() => setShowBgPicker(false)}
-                      className="h-12 rounded-md relative overflow-hidden ring-2 ring-blue-500 ring-offset-1"
-                      style={bg.style}
-                      title="Your photo"
-                    >
-                      <Check className="absolute inset-0 m-auto w-4 h-4 text-white drop-shadow" />
-                    </button>
+
+                {/* Brand — gradients generated from the client's logo colours. */}
+                <div className="mb-3 rounded-lg bg-gray-50 p-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      Brand
+                    </span>
+                    {brandPalette && (
+                      <div className="flex items-center gap-1.5">
+                        {brandPalette.map((c) => (
+                          <span key={c} className="w-3.5 h-3.5 rounded-full ring-1 ring-black/10" style={{ backgroundColor: c }} title={c} />
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setBrandPalette((p) => (p ? [p[1], p[2], p[0]] : p))}
+                          className="p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-200 transition-colors"
+                          title="Shuffle colour order"
+                        >
+                          <Shuffle className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {brandPalette ? (
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {BRAND_STYLES.map((s) => {
+                        const value = brandBackgroundValue(s.id, brandPalette);
+                        const selected = value === bgId;
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => selectBg(value)}
+                            className={`h-10 rounded-md relative overflow-hidden ${selected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                            style={brandBackgroundStyle(s.id, brandPalette)}
+                            title={s.label}
+                          >
+                            {selected && <Check className="absolute inset-0 m-auto w-4 h-4 text-white drop-shadow" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                      {brandStatus === 'loading' && <Loader2 className="w-3 h-3 animate-spin" />}
+                      {!logoUrl
+                        ? 'Add a client logo to get backgrounds in their brand colours.'
+                        : brandStatus === 'error'
+                          ? "Couldn't read colours from the logo."
+                          : 'Reading logo colours…'}
+                    </p>
                   )}
-                  {onBackgroundUpload && (
-                    <button
-                      type="button"
-                      onClick={() => bgFileInputRef.current?.click()}
-                      disabled={bgUploading}
-                      className="h-12 rounded-md border-2 border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex flex-col items-center justify-center text-[10px] font-medium disabled:opacity-60"
-                      title="Upload your own photo"
-                    >
-                      {bgUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                      {bgUploading ? 'Uploading…' : 'Your photo'}
-                    </button>
+                  {/* The saved brand theme, when it came from an older logo or a shuffle not shown above. */}
+                  {currentBrand && !(brandPalette && BRAND_STYLES.some((s) => brandBackgroundValue(s.id, brandPalette) === bgId)) && (
+                    <p className="mt-1.5 text-[11px] text-gray-500 flex items-center gap-1.5">
+                      <span className="w-6 h-4 rounded ring-2 ring-blue-500" style={bg.style} />
+                      Current: {bg.label}
+                    </p>
                   )}
                 </div>
+
+                {BG_SECTIONS.map(({ group, label }) => (
+                  <div key={group} className="mb-3 last:mb-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1.5">{label}</p>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {BOARD_BACKGROUNDS.filter((b) => b.group === group).map((b) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => selectBg(b.id)}
+                          className={`h-10 rounded-md relative overflow-hidden ${b.id === bgId ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                          style={b.style}
+                          title={b.label}
+                        >
+                          {b.id === bgId && <Check className="absolute inset-0 m-auto w-4 h-4 text-white drop-shadow" />}
+                        </button>
+                      ))}
+                      {group === 'photo' && isCustomBoardBackground(bgId) && (
+                        <button
+                          type="button"
+                          onClick={() => setShowBgPicker(false)}
+                          className="h-10 rounded-md relative overflow-hidden ring-2 ring-blue-500 ring-offset-1"
+                          style={bg.style}
+                          title="Your photo"
+                        >
+                          <Check className="absolute inset-0 m-auto w-4 h-4 text-white drop-shadow" />
+                        </button>
+                      )}
+                      {group === 'photo' && onBackgroundUpload && (
+                        <button
+                          type="button"
+                          onClick={() => bgFileInputRef.current?.click()}
+                          disabled={bgUploading}
+                          className="h-10 rounded-md border-2 border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex flex-col items-center justify-center text-[10px] font-medium disabled:opacity-60"
+                          title="Upload your own photo"
+                        >
+                          {bgUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                          {bgUploading ? 'Uploading…' : 'Upload'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
                 {bgUploadError && <p className="mt-2 text-xs text-red-600">{bgUploadError}</p>}
                 {onBackgroundUpload && (
                   <input

@@ -2380,6 +2380,7 @@ export default function PortalCalendarPage() {
             background={(client?.portal_settings?.board_background as string | undefined) ?? null}
             onBackgroundChange={saveBoardBackground}
             onBackgroundUpload={uploadBoardBackground}
+            logoUrl={client?.logo_url}
             contentEvents={contentEventsByDate}
             toolbar={
               <>

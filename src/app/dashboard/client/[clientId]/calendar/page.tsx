@@ -3069,6 +3069,7 @@ export default function CalendarPage() {
               background={boardBackground}
               onBackgroundChange={saveBoardBackground}
               onBackgroundUpload={uploadBoardBackground}
+              logoUrl={clientLogoUrl}
             />
           </div>
         </div>
