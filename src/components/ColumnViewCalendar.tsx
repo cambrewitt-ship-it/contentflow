@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { Calendar, Clock, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Trash2, Loader2, MessageCircle, Copy, Pencil, Check, X, Tag, FileText, CalendarDays, Sparkles } from 'lucide-react';
+import { Calendar, Clock, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Trash2, Loader2, MessageCircle, Copy, Pencil, Check, Minus, X, Tag, FileText, CalendarDays, Sparkles } from 'lucide-react';
 import { CarouselMedia } from '@/components/CarouselMedia';
 import { PlatformBadges } from '@/components/PlatformBadges';
 import { PublishStatusBadge } from '@/components/PublishStatusBadge';
@@ -1472,6 +1472,21 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
           {columns.map((column, index) => {
             const isCurrent = isCurrentWeek(column.weekStart);
             const opacityClass = 'opacity-100';
+            // Select-all for the week: covers the selectable posts in this column (client uploads can't be selected).
+            const selectablePostIds = column.entries
+              .filter((e): e is Extract<WeekEntry, { type: 'post' }> => e.type === 'post')
+              .filter((e) => !(e.post.post_type === 'client-upload' || e.post.post_type === 'client_upload' || e.post.isClientUpload))
+              .map((e) => e.post.id);
+            const selectedCount = selectablePostIds.filter((id) => selectedPosts?.has(id)).length;
+            const allSelected = selectablePostIds.length > 0 && selectedCount === selectablePostIds.length;
+            const someSelected = selectedCount > 0 && !allSelected;
+            const toggleSelectWeek = () => {
+              if (!onTogglePostSelection) return;
+              // Toggle only the posts whose state differs, so the whole week ends up selected (or cleared).
+              selectablePostIds
+                .filter((id) => (selectedPosts?.has(id) ?? false) === allSelected)
+                .forEach((id) => onTogglePostSelection(id));
+            };
             
             return (
               <div
@@ -1487,6 +1502,24 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
                       {formatWeekCommencing(column.weekStart)}
                       {isCurrent && ' (CURRENT)'}
                     </h3>
+                    {onTogglePostSelection && selectablePostIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={toggleSelectWeek}
+                        className="p-1 rounded hover:bg-white/15 transition-colors"
+                        title={allSelected ? 'Deselect all posts this week' : 'Select all posts this week'}
+                        aria-label={allSelected ? 'Deselect all posts this week' : 'Select all posts this week'}
+                        aria-pressed={allSelected ? true : someSelected ? 'mixed' : false}
+                      >
+                        <span
+                          className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
+                            allSelected || someSelected ? 'bg-blue-500 border-blue-400 text-white' : 'bg-white/10 border-white/70 text-transparent'
+                          }`}
+                        >
+                          {someSelected ? <Minus className="w-3 h-3" /> : <Check className="w-3 h-3" />}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
