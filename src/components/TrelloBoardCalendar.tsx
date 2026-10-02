@@ -26,6 +26,8 @@ import {
   ChevronsLeftRight,
   Upload,
   X,
+  FileText,
+  CalendarDays,
 } from 'lucide-react';
 import {
   DndContext,
@@ -39,6 +41,7 @@ import {
   useSensors,
   closestCorners,
   useDroppable,
+  useDraggable,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -47,6 +50,7 @@ import {
   computeInitialStartWeek,
   normalizeToWeekStart,
   DateDivider,
+  EventChips,
   type ColumnViewCalendarProps,
   type ColumnViewCalendarHandle,
   type ClientUpload,
@@ -68,6 +72,7 @@ import {
   type BrandStyle,
 } from '@/lib/boardBackgrounds';
 import { extractLogoPalette } from '@/lib/logoPalette';
+import { EVENT_COLOR_CLASSES } from '@/components/CalendarEventModal';
 
 export { BOARD_BACKGROUNDS };
 
@@ -767,6 +772,260 @@ function BoardList({
   );
 }
 
+const MONTH_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+// A post in a month-grid day cell: a small Trello-style card that can be dragged to another day.
+function MonthPostCard({
+  post,
+  density,
+  isSelected,
+  isDeleting,
+  formatTimeTo12Hour,
+  onPostClick,
+  onTogglePostSelection,
+}: {
+  post: Post;
+  density: Density;
+  isSelected: boolean;
+  isDeleting: boolean;
+  formatTimeTo12Hour?: (time24: string) => string;
+  onPostClick?: (post: Post) => void;
+  onTogglePostSelection?: (postId: string) => void;
+}) {
+  const isUpload = isUploadPost(post);
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: postKeyOf(post),
+    disabled: isUpload,
+    data: { dateKey: post.scheduled_date || '' },
+  });
+
+  const upload = (post.client_upload || post.upload || null) as ClientUpload | null;
+  const coverUrl: string | undefined = isUpload ? upload?.file_url ?? post.image_url : post.media_urls?.[0] ?? post.image_url;
+  const coverIsVideo = isUpload ? upload?.file_type?.startsWith('video/') ?? false : coverUrl ? isVideoUrl(coverUrl) : false;
+  const text = (isUpload ? upload?.notes || '' : post.caption || '').trim();
+  const status = isUpload ? (upload?.one_time_approval?.approval_status as string | undefined) : post.approval_status;
+  const approval = status ? APPROVAL_STYLES[status] ?? APPROVAL_STYLES.pending : null;
+  const publish = isUpload ? null : getPublishStatus(post as any);
+  const time = post.scheduled_time
+    ? formatTimeTo12Hour
+      ? formatTimeTo12Hour(post.scheduled_time)
+      : fallbackFormatTime(post.scheduled_time)
+    : '';
+  const showCover = density === 'cover' && coverUrl;
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={() => onPostClick?.(post)}
+      title={text || undefined}
+      className={`group/card relative rounded-md bg-white ${TRELLO_SHADOW} hover:ring-2 hover:ring-[#388bff] transition-shadow cursor-pointer overflow-hidden ${
+        isDragging ? 'opacity-40' : ''
+      } ${isDeleting ? 'opacity-50 pointer-events-none' : ''} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+    >
+      {!isUpload && onTogglePostSelection && (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onTogglePostSelection(post.id);
+          }}
+          className={`absolute top-1 right-1 z-10 w-5 h-5 rounded flex items-center justify-center shadow-sm border transition ${
+            isSelected
+              ? 'bg-blue-600 border-blue-600 text-white opacity-100'
+              : 'bg-white/95 border-gray-300 text-transparent hover:text-gray-400 opacity-0 group-hover/card:opacity-100'
+          }`}
+          title={isSelected ? 'Deselect post' : 'Select post'}
+        >
+          <Check className="w-3 h-3" />
+        </button>
+      )}
+
+      {showCover && (
+        <div className="relative w-full h-20 bg-[#dcdfe4]">
+          {coverIsVideo ? (
+            <VideoThumbnail src={coverUrl} className="w-full h-full" objectFit="cover" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={coverUrl}
+              alt=""
+              loading="lazy"
+              draggable={false}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.src = '/api/placeholder/100/100';
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      <div className={`px-1.5 py-1 flex items-center gap-1.5 ${showCover ? '' : 'pr-6'}`}>
+        {!showCover && coverUrl && !coverIsVideo && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={coverUrl} alt="" loading="lazy" draggable={false} className="w-6 h-6 rounded object-cover flex-shrink-0" />
+        )}
+        <span className="min-w-0 flex-1 truncate text-xs text-[#172b4d]">
+          {text || <span className="italic text-[#626f86]">{isUpload ? 'Client upload' : 'No caption'}</span>}
+        </span>
+      </div>
+
+      {(time || approval || publish) && (
+        <div className="px-1.5 pb-1 flex flex-wrap items-center gap-1 text-[10px] text-[#44546f]">
+          {time && <span>{time}</span>}
+          {approval && <span className={`px-1 rounded font-medium ${approval.className}`}>{approval.label}</span>}
+          {publish && (
+            <span className={`px-1 rounded font-semibold text-white ${publish.isPosted ? 'bg-green-500' : 'bg-indigo-500'}`}>
+              {publish.isPosted ? 'Posted' : 'Scheduled'}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One day in the month grid. Takes dnd-kit drops (moving a post between days) and native drops
+// (dragging a post in from the posts tray).
+function MonthDayCell({
+  dayDate,
+  dateKey,
+  posts,
+  inMonth,
+  isToday,
+  isDragOver,
+  density,
+  props,
+}: {
+  dayDate: Date;
+  dateKey: string;
+  posts: Post[];
+  inMonth: boolean;
+  isToday: boolean;
+  isDragOver: boolean;
+  density: Density;
+  props: ColumnViewCalendarProps;
+}) {
+  const { setNodeRef } = useDroppable({ id: `month-day-${dateKey}`, data: { dateKey } });
+  const [isNativeDragOver, setIsNativeDragOver] = useState(false);
+  const dayEvents = props.events?.[dateKey] ?? [];
+  const contentEvents = props.contentEvents?.[dateKey] ?? [];
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-board-list
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsNativeDragOver(true);
+      }}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        setIsNativeDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        const related = e.relatedTarget as Node;
+        if (!related || !(e.currentTarget as Node).contains(related)) setIsNativeDragOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsNativeDragOver(false);
+        props.onDrop?.(e, dateKey);
+      }}
+      className={`group/day min-w-0 min-h-[120px] flex flex-col rounded-lg p-1.5 transition-colors ${
+        inMonth ? 'bg-[#e9ebee]' : 'bg-[#e9ebee]/50'
+      } ${isNativeDragOver || isDragOver ? 'bg-blue-100 ring-2 ring-blue-400' : ''} ${isToday ? 'ring-2 ring-[#0c66e4]' : ''}`}
+    >
+      <div className="flex items-center justify-between gap-1 mb-1 px-0.5">
+        <span
+          className={`text-xs font-semibold leading-5 ${
+            isToday
+              ? 'min-w-5 h-5 px-1 rounded-full bg-[#0c66e4] text-white text-center'
+              : inMonth
+                ? 'text-[#172b4d]'
+                : 'text-[#8590a2]'
+          }`}
+        >
+          {dayDate.getDate() === 1 && !isToday
+            ? dayDate.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })
+            : dayDate.getDate()}
+        </span>
+        <div className="flex items-center gap-0.5 opacity-0 group-hover/day:opacity-100 focus-within:opacity-100 transition-opacity">
+          {props.onEventAdd && (
+            <button
+              type="button"
+              onClick={() => props.onEventAdd?.(dateKey)}
+              className="px-1 py-0.5 text-[10px] font-medium text-[#44546f] rounded hover:bg-[#091e4224] hover:text-purple-700"
+              title="Mark event or note"
+            >
+              + Note
+            </button>
+          )}
+          {props.onAddCardClick && (
+            <button
+              type="button"
+              onClick={() => props.onAddCardClick?.(normalizeToWeekStart(dayDate))}
+              className="p-0.5 rounded text-[#44546f] hover:bg-[#091e4224] hover:text-[#172b4d]"
+              title="Add a post"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {contentEvents.length > 0 && (
+        <div className="mb-1">
+          <EventChips events={contentEvents} />
+        </div>
+      )}
+
+      {dayEvents.length > 0 && (
+        <div className="mb-1 space-y-0.5">
+          {dayEvents.map((evt) => {
+            const cls = EVENT_COLOR_CLASSES[evt.color] ?? EVENT_COLOR_CLASSES['purple'];
+            return (
+              <button
+                key={evt.id}
+                type="button"
+                onClick={() => props.onEventClick?.(evt)}
+                className={`w-full text-left px-1.5 py-0.5 rounded text-[11px] font-medium truncate border ${cls.bg} ${cls.text} ${cls.border} hover:opacity-80 transition-opacity`}
+                title={evt.notes ?? evt.title}
+              >
+                <span className="inline-flex items-center gap-1 max-w-full">
+                  {evt.type === 'note' ? <FileText className="w-2.5 h-2.5 flex-shrink-0" /> : <CalendarDays className="w-2.5 h-2.5 flex-shrink-0" />}
+                  <span className="truncate">{evt.title}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="space-y-1">
+        {posts.map((post) => {
+          const isUpload = isUploadPost(post);
+          return (
+            <MonthPostCard
+              key={postKeyOf(post)}
+              post={post}
+              density={density}
+              isSelected={props.selectedPosts?.has(post.id) ?? false}
+              isDeleting={(isUpload ? props.deletingUploadIds : props.deletingPostIds)?.has(post.id) ?? false}
+              formatTimeTo12Hour={props.formatTimeTo12Hour}
+              onPostClick={props.onPostClick}
+              onTogglePostSelection={props.onTogglePostSelection}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export interface TrelloBoardCalendarProps extends ColumnViewCalendarProps {
   /** Controls rendered in the board's top bar (view toggle, events, exit, …). */
   toolbar?: React.ReactNode;
@@ -792,6 +1051,8 @@ export interface TrelloBoardCalendarProps extends ColumnViewCalendarProps {
   onBackgroundUpload?: (imageData: string, filename: string) => Promise<string | null>;
   /** The client's logo; its colours drive the "Brand" backgrounds in the picker. */
   logoUrl?: string | null;
+  /** 'weeks' = Trello-style week lists; 'month' = a month grid on the same board. */
+  layout?: 'weeks' | 'month';
 }
 
 export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBoardCalendarProps>(function TrelloBoardCalendar(
@@ -800,6 +1061,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
 ) {
   const { weeks, scheduledPosts, clientUploads = {}, events = {}, contentEvents, loading, clientId, formatWeekCommencing } = props;
   const { toolbar, subToolbar, leftDrawer, rightPanel, bottomDock, background, onBackgroundChange, onBackgroundUpload, logoUrl } = props;
+  const isMonth = props.layout === 'month';
 
   const initialStart = () => {
     const start = new Date(computeInitialStartWeek(weeks));
@@ -808,6 +1070,11 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   };
 
   const [startWeek, setStartWeek] = useState<Date>(initialStart);
+  // First day of the month shown in the month layout.
+  const [month, setMonth] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const hasInitializedStartWeek = useRef(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
@@ -851,6 +1118,26 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
     [startWeek, scheduledPosts, clientUploads, events, contentEvents]
   );
 
+  // Month layout: whole weeks (Mon–Sun) covering the month, reusing the board's week builder.
+  const monthWeeks = useMemo(() => {
+    if (!isMonth) return [];
+    const gridStart = normalizeToWeekStart(month);
+    const lastDay = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+    const weekCount = Math.round((normalizeToWeekStart(lastDay).getTime() - gridStart.getTime()) / (7 * 86400000)) + 1;
+    return buildWeekColumns(gridStart, weekCount, scheduledPosts, clientUploads, events, contentEvents).map((week) => {
+      const days = Array.from({ length: 7 }, (_, i) => {
+        const dayDate = new Date(week.weekStart);
+        dayDate.setDate(week.weekStart.getDate() + i);
+        const dateKey = dayDate.toLocaleDateString('en-CA');
+        const posts = week.entries
+          .filter((e): e is Extract<WeekEntry, { type: 'post' }> => e.type === 'post' && e.dateKey === dateKey)
+          .map((e) => e.post);
+        return { dayDate, dateKey, posts };
+      });
+      return { weekStart: week.weekStart, days };
+    });
+  }, [isMonth, month, scheduledPosts, clientUploads, events, contentEvents]);
+
   const sensors = useSensors(
     // Mouse drags after a small move; touch needs a long-press so a swipe still scrolls the board
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -858,6 +1145,10 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   );
 
   const navigate = (direction: 'left' | 'right') => {
+    if (isMonth) {
+      setMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + (direction === 'left' ? -1 : 1), 1));
+      return;
+    }
     setStartWeek((prev) => {
       const next = new Date(prev);
       next.setDate(next.getDate() + (direction === 'left' ? -7 : 7));
@@ -867,6 +1158,8 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   };
 
   const goToToday = () => {
+    const now = new Date();
+    setMonth(new Date(now.getFullYear(), now.getMonth(), 1));
     const start = normalizeToWeekStart(new Date());
     start.setDate(start.getDate() - 7);
     setStartWeek(start);
@@ -885,9 +1178,10 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
 
   // The lists remount whenever a load finishes (the spinner replaces them), which resets the scroll.
   useEffect(() => {
-    if (loading) return;
+    if (loading || isMonth) return;
     requestAnimationFrame(() => scrollToCurrentWeek('auto'));
-  }, [loading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, isMonth]);
 
   useImperativeHandle(ref, () => ({ navigate }));
 
@@ -1059,8 +1353,14 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const visiblePhotos =
     showAllPhotos || selectedPhotoIndex >= collapsedPhotoCount ? photoBackgrounds : photoBackgrounds.slice(0, collapsedPhotoCount);
   const activePost = activeId
-    ? columns.flatMap((c) => c.entries).find((e) => e.type === 'post' && postKeyOf(e.post) === activeId)
+    ? isMonth
+      ? monthWeeks
+          .flatMap((w) => w.days.flatMap((d) => d.posts))
+          .map((post) => ({ type: 'post' as const, post }))
+          .find((e) => postKeyOf(e.post) === activeId)
+      : columns.flatMap((c) => c.entries).find((e) => e.type === 'post' && postKeyOf(e.post) === activeId)
     : undefined;
+  const todayKey = new Date().toLocaleDateString('en-CA');
 
   return (
     <div className="relative w-full h-full flex flex-col overflow-hidden" style={bg.style}>
@@ -1074,7 +1374,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
             type="button"
             onClick={() => navigate('left')}
             className="p-1.5 rounded-md hover:bg-white/20 transition-colors"
-            title="Previous week"
+            title={isMonth ? 'Previous month' : 'Previous week'}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -1089,12 +1389,14 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
             type="button"
             onClick={() => navigate('right')}
             className="p-1.5 rounded-md hover:bg-white/20 transition-colors"
-            title="Next week"
+            title={isMonth ? 'Next month' : 'Next week'}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
           <span className="ml-2 text-base font-bold tracking-tight hidden md:inline">
-            {formatWeekCommencing(columns[0]?.weekStart ?? startWeek)} – {formatWeekCommencing(columns[columns.length - 1]?.weekStart ?? startWeek)}
+            {isMonth
+              ? month.toLocaleDateString('en-NZ', { month: 'long', year: 'numeric' })
+              : `${formatWeekCommencing(columns[0]?.weekStart ?? startWeek)} – ${formatWeekCommencing(columns[columns.length - 1]?.weekStart ?? startWeek)}`}
           </span>
         </div>
 
@@ -1232,38 +1534,69 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div
-              ref={scrollRef}
-              className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden calendar-hscroll snap-x snap-mandatory md:snap-none"
-              onMouseDown={onPanStart}
-              onMouseMove={onPanMove}
-              onMouseUp={onPanEnd}
-              onMouseLeave={onPanEnd}
-            >
-              {/* Bottom padding keeps the last cards clear of the floating dock. */}
-              <div className={`h-full flex items-start gap-3 p-3 w-max ${bottomDock ? 'pb-20' : ''}`}>
-                {columns.map((column) => (
-                  <BoardList
-                    key={column.weekStart.toISOString()}
-                    weekStart={column.weekStart}
-                    entries={column.entries}
-                    title={formatWeekCommencing(column.weekStart)}
-                    isCurrent={isCurrentWeek(column.weekStart)}
-                    density={density}
-                    dragOverDateKey={dragOverDay}
-                    labelsExpanded={labelsExpanded}
-                    onToggleLabels={toggleLabels}
-                    collapsed={collapsedWeeks.has(column.weekStart.toISOString())}
-                    onToggleCollapsed={() => toggleCollapsed(column.weekStart.toISOString())}
-                    props={props}
-                  />
-                ))}
+            {isMonth ? (
+              <div className="flex-1 min-w-0 overflow-auto calendar-hscroll p-3">
+                <div className={`min-w-[720px] rounded-xl bg-[#f1f2f4] ${TRELLO_SHADOW} p-2 ${bottomDock ? 'mb-16' : ''}`}>
+                  <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+                    {MONTH_WEEKDAYS.map((d) => (
+                      <div key={d} className="px-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#44546f]">
+                        {d}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {monthWeeks.flatMap((week) =>
+                      week.days.map((day) => (
+                        <MonthDayCell
+                          key={day.dateKey}
+                          dayDate={day.dayDate}
+                          dateKey={day.dateKey}
+                          posts={day.posts}
+                          inMonth={day.dayDate.getMonth() === month.getMonth()}
+                          isToday={day.dateKey === todayKey}
+                          isDragOver={dragOverDay === day.dateKey}
+                          density={density}
+                          props={props}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div
+                ref={scrollRef}
+                className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden calendar-hscroll snap-x snap-mandatory md:snap-none"
+                onMouseDown={onPanStart}
+                onMouseMove={onPanMove}
+                onMouseUp={onPanEnd}
+                onMouseLeave={onPanEnd}
+              >
+                {/* Bottom padding keeps the last cards clear of the floating dock. */}
+                <div className={`h-full flex items-start gap-3 p-3 w-max ${bottomDock ? 'pb-20' : ''}`}>
+                  {columns.map((column) => (
+                    <BoardList
+                      key={column.weekStart.toISOString()}
+                      weekStart={column.weekStart}
+                      entries={column.entries}
+                      title={formatWeekCommencing(column.weekStart)}
+                      isCurrent={isCurrentWeek(column.weekStart)}
+                      density={density}
+                      dragOverDateKey={dragOverDay}
+                      labelsExpanded={labelsExpanded}
+                      onToggleLabels={toggleLabels}
+                      collapsed={collapsedWeeks.has(column.weekStart.toISOString())}
+                      onToggleCollapsed={() => toggleCollapsed(column.weekStart.toISOString())}
+                      props={props}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
             <DragOverlay>
               {activePost && activePost.type === 'post' ? (
-                <div className="w-[284px] rotate-3 rounded-lg bg-white shadow-2xl px-3 py-2 text-sm text-[#172b4d] line-clamp-3">
+                <div className={`${isMonth ? 'w-[160px] text-xs' : 'w-[284px] text-sm'} rotate-3 rounded-lg bg-white shadow-2xl px-3 py-2 text-[#172b4d] line-clamp-3`}>
                   {activePost.post.caption || 'Post'}
                 </div>
               ) : null}

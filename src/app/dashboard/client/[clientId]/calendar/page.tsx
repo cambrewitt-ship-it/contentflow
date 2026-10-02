@@ -5,7 +5,6 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, KanbanSquare, AlertCircle, FileDown, ArrowLeft, ArrowRight, Smartphone, Inbox } from 'lucide-react';
 import { Check, X, AlertTriangle, Minus } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
-import { MonthViewCalendar } from '@/components/MonthViewCalendar';
 import { ColumnViewCalendar, type ColumnViewCalendarHandle } from '@/components/ColumnViewCalendar';
 import { TrelloBoardCalendar } from '@/components/TrelloBoardCalendar';
 import { CalendarEventModal, type CalendarEvent } from '@/components/CalendarEventModal';
@@ -215,7 +214,6 @@ export default function CalendarPage() {
   const [editingTimePostIds, setEditingTimePostIds] = useState<Set<string>>(new Set());
   const [savingCaptionPostIds, setSavingCaptionPostIds] = useState<Set<string>>(new Set());
   const [resubmittingPostIds, setResubmittingPostIds] = useState<Set<string>>(new Set());
-  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   const [editingCaptions, setEditingCaptions] = useState<Record<string, string>>({});
   const [postDetailModal, setPostDetailModal] = useState<ClientPostDetailItem | null>(null);
@@ -233,6 +231,8 @@ export default function CalendarPage() {
   }, []);
   const calendarScrollRef = useRef<HTMLDivElement>(null);
   const columnViewRef = useRef<ColumnViewCalendarHandle>(null);
+  // Month and Board share the board shell (background, top bar, posts tray); only the grid differs.
+  const isBoardShell = viewMode === 'board' || viewMode === 'month';
 
   // Restore the last calendar view the user picked.
   useEffect(() => {
@@ -715,26 +715,6 @@ export default function CalendarPage() {
     return monday;
   }, [clientTimezone]);
 
-  // Calculate week offset for a given date in client's timezone
-  const getWeekOffsetForDate = useCallback((date: Date) => {
-    const clientDate = new Date(date.toLocaleString("en-US", {timeZone: clientTimezone}));
-    const currentWeekStart = getStartOfWeek(0);
-    
-    // Calculate the difference in days
-    const diffTime = clientDate.getTime() - currentWeekStart.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
-    // Calculate week offset (positive for future weeks, negative for past weeks)
-    return Math.floor(diffDays / 7);
-  }, [clientTimezone, getStartOfWeek]);
-
-  // Handle date click from month view
-  const handleDateClick = (date: Date) => {
-    const weekOffset = getWeekOffsetForDate(date);
-    setWeekOffset(weekOffset);
-    setViewMode('column');
-  };
-
   // Fetch projects for the client
   const fetchProjects = useCallback(async () => {
     try {
@@ -939,31 +919,6 @@ export default function CalendarPage() {
     } catch (error) {
       console.log('Could not set custom drag image:', error);
       // Continue with default drag behavior if custom image fails
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDragEnter = (e: React.DragEvent, dateKey: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverDate(dateKey);
-  };
-
-  const handleDragLeave = (e: React.DragEvent, _dateKey: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    // Only clear drag-over state if we're actually leaving the container
-    // (not just entering a child element)
-    const relatedTarget = e.relatedTarget as Node;
-    const currentTarget = e.currentTarget as Node;
-    
-    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
-      setDragOverDate(null);
     }
   };
 
@@ -1656,140 +1611,6 @@ export default function CalendarPage() {
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to update date');
       return false;
-    }
-  };
-
-  // Month view drop handler - converts Date to the format expected by handleDrop/handleMovePost
-  const handleMonthViewDrop = async (e: React.DragEvent, date: Date) => {
-    e.preventDefault();
-    setDragOverDate(null); // Clear drag over state
-    
-    const scheduledPostData = e.dataTransfer.getData('scheduledPost');
-    const unscheduledPostData = e.dataTransfer.getData('post');
-    
-    if (scheduledPostData) {
-      // Moving a scheduled post
-      const post: Post = JSON.parse(scheduledPostData);
-      const newDateKey = date.toLocaleDateString('en-CA');
-      
-      // Set loading state
-      setMovingPostId(post.id);
-      
-      try {
-        const accessToken = requireAccessToken();
-        await fetch('/api/calendar/scheduled', {
-          method: 'PATCH',
-          headers: { 
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json' 
-          },
-          body: JSON.stringify({
-            postId: post.id,
-            updates: {
-              scheduled_date: newDateKey
-            }
-          })
-        });
-        
-        // Update the post in local state
-        const oldDateKey = post.scheduled_date;
-        
-        setScheduledPosts(prev => {
-          const updated = { ...prev };
-          
-          // Remove from old date
-          if (oldDateKey && updated[oldDateKey]) {
-            updated[oldDateKey] = updated[oldDateKey].filter(p => p.id !== post.id);
-            if (updated[oldDateKey].length === 0) {
-              delete updated[oldDateKey];
-            }
-          }
-          
-          // Add to new date
-          if (!updated[newDateKey]) {
-            updated[newDateKey] = [];
-          }
-          updated[newDateKey].push({
-            ...post,
-            scheduled_date: newDateKey
-          });
-          
-          return updated;
-        });
-        
-      } catch (error) {
-        console.error('Error moving post:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        setError(`Failed to move post: ${errorMessage}`);
-      } finally {
-        setMovingPostId(null);
-      }
-    } else if (unscheduledPostData) {
-      // Scheduling an unscheduled post
-      const post = JSON.parse(unscheduledPostData);
-      const time = '12:00'; // Default to noon
-      
-      // Set loading state
-      setMovingPostId(post.id);
-      
-      const scheduledDate = date.toLocaleDateString('en-CA');
-      const scheduledTime = time + ':00';
-      
-      try {
-        const requestBody = {
-          unscheduledId: post.id,
-          scheduledPost: {
-            project_id: post.project_id,
-            client_id: clientId,
-            caption: post.caption,
-            image_url: post.image_url,
-            media_urls: post.media_urls ?? null,
-            post_notes: post.post_notes,
-            scheduled_date: scheduledDate,
-            scheduled_time: scheduledTime
-          }
-        };
-        
-        const accessToken = requireAccessToken();
-        const response = await fetch('/api/calendar/scheduled', {
-          method: 'POST',
-          headers: { 
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json' 
-          },
-          body: JSON.stringify(requestBody)
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to schedule post: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        
-        // Update state
-        // Remove from unscheduled posts (projectPosts contains the unscheduled posts)
-        setProjectPosts((prevPosts: Post[]) => prevPosts.filter((p: Post) => p.id !== post.id));
-        
-        // Add to scheduled posts for the target date
-        const newScheduledPost = {
-          ...post,
-          id: data.post.id,
-          scheduled_date: scheduledDate,
-          scheduled_time: scheduledTime
-        };
-        
-        setScheduledPosts(prevScheduled => ({
-          ...prevScheduled,
-          [scheduledDate]: [...(prevScheduled[scheduledDate] || []), newScheduledPost]
-        }));
-        
-      } catch (error) {
-        console.error('Error scheduling post:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        setError(`Failed to schedule post: ${errorMessage}`);
-      } finally {
-        setMovingPostId(null);
-      }
     }
   };
 
@@ -3003,15 +2824,16 @@ export default function CalendarPage() {
   );
 
   return (
-    <div className={`${viewMode === 'board' ? 'h-full' : 'min-h-screen'} bg-background`}>
+    <div className={`${isBoardShell ? 'h-full' : 'min-h-screen'} bg-background`}>
       {/* Board (beta) — Trello-style view. It fills the page's content area so the app sidebar and
           top bar stay visible; the posts tray and action bar are always shown. Remove this block + TrelloBoardCalendar.tsx to drop it. */}
-      {viewMode === 'board' && (
+      {isBoardShell && (
         <div className="h-full flex flex-col">
           <div className="flex-1 min-h-0">
             <TrelloBoardCalendar
               ref={columnViewRef}
               {...sharedCalendarProps}
+              layout={viewMode === 'month' ? 'month' : 'weeks'}
               toolbar={
                 <>
                   <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-black/20">
@@ -3074,7 +2896,7 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
-      <div className={`p-6 pb-8 ${viewMode === 'board' && !error ? 'hidden' : ''}`}>
+      <div className={`p-6 pb-8 ${isBoardShell && !error ? 'hidden' : ''}`}>
       {/* Error Display */}
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -3101,14 +2923,14 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {viewMode !== 'board' && renderActionBar('default')}
+      {!isBoardShell && renderActionBar('default')}
 
         {/* Main Layout: Sidebar + Calendar Content (the Board view renders its own, above) */}
-        <div className={`flex gap-6 relative min-w-0 ${viewMode === 'board' ? 'hidden' : ''}`} style={viewMode === 'month' ? { minHeight: 'calc(100vh - 200px)' } : { height: 'calc(100vh - 200px)' }}>
+        <div className={`flex gap-6 relative min-w-0 ${isBoardShell ? 'hidden' : ''}`} style={{ height: 'calc(100vh - 200px)' }}>
           {/* Left Sidebar - Posts in Project (Vertical) */}
           <div
             className="bg-white rounded-lg shadow transition-all duration-300 flex flex-col w-36 flex-shrink-0 sticky top-0"
-            style={viewMode === 'month' ? { height: 'calc(100vh - 200px)', alignSelf: 'flex-start' } : { height: 'calc(100vh - 200px)' }}
+            style={{ height: 'calc(100vh - 200px)' }}
           >
             {postsTrayContent}
           </div>
@@ -3119,69 +2941,9 @@ export default function CalendarPage() {
         {/* Calendar */}
         <div
           ref={calendarScrollRef}
-          className={`bg-white rounded-lg shadow flex-1 min-h-0 min-w-0 flex flex-col ${viewMode === 'month' ? 'overflow-auto' : 'overflow-hidden'}`}
+          className="bg-white rounded-lg shadow flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden"
         >
-          {viewMode === 'month' ? (
-            <>
-              <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center justify-center">
-                {/* View Toggle */}
-                <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                  <button
-                    onClick={() => setViewMode('month')}
-                    className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                      viewMode === 'month'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <Calendar className="w-4 h-4" />
-                    Month
-                  </button>
-                  <button
-                    onClick={() => setViewMode('column')}
-                    className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                      viewMode === 'column'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <Columns className="w-4 h-4" />
-                    Column
-                  </button>
-                  <button
-                    onClick={() => setViewMode('board')}
-                    className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
-                    title="Trello-style board (beta)"
-                  >
-                    <KanbanSquare className="w-4 h-4" />
-                    Board
-                    <span className="px-1 py-px rounded bg-blue-100 text-blue-700 text-[9px] font-semibold uppercase leading-none">Beta</span>
-                  </button>
-                </div>
-                <button
-                  onClick={() => setShowFeedPreview(true)}
-                  className="ml-3 px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 border text-gray-600 hover:text-gray-900 border-gray-200"
-                >
-                  <Smartphone className="w-4 h-4" />
-                  Feed preview
-                </button>
-              </div>
-              <MonthViewCalendar
-                  posts={Object.values(scheduledPosts).flat()}
-                  uploads={clientUploads}
-                  events={calendarEvents}
-                  loading={isLoadingScheduledPosts}
-                  onDateClick={handleDateClick}
-                  onEventAdd={handleOpenEventModal}
-                  onEventClick={handleEditEvent}
-                  onDragOver={handleDragOver}
-                  onDragEnter={handleDragEnter}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleMonthViewDrop}
-                  dragOverDate={dragOverDate}
-                />
-            </>
-            ) : viewMode === 'board' ? (
+          {isBoardShell ? (
               <div className="flex-1" />
             ) : (
               <>
@@ -3199,11 +2961,7 @@ export default function CalendarPage() {
                     <div className="flex items-center bg-gray-100 rounded-lg p-1">
                       <button
                         onClick={() => setViewMode('month')}
-                        className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
-                          viewMode === 'month'
-                            ? 'bg-white text-gray-900 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                        }`}
+                        className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
                       >
                         <Calendar className="w-4 h-4" />
                         Month
