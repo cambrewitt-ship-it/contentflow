@@ -820,6 +820,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const bgFileInputRef = useRef<HTMLInputElement>(null);
   const bgPickerRef = useRef<HTMLDivElement>(null);
   const [showAllColours, setShowAllColours] = useState(false);
+  const [showAllPhotos, setShowAllPhotos] = useState(false);
   const [brandPalette, setBrandPalette] = useState<[string, string, string] | null>(null);
   const [brandStatus, setBrandStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [labelsExpanded, setLabelsExpanded] = useState(false);
@@ -1052,6 +1053,11 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const selectedColourIndex = colourBackgrounds.findIndex((b) => b.id === effectiveBgId);
   const visibleColours =
     showAllColours || selectedColourIndex >= COLLAPSED_COLOUR_COUNT ? colourBackgrounds : colourBackgrounds.slice(0, COLLAPSED_COLOUR_COUNT);
+  // Two rows collapsed, counting the Upload tile when there is one.
+  const collapsedPhotoCount = onBackgroundUpload ? COLLAPSED_COLOUR_COUNT - 1 : COLLAPSED_COLOUR_COUNT;
+  const selectedPhotoIndex = photoBackgrounds.findIndex((b) => b.id === effectiveBgId);
+  const visiblePhotos =
+    showAllPhotos || selectedPhotoIndex >= collapsedPhotoCount ? photoBackgrounds : photoBackgrounds.slice(0, collapsedPhotoCount);
   const activePost = activeId
     ? columns.flatMap((c) => c.entries).find((e) => e.type === 'post' && postKeyOf(e.post) === activeId)
     : undefined;
@@ -1162,7 +1168,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
                 )}
 
                 <BgSection label="Photos">
-                  {photoBackgrounds.map((b) => (
+                  {visiblePhotos.map((b) => (
                     <BgTile key={b.id} label={b.label} style={b.style} selected={b.id === effectiveBgId} onClick={() => selectBg(b.id)} />
                   ))}
                   {isCustomBoardBackground(effectiveBgId) && <BgTile label="Your photo" style={bg.style} selected onClick={() => {}} />}
@@ -1179,6 +1185,15 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
                     </button>
                   )}
                 </BgSection>
+                {visiblePhotos.length < photoBackgrounds.length && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllPhotos(true)}
+                    className="-mt-1 mb-3 w-full py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700 transition-colors"
+                  >
+                    See more
+                  </button>
+                )}
                 {bgUploadError && <p className="-mt-1 text-xs text-red-600">{bgUploadError}</p>}
                 {onBackgroundUpload && (
                   <input

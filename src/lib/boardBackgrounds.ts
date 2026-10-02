@@ -25,6 +25,15 @@ const glow = (color: string, at: string, size = '55%') => `radial-gradient(at ${
 // longhands, which React can't reconcile cleanly.
 const mesh = (base: string, ...layers: string[]): CSSProperties => ({ background: [...layers, base].join(', ') });
 
+// An Unsplash photo with a matching solid colour underneath.
+const photo = (id: string, label: string, unsplashId: string, fallback: string): BoardBackground => ({
+  id,
+  label,
+  group: 'photo',
+  isPhoto: true,
+  style: { background: `url(https://images.unsplash.com/photo-${unsplashId}?auto=format&fit=crop&w=2400&q=70) center/cover ${fallback}` },
+});
+
 export const BOARD_BACKGROUNDS: BoardBackground[] = [
   // Classic two-stop gradients.
   { id: 'ocean', label: 'Ocean', group: 'classic', style: { background: 'linear-gradient(135deg, #0079bf 0%, #5067c5 100%)' } },
@@ -108,28 +117,18 @@ export const BOARD_BACKGROUNDS: BoardBackground[] = [
     style: mesh('#bfdbfe', glow('#f0f9ff', '0% 0%'), glow('#93c5fd', '100% 0%'), glow('#c7d2fe', '100% 100%'), glow('#a7f3d0', '0% 100%')),
   },
 
-  // Photos.
-  {
-    id: 'mountains',
-    label: 'Mountains',
-    group: 'photo',
-    isPhoto: true,
-    style: { background: 'url(https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=2400&q=70) center/cover' },
-  },
-  {
-    id: 'beach',
-    label: 'Beach',
-    group: 'photo',
-    isPhoto: true,
-    style: { background: 'url(https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2400&q=70) center/cover' },
-  },
-  {
-    id: 'leaves',
-    label: 'Leaves',
-    group: 'photo',
-    isPhoto: true,
-    style: { background: 'url(https://images.unsplash.com/photo-1470058869958-2a77ade41c02?auto=format&fit=crop&w=2400&q=70) center/cover' },
-  },
+  // Photos (Unsplash), calmest first. The colour under each shows while it loads, or if the photo ever fails.
+  photo('fog', 'Misty hills', '1470071459604-3b5ec3a7fe05', '#4a5a4f'),
+  photo('forest-mist', 'Misty forest', '1418065460487-3e41a6c84dc5', '#3f4b4a'),
+  photo('night-sky', 'Night sky', '1519681393784-d120267933ba', '#1c2540'),
+  photo('snow-peaks', 'Snow peaks', '1464822759023-fed622ff2c3b', '#5d6f86'),
+  photo('haze', 'Haze', '1579546929518-9e396f3cc809', '#8a7fb8'),
+  photo('deep-blue', 'Deep blue', '1557683316-973673baf926', '#1f3a68'),
+  photo('lilac', 'Lilac', '1557682250-33bd709cbe85', '#6b4fa0'),
+  photo('mountains', 'Mountains', '1506905925346-21bda4d32df4', '#3b4a6b'),
+  photo('beach', 'Beach', '1507525428034-b723cf961d3e', '#5a8fb0'),
+  photo('leaves', 'Leaves', '1470058869958-2a77ade41c02', '#2f5d3a'),
+  photo('rolling-green', 'Rolling green', '1501854140801-50d01698950b', '#3d5a3a'),
 ];
 
 export const DEFAULT_BOARD_BACKGROUND = 'ocean';
