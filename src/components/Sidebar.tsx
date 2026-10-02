@@ -26,6 +26,7 @@ import {
   Settings,
 } from "lucide-react";
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { isSingleClientTier } from "@/lib/tierUtils";
 
@@ -52,6 +53,13 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
   const router = useRouter();
   const { getThemeClasses } = useUIThemeStyles();
   const { user, getAccessToken } = useAuth();
+
+  // Href of a nav item that was just clicked. Highlights it immediately
+  // instead of waiting for the route transition to finish.
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
   
   // Determine if Home button should be shown based on subscription tier
   // Single-client tiers (Free, In-House) don't need a Home button
@@ -289,28 +297,15 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
             )}>Navigation</h3>
           )}
           <nav className="space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link key={item.name} href={item.href}>
-                  <Button
-                    variant={item.active ? "secondary" : "ghost"}
-                    className={getThemeClasses(
-                      `w-full ${collapsed ? 'justify-center px-2' : 'justify-start'} ${
-                        item.active ? "bg-blue-50 text-blue-700 border-blue-200" : "text-gray-700 hover:bg-gray-50"
-                      }`,
-                      `w-full ${collapsed ? 'justify-center px-2' : 'justify-start'} glass-button ${
-                        item.active ? "glass-text-primary" : "glass-text-secondary hover:glass-text-primary"
-                      }`
-                    )}
-                    title={collapsed ? item.name : undefined}
-                  >
-                    <Icon className={`w-4 h-4 ${collapsed ? '' : 'mr-2'}`} />
-                    {!collapsed && item.name}
-                  </Button>
-                </Link>
-              );
-            })}
+            {navItems.map((item) => (
+              <SidebarNavItem
+                key={item.name}
+                {...item}
+                active={pendingHref ? pendingHref === item.href : item.active}
+                collapsed={collapsed}
+                onNavigate={() => setPendingHref(item.href)}
+              />
+            ))}
           </nav>
         </div>
       )}
@@ -365,32 +360,15 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                 icon: Settings,
                 active: !!pathname?.includes("/autopilot-settings"),
               },
-            ].map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link key={item.name} href={item.href}>
-                  <Button
-                    variant={item.active ? "secondary" : "ghost"}
-                    className={getThemeClasses(
-                      `w-full ${collapsed ? "justify-center px-2" : "justify-start"} ${
-                        item.active
-                          ? "bg-blue-50 text-blue-700 border-blue-200"
-                          : "text-gray-700 hover:bg-gray-50"
-                      }`,
-                      `w-full ${collapsed ? "justify-center px-2" : "justify-start"} glass-button ${
-                        item.active
-                          ? "glass-text-primary"
-                          : "glass-text-secondary hover:glass-text-primary"
-                      }`
-                    )}
-                    title={collapsed ? item.name : undefined}
-                  >
-                    <Icon className={`w-4 h-4 ${collapsed ? "" : "mr-2"}`} />
-                    {!collapsed && item.name}
-                  </Button>
-                </Link>
-              );
-            })}
+            ].map((item) => (
+              <SidebarNavItem
+                key={item.name}
+                {...item}
+                active={pendingHref ? pendingHref === item.href : item.active}
+                collapsed={collapsed}
+                onNavigate={() => setPendingHref(item.href)}
+              />
+            ))}
           </nav>
         </div>
       )}
@@ -577,5 +555,53 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
         </div>
       )}
     </div>
+  );
+}
+
+interface SidebarNavItemProps {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  active: boolean;
+  collapsed: boolean;
+  onNavigate: () => void;
+}
+
+function SidebarNavItem({ name, href, icon: Icon, active, collapsed, onNavigate }: SidebarNavItemProps) {
+  const { getThemeClasses } = useUIThemeStyles();
+
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      aria-label={collapsed ? name : undefined}
+      aria-current={active ? "page" : undefined}
+      className={getThemeClasses(
+        `group relative flex h-9 w-full items-center rounded-md text-sm font-medium outline-none transition-colors duration-75 active:scale-95 focus-visible:ring-2 focus-visible:ring-blue-500 ${
+          collapsed ? "justify-center px-2" : "justify-start px-3"
+        } ${
+          active
+            ? "bg-blue-50 text-blue-700"
+            : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+        }`,
+        `group relative flex h-9 w-full items-center rounded-md text-sm font-medium outline-none transition-colors duration-75 active:scale-95 focus-visible:ring-2 focus-visible:ring-white/50 glass-button ${
+          collapsed ? "justify-center px-2" : "justify-start px-3"
+        } ${
+          active ? "glass-text-primary" : "glass-text-secondary hover:glass-text-primary"
+        }`
+      )}
+    >
+      <Icon className={`w-4 h-4 shrink-0 ${collapsed ? "" : "mr-2"}`} />
+      {!collapsed && name}
+      {/* Instant tooltip in collapsed mode (native title tooltips lag ~1s) */}
+      {collapsed && (
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-75 group-hover:opacity-100 group-focus-visible:opacity-100"
+        >
+          {name}
+        </span>
+      )}
+    </Link>
   );
 }
