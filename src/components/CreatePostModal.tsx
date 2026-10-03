@@ -129,6 +129,7 @@ function CreatePostModalContent({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existingPost, setExistingPost] = useState<UnscheduledPostOption | null>(null);
+  const [existingCaption, setExistingCaption] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const showChatWindow = chatMode && !customMode && chatMessages.length > 0;
@@ -246,6 +247,11 @@ function CreatePostModalContent({
     }
   };
 
+  const pickExistingPost = (post: UnscheduledPostOption | null) => {
+    setExistingPost(post);
+    setExistingCaption(post?.caption ?? '');
+  };
+
   const showPostPicker = !!onScheduleExisting && unscheduledPosts.length > 0;
   const existingMedia = existingPost
     ? ((existingPost.media_urls?.length ?? 0) > 1 ? (existingPost.media_urls as string[]) : [existingPost.image_url].filter(Boolean))
@@ -261,7 +267,7 @@ function CreatePostModalContent({
       setIsSubmitting(true);
       setError(null);
       try {
-        await onScheduleExisting(existingPost, selectedDateKey, selectedTime);
+        await onScheduleExisting({ ...existingPost, caption: existingCaption }, selectedDateKey, selectedTime);
         clearAll();
         onClose();
       } catch (err) {
@@ -362,7 +368,7 @@ function CreatePostModalContent({
                 platform={selectedPlatform}
                 accountName={accountName || "Your Account"}
                 accountAvatarUrl={accountAvatarUrl}
-                caption={existingPost ? existingPost.caption : activeCaptionText}
+                caption={existingPost ? existingCaption : activeCaptionText}
                 imageUrl={existingPost ? existingMedia[0] : activeImage?.blobUrl || activeImage?.preview}
                 mediaUrls={existingPost ? existingMedia : previewUrls}
                 carouselIndex={existingPost ? 0 : activeIndex}
@@ -454,12 +460,12 @@ function CreatePostModalContent({
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
                     <Inbox className="w-3.5 h-3.5" />
-                    Use a post from your Posts
+                    Use a post from your Drafts
                   </p>
                   {existingPost && (
                     <button
                       type="button"
-                      onClick={() => setExistingPost(null)}
+                      onClick={() => pickExistingPost(null)}
                       className="text-xs font-medium text-blue-600 hover:text-blue-700"
                     >
                       Create a new post instead
@@ -473,7 +479,7 @@ function CreatePostModalContent({
                       <button
                         key={post.id}
                         type="button"
-                        onClick={() => setExistingPost(isPicked ? null : post)}
+                        onClick={() => pickExistingPost(isPicked ? null : post)}
                         className={`relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
                           isPicked ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-blue-300'
                         }`}
@@ -496,9 +502,17 @@ function CreatePostModalContent({
                   })}
                 </div>
                 {existingPost ? (
-                  <p className="text-xs text-gray-600 mt-2 line-clamp-3 whitespace-pre-wrap">
-                    {existingPost.caption || <span className="italic text-gray-400">No caption</span>}
-                  </p>
+                  <div className="mt-3 space-y-1">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Caption</p>
+                    <Textarea
+                      value={existingCaption}
+                      onChange={(e) => setExistingCaption(e.target.value)}
+                      placeholder="Write a caption..."
+                      rows={6}
+                      className="text-sm resize-y"
+                    />
+                    <p className="text-[11px] text-gray-400 text-right">{existingCaption.length} characters</p>
+                  </div>
                 ) : (
                   <p className="text-[11px] text-gray-500 mt-1.5">Pick one to schedule it, or build a new post below.</p>
                 )}
