@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ImageIcon, ChevronLeft, ChevronRight, Link2 } from 'lucide-react'
 import {
   FacebookIcon,
   InstagramIcon,
@@ -12,6 +12,7 @@ import {
   ThreadsIcon,
 } from '@/components/social-icons'
 import { isVideoUrl } from '@/lib/videoUtils'
+import { extractFirstUrl, linkHostname } from '@/lib/linkUtils'
 
 interface SocialPreviewCardProps {
   platform: 'facebook' | 'instagram' | 'twitter' | 'linkedin' | 'tiktok' | 'youtube' | 'threads'
@@ -59,6 +60,21 @@ export function SocialPreviewCard({
   }
   const activeImageUrl = allMedia ? allMedia[carouselIndex] : imageUrl
   const isActiveVideo = !!activeImageUrl && isVideoUrl(activeImageUrl)
+  // Text-only posts that share a link show a link card where the image would go
+  const sharedLink = activeImageUrl ? null : extractFirstUrl(caption)
+
+  const renderLinkCard = (className = '') =>
+    sharedLink ? (
+      <div className={`flex items-center gap-3 bg-gray-50 border border-gray-200 px-3 py-3 ${className}`}>
+        <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
+          <Link2 className="w-5 h-5 text-gray-500" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500 truncate">{linkHostname(sharedLink)}</p>
+          <p className="text-xs text-gray-700 truncate">{sharedLink}</p>
+        </div>
+      </div>
+    ) : null
 
   const displayName = accountName || (
     platform === 'facebook'  ? 'Your Facebook Page'
@@ -195,6 +211,8 @@ export function SocialPreviewCard({
             </>
           )}
         </div>
+      ) : sharedLink ? (
+        renderLinkCard('border-x-0')
       ) : (
         <div className="h-44 bg-gray-100 flex items-center justify-center border-y-2 border-dashed border-gray-200">
           <div className="text-center text-gray-400">
@@ -306,7 +324,7 @@ export function SocialPreviewCard({
         <div className="aspect-square bg-gray-100 flex items-center justify-center border-y border-gray-200">
           <div className="text-center text-gray-400">
             <ImageIcon className="w-10 h-10 mx-auto mb-1 opacity-40" />
-            <p className="text-xs">Image preview</p>
+            <p className="text-xs">{sharedLink ? 'Instagram needs a photo or video' : 'Image preview'}</p>
           </div>
         </div>
       )}
@@ -366,6 +384,8 @@ export function SocialPreviewCard({
                 </>
               )}
             </div>
+          ) : sharedLink ? (
+            renderLinkCard('mt-2 rounded-2xl')
           ) : (
             <div className="mt-2 rounded-2xl bg-gray-100 flex items-center justify-center border border-dashed border-gray-200" style={{ minHeight: '140px' }}>
               <div className="text-center text-gray-400">
@@ -488,6 +508,8 @@ export function SocialPreviewCard({
           )}
           <CarouselControls />
         </div>
+      ) : sharedLink ? (
+        renderLinkCard('border-x-0')
       ) : (
         <div className="h-44 bg-gray-100 flex items-center justify-center border-y border-gray-200">
           <div className="text-center text-gray-400">

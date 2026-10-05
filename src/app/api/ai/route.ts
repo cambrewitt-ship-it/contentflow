@@ -14,10 +14,19 @@ import { detectPromptLeakage, logLeakageIncident } from '@/lib/ai-monitoring';
 import { resolvePortalToken } from '@/lib/portalAuth';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { BRAND_VOICE_COLUMNS, resolveBrandVoice, formatTovPromptSection } from '@/lib/brandVoice';
+import { extractFirstUrl, fetchArticleContext, formatArticlePromptSection, formatUnreadableLinkPromptSection } from '@/lib/articleFetcher';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+// When Post Notes contain a link, fetch the page so the AI can write about it (it can't open links itself)
+async function getSharedLinkPromptSection(aiContext?: string): Promise<string> {
+  const url = extractFirstUrl(aiContext);
+  if (!url) return '';
+  const article = await fetchArticleContext(url);
+  return article ? formatArticlePromptSection(article) : formatUnreadableLinkPromptSection(url);
+}
 
 function getCopyToneInstructions(copyTone: string) {
   const toneMap: Record<string, string> = {
@@ -428,7 +437,7 @@ export async function POST(request: NextRequest) {
         result = await generateCaptions(
           openai,
           supabase,
-          body.imageData as string,
+          body.imageData as string | undefined,
           body.existingCaptions as string[] | undefined,
           (body.aiContext ?? (body as Record<string, unknown>).postNotes) as
             | string
@@ -593,7 +602,7 @@ async function callOpenAIWithRetry(openai: OpenAI, params: any, maxRetries = 3) 
 async function generateCaptions(
   openai: OpenAI,
   supabase: SupabaseClient,
-  imageData: string,
+  imageData: string | undefined,
   existingCaptions: string[] = [],
   aiContext?: string,
   clientId?: string,
@@ -603,21 +612,27 @@ async function generateCaptions(
   imageFocus?: 'main-focus' | 'supporting' | 'background' | 'none'
 ) {
   try {
-    const isVideoPlaceholder = imageData === 'VIDEO_PLACEHOLDER' || imageData === '';
-    const isVideo = isVideoPlaceholder;
+    const isVideo = imageData === 'VIDEO_PLACEHOLDER';
+    // No visual to analyse: a video, or a text-only post (e.g. resharing an article link)
+    const isVideoPlaceholder = isVideo || !imageData;
 
     let validation: { isValid: boolean; type: 'base64' | 'blob' | 'invalid' } = { isValid: true, type: 'base64' };
     if (!isVideoPlaceholder) {
-      const mediaValidation = isValidMediaData(imageData);
+      const mediaValidation = isValidMediaData(imageData as string);
       if (!mediaValidation.isValid) {
         throw new Error('Invalid media data - must be blob URL or base64');
       }
-      validation = isValidImageData(imageData);
+      validation = isValidImageData(imageData as string);
     }
 
     if (isVideo && !aiContext?.trim()) {
       throw new Error('Post Notes are required for video content. AI cannot analyze videos visually.');
     }
+    if (isVideoPlaceholder && !aiContext?.trim()) {
+      throw new Error('Add Post Notes or a link to generate copy for a post without an image.');
+    }
+
+    const sharedLinkSection = await getSharedLinkPromptSection(aiContext);
 
     let brandContext: Awaited<ReturnType<typeof getBrandContext>> | null = null;
     if (clientId) {
@@ -683,6 +698,7 @@ Brand Context: ${brandContext?.company || 'Not specified'} | Tone: ${brandContex
 ${formatTovPromptSection(brandContext?.tov ?? null)}
 ${brandContext?.dos ? `✅ ALWAYS INCLUDE: ${brandContext.dos}` : ''}
 ${brandContext?.donts ? `❌ NEVER INCLUDE: ${brandContext.donts}` : ''}
+${sharedLinkSection}
 ${getAntiAiSlopGuidelines()}
 
 Write professional email copy now.`
@@ -714,7 +730,9 @@ ${aiContext ? `Post Notes: ${aiContext}\n\nProcessing: ${getPostNotesInstruction
 
 ${brandContextSection}
 
-${getImageInstructions(imageFocus || 'supporting')}
+${sharedLinkSection}
+
+${isVideoPlaceholder && !isVideo ? 'There is no image for this post — it is a text-only post. Do not describe or refer to an image.' : getImageInstructions(imageFocus || 'supporting')}
 ${getAntiAiSlopGuidelines()}
 
 Write the 3 captions now. Output only the caption text, nothing else.`;
@@ -1144,6 +1162,8 @@ async function chatCaption(
       }
     }
 
+    const sharedLinkSection = await getSharedLinkPromptSection(aiContext);
+
     const systemPrompt = `You are a social media copywriter iterating on captions through a conversation.
 
 CRITICAL OUTPUT RULES:
@@ -1153,6 +1173,8 @@ CRITICAL OUTPUT RULES:
 - Each caption is separated by one blank line
 
 ${brandContextSection ? `BRAND CONTEXT:\n${brandContextSection}` : ''}
+${sharedLinkSection}
+${!imageData ? 'There is no image for this post — it is a text-only post. Do not describe or refer to an image.' : ''}
 ${getAntiAiSlopGuidelines()}
 
 Apply the user's instruction precisely while keeping captions on-brand. Write only caption text now.`;

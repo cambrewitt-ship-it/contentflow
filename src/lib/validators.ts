@@ -243,7 +243,7 @@ export const aiRequestSchema = z.discriminatedUnion('action', [
   // Caption generation
   z.object({
     action: z.literal('generate_captions'),
-    imageData: z.string().min(1, 'Image data is required'),
+    imageData: z.string().optional(), // Optional - text-only posts (e.g. a shared article link) have no image
     existingCaptions: z.array(sanitizedString(5000)).max(10).optional(),
     aiContext: optionalSanitizedString(2000),
     clientId: uuidSchema.optional(),

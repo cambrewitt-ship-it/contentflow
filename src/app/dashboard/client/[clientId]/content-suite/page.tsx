@@ -542,11 +542,7 @@ export default function ContentSuitePage({ params }: PageProps) {
       return false
     }
     
-    if (uploadedImages.length === 0) {
-      alert('Please upload an image for your post')
-      return false
-    }
-    
+    // No images is fine — that's a text-only post (e.g. copy + an article link)
     setIsSendingToScheduler(true)
     
     try {
@@ -576,7 +572,7 @@ export default function ContentSuitePage({ params }: PageProps) {
 
         return url
       })
-      const imageUrl = mediaUrls[0]
+      const imageUrl: string | null = mediaUrls[0] ?? null
       const carouselUrls = mediaUrls.length > 1 ? mediaUrls : null
 
       console.log('✅ Using media URLs:', mediaUrls.length)
@@ -604,7 +600,7 @@ export default function ContentSuitePage({ params }: PageProps) {
         
         console.log('Sending scheduled post to calendar API:', { 
           ...scheduledPostData, 
-          image_url: imageUrl.substring(0, 50) + '...' 
+          image_url: imageUrl ? imageUrl.substring(0, 50) + '...' : null
         })
         
         // Add to calendar_scheduled_posts via API
@@ -643,7 +639,7 @@ export default function ContentSuitePage({ params }: PageProps) {
         
         console.log('Sending post to calendar API:', { 
           ...postData, 
-          image_url: imageUrl.substring(0, 50) + '...' 
+          image_url: imageUrl ? imageUrl.substring(0, 50) + '...' : null
         })
         
         // Add to calendar_unscheduled_posts via API
@@ -1058,8 +1054,10 @@ function ContentSuiteContent({
 
   // Handler for scheduling posts via modal
   const handleScheduleFromModal = async (date: string, time: string, platform: Platform) => {
-    if (!uploadedImages || uploadedImages.length === 0) {
-      alert('Please upload an image first')
+    // No images = a text-only post (e.g. copy + an article link); some platforms need media
+    const isTextOnly = !uploadedImages || uploadedImages.length === 0
+    if (isTextOnly && ['instagram', 'tiktok', 'youtube'].includes(String(platform.type).toLowerCase())) {
+      alert(`${platform.name} posts need a photo or video. Upload one first, or post this to Facebook, LinkedIn or X.`)
       return
     }
 
@@ -1076,70 +1074,78 @@ function ContentSuiteContent({
     try {
       const accessToken = getAccessToken()
       
-      // Get the active image
-      const activeImage = uploadedImages[0]
-      let imageUrl = activeImage.blobUrl || activeImage.preview
+      // Text-only posts skip the media upload entirely
+      let imageUrl: string | null = null
+      let allMediaUrls: string[] = []
+      let lateMediaUrl: string | undefined
 
-      // Validate image URL
-      if (!imageUrl) {
-        throw new Error('No image URL available. Please wait for the image to finish uploading.')
-      }
+      if (!isTextOnly) {
+        // Get the active image
+        const activeImage = uploadedImages[0]
+        imageUrl = activeImage.blobUrl || activeImage.preview
 
-      if (!imageUrl.startsWith('https://')) {
-        if (imageUrl.startsWith('data:')) {
-          const base64Size = Math.round((imageUrl.length * 3) / 4 / (1024 * 1024))
-          throw new Error(`Image is still processing (${base64Size}MB). Please wait and try again.`)
+        // Validate image URL
+        if (!imageUrl) {
+          throw new Error('No image URL available. Please wait for the image to finish uploading.')
         }
-        if (imageUrl.startsWith('blob:')) {
-          throw new Error('Image is still uploading. Please wait and try again.')
+
+        if (!imageUrl.startsWith('https://')) {
+          if (imageUrl.startsWith('data:')) {
+            const base64Size = Math.round((imageUrl.length * 3) / 4 / (1024 * 1024))
+            throw new Error(`Image is still processing (${base64Size}MB). Please wait and try again.`)
+          }
+          if (imageUrl.startsWith('blob:')) {
+            throw new Error('Image is still uploading. Please wait and try again.')
+          }
+          throw new Error('Invalid image format. Please re-upload the image.')
         }
-        throw new Error('Invalid image format. Please re-upload the image.')
-      }
 
-      // Every photo goes into the post; schedule-post re-hosts photos 2+ on LATE from media_urls
-      const allMediaUrls = uploadedImages.map(img => img.blobUrl || img.preview)
-      if (allMediaUrls.some(url => !url?.startsWith('https://'))) {
-        throw new Error('Photos are still uploading. Please wait and try again.')
-      }
+        // Every photo goes into the post; schedule-post re-hosts photos 2+ on LATE from media_urls
+        const mediaUrls = uploadedImages.map(img => img.blobUrl || img.preview)
+        if (mediaUrls.some(url => !url?.startsWith('https://'))) {
+          throw new Error('Photos are still uploading. Please wait and try again.')
+        }
+        allMediaUrls = mediaUrls as string[]
 
-      // Step 1: Upload image to LATE
-      console.log('Uploading image to LATE...')
-      let imageData = imageUrl
+        // Step 1: Upload image to LATE
+        console.log('Uploading image to LATE...')
+        let imageData = imageUrl
       
-      // Convert blob URL to base64 if needed
-      if (imageUrl.startsWith('blob:')) {
-        try {
-          const response = await fetch(imageUrl)
-          const blob = await response.blob()
-          const reader = new FileReader()
-          imageData = await new Promise<string>((resolve, reject) => {
-            reader.onloadend = () => resolve(reader.result as string)
-            reader.onerror = reject
-            reader.readAsDataURL(blob)
-          })
-        } catch (error) {
-          console.error('Blob conversion failed:', error)
-          throw new Error('Failed to process image')
+        // Convert blob URL to base64 if needed
+        if (imageUrl.startsWith('blob:')) {
+          try {
+            const response = await fetch(imageUrl)
+            const blob = await response.blob()
+            const reader = new FileReader()
+            imageData = await new Promise<string>((resolve, reject) => {
+              reader.onloadend = () => resolve(reader.result as string)
+              reader.onerror = reject
+              reader.readAsDataURL(blob)
+            })
+          } catch (error) {
+            console.error('Blob conversion failed:', error)
+            throw new Error('Failed to process image')
+          }
         }
+
+        const mediaResponse = await fetch('/api/late/upload-media', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({ imageBlob: imageData })
+        })
+
+        if (!mediaResponse.ok) {
+          const errorText = await mediaResponse.text()
+          console.error('Media upload error:', errorText)
+          throw new Error('Failed to upload image to LATE')
+        }
+
+        lateMediaUrl = (await mediaResponse.json()).lateMediaUrl
+        console.log('✅ Image uploaded to LATE successfully')
       }
-
-      const mediaResponse = await fetch('/api/late/upload-media', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({ imageBlob: imageData })
-      })
-
-      if (!mediaResponse.ok) {
-        const errorText = await mediaResponse.text()
-        console.error('Media upload error:', errorText)
-        throw new Error('Failed to upload image to LATE')
-      }
-
-      const { lateMediaUrl } = await mediaResponse.json()
-      console.log('✅ Image uploaded to LATE successfully')
 
       // Step 2: Format date and time for LATE API
       // Convert time from HH:MM format to 24-hour format
@@ -1369,8 +1375,9 @@ function ContentSuiteContent({
 
   // Handler for generating AI captions
   const handleGenerateCaptions = async () => {
-    if (!activeImage) {
-      alert('Please select media first')
+    // No media = text-only post (e.g. resharing an article link), written from Post Notes alone
+    if (!activeImage && !postNotes.trim()) {
+      alert('Upload media, or add Post Notes / paste an article link, first')
       return
     }
 
@@ -1389,8 +1396,8 @@ function ContentSuiteContent({
 
       // For videos: Generate captions based only on post notes (no visual analysis)
       // For images: Generate captions with AI vision analysis + post notes
-      if (isVideoSelected) {
-        await generateAICaptions(activeImage.id, postNotes.trim(), copyType, accessToken)
+      if (isVideoSelected || !activeImage) {
+        await generateAICaptions(activeImage?.id ?? null, postNotes.trim(), copyType, accessToken)
       } else {
         const aiContext = postNotes?.trim() || 'Generate engaging social media captions for this content.'
         await generateAICaptions(activeImage.id, aiContext, copyType, accessToken)
@@ -1411,10 +1418,6 @@ function ContentSuiteContent({
 
   // Handler for remixing captions
   const handleRemixCaption = async (captionId: string) => {
-    if (!activeImage) {
-      alert('Please select an image first')
-      return
-    }
 
     setRemixingCaption(captionId)
     try {
@@ -2424,7 +2427,7 @@ function ContentSuiteContent({
                   {/* Upload media message - left aligned above border line */}
                   {!activeImage && (
                     <p className={`text-xs text-gray-500 mb-1 -mt-4 transition-transform duration-300 ${bounceHelperText ? 'animate-bounce' : ''}`}>
-                      Upload media to enable caption generation
+                      Upload media — or, for a text-only post, paste an article link in Post Notes
                     </p>
                   )}
 
@@ -2518,7 +2521,7 @@ function ContentSuiteContent({
                           value={postNotes}
                           onChange={setPostNotes}
                           onGenerate={handleGenerateText}
-                          disabled={isGeneratingText || !activeImage || (isVideoSelected && !postNotes.trim())}
+                          disabled={isGeneratingText || ((!activeImage || isVideoSelected) && !postNotes.trim())}
                           generating={isGeneratingText}
                           title={`Generate ${copyType === 'social-media' ? 'Social Media' : 'Email Marketing'} Copy`}
                         />
@@ -2526,9 +2529,11 @@ function ContentSuiteContent({
                         {/* Helper text */}
                         <div className="mt-2">
                           <p className="text-xs text-gray-500 text-center">
-                            {chatMode
-                              ? 'Notes are optional — generate captions, then refine them in chat'
-                              : 'AI will analyze your image and Post Notes to generate captions'}
+                            {!activeImage
+                              ? 'No media? Paste an article link or add notes — copy is written from them'
+                              : chatMode
+                                ? 'Notes are optional — generate captions, then refine them in chat'
+                                : 'AI will analyze your image and Post Notes to generate captions'}
                           </p>
                           {isVideoSelected && postNotes.trim() && (
                             <p className="text-xs text-gray-500 text-center">
@@ -2621,7 +2626,7 @@ function ContentSuiteContent({
                           value={chatInput}
                           onChange={setChatInput}
                           onSend={() => sendChatMessage(getAccessToken() || undefined)}
-                          sendDisabled={!chatInput.trim() || chatLoading || !activeImage}
+                          sendDisabled={!chatInput.trim() || chatLoading || (!activeImage && !postNotes.trim())}
                           loading={chatLoading}
                         />
                       </div>

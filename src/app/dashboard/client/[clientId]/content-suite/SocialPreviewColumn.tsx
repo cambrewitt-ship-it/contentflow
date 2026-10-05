@@ -304,8 +304,16 @@ export function SocialPreviewColumn({
       return
     }
 
-    if (!displayCaption || uploadedImages.length === 0) {
-      setScheduleError('Please ensure you have both a caption and image selected')
+    if (!displayCaption) {
+      setScheduleError('Please add a caption before scheduling')
+      return
+    }
+
+    // No media = a text-only post (e.g. copy + an article link); some platforms need media
+    const isTextOnly = uploadedImages.length === 0
+    const mediaOnlyPlatforms = Array.from(selectedPlatforms).filter(p => ['instagram', 'tiktok', 'youtube'].includes(p.toLowerCase()))
+    if (isTextOnly && mediaOnlyPlatforms.length > 0) {
+      setScheduleError(`${mediaOnlyPlatforms.join(', ')} posts need a photo or video. Upload one, or deselect ${mediaOnlyPlatforms.length > 1 ? 'those platforms' : 'that platform'}.`)
       return
     }
 
@@ -351,55 +359,59 @@ export function SocialPreviewColumn({
         throw new Error('No valid accounts selected')
       }
 
-      // Step 1: Upload image to LATE
-      console.log('Uploading image to LATE...')
-      // Carousels publish in thumbnail order, so the first photo is the cover
-      const activeImage = uploadedImages.length > 1
-        ? uploadedImages[0]
-        : (uploadedImages.find(img => img.id === activeImageId) || uploadedImages[0])
-      const allMediaUrls = uploadedImages.map(img => img.blobUrl || img.preview)
-      if (uploadedImages.length > 1 && allMediaUrls.some(url => !url?.startsWith('https://'))) {
-        throw new Error('Photos are still uploading. Please wait and try again.')
-      }
-      let imageData = activeImage.preview
-
-      // Convert blob URL to base64 if needed
-      if (imageData.startsWith('blob:')) {
-        try {
-          const response = await fetch(imageData)
-          const blob = await response.blob()
-          const reader = new FileReader()
-
-          imageData = await new Promise<string>((resolve, reject) => {
-            reader.onloadend = () => resolve(reader.result as string)
-            reader.onerror = reject
-            reader.readAsDataURL(blob)
-          })
-        } catch (error) {
-          console.error('Blob conversion failed:', error)
-          throw new Error('Failed to process image')
-        }
-      }
-
       const accessToken = getAccessToken()
+      const allMediaUrls = uploadedImages.map(img => img.blobUrl || img.preview)
+      let lateMediaUrl: string | null = null
 
-      const mediaResponse = await fetch('/api/late/upload-media', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({ imageBlob: imageData })
-      })
+      // Text-only posts have nothing to upload
+      if (!isTextOnly) {
+        // Step 1: Upload image to LATE
+        console.log('Uploading image to LATE...')
+        // Carousels publish in thumbnail order, so the first photo is the cover
+        const activeImage = uploadedImages.length > 1
+          ? uploadedImages[0]
+          : (uploadedImages.find(img => img.id === activeImageId) || uploadedImages[0])
+        if (uploadedImages.length > 1 && allMediaUrls.some(url => !url?.startsWith('https://'))) {
+          throw new Error('Photos are still uploading. Please wait and try again.')
+        }
+        let imageData = activeImage.preview
 
-      if (!mediaResponse.ok) {
-        const errorText = await mediaResponse.text()
-        console.error('Media upload error:', errorText)
-        throw new Error('Failed to upload image to LATE')
+        // Convert blob URL to base64 if needed
+        if (imageData.startsWith('blob:')) {
+          try {
+            const response = await fetch(imageData)
+            const blob = await response.blob()
+            const reader = new FileReader()
+
+            imageData = await new Promise<string>((resolve, reject) => {
+              reader.onloadend = () => resolve(reader.result as string)
+              reader.onerror = reject
+              reader.readAsDataURL(blob)
+            })
+          } catch (error) {
+            console.error('Blob conversion failed:', error)
+            throw new Error('Failed to process image')
+          }
+        }
+
+        const mediaResponse = await fetch('/api/late/upload-media', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({ imageBlob: imageData })
+        })
+
+        if (!mediaResponse.ok) {
+          const errorText = await mediaResponse.text()
+          console.error('Media upload error:', errorText)
+          throw new Error('Failed to upload image to LATE')
+        }
+
+        lateMediaUrl = (await mediaResponse.json()).lateMediaUrl
+        console.log('✅ Image uploaded to LATE successfully')
       }
-
-      const { lateMediaUrl } = await mediaResponse.json()
-      console.log('✅ Image uploaded to LATE successfully')
 
       // Step 2: Add to calendar database FIRST (so we have a real UUID postId)
       const scheduledDate = scheduledDateTime.toISOString().split('T')[0]
@@ -1589,7 +1601,7 @@ export function SocialPreviewColumn({
         <div className="mt-4">
           <Button
             onClick={() => handleSendToScheduler(displayCaption, uploadedImages)}
-            disabled={updatingPost || !displayCaption.trim() || uploadedImages.length === 0}
+            disabled={updatingPost || !displayCaption.trim()}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
           >
             {updatingPost ? (

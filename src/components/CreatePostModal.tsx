@@ -146,7 +146,8 @@ function CreatePostModalContent({
   const activeImage = uploadedImages.find((img) => img.id === activeImageId);
   const activeIndex = Math.max(0, uploadedImages.findIndex((img) => img.id === activeImageId));
   const previewUrls = uploadedImages.map((img) => img.blobUrl || img.preview);
-  const allUploaded = uploadedImages.length > 0 && uploadedImages.every((img) => img.blobUrl?.startsWith('https://') && !img.uploadFailed);
+  // No photos is fine — that's a text-only post (e.g. copy + an article link)
+  const allUploaded = uploadedImages.every((img) => img.blobUrl?.startsWith('https://') && !img.uploadFailed);
   const hasFailedUpload = uploadedImages.some((img) => img.uploadFailed);
   const selectedCaption = captions.find((c) => selectedCaptions.includes(c.id));
   const activeCaptionText = customMode ? customCaption : (selectedCaption?.text || '');
@@ -204,14 +205,15 @@ function CreatePostModalContent({
   };
 
   const handleGenerateCaptions = async () => {
-    if (!activeImage) return;
+    if (!activeImage && !postNotes.trim()) return;
     setGeneratingCaptions(true);
     setError(null);
     try {
       const accessToken = getAccessToken();
       if (!accessToken) throw new Error('Authentication required. Please log in again.');
       const aiContext = postNotes?.trim() || 'Generate engaging social media captions for this content.';
-      await generateAICaptions(activeImage.id, aiContext, copyType, accessToken);
+      // No photo = text-only post (e.g. resharing an article link) generated from the notes alone
+      await generateAICaptions(activeImage?.id ?? null, aiContext, copyType, accessToken);
     } catch (err) {
       if (!handleCreditError(err)) {
         setError(err instanceof Error ? err.message : 'Failed to generate captions');
@@ -236,9 +238,10 @@ function CreatePostModalContent({
   // to become the chat refine input.
   const isGenerating = chatMode ? chatLoading : generatingCaptions;
   const isVideoWithoutNotes = activeImage?.mediaType === 'video' && !postNotes.trim();
-  const isGenerateDisabled = !activeImage || isGenerating || isVideoWithoutNotes;
+  const isTextOnly = !activeImage;
+  const isGenerateDisabled = (isTextOnly && !postNotes.trim()) || isGenerating || isVideoWithoutNotes;
   const handleGenerateClick = () => {
-    if (!activeImage) return;
+    if (isTextOnly && !postNotes.trim()) return;
     if (chatMode) {
       inputGlide.captureStart();
       handleEnterChatMode(getAccessToken() || undefined).catch((err: unknown) => handleCreditError(err));
@@ -574,6 +577,11 @@ function CreatePostModalContent({
                   if (!isOn) setSelectedPlatform(platform);
                 }}
               />
+              {!existingPost && uploadedImages.length === 0 && targetPlatforms.some((p) => p === 'instagram' || p === 'tiktok') && (
+                <p className="text-[11px] text-amber-600 mt-1.5">
+                  Instagram and TikTok need a photo or video — text-only posts can go to Facebook, LinkedIn or X.
+                </p>
+              )}
             </div>
 
             {/* Caption generation */}
@@ -626,7 +634,9 @@ function CreatePostModalContent({
                   <p className="text-[11px] text-gray-500 text-center mt-1.5">
                     {isVideoWithoutNotes
                       ? 'Add notes describing your video to generate captions'
-                      : chatMode
+                      : isTextOnly
+                        ? 'No photo? Paste an article link or add notes — copy is written from them'
+                        : chatMode
                         ? 'Notes are optional — generate captions, then refine them in chat'
                         : 'AI will analyze your image and your notes to generate captions'}
                   </p>
@@ -650,7 +660,7 @@ function CreatePostModalContent({
                   <div className="space-y-1.5 max-h-56 overflow-y-auto">
                     {captions.length === 0 && (
                       <p className="text-xs text-gray-400 text-center py-4">
-                        {activeImage ? 'Click "Generate Text" above to create captions' : 'Select a photo, then generate captions'}
+                        {activeImage || postNotes.trim() ? 'Click "Generate Text" above to create captions' : 'Add a photo, or paste a link in the notes, then generate captions'}
                       </p>
                     )}
                     {captions.map((cap) => (
@@ -722,7 +732,7 @@ function CreatePostModalContent({
                       value={chatInput}
                       onChange={setChatInput}
                       onSend={() => sendChatMessage(getAccessToken() || undefined)}
-                      sendDisabled={!chatInput.trim() || chatLoading || !activeImage}
+                      sendDisabled={!chatInput.trim() || chatLoading || (isTextOnly && !postNotes.trim())}
                       loading={chatLoading}
                     />
                   </div>

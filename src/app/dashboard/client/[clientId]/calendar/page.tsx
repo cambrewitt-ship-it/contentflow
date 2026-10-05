@@ -25,6 +25,9 @@ import { VideoThumbnail } from '@/components/VideoThumbnail';
 import { isVideoUrl } from '@/lib/videoUtils';
 import { InstagramFeedPreview, buildFeedPreviewItems } from '@/components/InstagramFeedPreview';
 
+// Platforms that reject posts without a photo or video (text-only posts can't go there)
+const MEDIA_REQUIRED_PLATFORMS = ['instagram', 'tiktok', 'youtube'];
+
 // Lazy loading image component
 const LazyImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -2096,65 +2099,69 @@ export default function CalendarPage() {
           isUrl: post.image_url?.startsWith('http')
         });
         
-        // Use image_url directly from database - no need for blob URL conversion
-        console.log('Using image from database...');
-        const base64Image = post.image_url;
+        // No image = a text-only post (e.g. copy + an article link) — schedule it without media
+        let lateMediaUrl: string | null = null;
+        if (!post.image_url && MEDIA_REQUIRED_PLATFORMS.includes(String(account.platform).toLowerCase())) {
+          throw new Error(`${account.platform} posts need a photo or video — this post is text-only`);
+        }
+        if (post.image_url) {
+          // Use image_url directly from database - no need for blob URL conversion
+          console.log('Using image from database...');
+          const base64Image = post.image_url;
         
-        if (!base64Image) {
-          throw new Error('No image found for post');
+          // Check if we still have a blob URL (this shouldn't happen with the updated system)
+          if (base64Image.startsWith('blob:')) {
+            console.error('❌ ERROR: Found blob URL in database image_url field!');
+            console.error('This suggests the post was created before the image_url fix was implemented.');
+            throw new Error('Post contains invalid blob URL. Please recreate this post from Content Suite.');
+          }
+
+          // Additional debugging for image data
+          console.log('🔍 Image data analysis:');
+          console.log('  - Type:', typeof base64Image);
+          console.log('  - Length:', base64Image.length);
+          console.log('  - Starts with data:', base64Image.startsWith('data:'));
+          console.log('  - Starts with data:image:', base64Image.startsWith('data:image'));
+          console.log('  - First 100 chars:', base64Image.substring(0, 100));
+          console.log('  - Last 50 chars:', base64Image.substring(base64Image.length - 50));
+
+          // Step 1: Upload image to LATE
+          console.log('Uploading image to LATE...');
+          console.log('Image URL type:', typeof base64Image);
+          console.log('Image size in bytes:', base64Image?.length || 0);
+
+          const mediaResponse = await fetch('/api/late/upload-media', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({ imageBlob: base64Image })
+          });
+
+          console.log('Media upload response status:', mediaResponse.status);
+
+          if (!mediaResponse.ok) {
+            const errorText = await mediaResponse.text();
+            console.error('Media upload error:', errorText);
+            console.error('Media upload status:', mediaResponse.status);
+            throw new Error(`Media upload failed for post: ${post.caption.slice(0, 30)}... (${mediaResponse.status}): ${errorText}`);
+          }
+        
+          const mediaResponseData = await mediaResponse.json();
+          console.log('🔍 Media upload response data:', JSON.stringify(mediaResponseData, null, 2));
+        
+          lateMediaUrl = mediaResponseData.lateMediaUrl;
+          console.log('🔍 Extracted lateMediaUrl:', lateMediaUrl);
+        
+          if (!lateMediaUrl) {
+            console.error('❌ ERROR: lateMediaUrl is missing or undefined!');
+            console.error('Media response data:', mediaResponseData);
+            throw new Error('Failed to get media URL from LATE API');
+          }
+        
         }
 
-        // Check if we still have a blob URL (this shouldn't happen with the updated system)
-        if (base64Image.startsWith('blob:')) {
-          console.error('❌ ERROR: Found blob URL in database image_url field!');
-          console.error('This suggests the post was created before the image_url fix was implemented.');
-          throw new Error('Post contains invalid blob URL. Please recreate this post from Content Suite.');
-        }
-
-        // Additional debugging for image data
-        console.log('🔍 Image data analysis:');
-        console.log('  - Type:', typeof base64Image);
-        console.log('  - Length:', base64Image.length);
-        console.log('  - Starts with data:', base64Image.startsWith('data:'));
-        console.log('  - Starts with data:image:', base64Image.startsWith('data:image'));
-        console.log('  - First 100 chars:', base64Image.substring(0, 100));
-        console.log('  - Last 50 chars:', base64Image.substring(base64Image.length - 50));
-
-        // Step 1: Upload image to LATE
-        console.log('Uploading image to LATE...');
-        console.log('Image URL type:', typeof base64Image);
-        console.log('Image size in bytes:', base64Image?.length || 0);
-
-        const mediaResponse = await fetch('/api/late/upload-media', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`
-          },
-          body: JSON.stringify({ imageBlob: base64Image })
-        });
-
-        console.log('Media upload response status:', mediaResponse.status);
-
-        if (!mediaResponse.ok) {
-          const errorText = await mediaResponse.text();
-          console.error('Media upload error:', errorText);
-          console.error('Media upload status:', mediaResponse.status);
-          throw new Error(`Media upload failed for post: ${post.caption.slice(0, 30)}... (${mediaResponse.status}): ${errorText}`);
-        }
-        
-        const mediaResponseData = await mediaResponse.json();
-        console.log('🔍 Media upload response data:', JSON.stringify(mediaResponseData, null, 2));
-        
-        const { lateMediaUrl } = mediaResponseData;
-        console.log('🔍 Extracted lateMediaUrl:', lateMediaUrl);
-        
-        if (!lateMediaUrl) {
-          console.error('❌ ERROR: lateMediaUrl is missing or undefined!');
-          console.error('Media response data:', mediaResponseData);
-          throw new Error('Failed to get media URL from LATE API');
-        }
-        
         // Step 2: Schedule via LATE
         const scheduledDateTime = `${post.scheduled_date}T${post.scheduled_time}`;
         const finalCaption = editingCaptions[post.id] || post.caption || '';

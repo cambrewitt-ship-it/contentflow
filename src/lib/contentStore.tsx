@@ -91,7 +91,7 @@ export interface ContentStore {
   updateImageNotes: (id: string, notes: string) => void
   updateCaption: (id: string, text: string) => void
   selectCaption: (id: string) => void
-  generateAICaptions: (imageId: string, notes?: string, copyType?: 'social-media' | 'email-marketing', accessToken?: string) => Promise<void>
+  generateAICaptions: (imageId: string | null, notes?: string, copyType?: 'social-media' | 'email-marketing', accessToken?: string) => Promise<void>
   remixCaption: (captionId: string, accessToken?: string) => Promise<void>
   clearAll: () => void
   clearStorageOnly: () => void
@@ -457,23 +457,30 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     })
   }
 
-  const generateAICaptions = async (imageId: string, notes?: string, copyType?: 'social-media' | 'email-marketing', accessToken?: string) => {
+  const generateAICaptions = async (imageId: string | null, notes?: string, copyType?: 'social-media' | 'email-marketing', accessToken?: string) => {
     try {
-      // Find the image data
-      const image = uploadedImages.find(img => img.id === imageId)
-      if (!image) {
+      // Find the image data. No imageId = a text-only post (e.g. resharing an article link),
+      // generated from the Post Notes alone.
+      const image = imageId ? uploadedImages.find(img => img.id === imageId) : undefined
+      if (imageId && !image) {
         logger.error('Image not found:', imageId)
         return
       }
+      if (!image && !(notes || postNotes)?.trim()) {
+        logger.error('Text-only caption generation needs Post Notes')
+        return
+      }
 
-      const isVideo = image.mediaType === 'video'
+      const isVideo = image?.mediaType === 'video'
 
       // For videos: DON'T send video data (AI can't analyze videos)
       // For images: Convert blob URL to base64 for OpenAI Vision API
       let imageData = ''
       let actualImageSize = 0 // Store actual image size in bytes
       
-      if (isVideo) {
+      if (!image) {
+        imageData = '' // Text-only post — the API skips visual analysis
+      } else if (isVideo) {
         // For videos, we send an empty string or a placeholder since the API won't use it anyway
         // The API route will detect this is a video from the request and skip visual analysis
         imageData = 'VIDEO_PLACEHOLDER' // Placeholder to indicate video content
@@ -614,14 +621,14 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         copyTone: copyTone,
         postNotesStyle: notesInterpretation,
         imageFocus: contentFocus,
-        contentType: isVideo ? 'video' : 'image'
+        contentType: !image ? 'text' : isVideo ? 'video' : 'image'
       }
 
       // Convert request body to string (always needed for fetch)
       let bodyString = JSON.stringify(requestBody)
       
       // Only check request body size for base64 images (URLs are tiny)
-      const isBase64Image = !isVideo && imageData !== 'VIDEO_PLACEHOLDER' && imageData.startsWith('data:')
+      const isBase64Image = !!image && !isVideo && imageData !== 'VIDEO_PLACEHOLDER' && imageData.startsWith('data:')
       
       if (isBase64Image) {
         let bodySizeMB = (bodyString.length / (1024 * 1024)).toFixed(2)
@@ -891,18 +898,19 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
   // Auto-generate the first chat message when entering chat mode
   const initializeChat = async (accessToken?: string) => {
     const activeImage = uploadedImages.find(img => img.id === activeImageId)
-    if (!activeImage || !accessToken) return
+    // Text-only posts (e.g. resharing an article link) generate from Post Notes alone
+    if ((!activeImage && !postNotes.trim()) || !accessToken) return
 
-    const isVideo = activeImage.mediaType === 'video'
-    const imageData = await getImageDataForChat()
-    if (!imageData) return
+    const isVideo = activeImage?.mediaType === 'video'
+    const imageData = activeImage ? await getImageDataForChat() : undefined
+    if (activeImage && !imageData) return
 
     const loadingId = `msg-${Date.now()}`
     setChatMessages([{ id: loadingId, role: 'assistant', content: '', isLoading: true }])
     setChatLoading(true)
 
     try {
-      const aiContext = isVideo
+      const aiContext = isVideo || !activeImage
         ? postNotes.trim()
         : (postNotes?.trim() || 'Generate engaging social media captions for this content.')
 
@@ -954,7 +962,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
   const sendChatMessage = async (accessToken?: string) => {
     const activeImage = uploadedImages.find(img => img.id === activeImageId)
     const instruction = chatInput.trim()
-    if (!instruction || chatLoading || !activeImage) return
+    if (!instruction || chatLoading || (!activeImage && !postNotes.trim())) return
 
     const userMsgId = `msg-user-${Date.now()}`
     const aiMsgId = `msg-ai-${Date.now()}`
@@ -1027,7 +1035,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     const activeImage = uploadedImages.find(img => img.id === activeImageId)
     const isVideo = activeImage?.mediaType === 'video'
     setChatMode(true)
-    if (chatMessages.length === 0 && activeImage) {
+    if (chatMessages.length === 0 && (activeImage || postNotes.trim())) {
       if (isVideo && !postNotes.trim()) {
         setChatMessages([{
           id: `msg-${Date.now()}`,

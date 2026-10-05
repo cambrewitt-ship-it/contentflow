@@ -9,6 +9,8 @@ import { toLateMediaItem, LateUploadError } from '@/lib/lateMedia';
 export const maxDuration = 300;
 
 const PAST_DUE_BUFFER_MS = 60 * 1000;
+// Platforms that reject posts without a photo or video
+const MEDIA_REQUIRED_PLATFORMS = new Set(['instagram', 'tiktok', 'youtube', 'pinterest']);
 
 // Converts a wall-clock "YYYY-MM-DDTHH:mm[:ss]" in an IANA timezone to a UTC timestamp
 function zonedLocalToUtcMs(localDateTime: string, timeZone: string): number {
@@ -57,12 +59,12 @@ export async function POST(request: NextRequest) {
       clientId 
     } = body;
 
-    // Check for required fields
+    // Check for required fields. lateMediaUrl is optional: text-only posts (e.g. copy + an
+    // article link) have no media.
     if (
       !postId ||
       caption === undefined ||
-      caption === null ||
-      !lateMediaUrl
+      caption === null
     ) {
       logger.error('Missing required fields:', {
         postId,
@@ -138,6 +140,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!lateMediaUrl) {
+      const mediaRequired = selectedAccounts.filter((account: { platform: string }) =>
+        MEDIA_REQUIRED_PLATFORMS.has(String(account.platform).toLowerCase())
+      );
+      if (mediaRequired.length > 0) {
+        return NextResponse.json(
+          {
+            error: `${mediaRequired.map((a: { platform: string }) => a.platform).join(', ')} posts need a photo or video. Add one, or post this text-only post to Facebook, LinkedIn or X instead.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const platforms = selectedAccounts.map((account: { platform: string; _id: string }) => ({
       platform: account.platform,
       accountId: account._id
@@ -194,13 +210,17 @@ export async function POST(request: NextRequest) {
       content: finalContent,
       platforms: platforms,
       ...scheduleTiming,
-      mediaItems: [
-        {
-          type: 'image',
-          url: lateMediaUrl
-        },
-        ...extraMediaItems,
-      ]
+      ...(lateMediaUrl
+        ? {
+            mediaItems: [
+              {
+                type: 'image',
+                url: lateMediaUrl
+              },
+              ...extraMediaItems,
+            ],
+          }
+        : {}),
     };
 
     logger.debug('LATE request body', {
