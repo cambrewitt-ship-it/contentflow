@@ -24,6 +24,7 @@ import {
   PenSquare,
   Link2,
   Settings,
+  Telescope,
 } from "lucide-react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
@@ -347,6 +348,12 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                 href: `/dashboard/client/${clientIdFromPath}/autopilot`,
                 icon: Bot,
                 active: !pathname?.includes("/autopilot-settings") && !!pathname?.includes("/autopilot"),
+              },
+              {
+                name: "Competitor Research",
+                href: `/dashboard/client/${clientIdFromPath}/competitor-research`,
+                icon: Telescope,
+                active: !!pathname?.includes("/competitor-research"),
               },
               {
                 name: "Social Accounts",
