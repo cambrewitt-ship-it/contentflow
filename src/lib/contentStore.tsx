@@ -31,6 +31,8 @@ export interface ChatMessage {
   content: string
   captions?: ChatCaption[]
   isLoading?: boolean
+  // A reusable rule the AI distilled from the user's instruction, offered as "Save as rule"
+  suggestedRule?: string
 }
 
 export interface UploadedImage {
@@ -1017,7 +1019,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       const newCaptions: ChatCaption[] = captionTexts.map((text, i) => ({ id: `chat-${aiMsgId}-${i}-${ts}`, text }))
 
       setChatMessages(prev => prev.map(m =>
-        m.id === aiMsgId ? { ...m, captions: newCaptions, isLoading: false } : m
+        m.id === aiMsgId
+          ? { ...m, captions: newCaptions, suggestedRule: data.suggestedRule || undefined, isLoading: false }
+          : m
       ))
     } catch (error) {
       setChatMessages(prev => prev.map(m =>

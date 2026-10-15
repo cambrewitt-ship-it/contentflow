@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { AI_MODEL as MODEL, completionParams } from '@/lib/aiModel';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { formatTovPromptSection } from '@/lib/brandVoice';
 import { formatPlaybookPromptSection } from '@/lib/captionPlaybook';
@@ -14,7 +15,6 @@ import type { RunBrief } from './runBrief';
 
 // Bounded so a slow completion fails with an error instead of hanging the request
 const openai = new OpenAI({ timeout: 45_000, maxRetries: 1 });
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
 export interface CandidateForRevision {
   id: string;
@@ -155,7 +155,7 @@ ${feedback}`;
       { role: 'user', content: user },
     ],
     response_format: { type: 'json_object' },
-    temperature: 0.6,
+    ...completionParams(MODEL, { maxTokens: 2000, temperature: 0.6 }),
   });
 
   let parsed: Record<string, unknown> = {};

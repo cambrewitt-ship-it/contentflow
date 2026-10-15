@@ -22,6 +22,8 @@ import { ContentStoreProvider, ContentFocus, CopyTone } from '@/lib/contentStore
 import { useAuth } from '@/contexts/AuthContext'
 import { SchedulePostModal, Platform } from '@/components/SchedulePostModal'
 import { ChatCaptionOption } from '@/components/ChatCaptionOption'
+import { SuggestedRuleChip } from '@/components/SuggestedRuleChip'
+import CaptionPlaybook from '@/components/CaptionPlaybook'
 import ContentAgentPanel from '@/components/ContentAgentPanel'
 import { publishedCaption } from '@/lib/candidateCaption'
 import type { AutopilotCandidate } from '@/types/autopilot'
@@ -2604,6 +2606,7 @@ function ContentSuiteContent({
                                       onChange={(text) => updateChatCaption(caption.id, text)}
                                     />
                                   ))}
+                                  {msg.suggestedRule && <SuggestedRuleChip clientId={clientId} rule={msg.suggestedRule} />}
                                 </div>
                               )}
 
@@ -3013,6 +3016,8 @@ function ContentSuiteContent({
                 </div>
               </>
             )}
+
+            <CaptionPlaybook clientId={clientId} />
           </div>
 
           <DialogFooter>

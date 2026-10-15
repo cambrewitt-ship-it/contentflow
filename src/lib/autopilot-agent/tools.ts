@@ -59,6 +59,8 @@ export interface RunContext {
   brief: RunBrief | null;
   // The client's caption playbook — rules from the agency's feedback on past posts.
   captionRules: string[];
+  // Approved, published or human-edited captions from the client's calendar.
+  calendarCaptions: string[];
 }
 
 // ── Tool schemas ─────────────────────────────────────────────────────────────
@@ -348,6 +350,7 @@ export function dispatchTool(name: string, argsJson: string, ctx: RunContext): u
         brand_voice_examples: client.brand_voice_examples,
         tone_of_voice_guide: client.brand_tov,
         caption_playbook: ctx.captionRules,
+        approved_calendar_captions: ctx.calendarCaptions,
         region: client.region,
         business_context: client.business_context,
         posting_preferences: client.posting_preferences,

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
+import { analyzeWebsite, formatScrapeForAnalysis, websiteTovSource } from '@/lib/websiteAnalysis';
+
+export const maxDuration = 120;
 
 export async function POST(
   request: NextRequest,
@@ -35,20 +38,35 @@ export async function POST(
       }, { status: 404 });
     }
 
-    // Prepare content for AI analysis
-    const contentForAnalysis = `
-Website: ${scrapeData.url}
-Title: ${scrapeData.page_title || ''}
-Meta Description: ${scrapeData.meta_description || ''}
-Content: ${scrapeData.scraped_content || ''}
-    `.trim();
+    const analysis = await analyzeWebsite(formatScrapeForAnalysis(scrapeData));
 
-    // AI Analysis using OpenAI
-    const analysisResult = await analyzeWebsiteContent(contentForAnalysis);
+    // Save the drafted tone of voice guide, but never over one the agency
+    // uploaded or wrote themselves.
+    let tovSaved = false;
+    if (analysis.brand_tov) {
+      const now = new Date().toISOString();
+      const { data: updated, error: tovError } = await supabase
+        .from('clients')
+        .update({
+          brand_tov: analysis.brand_tov,
+          brand_tov_source_filename: websiteTovSource(scrapeData.url),
+          brand_tov_updated_at: now,
+          updated_at: now,
+        })
+        .eq('id', clientId)
+        .or('brand_tov.is.null,brand_tov.eq.')
+        .select('id');
+      if (tovError) {
+        logger.error('Failed to save website tone of voice:', { error: tovError.message });
+      } else {
+        tovSaved = (updated?.length ?? 0) > 0;
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      analysis: analysisResult,
+      analysis,
+      tovSaved,
       source: {
         url: scrapeData.url,
         scrapeId: scrapeData.id,
@@ -61,82 +79,5 @@ Content: ${scrapeData.scraped_content || ''}
       error: 'AI analysis failed',
       details: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
-  }
-}
-
-async function analyzeWebsiteContent(content: string) {
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert business analyst. Analyze the provided website content and extract the 5 essential brand information fields. Return ONLY a valid JSON object with the following structure:
-
-{
-  "company_name": "The official company/business name (e.g., 'Acme Corp', 'TechStart Inc', 'Local Bakery')",
-  "company_description": "2-3 sentence description of what the company does and their mission",
-  "value_proposition": "Their unique selling point or main benefit they provide to customers",
-  "brand_tone": "Detected writing style (professional, casual, playful, authoritative, innovative, etc.)",
-  "target_audience": "Who they serve (e.g., 'SMB owners', 'Gen Z consumers', 'Enterprise clients')"
-}
-
-Be concise and accurate. If information is unclear, use reasonable inference based on the content. Focus only on these 5 fields - do not extract any other information.`
-          },
-          {
-            role: 'user',
-            content: `Analyze this website content and extract the business information:\n\n${content}`
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 500
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const analysisText = data.choices?.[0]?.message?.content;
-
-    if (!analysisText) {
-      throw new Error('No analysis content received from OpenAI');
-    }
-
-    // Parse the JSON response - handle both raw JSON and markdown-formatted JSON
-    let analysis;
-    try {
-      // First try to extract JSON from markdown code blocks
-      const jsonMatch = analysisText.match(/```json\s*([\s\S]*?)\s*```/);
-      const jsonText = jsonMatch ? jsonMatch[1] : analysisText;
-
-      // Parse the extracted JSON
-      analysis = JSON.parse(jsonText.trim());
-    } catch (parseError) {
-      logger.error('❌ JSON parsing failed:', parseError);
-      logger.error('Raw AI response:', analysisText);
-      throw new Error(`Failed to parse AI response as JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
-    }
-
-    // Validate the structure
-    const requiredFields = ['company_name', 'company_description', 'value_proposition', 'brand_tone', 'target_audience'];
-    for (const field of requiredFields) {
-      if (!analysis[field]) {
-        throw new Error(`Missing required field: ${field}`);
-      }
-    }
-
-    return analysis;
-
-  } catch (error) {
-    logger.error('❌ AI analysis failed:', error);
-    throw new Error(`AI analysis failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

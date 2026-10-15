@@ -8,6 +8,7 @@ import { SocialPreviewCard } from '@/components/SocialPreviewCard';
 import PhotoSwapDialog from '@/components/PhotoSwapDialog';
 import { WeekDayChooser } from '@/components/WeekDayChooser';
 import { ChatCaptionOption } from '@/components/ChatCaptionOption';
+import { SuggestedRuleChip } from '@/components/SuggestedRuleChip';
 import { GeneratePromptBox, ChatRefineInput } from '@/components/CaptionPrompt';
 import { useInputGlide } from '@/hooks/useInputGlide';
 import { PlatformPicker } from '@/components/PlatformBadges';
@@ -729,6 +730,7 @@ function CreatePostModalContent({
                                 onChange={(text) => updateChatCaption(cap.id, text)}
                               />
                             ))}
+                            {msg.suggestedRule && <SuggestedRuleChip size="sm" clientId={clientId} rule={msg.suggestedRule} />}
                           </div>
                         ) : (
                           <p className="text-xs text-gray-500">{msg.content}</p>

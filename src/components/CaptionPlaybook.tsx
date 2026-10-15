@@ -11,8 +11,9 @@ interface Rule {
 }
 
 /**
- * The client's caption playbook: rules the Content Agent follows on every run.
- * Rules come from feedback during swipe review, or are written here.
+ * The client's caption playbook: rules the AI follows on every caption, in
+ * the Content Suite and the Content Agent. Rules come from feedback during
+ * swipe review, "Save as rule" in caption chat, or are written here.
  */
 export default function CaptionPlaybook({ clientId }: { clientId: string }) {
   const [open, setOpen] = useState(false);
@@ -82,8 +83,8 @@ export default function CaptionPlaybook({ clientId }: { clientId: string }) {
       {open && (
         <div className="px-4 pb-4 space-y-3">
           <p className="text-xs text-gray-500">
-            Rules the agent follows on every run for this client. They’re added when you give feedback on a post
-            during review, or you can write your own.
+            Rules the AI follows on every caption for this client — in the Content Suite and the Content Agent.
+            They’re added from feedback on posts, from “Save as rule” in caption chat, or you can write your own.
           </p>
 
           {rules === null ? (

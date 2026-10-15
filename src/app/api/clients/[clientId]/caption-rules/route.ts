@@ -20,7 +20,11 @@ export async function GET(request: NextRequest, { params }: Params) {
   return NextResponse.json({ success: true, rules });
 }
 
-const createSchema = z.object({ rule: z.string().trim().min(1).max(500) });
+const createSchema = z.object({
+  rule: z.string().trim().min(1).max(500),
+  // 'feedback' when saved from a Content Suite chat suggestion
+  source: z.enum(['feedback', 'manual']).optional(),
+});
 
 export async function POST(request: NextRequest, { params }: Params) {
   try {
@@ -40,7 +44,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       clientId,
       userId: auth.user.id,
       rule: parsed.data.rule,
-      source: 'manual',
+      source: parsed.data.source ?? 'manual',
     });
     if (!saved) {
       return NextResponse.json({ success: false, error: 'Failed to save rule' }, { status: 500 });

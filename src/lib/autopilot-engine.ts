@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { AI_MODEL, AGENT_MODEL, completionParams } from '@/lib/aiModel';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { trackAICreditUsage } from '@/lib/subscriptionMiddleware';
 import { sendAutopilotPlanReadyEmail } from '@/lib/email';
@@ -6,6 +7,7 @@ import { createNotification } from '@/lib/notifications';
 import logger from '@/lib/logger';
 import { formatTovPromptSection } from '@/lib/brandVoice';
 import { getCaptionRuleTexts, formatPlaybookPromptSection } from '@/lib/captionPlaybook';
+import { getCalendarVoiceCaptions, formatCalendarVoicePromptSection } from '@/lib/calendarVoice';
 import { getStylePreferences } from '@/lib/preference-engine';
 import {
   inferHemisphere,
@@ -31,7 +33,6 @@ import type { RunBrief } from '@/lib/autopilot-agent/runBrief';
 export { getOrCreateDefaultProject, inferHemisphere, deriveSeason };
 
 const openai = new OpenAI();
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,7 +73,7 @@ export async function generateContentPlan(
   // Step 1: Gather context (same data the old engine fetched — now served to
   // the agent via tools instead of pre-stuffed into one giant prompt).
   logger.info('Autopilot v3: gathering context', { clientId });
-  const [brandCtx, events, recentPosts, existingPosts, gallery, project, stylePrefs, captionRules] =
+  const [brandCtx, events, recentPosts, existingPosts, gallery, project, stylePrefs, captionRules, calendarCaptions] =
     await Promise.all([
       fetchBrandContext(clientId),
       getEventsForRange(clientId, startDate, endDate),
@@ -82,6 +83,7 @@ export async function generateContentPlan(
       getOrCreateDefaultProject(clientId, userId),
       getStylePreferences(clientId),
       getCaptionRuleTexts(clientId),
+      getCalendarVoiceCaptions(clientId),
     ]);
 
   const client = brandCtx.client;
@@ -204,9 +206,10 @@ export async function generateContentPlan(
     adPlatform,
     brief: brief ?? null,
     captionRules,
+    calendarCaptions,
   };
 
-  logger.info('Autopilot v3: starting agent loop', { model: MODEL, candidateCount, clientId });
+  logger.info('Autopilot v3: starting agent loop', { model: AGENT_MODEL, candidateCount, clientId });
 
   let runResult;
   try {
@@ -396,7 +399,11 @@ export async function regenerateCaption(params: {
   platforms: string[];
 }): Promise<string> {
   const { clientId, galleryItem, postType, platforms } = params;
-  const [brandCtx, captionRules] = await Promise.all([fetchBrandContext(clientId), getCaptionRuleTexts(clientId)]);
+  const [brandCtx, captionRules, calendarCaptions] = await Promise.all([
+    fetchBrandContext(clientId),
+    getCaptionRuleTexts(clientId),
+    getCalendarVoiceCaptions(clientId),
+  ]);
   const client = brandCtx.client;
 
   const prompt = `You are a social media copywriter. Write a single caption for a ${postType} post on ${platforms.join(' and ')}.
@@ -408,6 +415,7 @@ Caption dos: ${client?.caption_dos || 'none'}
 Caption don'ts: ${client?.caption_donts || 'none'}
 ${client?.brand_voice_examples ? `Brand voice examples (match this voice):\n${client.brand_voice_examples}\n` : ''}
 ${formatTovPromptSection(client?.brand_tov ?? null)}
+${formatCalendarVoicePromptSection(calendarCaptions)}
 ${formatPlaybookPromptSection(captionRules)}
 
 Photo details:
@@ -419,10 +427,9 @@ Photo details:
 Write ONLY the caption text (with hashtags). No explanation.`;
 
   const completion = await openai.chat.completions.create({
-    model: MODEL,
+    model: AI_MODEL,
     messages: [{ role: 'user', content: prompt }],
-    max_tokens: 800,
-    temperature: 0.8,
+    ...completionParams(AI_MODEL, { maxTokens: 800, temperature: 0.8 }),
   });
 
   return completion.choices[0]?.message?.content?.trim() || '';

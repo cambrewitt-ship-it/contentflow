@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         .replace(/<[^>]+>/g, ' ') // Remove HTML tags
         .replace(/\s+/g, ' ') // Normalize whitespace
         .trim()
-        .substring(0, 5000); // Limit to first 5000 characters
+        .substring(0, 15000); // Enough copy to judge the brand's voice
 
       // Return scraped data directly without saving to database
       return NextResponse.json({

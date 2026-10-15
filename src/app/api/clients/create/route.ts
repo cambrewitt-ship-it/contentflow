@@ -119,6 +119,9 @@ export async function POST(req: NextRequest) {
     const validation = await validateApiRequest(req, {
       body: createClientSchema.extend({
         brand_color: z.string().optional(), // For LATE profile
+        // Tone of voice guide drafted from the website scan (markdown)
+        brand_tov: z.string().max(60000).optional(),
+        brand_tov_source: z.string().max(500).optional(),
         skipLateProfile: z.union([z.boolean(), z.string()]).optional().transform(v => v === 'true' || v === true), // Flag to skip LATE profile creation
       }),
       checkAuth: true, // Automatically validates auth token
@@ -148,6 +151,8 @@ export async function POST(req: NextRequest) {
       region,
       timezone, // Add timezone field
       brand_color, // Add brand color field for LATE profile
+      brand_tov,
+      brand_tov_source,
       skipLateProfile // Flag to skip LATE profile creation for temp clients
     } = body as {
       name: string;
@@ -162,6 +167,8 @@ export async function POST(req: NextRequest) {
       region?: string;
       timezone?: string;
       brand_color?: string;
+      brand_tov?: string;
+      brand_tov_source?: string;
       skipLateProfile?: boolean;
     }
     
@@ -204,6 +211,13 @@ export async function POST(req: NextRequest) {
           region: region?.trim() || null, // Add region
           timezone: timezone || 'Pacific/Auckland', // Add timezone with default
           late_profile_id: lateProfileId, // Add LATE profile ID
+          ...(brand_tov?.trim()
+            ? {
+                brand_tov: brand_tov.trim(),
+                brand_tov_source_filename: brand_tov_source || null,
+                brand_tov_updated_at: new Date().toISOString(),
+              }
+            : {}),
           user_id: user.id, // Associate with authenticated user
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()

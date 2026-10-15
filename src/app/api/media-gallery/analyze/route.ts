@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import OpenAI from 'openai';
+import { AI_MODEL_FAST, completionParams } from '@/lib/aiModel';
 import logger from '@/lib/logger';
 import { requireAuth } from '@/lib/authHelpers';
 import { withAICreditCheck, trackAICreditUsage } from '@/lib/subscriptionMiddleware';
@@ -107,9 +108,9 @@ export async function POST(request: NextRequest) {
         const base64 = Buffer.from(arrayBuffer).toString('base64');
         const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
 
-        // Call GPT-4o vision
+        // Vision analysis on the fast model — tagging is high volume, low stakes
         const completion = await client.chat.completions.create({
-          model: 'gpt-4o',
+          model: AI_MODEL_FAST,
           messages: [
             {
               role: 'system',
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
               ],
             },
           ],
-          max_tokens: 1000,
+          ...completionParams(AI_MODEL_FAST, { maxTokens: 1000 }),
           response_format: { type: 'json_object' },
         });
 

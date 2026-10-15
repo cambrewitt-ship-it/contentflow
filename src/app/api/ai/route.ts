@@ -15,6 +15,8 @@ import { resolvePortalToken } from '@/lib/portalAuth';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { BRAND_VOICE_COLUMNS, resolveBrandVoice, formatTovPromptSection } from '@/lib/brandVoice';
 import { getCaptionRuleTexts, formatPlaybookPromptSection } from '@/lib/captionPlaybook';
+import { AI_MODEL, AI_MODEL_FAST, completionParams } from '@/lib/aiModel';
+import { getCalendarVoiceCaptions, formatCalendarVoicePromptSection } from '@/lib/calendarVoice';
 import { extractFirstUrl, fetchArticleContext, formatArticlePromptSection, formatUnreadableLinkPromptSection } from '@/lib/articleFetcher';
 
 export const maxDuration = 60;
@@ -159,7 +161,7 @@ type BrandContext = NonNullable<Awaited<ReturnType<typeof getBrandContext>>>;
 function formatBrandVoiceSection(brand: BrandContext | null): string {
   if (!brand) return '';
   const parts: string[] = [
-    `BRAND VOICE — this decides how every caption sounds. If anything below conflicts, the caption playbook and caption rules win, then the tone of voice guide, then the voice examples, then the general copy tone direction.`,
+    `BRAND VOICE — this decides how every caption sounds. If anything below conflicts, the caption playbook and caption rules win, then the tone of voice guide, then the voice examples and approved captions, then the general copy tone direction.`,
   ];
 
   const profile = [
@@ -179,6 +181,9 @@ function formatBrandVoiceSection(brand: BrandContext | null): string {
 ${brand.voice_examples}
 </voice_examples>`);
   }
+
+  const calendar = formatCalendarVoicePromptSection(brand.calendar_captions ?? []);
+  if (calendar) parts.push(calendar);
 
   if (brand.dos || brand.donts) {
     parts.push(
@@ -200,7 +205,7 @@ ${brand.voice_examples}
 
 // Captions are requested as JSON so multi-paragraph captions and short lines
 // survive intact. Returns null when the reply isn't the expected shape.
-function parseCaptionsJson(content: string, key: 'captions' | 'caption' = 'captions'): string[] | null {
+function parseCaptionsJson(content: string, key: 'captions' | 'caption' | 'rule' = 'captions'): string[] | null {
   try {
     const parsed = JSON.parse(content);
     const value = parsed?.[key];
@@ -213,6 +218,15 @@ function parseCaptionsJson(content: string, key: 'captions' | 'caption' = 'capti
   } catch {
     return null;
   }
+}
+
+// The reusable rule a chat reply distilled from the user's instruction, unless
+// the playbook already has it. Offered in the Content Suite as "Save as rule".
+function newPlaybookRule(content: string, playbook: string[]): string | null {
+  const rule = parseCaptionsJson(content, 'rule')?.[0]?.slice(0, 300);
+  if (!rule) return null;
+  const known = playbook.some((r) => r.trim().toLowerCase() === rule.toLowerCase());
+  return known ? null : rule;
 }
 
 function isRefusalResponse(content?: string | null): boolean {
@@ -313,7 +327,10 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
     // Only the voice sources switched on for this client (TOV, examples, do's/don'ts)
     const voice = resolveBrandVoice(client);
 
-    const playbook = await getCaptionRuleTexts(clientId);
+    const [playbook, calendarCaptions] = await Promise.all([
+      getCaptionRuleTexts(clientId),
+      getCalendarVoiceCaptions(clientId),
+    ]);
 
     const brandContext = {
       company: client.company_description,
@@ -325,6 +342,7 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
       donts: voice.donts,
       voice_examples: voice.voice_examples,
       playbook,
+      calendar_captions: calendarCaptions,
       region: client.region,
       timezone: client.timezone,
       documents: documents || [],
@@ -585,7 +603,7 @@ ${prompt ? `Additional context: ${prompt}` : ""}
 Provide your analysis in a clear, structured format.`;
 
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      model: AI_MODEL,
       messages: [
         {
           role: 'system',
@@ -608,8 +626,7 @@ Provide your analysis in a clear, structured format.`;
           ],
         },
       ],
-      max_tokens: 500,
-      temperature: 0.7,
+      ...completionParams(AI_MODEL, { maxTokens: 500, temperature: 0.7 }),
     });
 
     return NextResponse.json({
@@ -823,7 +840,7 @@ OUTPUT: JSON only, exactly {"captions": ["...", "...", "..."]}. Caption text onl
     }
 
     const response = await callOpenAIWithRetry(openai, {
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      model: AI_MODEL,
       messages: [
         {
           role: 'system',
@@ -834,8 +851,7 @@ OUTPUT: JSON only, exactly {"captions": ["...", "...", "..."]}. Caption text onl
           content: userContent,
         },
       ],
-      max_tokens: 1200,
-      temperature: 0.8,
+      ...completionParams(AI_MODEL, { maxTokens: 1200, temperature: 0.8 }),
       ...(copyType === 'email-marketing' ? {} : { response_format: { type: 'json_object' } }),
     });
 
@@ -868,10 +884,7 @@ OUTPUT: JSON only, exactly {"captions": ["...", "...", "..."]}. Caption text onl
           : 'Create three short, brand-safe social media captions suitable for a generic promotional post. Keep them positive and compliant.';
 
       const fallbackResponse = await callOpenAIWithRetry(openai, {
-        model:
-          process.env.OPENAI_FALLBACK_MODEL ||
-          process.env.OPENAI_MODEL ||
-          'gpt-4o-mini',
+        model: process.env.OPENAI_FALLBACK_MODEL || AI_MODEL_FAST,
         messages: [
           {
             role: 'system',
@@ -882,8 +895,7 @@ OUTPUT: JSON only, exactly {"captions": ["...", "...", "..."]}. Caption text onl
             content: fallbackUserMessage,
           },
         ],
-        max_tokens: copyType === 'email-marketing' ? 500 : 600,
-        temperature: 0.7,
+        ...completionParams(process.env.OPENAI_FALLBACK_MODEL || AI_MODEL_FAST, { maxTokens: copyType === 'email-marketing' ? 500 : 600, temperature: 0.7 }),
       });
 
       const fallbackContent = fallbackResponse.choices[0]?.message?.content || '';
@@ -1070,7 +1082,7 @@ async function remixCaption(
       originalCaption = og[1];
     }
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      model: AI_MODEL,
       messages: [
         {
           role: 'system',
@@ -1081,8 +1093,7 @@ async function remixCaption(
           content: `Create a fresh variation of this caption: "${originalCaption}"`,
         },
       ],
-      max_tokens: 600,
-      temperature: 0.7,
+      ...completionParams(AI_MODEL, { maxTokens: 600, temperature: 0.7 }),
       response_format: { type: 'json_object' },
     });
 
@@ -1166,7 +1177,8 @@ ${getAntiAiSlopGuidelines()}
 
 Apply the user's instruction precisely while keeping captions in the brand's voice. The brand voice section still applies unless the user explicitly asks to break a rule.
 
-OUTPUT: JSON only, exactly {"captions": ["..."]} with 1-3 captions. Caption text only — no labels, numbering or commentary.`;
+OUTPUT: JSON only, exactly {"captions": ["..."], "rule": "..."} with 1-3 captions. Caption text only — no labels, numbering or commentary.
+"rule": if the user's latest instruction is feedback that should apply to ALL future captions for this brand (e.g. "no emojis", "stop ending with questions", "less salesy"), restate it as ONE short imperative rule under 25 words. Use "" if it only applies to this post (a fact, an offer, "make this one shorter") or just asks for captions.`;
 
     const messages: { role: 'system' | 'user' | 'assistant'; content: any }[] = [
       { role: 'system', content: systemPrompt },
@@ -1210,17 +1222,20 @@ OUTPUT: JSON only, exactly {"captions": ["..."]} with 1-3 captions. Caption text
     }
 
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      model: AI_MODEL,
       messages,
-      max_tokens: 1000,
-      temperature: 0.8,
+      ...completionParams(AI_MODEL, { maxTokens: 1000, temperature: 0.8 }),
       response_format: { type: 'json_object' },
     });
 
     const content = response.choices[0]?.message?.content || '';
     const jsonCaptions = parseCaptionsJson(content);
     if (jsonCaptions) {
-      return NextResponse.json({ success: true, captions: jsonCaptions.slice(0, 3) });
+      return NextResponse.json({
+        success: true,
+        captions: jsonCaptions.slice(0, 3),
+        suggestedRule: newPlaybookRule(content, brandContext?.playbook ?? []),
+      });
     }
 
     let potentialCaptions = content.trim().split(/\n\n+/);
@@ -1451,7 +1466,7 @@ Make each idea unique to THIS business - not generic content any competitor coul
     );
 
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+      model: AI_MODEL,
       messages: [
         {
           role: 'system',
@@ -1511,8 +1526,7 @@ Each idea should be unique to THIS business - not generic content any competitor
 Only suggest future holidays/events after ${currentDate} that are relevant to ${clientRegion}.`,
         },
       ],
-      max_tokens: 1000,
-      temperature: 0.7,
+      ...completionParams(AI_MODEL, { maxTokens: 1000, temperature: 0.7 }),
       response_format: { type: 'json_object' },
     });
 

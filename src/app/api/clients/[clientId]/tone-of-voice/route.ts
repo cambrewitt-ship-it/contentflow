@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { AI_MODEL, completionParams } from '@/lib/aiModel';
 import mammoth from 'mammoth';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
@@ -121,9 +122,8 @@ export async function POST(
       }
 
       const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        max_tokens: 12000,
-        temperature: 0,
+        model: AI_MODEL,
+        ...completionParams(AI_MODEL, { maxTokens: 12000, temperature: 0 }),
         messages: [
           { role: 'system', content: TRANSCRIBE_PROMPT },
           { role: 'user', content: userContent },

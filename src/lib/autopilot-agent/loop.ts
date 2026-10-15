@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { AGENT_MODEL as MODEL } from '@/lib/aiModel';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import logger from '@/lib/logger';
 import { AGENT_TOOL_DEFS, dispatchTool, buildContextBriefing, poolIsFull } from './tools';
@@ -7,7 +8,6 @@ import { MAX_ITERATIONS } from './constants';
 import { formatRunBriefPrompt } from './runBrief';
 
 const openai = new OpenAI();
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
 // Each iteration resends the growing conversation, so a run can hit the org's
 // tokens-per-minute cap. OpenAI's suggested retry-after is often ~100ms, which
@@ -91,6 +91,7 @@ RULES:
 - Never propose a day in the posting_preferences "avoid_days" list.
 - Respect the content_mix percentages across the whole candidate pool (promotional/engagement/seasonal/educational), unless the RUN BRIEF below restricts post types.
 - Use the brand voice and tone consistently — reference brand_voice_examples and caption_dos/caption_donts.
+- approved_calendar_captions are real captions this brand approved, published or rewrote by hand — match their voice closely (length, rhythm, vocabulary, emoji and hashtag habits), but don't copy their lines or repeat their topics.
 - If the brand context has a caption_playbook, those are rules the account manager wrote from feedback on past posts. Follow every one, on every caption and ad — they override the content defaults, the run brief and learned style preferences.
 - The style preferences may include account_manager_feedback (why posts were skipped or changed) and account_manager_edits (the agent's caption vs the human rewrite). Learn from both: write the way the edits go, and avoid what the feedback complains about.
 - If the brand context has a tone_of_voice_guide, it is the brand's official copy rulebook: every caption and ad copy MUST follow it (vocabulary, grammar, punctuation, emoji use, banned words). Specific caption_dos/caption_donts take precedence where they conflict.

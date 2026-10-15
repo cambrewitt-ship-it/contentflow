@@ -101,7 +101,7 @@ export async function POST(
         .replace(/<[^>]+>/g, ' ') // Remove HTML tags
         .replace(/\s+/g, ' ') // Normalize whitespace
         .trim()
-        .substring(0, 5000); // Limit to first 5000 characters
+        .substring(0, 15000); // Enough copy to judge the brand's voice
 
       // Update the scrape record with results
       const { error: updateError } = await supabase

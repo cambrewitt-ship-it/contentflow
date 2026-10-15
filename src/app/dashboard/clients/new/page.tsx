@@ -56,6 +56,9 @@ export default function NewClientPageV2() {
     timezone: "Pacific/Auckland", // Default timezone
     brand_color: "#4ade80" // Default green color for LATE profile
   });
+  // Tone of voice guide drafted from the website scan, saved with the profile
+  const [draftTov, setDraftTov] = useState("");
+  const [draftTovSource, setDraftTovSource] = useState("");
   
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [scraping, setScraping] = useState(false);
@@ -125,6 +128,11 @@ export default function NewClientPageV2() {
 
     // Timezone is required
     payload.timezone = formData.timezone;
+
+    if (draftTov.trim()) {
+      payload.brand_tov = draftTov.trim();
+      payload.brand_tov_source = draftTovSource;
+    }
 
     return payload;
   };
@@ -431,8 +439,14 @@ export default function NewClientPageV2() {
             value_proposition: analysisData.analysis.value_proposition,
             brand_tone: analysisData.analysis.brand_tone
           }));
+          if (analysisData.analysis.brand_tov) {
+            setDraftTov(analysisData.analysis.brand_tov);
+            setDraftTovSource(`Generated from website (${scrapeData.data.url})`);
+          }
 
-          setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully! Click "Create New Business Profile" to save.' });
+          setMessage({ type: 'success', text: analysisData.analysis.brand_tov
+            ? 'Website analyzed — profile filled in and a tone of voice guide drafted. Review them, then click "Create New Business Profile" to save.'
+            : 'Website analyzed and form auto-filled successfully! Click "Create New Business Profile" to save.' });
           setTimeout(() => setMessage(null), 3000);
         } else {
           let errorData;
@@ -850,6 +864,24 @@ export default function NewClientPageV2() {
                   </div>
                 )}
               </div>
+
+              {/* Tone of voice guide drafted from the website */}
+              {draftTov && (
+                <div className="border-t border-gray-200 pt-6 mt-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    📘 Tone of Voice Guide (drafted from your website)
+                  </label>
+                  <Textarea
+                    value={draftTov}
+                    onChange={(e) => setDraftTov(e.target.value)}
+                    rows={12}
+                    className="font-mono text-xs border-purple-300 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                  <p className="text-gray-600 text-sm mt-2">
+                    The AI follows this guide on every caption. Edit anything that doesn&apos;t sound like the brand — you can replace it later by uploading an official guide in Content Suite → Settings.
+                  </p>
+                </div>
+              )}
 
               {/* Region */}
               <div className="border-t border-gray-200 pt-6 mt-6">

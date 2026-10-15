@@ -200,8 +200,13 @@ export default function BrandInformationPanel({ clientId, client, onUpdate, bran
             }
           }
 
-          setMessage({ type: 'success', text: 'Website analyzed and form auto-filled successfully!' });
-          setTimeout(() => setMessage(null), 3000);
+          setMessage({
+            type: 'success',
+            text: analysisData.tovSaved
+              ? 'Website analyzed and form auto-filled. We also drafted a tone of voice guide from the site — review it in Content Suite → Settings.'
+              : 'Website analyzed and form auto-filled successfully!',
+          });
+          setTimeout(() => setMessage(null), analysisData.tovSaved ? 8000 : 3000);
         } else {
           throw new Error('Failed to analyze website content');
         }
