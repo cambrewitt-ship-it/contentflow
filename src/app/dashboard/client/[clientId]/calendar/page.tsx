@@ -20,6 +20,7 @@ import EventsPanel from '@/components/EventsPanel';
 import { ClientPostDetailModal, type ClientPostDetailItem } from '@/components/ClientPostDetailModal';
 import { ClientUploadDetailModal, type ClientUploadDetailItem } from '@/components/ClientUploadDetailModal';
 import { CreatePostModal } from '@/components/CreatePostModal';
+import { dragHasExternalMedia, extractDroppedMediaFiles } from '@/lib/droppedMedia';
 import { QuickScheduleDayTimePicker } from '@/components/QuickScheduleDayTimePicker';
 import { VideoThumbnail } from '@/components/VideoThumbnail';
 import { isVideoUrl } from '@/lib/videoUtils';
@@ -257,7 +258,7 @@ export default function CalendarPage() {
 
   // Trello-style "+" add-card: click opens the AI creation modal, drag-drop opens a quick
   // day/time picker for the dropped photo.
-  const [createPostModal, setCreatePostModal] = useState<{ open: boolean; weekStart: Date } | null>(null);
+  const [createPostModal, setCreatePostModal] = useState<{ open: boolean; weekStart: Date; initialFiles?: File[] } | null>(null);
   const [quickSchedule, setQuickSchedule] = useState<{
     weekStart: Date;
     post: Post;
@@ -2383,12 +2384,22 @@ export default function CalendarPage() {
     await scheduleUnscheduledPost(post, dateKey, '12:00');
   };
 
-  // Tray post dropped on a week's "Add post" button — ask which day.
-  const handleAddButtonDrop = (e: React.DragEvent, weekStart: Date) => {
+  // Tray post dropped on a week's "Add post" button — ask which day. A photo dragged in from
+  // another window or Chrome's downloads opens the new-post modal with that photo loaded.
+  const handleAddButtonDrop = async (e: React.DragEvent, weekStart: Date) => {
     const postData = e.dataTransfer.getData('post');
-    if (!postData) return;
-    const post = JSON.parse(postData);
-    setQuickSchedule({ weekStart, post, mode: 'schedule' });
+    if (postData) {
+      const post = JSON.parse(postData);
+      setQuickSchedule({ weekStart, post, mode: 'schedule' });
+      return;
+    }
+    if (!dragHasExternalMedia(e.dataTransfer)) return;
+    const files = await extractDroppedMediaFiles(e.dataTransfer);
+    if (files.length === 0) {
+      alert("Couldn't read that photo. Try saving it to your computer first, then drag it in from there.");
+      return;
+    }
+    setCreatePostModal({ open: true, weekStart, initialFiles: files });
   };
 
   // Keep an open post modal in step with the calendar (e.g. after scheduling it from the modal).
@@ -3212,6 +3223,7 @@ export default function CalendarPage() {
           onClose={() => setCreatePostModal(null)}
           clientId={clientId}
           weekStart={createPostModal.weekStart}
+          initialFiles={createPostModal.initialFiles}
           projects={projects}
           accountName={clientName || undefined}
           accountAvatarUrl={clientLogoUrl || undefined}

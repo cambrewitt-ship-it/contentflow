@@ -54,6 +54,8 @@ interface CreatePostModalProps {
   unscheduledPosts?: UnscheduledPostOption[];
   /** Schedules a picked tray post; required for the picker to show. */
   onScheduleExisting?: (post: UnscheduledPostOption, dateKey: string, time: string) => Promise<void>;
+  /** Photos/videos to start with, e.g. dragged onto the board's "Add a post" button. */
+  initialFiles?: File[];
 }
 
 const PREVIEW_PLATFORMS = [
@@ -84,6 +86,7 @@ function CreatePostModalContent({
   accountAvatarUrl,
   unscheduledPosts = [],
   onScheduleExisting,
+  initialFiles,
 }: CreatePostModalProps) {
   const { getAccessToken } = useAuth();
   const {
@@ -140,8 +143,17 @@ function CreatePostModalContent({
   // stale captions/images.
   useEffect(() => {
     clearAll();
+    if (initialFiles?.length) handleFilesSelected(initialFiles);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // contentStore's localStorage hydration can land after the initial photos are added and
+  // restore a stale active id — fall back to the first photo so the preview still shows.
+  useEffect(() => {
+    if (uploadedImages.length > 0 && !uploadedImages.some((img) => img.id === activeImageId)) {
+      setActiveImageId(uploadedImages[0].id);
+    }
+  }, [uploadedImages, activeImageId, setActiveImageId]);
 
   const activeImage = uploadedImages.find((img) => img.id === activeImageId);
   const activeIndex = Math.max(0, uploadedImages.findIndex((img) => img.id === activeImageId));

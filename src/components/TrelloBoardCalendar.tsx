@@ -594,7 +594,7 @@ function AddCardFooter({
       }`}
     >
       <Plus className="w-4 h-4" />
-      Add a post
+      {isDragOver ? 'Drop to add a post' : 'Add a post'}
     </button>
   );
 }
@@ -968,8 +968,18 @@ function MonthDayCell({
             <button
               type="button"
               onClick={() => props.onAddCardClick?.(normalizeToWeekStart(dayDate))}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onDrop={(e) => {
+                // Handle here rather than in the day cell, so a dropped photo starts a new post.
+                e.preventDefault();
+                e.stopPropagation();
+                props.onAddButtonDrop?.(e, normalizeToWeekStart(dayDate));
+              }}
               className="p-0.5 rounded text-[#44546f] hover:bg-[#091e4224] hover:text-[#172b4d]"
-              title="Add a post"
+              title="Add a post (or drop a photo here)"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -1062,6 +1072,20 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const { weeks, scheduledPosts, clientUploads = {}, events = {}, contentEvents, loading, clientId, formatWeekCommencing } = props;
   const { toolbar, subToolbar, leftDrawer, rightPanel, bottomDock, background, onBackgroundChange, onBackgroundUpload, logoUrl } = props;
   const isMonth = props.layout === 'month';
+
+  // A photo dragged in from another window that misses the "Add a post" button would otherwise
+  // make the browser open the file and leave the board.
+  useEffect(() => {
+    const blockFileDrop = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
+    };
+    window.addEventListener('dragover', blockFileDrop);
+    window.addEventListener('drop', blockFileDrop);
+    return () => {
+      window.removeEventListener('dragover', blockFileDrop);
+      window.removeEventListener('drop', blockFileDrop);
+    };
+  }, []);
 
   const initialStart = () => {
     const start = new Date(computeInitialStartWeek(weeks));
