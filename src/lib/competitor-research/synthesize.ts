@@ -107,6 +107,8 @@ Study the posts (visuals AND captions AND metrics), the account stats and the tr
 
 Then write post ideas ${clientName} could make with what a small business realistically has (phone camera, their own space, products, staff, customers). Captions must be ready to post and written in ${clientName}'s brand voice (follow the tone and do's/don'ts above), not copied from competitors.
 
+Write every text value — insights and captions — in ${profile.language}${profile.location ? `, using the spelling and conventions of ${profile.location}` : ''}. Keep the JSON keys in English.
+
 Return ONLY a JSON object:
 {
   "summary": "3-5 sentence executive summary of what's working and the biggest opportunity",

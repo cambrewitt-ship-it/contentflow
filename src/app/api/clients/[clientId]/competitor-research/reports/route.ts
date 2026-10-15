@@ -4,7 +4,7 @@ import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { withAICreditCheck } from '@/lib/subscriptionMiddleware';
-import { RESEARCH_RUN_CREDITS, STALE_RUN_MS, runCompetitorResearch } from '@/lib/competitor-research/run';
+import { RESEARCH_RUN_CREDITS, isStaleRun, runCompetitorResearch } from '@/lib/competitor-research/run';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -16,7 +16,8 @@ type Params = { params: Promise<{ clientId: string }> };
 const bodySchema = z.object({ includeTrends: z.boolean().default(true) });
 
 // Start a research run. Returns the report row straight away; the page polls
-// GET reports/[reportId] until it's completed or failed.
+// GET reports/[reportId] until it's completed or failed. If Instagram's shared
+// rate limit is nearly used up, the run is queued and starts later.
 export async function POST(request: NextRequest, { params }: Params) {
   try {
     const { clientId } = await params;
@@ -29,17 +30,21 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
 
     const admin = createSupabaseAdmin();
-    const { data: running } = await admin
+    const { data: pending } = await admin
       .from('competitor_research_reports')
-      .select('id, created_at')
+      .select('id, status, started_at, created_at')
       .eq('client_id', clientId)
-      .eq('status', 'running')
-      .gte('created_at', new Date(Date.now() - STALE_RUN_MS).toISOString())
-      .limit(1)
-      .maybeSingle();
-    if (running) {
+      .in('status', ['running', 'queued']);
+    const active = (pending ?? []).find(r => !isStaleRun(r));
+    if (active) {
       return NextResponse.json(
-        { success: false, error: 'Research is already running for this profile.', reportId: running.id },
+        {
+          success: false,
+          error: active.status === 'queued'
+            ? 'Research is already queued for this profile.'
+            : 'Research is already running for this profile.',
+          reportId: active.id,
+        },
         { status: 409 }
       );
     }
@@ -60,8 +65,9 @@ export async function POST(request: NextRequest, { params }: Params) {
         status: 'running',
         progress: 'Starting research',
         include_trends: parsed.data.includeTrends,
+        started_at: new Date().toISOString(),
       })
-      .select('id, status, progress, accounts_analyzed, posts_analyzed, error, created_at, completed_at')
+      .select('id, status, progress, accounts_analyzed, posts_analyzed, error, queued_until, started_at, created_at, completed_at')
       .single();
     if (error || !report) throw error ?? new Error('Failed to create report');
 

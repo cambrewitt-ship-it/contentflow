@@ -75,6 +75,7 @@ export function describeProfile(clientName: string, profile: ResearchProfile): s
     profile.location && `Location: ${profile.location}`,
     profile.target_audience && `Target audience: ${profile.target_audience}`,
     profile.keywords.length > 0 && `Niche keywords: ${profile.keywords.join(', ')}`,
+    `Language: ${profile.language}`,
   ]
     .filter(Boolean)
     .join('\n');

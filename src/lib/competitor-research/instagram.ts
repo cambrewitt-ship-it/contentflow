@@ -1,4 +1,5 @@
 import logger from '@/lib/logger';
+import { parseUsageHeaders, recordRateLimited, recordFromHeaders } from './apiUsage';
 import type { AccountSnapshot, SocialPost } from './types';
 
 // Instagram competitor data comes from the Graph API's Business Discovery
@@ -6,7 +7,7 @@ import type { AccountSnapshot, SocialPost } from './types';
 // (INSTAGRAM_RESEARCH_ACCOUNT_ID + a system-user token with instagram_basic
 // and pages_read_engagement). Because the querying account and the Meta app
 // are ours, this needs no App Review. It can only see Business and Creator
-// accounts, and is rate limited per token (~200 calls/hour).
+// accounts, and is rate limited per token — see apiUsage.ts.
 
 const GRAPH_VERSION = process.env.META_GRAPH_API_VERSION || 'v23.0';
 
@@ -105,6 +106,9 @@ export async function fetchInstagramAccount(handle: string, mediaLimit = 25): Pr
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(30_000),
   });
+  // Shared rate-limit tracking: lets new runs queue before the limit is hit
+  await recordFromHeaders(res.headers);
+
   const body = (await res.json().catch(() => ({}))) as {
     business_discovery?: GraphBusinessDiscovery;
     error?: { message?: string; code?: number; error_subcode?: number };
@@ -121,6 +125,7 @@ export async function fetchInstagramAccount(handle: string, mediaLimit = 25): Pr
       );
     }
     if (code === 4 || code === 17 || code === 32 || code === 613 || code === 80002) {
+      await recordRateLimited(parseUsageHeaders(res.headers)?.regainMinutes || 60);
       throw new InstagramLookupError('Instagram rate limit reached — try again in an hour.', 'rate_limited');
     }
     if (code === 190 || code === 10 || code === 200) {

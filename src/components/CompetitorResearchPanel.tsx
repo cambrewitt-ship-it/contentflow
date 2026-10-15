@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
+  Clock,
   Check,
   ChevronDown,
   ChevronUp,
@@ -28,11 +29,12 @@ import type {
 
 interface ReportSummary {
   id: string;
-  status: 'running' | 'completed' | 'failed';
+  status: 'queued' | 'running' | 'completed' | 'failed';
   progress: string | null;
   accounts_analyzed: number;
   posts_analyzed: number;
   error: string | null;
+  queued_until: string | null;
   created_at: string;
   completed_at: string | null;
 }
@@ -40,6 +42,7 @@ interface ReportSummary {
 interface FullReport extends ReportSummary {
   report: ResearchReport | null;
   warnings: string[] | null;
+  raw_data_purged_at: string | null;
 }
 
 interface Overview {
@@ -48,10 +51,16 @@ interface Overview {
   accounts: CompetitorAccount[];
   reports: ReportSummary[];
   config: { instagram: boolean; tiktok: boolean; trends: boolean };
-  limits: { maxAccounts: number; researchCredits: number; discoveryCredits: number };
+  limits: { maxAccounts: number; researchCredits: number; discoveryCredits: number; retentionDays: number };
 }
 
 const PLATFORM_LABEL: Record<ResearchPlatform, string> = { instagram: 'Instagram', tiktok: 'TikTok' };
+
+const LANGUAGES = [
+  'English', 'Spanish', 'Portuguese', 'French', 'German', 'Italian', 'Dutch', 'Swedish', 'Danish', 'Norwegian',
+  'Finnish', 'Polish', 'Turkish', 'Arabic', 'Hebrew', 'Hindi', 'Indonesian', 'Malay', 'Filipino', 'Thai',
+  'Vietnamese', 'Japanese', 'Korean', 'Chinese (Simplified)', 'Chinese (Traditional)', 'Māori',
+];
 
 // ── Research profile ─────────────────────────────────────────────────────────
 
@@ -109,7 +118,7 @@ function ProfileSection({
           <h2 className="text-sm font-semibold text-gray-900">Your niche</h2>
           <p className="text-xs text-gray-500 mt-0.5 truncate">
             {saved
-              ? [initial.category, initial.location].filter(Boolean).join(' · ') || 'Set your category'
+              ? [initial.category, initial.location, initial.language !== 'English' && initial.language].filter(Boolean).join(' · ') || 'Set your category'
               : 'Confirm your business category so the agent knows who to compare you with'}
           </p>
         </div>
@@ -163,6 +172,20 @@ function ProfileSection({
               placeholder="e.g. Young professionals and remote workers"
               onChange={e => setProfile(p => ({ ...p, target_audience: e.target.value }))}
             />
+          </label>
+          <label className="block sm:w-1/2">
+            <span className="text-xs font-medium text-gray-700">Language for insights and captions</span>
+            <input
+              className={`${field} mt-1`}
+              value={profile.language}
+              maxLength={40}
+              list="research-languages"
+              placeholder="e.g. English"
+              onChange={e => setProfile(p => ({ ...p, language: e.target.value }))}
+            />
+            <datalist id="research-languages">
+              {LANGUAGES.map(l => <option key={l} value={l} />)}
+            </datalist>
           </label>
           <div>
             <span className="text-xs font-medium text-gray-700">Niche keywords</span>
@@ -452,6 +475,9 @@ function AccountsSection({
                       <span className="text-xs text-gray-400">{formatCount(s.followers_count)} followers</span>
                     )}
                     <span className="text-[10px] uppercase tracking-wide text-gray-400">{s.relationship}</span>
+                    {!s.verified && s.platform === 'instagram' && (
+                      <span className="text-[10px] text-amber-700" title="Instagram is busy, so this account wasn't checked yet">unverified</span>
+                    )}
                   </div>
                   {s.reason && <p className="text-xs text-gray-500 mt-0.5">{s.reason}</p>}
                 </div>
@@ -528,8 +554,9 @@ export default function CompetitorResearchPanel({ clientId }: { clientId: string
               }
             : o
         );
-        if (data.report.status === 'running') {
-          pollRef.current = setTimeout(() => fetchReport(false), 4000);
+        if (data.report.status === 'running' || data.report.status === 'queued') {
+          // Polling a queued run past its start time is what starts it
+          pollRef.current = setTimeout(() => fetchReport(false), data.report.status === 'queued' ? 30_000 : 4000);
         } else if (!first) {
           // Finished while we watched: account details were refreshed by the run
           load();
@@ -588,7 +615,8 @@ export default function CompetitorResearchPanel({ clientId }: { clientId: string
     );
   }
 
-  const running = overview.reports.some(r => r.status === 'running');
+  const queued = overview.reports.some(r => r.status === 'queued');
+  const running = queued || overview.reports.some(r => r.status === 'running');
   const reachableAccounts = overview.accounts.filter(a => overview.config[a.platform]).length;
   const canRun = !running && (reachableAccounts > 0 || (includeTrends && overview.config.trends));
 
@@ -643,7 +671,7 @@ export default function CompetitorResearchPanel({ clientId }: { clientId: string
           className="rounded-full pl-5 pr-4 font-semibold bg-gradient-to-r from-blue-500 to-blue-950 text-white hover:brightness-110"
         >
           {starting || running ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
-          {running ? 'Researching…' : 'Run research'}
+          {queued ? 'Queued…' : running ? 'Researching…' : 'Run research'}
           {!starting && !running && <Play className="h-4 w-4 ml-1.5 fill-current" />}
         </Button>
         {runError && <p className="w-full text-xs text-red-600">{runError}</p>}
@@ -663,6 +691,7 @@ export default function CompetitorResearchPanel({ clientId }: { clientId: string
                 }`}
               >
                 {r.status === 'running' && <Loader2 className="h-3 w-3 animate-spin" />}
+                {r.status === 'queued' && <Clock className="h-3 w-3 text-amber-600" />}
                 {r.status === 'completed' && <Check className="h-3 w-3 text-green-600" />}
                 {r.status === 'failed' && <AlertCircle className="h-3 w-3 text-red-500" />}
                 {new Date(r.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}{' '}
@@ -682,6 +711,20 @@ export default function CompetitorResearchPanel({ clientId }: { clientId: string
               <Loader2 className="h-6 w-6 animate-spin text-blue-500 mx-auto" />
               <p className="text-sm font-medium text-gray-900">{selected.progress || 'Researching'}…</p>
               <p className="text-xs text-gray-500">You can leave this page — the report will be here when it&apos;s done.</p>
+            </div>
+          )}
+
+          {selected && selected.status === 'queued' && (
+            <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-8 text-center space-y-2">
+              <Clock className="h-6 w-6 text-amber-500 mx-auto" />
+              <p className="text-sm font-medium text-gray-900">Queued — Instagram is busy right now</p>
+              <p className="text-xs text-gray-600 max-w-md mx-auto">
+                Instagram limits how many lookups we can make each hour, so this research will start automatically
+                {selected.queued_until
+                  ? ` around ${new Date(selected.queued_until).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+                  : ' shortly'}
+                . You won&apos;t be charged until it runs, and you can leave this page.
+              </p>
             </div>
           )}
 
@@ -707,6 +750,8 @@ export default function CompetitorResearchPanel({ clientId }: { clientId: string
               report={selected.report}
               warnings={selected.warnings ?? []}
               meta={{ accounts: selected.accounts_analyzed, posts: selected.posts_analyzed, createdAt: selected.created_at }}
+              purged={!!selected.raw_data_purged_at}
+              retentionDays={overview.limits.retentionDays}
               onDelete={() => deleteReport(selected.id)}
             />
           )}

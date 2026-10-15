@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
@@ -7,14 +7,20 @@ import {
   DISCOVERY_CREDITS,
   MAX_TRACKED_ACCOUNTS,
   RESEARCH_RUN_CREDITS,
-  STALE_RUN_MS,
+  RETENTION_DAYS,
+  isStaleRun,
+  processDueQueuedRuns,
   researchConfig,
 } from '@/lib/competitor-research/run';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+// Page visits also start queued runs that are due (any client's), via after()
+export const maxDuration = 300;
 
 type Params = { params: Promise<{ clientId: string }> };
+
+const TIMED_OUT = 'Research timed out — please try again.';
 
 // Everything the Competitor Research page needs on load: the niche profile,
 // tracked accounts, recent runs (without their report bodies) and which data
@@ -31,21 +37,27 @@ export async function GET(request: NextRequest, { params }: Params) {
       admin.from('competitor_accounts').select('*').eq('client_id', clientId).order('created_at', { ascending: true }),
       admin
         .from('competitor_research_reports')
-        .select('id, status, progress, accounts_analyzed, posts_analyzed, error, created_at, completed_at')
+        .select('id, status, progress, accounts_analyzed, posts_analyzed, error, queued_until, started_at, created_at, completed_at')
         .eq('client_id', clientId)
         .order('created_at', { ascending: false })
         .limit(10),
     ]);
 
     // Runs whose function invocation died never get marked failed; do it here.
-    const staleIds = (reports.data ?? [])
-      .filter(r => r.status === 'running' && Date.now() - Date.parse(r.created_at) > STALE_RUN_MS)
-      .map(r => r.id);
+    const staleIds = (reports.data ?? []).filter(isStaleRun).map(r => r.id);
     if (staleIds.length) {
       await admin
         .from('competitor_research_reports')
-        .update({ status: 'failed', progress: null, error: 'Research timed out — please try again.' })
+        .update({ status: 'failed', progress: null, error: TIMED_OUT })
         .in('id', staleIds);
+    }
+
+    // Queued runs only start when something triggers them; a page visit is
+    // one of those triggers (this client's first, then anyone's).
+    if ((reports.data ?? []).some(r => r.status === 'queued')) {
+      after(() => processDueQueuedRuns({ clientId, limit: 1 }));
+    } else {
+      after(() => processDueQueuedRuns({ limit: 1 }));
     }
 
     return NextResponse.json({
@@ -54,13 +66,14 @@ export async function GET(request: NextRequest, { params }: Params) {
       profileSaved: profile.saved,
       accounts: accounts.data ?? [],
       reports: (reports.data ?? []).map(r =>
-        staleIds.includes(r.id) ? { ...r, status: 'failed', progress: null, error: 'Research timed out — please try again.' } : r
+        staleIds.includes(r.id) ? { ...r, status: 'failed', progress: null, error: TIMED_OUT } : r
       ),
       config: researchConfig(),
       limits: {
         maxAccounts: MAX_TRACKED_ACCOUNTS,
         researchCredits: RESEARCH_RUN_CREDITS,
         discoveryCredits: DISCOVERY_CREDITS,
+        retentionDays: RETENTION_DAYS,
       },
     });
   } catch (error) {

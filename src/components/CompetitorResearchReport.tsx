@@ -202,7 +202,7 @@ function PostCard({ post, analysis }: { post: RankedPost; analysis?: ResearchRep
         {analysis?.why_it_works ? (
           <p className="text-xs text-gray-700">{analysis.why_it_works}</p>
         ) : (
-          <p className="text-xs text-gray-500 line-clamp-3">{post.caption || 'No caption'}</p>
+          <p className="text-xs text-gray-500 line-clamp-3">{post.caption || 'Caption not available'}</p>
         )}
         {analysis?.visual_style && (
           <p className="text-[11px] text-gray-500"><span className="font-medium text-gray-700">Look: </span>{analysis.visual_style}</p>
@@ -223,6 +223,8 @@ export default function CompetitorResearchReport({
   report,
   warnings,
   meta,
+  purged,
+  retentionDays,
   onDelete,
 }: {
   clientId: string;
@@ -230,6 +232,9 @@ export default function CompetitorResearchReport({
   report: ResearchReport;
   warnings: string[];
   meta: { accounts: number; posts: number; createdAt: string };
+  // Competitor captions and links were removed after the retention window
+  purged: boolean;
+  retentionDays: number;
   onDelete: () => void;
 }) {
   const analysisByRef = new Map(report.top_posts.map(t => [t.ref, t]));
@@ -259,6 +264,12 @@ export default function CompetitorResearchReport({
           </Button>
         </div>
         <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line"><WithRefs text={report.summary} /></p>
+        {purged && (
+          <p className="text-xs text-gray-500 bg-white/70 rounded-md px-3 py-2">
+            Competitors&apos; captions, images and post links are removed from reports after {retentionDays} days. The
+            insights, post ideas and metrics are kept.
+          </p>
+        )}
         {warnings.length > 0 && (
           <div className="rounded-md bg-amber-50 px-3 py-2 space-y-1">
             {warnings.map(w => (

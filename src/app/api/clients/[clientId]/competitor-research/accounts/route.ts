@@ -4,8 +4,7 @@ import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { normalizeHandle } from '@/lib/competitor-research/profile';
-import { fetchInstagramAccount, instagramResearchConfigured, InstagramLookupError } from '@/lib/competitor-research/instagram';
-import { MAX_TRACKED_ACCOUNTS } from '@/lib/competitor-research/run';
+import { MAX_TRACKED_ACCOUNTS, lookupInstagramAccount } from '@/lib/competitor-research/run';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -19,9 +18,7 @@ const bodySchema = z.object({
   source: z.enum(['manual', 'discovered']).default('manual'),
 });
 
-// Track an account. Instagram handles are looked up first so typos and
-// personal accounts (which Business Discovery can't read) are caught here
-// rather than on the next research run.
+// Track an account.
 export async function POST(request: NextRequest, { params }: Params) {
   try {
     const { clientId } = await params;
@@ -54,9 +51,16 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
 
     let details: Record<string, unknown> = {};
-    if (platform === 'instagram' && instagramResearchConfigured()) {
-      try {
-        const account = await fetchInstagramAccount(handle, 0);
+    if (platform === 'instagram') {
+      // Catches typos and personal accounts (which Business Discovery can't
+      // read) now rather than on the next research run. Skipped when the
+      // shared rate limit is low; the run fills the details in later.
+      const lookup = await lookupInstagramAccount(handle);
+      if (lookup.status === 'not_found') {
+        return NextResponse.json({ success: false, error: lookup.message }, { status: 400 });
+      }
+      if (lookup.status === 'found') {
+        const account = lookup.account;
         details = {
           display_name: account.display_name,
           bio: account.bio,
@@ -65,16 +69,6 @@ export async function POST(request: NextRequest, { params }: Params) {
           media_count: account.media_count,
           last_checked_at: new Date().toISOString(),
         };
-      } catch (err) {
-        if (err instanceof InstagramLookupError && err.kind !== 'not_found') {
-          // Rate limit / config problems shouldn't block tracking the handle
-          logger.warn('Competitor account lookup skipped', { handle, kind: err.kind });
-        } else {
-          return NextResponse.json(
-            { success: false, error: err instanceof Error ? err.message : 'Instagram lookup failed' },
-            { status: 400 }
-          );
-        }
       }
     }
 

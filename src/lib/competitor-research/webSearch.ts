@@ -93,6 +93,7 @@ Search the web for current, specific information (posts from the last ~60 days p
 3. caption_trends: how captions are being written right now (length, hooks, CTAs, tone, hashtag/SEO keyword usage).
 
 Prefer things relevant to the business's category, location and audience over generic advice. Be concrete — name the format or trend, don't just say "use video".
+${profile.language !== 'English' ? `Search ${profile.language}-language sources as well as English ones — local trends matter. ` : ''}Write the text values in ${profile.language}; keep the JSON keys in English.
 
 Answer with ONLY a JSON object, no prose:
 {"trending_formats":[{"title":"","description":"what it is and why it's working now","how_to_use":"how ${clientName} could use it","sources":["url"]}],"engagement_tactics":[...same shape],"caption_trends":[...same shape]}
@@ -140,7 +141,7 @@ Only include accounts whose exact ${platformName} handle you found in your searc
 ${exclude.length > 0 ? `Do not include these already-tracked handles: ${exclude.join(', ')}\n` : ''}
 Answer with ONLY a JSON object, no prose:
 {"accounts":[{"handle":"exact handle without @","name":"business or creator name","relationship":"competitor|inspiration","reason":"one sentence on why it's relevant"}]}
-Give up to 12 accounts, competitors first.`;
+Write the "reason" values in ${profile.language}. Give up to 12 accounts, competitors first.`;
 
   const { json } = await searchJson(prompt, profile.location);
   const list = ((json ?? {}) as { accounts?: unknown }).accounts;

@@ -8,6 +8,8 @@ export const researchProfileSchema = z.object({
   location: z.string().trim().max(120).default(''),
   target_audience: z.string().trim().max(500).default(''),
   keywords: z.array(z.string().trim().min(1).max(60)).max(15).default([]),
+  // Language for insights, captions and search: the client's market, not ours
+  language: z.string().trim().min(1).max(40).catch('English'),
 });
 
 // What the research agent knows about the client's niche: drives account
