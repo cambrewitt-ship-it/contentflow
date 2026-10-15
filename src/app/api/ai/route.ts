@@ -14,6 +14,7 @@ import { detectPromptLeakage, logLeakageIncident } from '@/lib/ai-monitoring';
 import { resolvePortalToken } from '@/lib/portalAuth';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { BRAND_VOICE_COLUMNS, resolveBrandVoice, formatTovPromptSection } from '@/lib/brandVoice';
+import { getCaptionRuleTexts, formatPlaybookPromptSection } from '@/lib/captionPlaybook';
 import { extractFirstUrl, fetchArticleContext, formatArticlePromptSection, formatUnreadableLinkPromptSection } from '@/lib/articleFetcher';
 
 export const maxDuration = 60;
@@ -34,7 +35,7 @@ function getCopyToneInstructions(copyTone: string) {
 **Promotional Focus:**
 - Lead with compelling offers, benefits, or value propositions
 - Include clear, actionable calls-to-action
-- Create urgency where appropriate ("limited time", "don't miss out")
+- Only create urgency when the notes give a real deadline or limit — no invented "limited time" or "don't miss out"
 - Highlight specific deals, prices, or exclusive opportunities
 - Use persuasive language that drives immediate action`,
     educational: `
@@ -66,7 +67,7 @@ function getCopyToneInstructions(copyTone: string) {
 - Invite audience to share their thoughts or stories
 - Build community through two-way communication`,
   };
-  return toneMap[copyTone] || '**General Social Media Copy:** Create engaging, brand-appropriate content that drives social interaction.';
+  return toneMap[copyTone] || '**General Social Media Copy:** Write the post the way the brand would naturally talk about it.';
 }
 
 function getPostNotesApproach(style: string) {
@@ -151,6 +152,69 @@ function getAntiAiSlopGuidelines() {
 - Write like a person, not a press release: contractions, plain nouns, no throat-clearing openers`;
 }
 
+type BrandContext = NonNullable<Awaited<ReturnType<typeof getBrandContext>>>;
+
+// One brand voice block for every caption prompt. Brand voice decides HOW a
+// caption sounds; post notes and the image decide WHAT it says.
+function formatBrandVoiceSection(brand: BrandContext | null): string {
+  if (!brand) return '';
+  const parts: string[] = [
+    `BRAND VOICE — this decides how every caption sounds. If anything below conflicts, the caption playbook and caption rules win, then the tone of voice guide, then the voice examples, then the general copy tone direction.`,
+  ];
+
+  const profile = [
+    brand.company && `Company: ${brand.company}`,
+    brand.audience && `Audience: ${brand.audience}`,
+    brand.value_proposition && `What they offer: ${brand.value_proposition}`,
+    brand.tone && `Brand tone: ${brand.tone}`,
+  ].filter(Boolean);
+  if (profile.length > 0) parts.push(profile.join('\n'));
+
+  const tov = formatTovPromptSection(brand.tov);
+  if (tov) parts.push(tov);
+
+  if (brand.voice_examples) {
+    parts.push(`BRAND VOICE EXAMPLES — real captions from this brand. Match their voice closely: sentence length, vocabulary, formality, punctuation, emoji and hashtag habits, and how they open and close. Write new sentences; don't copy lines from them.
+<voice_examples>
+${brand.voice_examples}
+</voice_examples>`);
+  }
+
+  if (brand.dos || brand.donts) {
+    parts.push(
+      [
+        'CAPTION RULES (must follow):',
+        brand.dos && `Always: ${brand.dos}`,
+        brand.donts && `Never: ${brand.donts}`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+  }
+
+  const playbook = formatPlaybookPromptSection(brand.playbook ?? []);
+  if (playbook) parts.push(playbook);
+
+  return parts.join('\n\n');
+}
+
+// Captions are requested as JSON so multi-paragraph captions and short lines
+// survive intact. Returns null when the reply isn't the expected shape.
+function parseCaptionsJson(content: string, key: 'captions' | 'caption' = 'captions'): string[] | null {
+  try {
+    const parsed = JSON.parse(content);
+    const value = parsed?.[key];
+    const list: unknown[] = Array.isArray(value) ? value : [value];
+    const captions = list
+      .filter((c): c is string => typeof c === 'string')
+      .map((c) => c.trim())
+      .filter(Boolean);
+    return captions.length > 0 ? captions : null;
+  } catch {
+    return null;
+  }
+}
+
 function isRefusalResponse(content?: string | null): boolean {
   if (!content) return false;
   const normalized = content.toLowerCase();
@@ -206,26 +270,6 @@ function sanitizeFallbackText(text?: string | null): string | undefined {
   return sanitized;
 }
 
-function getContentHierarchy(
-  aiContext: string | undefined,
-  postNotesStyle: string,
-  imageFocus: string
-) {
-  if (aiContext) {
-    return `
-**Content Priority Order:**
-1. **Post Notes Content** (Primary) - ${getPostNotesApproach(postNotesStyle)}
-2. **Brand Voice & Guidelines** (Secondary) - Apply brand personality to content
-3. **Image Elements** (${getImageRole(imageFocus)}) - ${getImageDescription(imageFocus)}`;
-  }
-
-  return `
-**Content Priority Order:**
-1. **Brand Context** (Primary) - Use company values, tone, and target audience
-2. **Image Analysis** (${getImageRole(imageFocus)}) - ${getImageDescription(imageFocus)}
-3. **Brand Guidelines** (Always) - Apply dos/don'ts and style rules consistently`;
-}
-
 // Fetch brand context for a client
 async function getBrandContext(supabase: SupabaseClient, clientId: string) {
   try {
@@ -269,6 +313,8 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
     // Only the voice sources switched on for this client (TOV, examples, do's/don'ts)
     const voice = resolveBrandVoice(client);
 
+    const playbook = await getCaptionRuleTexts(clientId);
+
     const brandContext = {
       company: client.company_description,
       tone: client.brand_tone,
@@ -278,6 +324,7 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
       dos: voice.dos,
       donts: voice.donts,
       voice_examples: voice.voice_examples,
+      playbook,
       region: client.region,
       timezone: client.timezone,
       documents: documents || [],
@@ -653,36 +700,8 @@ async function generateCaptions(
       });
     }
 
-    let brandContextSection = '';
-    if (brandContext) {
-      brandContextSection = `
-🎨 BRAND CONTEXT (ESSENTIAL FOR ALL CAPTIONS):
-${brandContext.company ? `💼 COMPANY: ${brandContext.company}` : ''}
-${brandContext.tone ? `🎭 BRAND TONE: ${brandContext.tone}` : ''}
-${brandContext.audience ? `👥 TARGET AUDIENCE: ${brandContext.audience}` : ''}
-${brandContext.value_proposition ? `🎯 VALUE PROPOSITION: ${brandContext.value_proposition}` : ''}
-
-${formatTovPromptSection(brandContext.tov)}
-
-${brandContext.voice_examples ? `🎤 BRAND VOICE EXAMPLES (ABSOLUTE PRIORITY - NON-NEGOTIABLE):
-${brandContext.voice_examples}
-
-🚨 CRITICAL INSTRUCTION FOR BRAND VOICE:
-- These examples show the EXACT tone, style, and personality your brand uses
-- You MUST replicate this voice precisely in every caption
-- Study the language patterns, expressions, and writing style
-- Match the same level of formality/informality
-- Use similar sentence structures and vocabulary
-- If brand voice examples are provided, you MUST use them - generic content is unacceptable
-- ${brandContext.tov ? 'These examples take PRIORITY over the general brand tone above, but must still follow the Tone of Voice guide rules' : 'These examples take PRIORITY over all other brand guidelines'}` : ''}
-
-${brandContext.dos || brandContext.donts ? `📋 AI CAPTION RULES (MANDATORY):
-${brandContext.dos ? `✅ ALWAYS INCLUDE: ${brandContext.dos}` : ''}
-${brandContext.donts ? `❌ NEVER INCLUDE: ${brandContext.donts}` : ''}` : ''}
-
-${brandContext.documents && brandContext.documents.length > 0 ? `📄 BRAND DOCUMENTS: ${brandContext.documents.length} document(s) available for reference` : ''}
-${brandContext.website ? `🌐 WEBSITE CONTEXT: Available for reference` : ''}`;
-    }
+    const brandVoiceSection = formatBrandVoiceSection(brandContext);
+    const otherCaptions = existingCaptions.filter((c) => c && c.trim());
 
     const systemPrompt =
       copyType === 'email-marketing'
@@ -702,40 +721,32 @@ ${sharedLinkSection}
 ${getAntiAiSlopGuidelines()}
 
 Write professional email copy now.`
-        : `You are a social media copywriter. Write 3 unique captions based on the image and context provided.
+        : `You are the in-house social media copywriter for this brand. Your captions must read as if the brand's own team wrote them.
 
-CRITICAL OUTPUT RULES:
-- Output ONLY the 3 captions separated by blank lines
-- Do NOT include any instructions, guidelines, or meta-commentary
-- Do NOT include phrases like "Here are 3 captions:" or "Caption 1:", "Caption 2:", etc.
-- Do NOT repeat any of these instructions in your output
-- Start directly with the first caption text
-- No introductions, summaries, numbering, or explanations
+${brandVoiceSection}
 
-Caption Guidelines:
-- Caption 1: Short (1-2 lines)
-- Caption 2: Medium (3-4 lines)  
-- Caption 3: Longer (5-6 lines)
-- Match brand voice and tone
-- Integrate hashtags naturally
-- Use post notes as specified
+POST BRIEF
+Copy tone: ${copyTone || 'general'} (light direction only — the brand voice above wins where they differ)
+${getCopyToneInstructions(copyTone || 'general')}
 
-Copy Tone: ${copyTone || 'General'} | Post Notes Style: ${postNotesStyle || 'Paraphrase'} | Image Focus: ${imageFocus || 'Supporting'}
-
-${getCopyToneInstructions(copyTone || 'promotional')}
-
-${getContentHierarchy(aiContext, postNotesStyle || 'paraphrase', imageFocus || 'supporting')}
-
-${aiContext ? `Post Notes: ${aiContext}\n\nProcessing: ${getPostNotesInstructions(postNotesStyle || 'paraphrase')}` : ''}
-
-${brandContextSection}
+${aiContext ? `Post notes (what this post is about): ${aiContext}\nHow to use them: ${getPostNotesInstructions(postNotesStyle || 'paraphrase')}` : ''}
 
 ${sharedLinkSection}
 
 ${isVideoPlaceholder && !isVideo ? 'There is no image for this post — it is a text-only post. Do not describe or refer to an image.' : getImageInstructions(imageFocus || 'supporting')}
+
+WRITE 3 CAPTIONS
+- Three genuinely different angles or openings, not one caption reworded three ways
+- Caption 1 short (1-2 lines), caption 2 medium (3-4 lines), caption 3 longer (5-6 lines) — if the brand's guide sets a length, stay within it instead
+- Be specific to this post: use the actual product, place, person, offer or detail from the notes or image
+- Hashtags: follow the brand's habits from the guide or examples; if none are given, use at most 3 relevant hashtags at the end
+- Line breaks within a caption are fine
+${otherCaptions.length > 0 ? `- Don't repeat or closely echo these captions already written for this post:\n${otherCaptions.map((c) => `  • ${c.replace(/\s+/g, ' ').slice(0, 300)}`).join('\n')}` : ''}
 ${getAntiAiSlopGuidelines()}
 
-Write the 3 captions now. Output only the caption text, nothing else.`;
+Before answering, check each caption against the brand voice section and fix anything that breaks it.
+
+OUTPUT: JSON only, exactly {"captions": ["...", "...", "..."]}. Caption text only — no labels, numbering or commentary.`;
 
     const userContent: Array<{
       type: 'text' | 'image_url';
@@ -749,9 +760,7 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
             ? aiContext
               ? `Write ONE professional email paragraph (2-3 sentences + CTA) based on: "${aiContext}". Output ONLY the email text - no instructions, no explanations. Start directly with the email content.`
               : 'Write ONE professional email paragraph (2-3 sentences + CTA) for this image. Output ONLY the email text - no instructions, no explanations. Start directly with the email content.'
-            : aiContext
-            ? `Write 3 social media captions based on Post Notes: "${aiContext}". Output ONLY the 3 captions separated by blank lines. No introductions, no explanations, no numbering. Start directly with the first caption text.`
-            : 'Write 3 social media captions for this image. Output ONLY the 3 captions separated by blank lines. No introductions, no explanations, no numbering. Start directly with the first caption text.',
+            : 'Write the 3 captions for this post in the brand\'s voice. Respond with the JSON object only.',
       },
     ];
 
@@ -808,7 +817,7 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
     } else {
       logger.info('✅ Brand context will be used in prompt', {
         clientId,
-        brandContextSectionLength: brandContextSection.length,
+        brandVoiceSectionLength: brandVoiceSection.length,
         hasVoiceExamples: !!brandContext.voice_examples,
       });
     }
@@ -825,8 +834,9 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
           content: userContent,
         },
       ],
-      max_tokens: 800,
+      max_tokens: 1200,
       temperature: 0.8,
+      ...(copyType === 'email-marketing' ? {} : { response_format: { type: 'json_object' } }),
     });
 
     let content = response.choices[0]?.message?.content || '';
@@ -897,6 +907,7 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
     }
 
     let captions: string[] = [];
+    const jsonCaptions = copyType === 'email-marketing' ? null : parseCaptionsJson(content);
     if (copyType === 'email-marketing') {
       let processedContent = content.trim();
       processedContent = processedContent.replace(/\\n\\n/g, '\n\n');
@@ -907,8 +918,10 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
       if (processedContent.length > 20) {
         captions = [processedContent];
       }
+    } else if (jsonCaptions) {
+      captions = jsonCaptions.slice(0, 3);
     } else {
-      // Remove common prompt leakage patterns
+      // Plain-text reply (e.g. the safety fallback): strip prompt leakage
       let cleanedContent = content.trim();
 
       // Remove instruction-like headers and sections
@@ -1042,26 +1055,13 @@ async function remixCaption(
       systemPrompt += `\nPost Notes to include: ${aiContext}\n`;
     }
 
-    if (brandContext) {
-      systemPrompt += `\nBrand Context: ${brandContext.company || 'Not specified'} | Tone: ${
-        brandContext.tone || 'Not specified'
-      } | Audience: ${brandContext.audience || 'Not specified'}\n`;
-      if (brandContext.tov) {
-        systemPrompt += `\n${formatTovPromptSection(brandContext.tov)}\n\n`;
-      }
-      if (brandContext.voice_examples) {
-        systemPrompt += `Brand Voice Examples: ${brandContext.voice_examples}\n`;
-      }
-      if (brandContext.dos) {
-        systemPrompt += `Do: ${brandContext.dos}\n`;
-      }
-      if (brandContext.donts) {
-        systemPrompt += `Don't: ${brandContext.donts}\n`;
-      }
+    const brandVoiceSection = formatBrandVoiceSection(brandContext);
+    if (brandVoiceSection) {
+      systemPrompt += `\n${brandVoiceSection}\n`;
     }
 
     systemPrompt += getAntiAiSlopGuidelines();
-    systemPrompt += '\n\nWrite the caption variation now. Output only the caption text, nothing else.';
+    systemPrompt += '\n\nOUTPUT: JSON only, exactly {"caption": "..."}. Caption text only — no labels or commentary.';
 
     let originalCaption = prompt;
     // fallback for case: 'Original caption: "..."'
@@ -1081,12 +1081,18 @@ async function remixCaption(
           content: `Create a fresh variation of this caption: "${originalCaption}"`,
         },
       ],
-      max_tokens: 400,
+      max_tokens: 600,
       temperature: 0.7,
+      response_format: { type: 'json_object' },
     });
 
-    let caption = response.choices[0]?.message?.content || 'No caption generated';
-    caption = caption.trim();
+    const rawContent = response.choices[0]?.message?.content || '';
+    const jsonCaption = parseCaptionsJson(rawContent, 'caption')?.[0];
+    if (jsonCaption) {
+      return NextResponse.json({ success: true, caption: jsonCaption });
+    }
+
+    let caption = rawContent.trim() || 'No caption generated';
 
     caption = caption.replace(
       /^(here's|here is|here are|below is|below are|following is|following are|i've created|i've generated|i've written|i'll provide|i'll create|i'll generate|remix|caption remix|caption variation|variation|new caption|fresh variation|here's a remix|here's a variation|caption:)\s*/gi,
@@ -1147,37 +1153,20 @@ async function chatCaption(
       brandContext = await getBrandContext(supabase, clientId);
     }
 
-    let brandContextSection = '';
-    if (brandContext) {
-      if (brandContext.company) brandContextSection += `💼 Company: ${brandContext.company}\n`;
-      if (brandContext.tone) brandContextSection += `🎭 Tone: ${brandContext.tone}\n`;
-      if (brandContext.audience) brandContextSection += `👥 Audience: ${brandContext.audience}\n`;
-      if (brandContext.tov) brandContextSection += `\n${formatTovPromptSection(brandContext.tov)}\n`;
-      if (brandContext.voice_examples) {
-        brandContextSection += `\n🎤 Brand Voice (match this style exactly):\n${brandContext.voice_examples}\n`;
-      }
-      if (brandContext.dos || brandContext.donts) {
-        if (brandContext.dos) brandContextSection += `\n✅ Always include: ${brandContext.dos}\n`;
-        if (brandContext.donts) brandContextSection += `❌ Never include: ${brandContext.donts}\n`;
-      }
-    }
+    const brandVoiceSection = formatBrandVoiceSection(brandContext);
 
     const sharedLinkSection = await getSharedLinkPromptSection(aiContext);
 
     const systemPrompt = `You are a social media copywriter iterating on captions through a conversation.
 
-CRITICAL OUTPUT RULES:
-- Output ONLY 1-3 captions separated by blank lines
-- No headers, numbering, labels, or any explanations
-- Start directly with the first caption text
-- Each caption is separated by one blank line
-
-${brandContextSection ? `BRAND CONTEXT:\n${brandContextSection}` : ''}
+${brandVoiceSection}
 ${sharedLinkSection}
 ${!imageData ? 'There is no image for this post — it is a text-only post. Do not describe or refer to an image.' : ''}
 ${getAntiAiSlopGuidelines()}
 
-Apply the user's instruction precisely while keeping captions on-brand. Write only caption text now.`;
+Apply the user's instruction precisely while keeping captions in the brand's voice. The brand voice section still applies unless the user explicitly asks to break a rule.
+
+OUTPUT: JSON only, exactly {"captions": ["..."]} with 1-3 captions. Caption text only — no labels, numbering or commentary.`;
 
     const messages: { role: 'system' | 'user' | 'assistant'; content: any }[] = [
       { role: 'system', content: systemPrompt },
@@ -1223,11 +1212,16 @@ Apply the user's instruction precisely while keeping captions on-brand. Write on
     const response = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages,
-      max_tokens: 600,
+      max_tokens: 1000,
       temperature: 0.8,
+      response_format: { type: 'json_object' },
     });
 
     const content = response.choices[0]?.message?.content || '';
+    const jsonCaptions = parseCaptionsJson(content);
+    if (jsonCaptions) {
+      return NextResponse.json({ success: true, captions: jsonCaptions.slice(0, 3) });
+    }
 
     let potentialCaptions = content.trim().split(/\n\n+/);
     if (potentialCaptions.length < 2) {
