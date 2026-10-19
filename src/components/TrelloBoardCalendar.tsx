@@ -28,6 +28,7 @@ import {
   X,
   FileText,
   CalendarDays,
+  Tag,
 } from 'lucide-react';
 import {
   DndContext,
@@ -58,6 +59,7 @@ import {
   type WeekEntry,
 } from '@/components/ColumnViewCalendar';
 import { PlatformBadges } from '@/components/PlatformBadges';
+import { PostTagPicker, type PostTag } from '@/components/PostTagPicker';
 import { getPublishStatus } from '@/components/PublishStatusBadge';
 import { VideoThumbnail } from '@/components/VideoThumbnail';
 import { isVideoUrl } from '@/lib/videoUtils';
@@ -317,6 +319,9 @@ function BoardCard({
   onDeletePost,
   onDeleteClientUpload,
   onNativeDrop,
+  clientId,
+  portalToken,
+  onTagsChange,
 }: {
   post: Post;
   density: Density;
@@ -333,6 +338,9 @@ function BoardCard({
   onDeletePost?: (post: Post) => void | Promise<void>;
   onDeleteClientUpload?: (upload: ClientUpload) => void | Promise<void>;
   onNativeDrop?: (e: React.DragEvent, dateKey: string) => void;
+  clientId?: string;
+  portalToken?: string;
+  onTagsChange?: (postId: string, tags: PostTag[]) => void;
 }) {
   const isUpload = isUploadPost(post);
   const dateKey = post.scheduled_date || '';
@@ -342,7 +350,10 @@ function BoardCard({
     data: { dateKey },
   });
   const [isNativeDragOver, setIsNativeDragOver] = useState(false);
+  const [tagAnchor, setTagAnchor] = useState<HTMLButtonElement | null>(null);
   const compact = density === 'compact';
+  // Tags can be set on posts (not uploads) once the page can save and show them.
+  const canTag = !isUpload && !!onTagsChange && !!(portalToken || clientId);
 
   // Media: posts carry image_url/media_urls; uploads carry the upload row (or a carousel group).
   let media: Array<{ url: string; isVideo: boolean }> = [];
@@ -391,7 +402,7 @@ function BoardCard({
   const quickActions = (
     <div
       className={`absolute top-1.5 right-1.5 z-10 flex items-center gap-1 transition-opacity ${
-        isSelected || isDeleting || isDuplicating ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        isSelected || isDeleting || isDuplicating || tagAnchor ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
       }`}
       onPointerDown={(e) => e.stopPropagation()}
     >
@@ -408,6 +419,20 @@ function BoardCard({
           title={isSelected ? 'Deselect post' : 'Select post'}
         >
           <Check className="w-3.5 h-3.5" />
+        </button>
+      )}
+      {canTag && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            const button = e.currentTarget;
+            setTagAnchor((prev) => (prev ? null : button));
+          }}
+          className="w-6 h-6 rounded-md bg-white/95 border border-gray-300 shadow-sm flex items-center justify-center text-gray-600 hover:text-blue-600"
+          title="Tags"
+        >
+          <Tag className="w-3.5 h-3.5" />
         </button>
       )}
       {!isUpload && onDuplicatePost && (
@@ -471,6 +496,17 @@ function BoardCard({
       } ${isNativeDragOver ? 'ring-2 ring-blue-400 bg-blue-50' : ''}`}
     >
       {quickActions}
+      {canTag && tagAnchor && (
+        <PostTagPicker
+          postId={post.id}
+          tags={tags}
+          clientId={clientId}
+          portalToken={portalToken}
+          anchor={tagAnchor}
+          onClose={() => setTagAnchor(null)}
+          onTagsChange={onTagsChange!}
+        />
+      )}
 
       {!compact && media.length > 1 && <CarouselCover media={media} />}
       {!compact && media.length === 1 && <CardCover url={cover.url} isVideo={cover.isVideo} compact={false} />}
@@ -756,6 +792,9 @@ function BoardList({
                 onDeletePost={props.onDeletePost}
                 onDeleteClientUpload={props.onDeleteClientUpload}
                 onNativeDrop={props.onDrop}
+                clientId={props.clientId}
+                portalToken={props.portalToken}
+                onTagsChange={props.onTagsChange}
               />
             );
           })}

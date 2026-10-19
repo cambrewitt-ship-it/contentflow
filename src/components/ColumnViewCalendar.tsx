@@ -150,6 +150,10 @@ export interface ColumnViewCalendarProps {
   onEventClick?: (event: CalendarEvent) => void;
   contentEvents?: Record<string, import('@/components/EventsCalendarLayer').ContentEvent[]>;
   onPostClick?: (post: Post) => void;
+  /** Client portal token — set when the calendar is shown in the portal (tags save via portal APIs). */
+  portalToken?: string;
+  /** Called after a post's tags change, so the page can keep its post data in sync. */
+  onTagsChange?: (postId: string, tags: PostTag[]) => void;
 }
 
 export const normalizeToWeekStart = (input: Date) => {

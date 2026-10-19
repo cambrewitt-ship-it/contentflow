@@ -130,6 +130,7 @@ interface Post {
   status?: 'draft' | 'ready' | 'scheduled' | 'published' | 'archived' | 'deleted';
   post_notes?: string;
   platform?: string;
+  tags?: Array<{ id: string; name: string; color: string }>;
 }
 
 interface ClientUpload {
@@ -2376,6 +2377,24 @@ export default function CalendarPage() {
     }
   };
 
+  // A post's tags changed (board card or post modal) — keep the calendar and open modal in step.
+  const handlePostTagsChange = (postId: string, tags: Array<{ id: string; name: string; color: string }>) => {
+    setScheduledPosts(prev => {
+      const next = { ...prev };
+      for (const [dateKey, posts] of Object.entries(next)) {
+        const idx = posts.findIndex(p => p.id === postId);
+        if (idx !== -1) {
+          const updated = [...posts];
+          updated[idx] = { ...updated[idx], tags };
+          next[dateKey] = updated;
+          break;
+        }
+      }
+      return next;
+    });
+    setPostDetailModal(prev => (prev && prev.id === postId ? { ...prev, tags } : prev));
+  };
+
   // Native HTML5 drag from the unscheduled posts tray, dropped directly onto an existing card/date.
   const handleCalendarCardDrop = async (e: React.DragEvent, dateKey: string) => {
     const postData = e.dataTransfer.getData('post');
@@ -2499,6 +2518,7 @@ export default function CalendarPage() {
     onEventClick: handleEditEvent,
     contentEvents: contentEventsByDate,
     onPostClick: handleCalendarCardClick,
+    onTagsChange: handlePostTagsChange,
     onDrop: handleCalendarCardDrop,
     onPostMove: handleColumnPostMove,
     onPostMoveToWeek: handlePostMoveToWeek,
@@ -3148,6 +3168,8 @@ export default function CalendarPage() {
           post={postDetailModal}
           onClose={() => setPostDetailModal(null)}
           getAccessToken={getAccessToken}
+          clientId={clientId}
+          onTagsChange={handlePostTagsChange}
           authorName={user?.user_metadata?.full_name || user?.email || 'Agency'}
           accountName={clientName || undefined}
           accountAvatarUrl={clientLogoUrl || undefined}

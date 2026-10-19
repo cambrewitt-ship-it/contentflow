@@ -11,12 +11,14 @@ import {
   Calendar,
   ArrowUp,
   RotateCcw,
+  Tag,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
 import { PlatformBadges, PlatformPicker } from "@/components/PlatformBadges";
 import { PublishStatusBadge } from "@/components/PublishStatusBadge";
+import { PostTagPicker, type PostTag } from "@/components/PostTagPicker";
 import { ApprovalStatusEditor, type EditableApprovalStatus } from "@/components/ApprovalStatusEditor";
 import { normalizeTargetPlatforms, type TargetPlatform } from "@/lib/targetPlatforms";
 import logger from "@/lib/logger";
@@ -75,6 +77,9 @@ interface Props {
   onSchedule?: (account: { _id: string; platform: string; name?: string }) => Promise<void>;
   /** Platform currently being scheduled to (shows a spinner on that button). */
   schedulingPlatform?: string | null;
+  /** With onTagsChange, lets the agency add/remove the post's tags from the modal. */
+  clientId?: string;
+  onTagsChange?: (postId: string, tags: PostTag[]) => void;
 }
 
 function weekStartForDateKey(dateKey: string): Date {
@@ -173,7 +178,9 @@ function PipelineSteps({ steps }: { steps: ApprovalStep[] }) {
   );
 }
 
-export function ClientPostDetailModal({ post, onClose, getAccessToken, authorName, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate, onChangeTargetPlatforms, onChangeApprovalStatus, scheduleAccounts = [], onSchedule, schedulingPlatform }: Props) {
+export function ClientPostDetailModal({ post, onClose, getAccessToken, authorName, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate, onChangeTargetPlatforms, onChangeApprovalStatus, scheduleAccounts = [], onSchedule, schedulingPlatform, clientId, onTagsChange }: Props) {
+  const [tagAnchor, setTagAnchor] = useState<HTMLButtonElement | null>(null);
+  const canEditTags = !!clientId && !!onTagsChange;
   const [targetPlatforms, setTargetPlatforms] = useState<TargetPlatform[]>(() =>
     normalizeTargetPlatforms(post.target_platforms)
   );
@@ -503,8 +510,8 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
               )}
 
               {/* Tags */}
-              {(post.tags ?? []).length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
+              {((post.tags ?? []).length > 0 || canEditTags) && (
+                <div className="flex flex-wrap items-center gap-1.5">
                   {(post.tags ?? []).map(tag => (
                     <span
                       key={tag.id}
@@ -514,6 +521,29 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                       {tag.name}
                     </span>
                   ))}
+                  {canEditTags && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const button = e.currentTarget;
+                        setTagAnchor(prev => (prev ? null : button));
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-gray-400 border border-dashed border-gray-300 hover:border-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <Tag className="w-3 h-3" />
+                      Tags
+                    </button>
+                  )}
+                  {canEditTags && tagAnchor && (
+                    <PostTagPicker
+                      postId={post.id}
+                      tags={post.tags ?? []}
+                      clientId={clientId}
+                      anchor={tagAnchor}
+                      onClose={() => setTagAnchor(null)}
+                      onTagsChange={onTagsChange!}
+                    />
+                  )}
                 </div>
               )}
 
