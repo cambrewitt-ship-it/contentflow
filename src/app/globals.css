@@ -280,6 +280,38 @@
   }
 }
 
+/* ── AI thinking indicator ───────────────────────────────────────── */
+.thinking-shimmer {
+  background: linear-gradient(90deg, #9ca3af 0%, #9ca3af 35%, #2563eb 50%, #9ca3af 65%, #9ca3af 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: thinking-shimmer 1.8s linear infinite;
+}
+
+.thinking-step-in {
+  animation: thinking-shimmer 1.8s linear infinite, thinking-step-in 0.35s ease-out;
+}
+
+@keyframes thinking-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -150% 0; }
+}
+
+@keyframes thinking-step-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-shimmer,
+  .thinking-step-in {
+    animation: none;
+    color: #6b7280;
+  }
+}
+
 /* ── Mobile ─────────────────────────────────────────────────────────── */
 @media (max-width: 767px) {
   /* iOS Safari zooms into any focused field under 16px */

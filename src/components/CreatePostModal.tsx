@@ -8,6 +8,7 @@ import { SocialPreviewCard } from '@/components/SocialPreviewCard';
 import PhotoSwapDialog from '@/components/PhotoSwapDialog';
 import { WeekDayChooser } from '@/components/WeekDayChooser';
 import { ChatCaptionOption } from '@/components/ChatCaptionOption';
+import { ThinkingIndicator } from '@/components/ThinkingIndicator';
 import { GeneratePromptBox, ChatRefineInput } from '@/components/CaptionPrompt';
 import { useInputGlide } from '@/hooks/useInputGlide';
 import { PlatformPicker } from '@/components/PlatformBadges';
@@ -716,7 +717,7 @@ function CreatePostModalContent({
                             {msg.content}
                           </span>
                         ) : msg.isLoading ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />
+                          <ThinkingIndicator size="sm" />
                         ) : msg.captions && msg.captions.length > 0 ? (
                           <div className="space-y-1.5">
                             {msg.captions.map((cap) => (

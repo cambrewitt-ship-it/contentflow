@@ -631,11 +631,12 @@ async function generateCaptions(
       throw new Error('Add Post Notes or a link to generate copy for a post without an image.');
     }
 
-    const sharedLinkSection = await getSharedLinkPromptSection(aiContext);
-
-    let brandContext: Awaited<ReturnType<typeof getBrandContext>> | null = null;
+    // The article fetch and the brand lookup are independent — run them together.
+    const [sharedLinkSection, brandContext] = await Promise.all([
+      getSharedLinkPromptSection(aiContext),
+      clientId ? getBrandContext(supabase, clientId) : Promise.resolve(null),
+    ]);
     if (clientId) {
-      brandContext = await getBrandContext(supabase, clientId);
       logger.info('🎨 Brand context fetched for caption generation:', {
         clientId,
         hasContext: !!brandContext,
@@ -1135,10 +1136,10 @@ async function chatCaption(
   copyType: 'social-media' | 'email-marketing' | undefined
 ) {
   try {
-    let brandContext: Awaited<ReturnType<typeof getBrandContext>> | null = null;
-    if (clientId) {
-      brandContext = await getBrandContext(supabase, clientId);
-    }
+    const [brandContext, sharedLinkSection] = await Promise.all([
+      clientId ? getBrandContext(supabase, clientId) : Promise.resolve(null),
+      getSharedLinkPromptSection(aiContext),
+    ]);
 
     let brandContextSection = '';
     if (brandContext) {
@@ -1154,8 +1155,6 @@ async function chatCaption(
         if (brandContext.donts) brandContextSection += `❌ Never include: ${brandContext.donts}\n`;
       }
     }
-
-    const sharedLinkSection = await getSharedLinkPromptSection(aiContext);
 
     const systemPrompt = `You are a social media copywriter iterating on captions through a conversation.
 

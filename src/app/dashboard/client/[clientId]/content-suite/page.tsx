@@ -22,6 +22,7 @@ import { ContentStoreProvider, ContentFocus, CopyTone } from '@/lib/contentStore
 import { useAuth } from '@/contexts/AuthContext'
 import { SchedulePostModal, Platform } from '@/components/SchedulePostModal'
 import { ChatCaptionOption } from '@/components/ChatCaptionOption'
+import { ThinkingIndicator } from '@/components/ThinkingIndicator'
 import ContentAgentPanel from '@/components/ContentAgentPanel'
 import { publishedCaption } from '@/lib/candidateCaption'
 import type { AutopilotCandidate } from '@/types/autopilot'
@@ -2580,12 +2581,10 @@ function ContentSuiteContent({
                                 </div>
                               )}
 
-                              {/* AI loading dots */}
+                              {/* AI thinking */}
                               {msg.role === 'assistant' && msg.isLoading && (
-                                <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm inline-flex items-center gap-1.5">
-                                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '160ms' }} />
-                                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '320ms' }} />
+                                <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm inline-flex">
+                                  <ThinkingIndicator />
                                 </div>
                               )}
 

@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { uploadMediaToBlob, getMediaType } from './blobUpload'
 import { extractVideoThumbnail } from './videoUtils'
 import { compressImageIfNeeded, prepareImageDataForAI } from './imageCompression'
@@ -875,10 +875,19 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
   }
 
   // Get image data for chat API calls — converts URLs to base64 and compresses (shares compressImageIfNeeded with generateAICaptions)
+  // Downloading + compressing the image is slow, so reuse the result for every
+  // message about the same image instead of redoing it per request.
+  const preparedImageCache = useRef(new Map<string, string>())
+
   const getImageDataForChat = async (): Promise<string | undefined> => {
     const activeImage = uploadedImages.find(img => img.id === activeImageId)
     if (!activeImage) return undefined
-    return prepareImageDataForAI(activeImage)
+    const cacheKey = `${activeImage.id}:${activeImage.blobUrl || activeImage.preview || ''}`
+    const cached = preparedImageCache.current.get(cacheKey)
+    if (cached) return cached
+    const prepared = await prepareImageDataForAI(activeImage)
+    if (prepared) preparedImageCache.current.set(cacheKey, prepared)
+    return prepared
   }
 
   // A 403 alone is not sufficient evidence of an insufficient-credits error (auth/ownership
@@ -902,12 +911,18 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     if ((!activeImage && !postNotes.trim()) || !accessToken) return
 
     const isVideo = activeImage?.mediaType === 'video'
-    const imageData = activeImage ? await getImageDataForChat() : undefined
-    if (activeImage && !imageData) return
 
+    // Show the thinking state straight away — image prep can take a moment.
     const loadingId = `msg-${Date.now()}`
     setChatMessages([{ id: loadingId, role: 'assistant', content: '', isLoading: true }])
     setChatLoading(true)
+
+    const imageData = activeImage ? await getImageDataForChat() : undefined
+    if (activeImage && !imageData) {
+      setChatMessages([])
+      setChatLoading(false)
+      return
+    }
 
     try {
       const aiContext = isVideo || !activeImage
