@@ -4,6 +4,7 @@ import mammoth from 'mammoth';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { withAICreditCheck, trackAICreditUsage } from '@/lib/subscriptionMiddleware';
+import { completionParams } from '@/lib/openaiParams';
 
 export const maxDuration = 120;
 export const dynamic = 'force-dynamic';
@@ -121,9 +122,7 @@ export async function POST(
       }
 
       const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        max_tokens: 12000,
-        temperature: 0,
+        ...completionParams(process.env.OPENAI_MODEL || 'gpt-4o', { maxTokens: 12000, temperature: 0 }),
         messages: [
           { role: 'system', content: TRANSCRIBE_PROMPT },
           { role: 'user', content: userContent },

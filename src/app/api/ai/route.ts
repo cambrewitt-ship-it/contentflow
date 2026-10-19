@@ -15,6 +15,7 @@ import { resolvePortalToken } from '@/lib/portalAuth';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { BRAND_VOICE_COLUMNS, resolveBrandVoice, formatTovPromptSection } from '@/lib/brandVoice';
 import { extractFirstUrl, fetchArticleContext, formatArticlePromptSection, formatUnreadableLinkPromptSection } from '@/lib/articleFetcher';
+import { completionParams } from '@/lib/openaiParams';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -538,7 +539,7 @@ ${prompt ? `Additional context: ${prompt}` : ""}
 Provide your analysis in a clear, structured format.`;
 
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      ...completionParams(process.env.OPENAI_MODEL || 'gpt-4o', { maxTokens: 500, temperature: 0.7 }),
       messages: [
         {
           role: 'system',
@@ -561,8 +562,6 @@ Provide your analysis in a clear, structured format.`;
           ],
         },
       ],
-      max_tokens: 500,
-      temperature: 0.7,
     });
 
     return NextResponse.json({
@@ -814,7 +813,7 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
     }
 
     const response = await callOpenAIWithRetry(openai, {
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      ...completionParams(process.env.OPENAI_MODEL || 'gpt-4o', { maxTokens: 800, temperature: 0.8 }),
       messages: [
         {
           role: 'system',
@@ -825,8 +824,6 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
           content: userContent,
         },
       ],
-      max_tokens: 800,
-      temperature: 0.8,
     });
 
     let content = response.choices[0]?.message?.content || '';
@@ -858,10 +855,10 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
           : 'Create three short, brand-safe social media captions suitable for a generic promotional post. Keep them positive and compliant.';
 
       const fallbackResponse = await callOpenAIWithRetry(openai, {
-        model:
-          process.env.OPENAI_FALLBACK_MODEL ||
-          process.env.OPENAI_MODEL ||
-          'gpt-4o-mini',
+        ...completionParams(
+          process.env.OPENAI_FALLBACK_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini',
+          { maxTokens: copyType === 'email-marketing' ? 500 : 600, temperature: 0.7 }
+        ),
         messages: [
           {
             role: 'system',
@@ -872,8 +869,6 @@ Write the 3 captions now. Output only the caption text, nothing else.`;
             content: fallbackUserMessage,
           },
         ],
-        max_tokens: copyType === 'email-marketing' ? 500 : 600,
-        temperature: 0.7,
       });
 
       const fallbackContent = fallbackResponse.choices[0]?.message?.content || '';
@@ -1070,7 +1065,7 @@ async function remixCaption(
       originalCaption = og[1];
     }
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      ...completionParams(process.env.OPENAI_MODEL || 'gpt-4o', { maxTokens: 400, temperature: 0.7 }),
       messages: [
         {
           role: 'system',
@@ -1081,8 +1076,6 @@ async function remixCaption(
           content: `Create a fresh variation of this caption: "${originalCaption}"`,
         },
       ],
-      max_tokens: 400,
-      temperature: 0.7,
     });
 
     let caption = response.choices[0]?.message?.content || 'No caption generated';
@@ -1221,10 +1214,8 @@ Apply the user's instruction precisely while keeping captions on-brand. Write on
     }
 
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      ...completionParams(process.env.OPENAI_MODEL || 'gpt-4o', { maxTokens: 600, temperature: 0.8 }),
       messages,
-      max_tokens: 600,
-      temperature: 0.8,
     });
 
     const content = response.choices[0]?.message?.content || '';
@@ -1457,7 +1448,7 @@ Make each idea unique to THIS business - not generic content any competitor coul
     );
 
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+      ...completionParams(process.env.OPENAI_MODEL || 'gpt-4-turbo-preview', { maxTokens: 1000, temperature: 0.7 }),
       messages: [
         {
           role: 'system',
@@ -1517,8 +1508,6 @@ Each idea should be unique to THIS business - not generic content any competitor
 Only suggest future holidays/events after ${currentDate} that are relevant to ${clientRegion}.`,
         },
       ],
-      max_tokens: 1000,
-      temperature: 0.7,
       response_format: { type: 'json_object' },
     });
 

@@ -25,6 +25,7 @@ import type { RunContext } from '@/lib/autopilot-agent/tools';
 import { creditsForRun } from '@/lib/autopilot-agent/constants';
 import { organicEnabled, adsEnabled } from '@/lib/autopilot-agent/runBrief';
 import type { RunBrief } from '@/lib/autopilot-agent/runBrief';
+import { completionParams } from '@/lib/openaiParams';
 
 // Re-exported for backward compatibility — imported directly by
 // src/app/api/autopilot/plans/[planId]/confirm/route.ts.
@@ -419,10 +420,8 @@ Photo details:
 Write ONLY the caption text (with hashtags). No explanation.`;
 
   const completion = await openai.chat.completions.create({
-    model: MODEL,
+    ...completionParams(MODEL, { maxTokens: 800, temperature: 0.8 }),
     messages: [{ role: 'user', content: prompt }],
-    max_tokens: 800,
-    temperature: 0.8,
   });
 
   return completion.choices[0]?.message?.content?.trim() || '';

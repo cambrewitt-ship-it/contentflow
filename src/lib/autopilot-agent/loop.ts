@@ -5,6 +5,7 @@ import { AGENT_TOOL_DEFS, dispatchTool, buildContextBriefing, poolIsFull } from 
 import type { RunContext, ScratchpadPost } from './tools';
 import { MAX_ITERATIONS } from './constants';
 import { formatRunBriefPrompt } from './runBrief';
+import { completionParams } from '@/lib/openaiParams';
 
 const openai = new OpenAI();
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
@@ -143,13 +144,12 @@ export async function runAutopilotAgentLoop(ctx: RunContext): Promise<AgentRunRe
 
     const nearCap = iterations >= MAX_ITERATIONS - 1;
     const completion = await createCompletionWithBackoff({
-      model: MODEL,
+      ...completionParams(MODEL, { temperature: 0.7 }),
       messages,
       tools: AGENT_TOOL_DEFS,
       tool_choice: nearCap && ctx.scratchpad.posts.length > 0
         ? { type: 'function', function: { name: 'finalize_candidate_pool' } }
         : 'auto',
-      temperature: 0.7,
     });
 
     promptTokens += completion.usage?.prompt_tokens ?? 0;
