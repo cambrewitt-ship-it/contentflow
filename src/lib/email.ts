@@ -313,3 +313,176 @@ export async function sendAutopilotPublishedEmail(
     return { success: false, error: 'Failed to send email' };
   }
 }
+
+// ── Portal profile emails ─────────────────────────────────────────────────────
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+const PORTAL_EMAIL_STYLES = `
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; margin: 0; padding: 0; }
+    .wrapper { max-width: 580px; margin: 0 auto; padding: 32px 16px; }
+    .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .header { background: #0f172a; padding: 24px 32px; }
+    .header h1 { color: #ffffff; font-size: 18px; margin: 0; font-weight: 600; }
+    .header p { color: #94a3b8; font-size: 14px; margin: 4px 0 0; }
+    .body { padding: 32px; }
+    .code { font-size: 32px; letter-spacing: 8px; font-weight: 700; color: #0f172a; background: #f1f5f9; border-radius: 8px; padding: 16px; text-align: center; margin: 16px 0 24px; }
+    .quote { background: #f8fafc; border-left: 3px solid #6366f1; padding: 12px 16px; border-radius: 4px; font-size: 14px; color: #334155; line-height: 1.6; margin-bottom: 20px; white-space: pre-wrap; }
+    .post { font-size: 13px; color: #64748b; margin-bottom: 24px; }
+    .post img { width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; }
+    .cta { display: block; background: #6366f1; color: #ffffff !important; text-decoration: none; text-align: center; padding: 14px 24px; border-radius: 8px; font-weight: 600; font-size: 15px; }
+    .footer { padding: 20px 32px; border-top: 1px solid #f1f5f9; }
+    .footer p { font-size: 12px; color: #94a3b8; margin: 0; }
+`;
+
+export interface PortalLoginCodeEmailParams {
+  to: string;
+  name: string;
+  clientName: string;
+  code: string;
+  expiresInMinutes: number;
+}
+
+export async function sendPortalLoginCodeEmail(
+  params: PortalLoginCodeEmailParams
+): Promise<{ success: boolean; error?: string }> {
+  const resend = getResend();
+  if (!resend) return { success: false, error: 'Email not configured' };
+
+  const { to, name, clientName, code, expiresInMinutes } = params;
+  const safeClient = escapeHtml(clientName);
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Your sign-in code — ${safeClient}</title>
+  <style>${PORTAL_EMAIL_STYLES}</style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="header">
+        <h1>Your sign-in code</h1>
+        <p>${safeClient} content portal</p>
+      </div>
+      <div class="body">
+        <p style="font-size:15px;color:#1e293b;margin-top:0;">Hi ${escapeHtml(name)},</p>
+        <p style="font-size:14px;color:#475569;margin:0;">Enter this code in the portal to confirm it's you:</p>
+        <div class="code">${code}</div>
+        <p style="font-size:13px;color:#64748b;margin:0;">It expires in ${expiresInMinutes} minutes. If you didn't try to sign in, you can ignore this email.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `${code} is your ${clientName} portal code`,
+      html,
+    });
+    if (error) {
+      logger.error('Resend portal login code error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    logger.error('Portal login code send error:', err);
+    return { success: false, error: 'Failed to send email' };
+  }
+}
+
+export interface CommentNotificationEmailParams {
+  to: string;
+  recipientName: string;
+  authorName: string;
+  clientName: string;
+  reason: 'mention' | 'reply';
+  commentText: string; // plain text, mentions already flattened
+  postCaption: string | null;
+  postImageUrl: string | null;
+  link: string;
+}
+
+export async function sendCommentNotificationEmail(
+  params: CommentNotificationEmailParams
+): Promise<{ success: boolean; error?: string }> {
+  const resend = getResend();
+  if (!resend) return { success: false, error: 'Email not configured' };
+
+  const { to, recipientName, authorName, clientName, reason, commentText, postCaption, postImageUrl, link } = params;
+  const action = reason === 'mention' ? 'mentioned you' : 'replied to your comment';
+  const caption = postCaption
+    ? postCaption.length > 160 ? postCaption.substring(0, 160) + '…' : postCaption
+    : null;
+  const safeLink = escapeHtml(link);
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(authorName)} ${action}</title>
+  <style>${PORTAL_EMAIL_STYLES}</style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="header">
+        <h1>${escapeHtml(authorName)} ${action}</h1>
+        <p>${escapeHtml(clientName)}</p>
+      </div>
+      <div class="body">
+        <p style="font-size:15px;color:#1e293b;margin-top:0;">Hi ${escapeHtml(recipientName)},</p>
+        <div class="quote">${escapeHtml(commentText)}</div>
+        ${postImageUrl || caption ? `
+        <div class="post">
+          ${postImageUrl ? `<img src="${escapeHtml(postImageUrl)}" alt="Post" />` : ''}
+          ${caption ? `<div>${escapeHtml(caption)}</div>` : ''}
+        </div>` : ''}
+        <a href="${safeLink}" class="cta">Reply in the portal →</a>
+      </div>
+      <div class="footer">
+        <p>You're getting this because someone ${reason === 'mention' ? 'tagged you' : 'replied to you'} on a post for ${escapeHtml(clientName)}.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `${authorName} ${action} — ${clientName}`,
+      html,
+    });
+    if (error) {
+      logger.error('Resend comment notification error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    logger.error('Comment notification send error:', err);
+    return { success: false, error: 'Failed to send email' };
+  }
+}
+
+export function isEmailConfigured(): boolean {
+  return !!process.env.RESEND_API_KEY;
+}

@@ -268,7 +268,6 @@ export function PostDetailModal({
                     postType={postType}
                     comments={comments}
                     portalToken={portalToken}
-                    authorName={party?.name ?? "Portal User"}
                     onCommentAdded={comment => setComments(prev => [...prev, comment])}
                   />
                 )}

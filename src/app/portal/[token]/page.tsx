@@ -307,6 +307,20 @@ export default function PortalCalendarPage() {
   const [uploads, setUploads] = useState<{[key: string]: Upload[]}>({});
   const [allUploads, setAllUploads] = useState<Upload[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<{[key: string]: CalendarEvent[]}>({});
+
+  // Deep link from comment notification emails: /portal/<token>?post=<id> opens that item
+  const deepLinkItemIdRef = useRef<string | null>(
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('post') : null
+  );
+  const openItemByIdRef = useRef<((id: string) => boolean) | null>(null);
+  useEffect(() => {
+    const id = deepLinkItemIdRef.current;
+    if (!id || !openItemByIdRef.current?.(id)) return;
+    deepLinkItemIdRef.current = null;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('post');
+    window.history.replaceState(null, '', url.toString());
+  }, [scheduledPosts, allUploads]);
   // useRef instead of useState so the cache check inside fetchScheduledPosts
   // (a useCallback) always reads the current value without a stale closure.
   const lastFetchTimeRef = useRef<number>(0);
@@ -2014,6 +2028,21 @@ export default function PortalCalendarPage() {
         setMovingToDate(null);
       }
     },
+  };
+
+  // Lets the notification-email deep link open an item once it has loaded (see effect above)
+  openItemByIdRef.current = (id: string) => {
+    const post = Object.values(scheduledPosts).flat().find(p => p.id === id);
+    if (post) {
+      portalCalendarProps.onPostClick?.(post as any);
+      return true;
+    }
+    const upload = allUploads.find(u => u.id === id);
+    if (upload) {
+      setModalItem({ type: 'upload', data: upload as any });
+      return true;
+    }
+    return false;
   };
 
   return (

@@ -4,6 +4,10 @@ import { z } from 'zod';
 import logger from '@/lib/logger';
 import { resolvePortalToken } from '@/lib/portalAuth';
 import { requireAuth } from '@/lib/authHelpers';
+import { getPortalMember } from '@/lib/portalMembers';
+import { parseMentions } from '@/lib/mentions';
+import { filterValidMentions, getAgencyUserById, notifyCommentRecipients } from '@/lib/commentNotifications';
+import { getRequestAppUrl } from '@/lib/requestAppUrl';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,10 +16,34 @@ const supabaseAdmin = createClient(
 
 const AddCommentSchema = z.object({
   portal_token: z.string().uuid().optional(),
-  author_name: z.string().min(1).max(200),
+  // Ignored for signed-in portal members and agency users — the server knows who they are
+  author_name: z.string().min(1).max(200).optional(),
   content: z.string().min(1).max(5000),
   post_type: z.enum(['scheduled', 'calendar_scheduled', 'portal_upload']).default('calendar_scheduled'),
+  parent_comment_id: z.string().uuid().optional().nullable(),
 });
+
+const COMMENT_SELECT = `
+  id,
+  author_name,
+  author_type,
+  content,
+  created_at,
+  parent_comment_id,
+  member_id,
+  user_id,
+  party:party_id (
+    id,
+    name,
+    role,
+    color
+  ),
+  member:member_id (
+    id,
+    name,
+    color
+  )
+`;
 
 // GET /api/posts/[postId]/comments
 // Fetches thread. Accessible by agency or portal party.
@@ -99,19 +127,7 @@ export async function GET(
 
     const { data: comments, error } = await supabaseAdmin
       .from('post_comments')
-      .select(`
-        id,
-        author_name,
-        author_type,
-        content,
-        created_at,
-        party:party_id (
-          id,
-          name,
-          role,
-          color
-        )
-      `)
+      .select(COMMENT_SELECT)
       .eq('post_id', postId)
       .eq('post_type', postType)
       .order('created_at', { ascending: true });
@@ -146,10 +162,13 @@ export async function POST(
       );
     }
 
-    const { portal_token, author_name, content, post_type } = parsed.data;
+    const { portal_token, content, post_type, parent_comment_id } = parsed.data;
 
     let partyId: string | null = null;
     let userId: string | null = null;
+    let memberId: string | null = null;
+    let clientId: string;
+    let authorName: string;
     let authorType: 'agency' | 'portal_party';
 
     if (portal_token) {
@@ -158,7 +177,18 @@ export async function POST(
       if (!resolved) {
         return NextResponse.json({ error: 'Invalid portal token' }, { status: 401 });
       }
-      partyId = resolved.party?.id ?? null;
+      // Portal comments must come from a signed-in person, not just the link
+      const member = await getPortalMember(request, resolved.clientId);
+      if (!member) {
+        return NextResponse.json(
+          { error: 'Please sign in to comment', code: 'not_signed_in' },
+          { status: 401 }
+        );
+      }
+      memberId = member.id;
+      authorName = member.name;
+      partyId = member.party_id ?? resolved.party?.id ?? null;
+      clientId = resolved.clientId;
       authorType = 'portal_party';
 
       if (post_type === 'portal_upload') {
@@ -189,6 +219,8 @@ export async function POST(
 
       userId = user.id;
       authorType = 'agency';
+      const agencyUser = await getAgencyUserById(user.id);
+      authorName = agencyUser?.name ?? parsed.data.author_name ?? 'Agency';
 
       if (post_type === 'portal_upload') {
         const { data: upload } = await supabase
@@ -208,6 +240,7 @@ export async function POST(
         if (!clientCheck) {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
+        clientId = upload.client_id;
       } else {
         const postTable = post_type === 'calendar_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
         const { data: post } = await supabase
@@ -230,6 +263,31 @@ export async function POST(
         if (!clientCheck) {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
+        clientId = post.client_id;
+      }
+    }
+
+    // Replies hang off the top-level comment, so threads stay one level deep
+    let parentComment: { id: string; member_id: string | null; user_id: string | null } | null = null;
+    if (parent_comment_id) {
+      const { data: parent } = await supabaseAdmin
+        .from('post_comments')
+        .select('id, member_id, user_id, parent_comment_id')
+        .eq('id', parent_comment_id)
+        .eq('post_id', postId)
+        .eq('post_type', post_type)
+        .maybeSingle();
+      if (!parent) {
+        return NextResponse.json({ error: 'The comment you replied to no longer exists' }, { status: 404 });
+      }
+      parentComment = parent;
+      if (parent.parent_comment_id) {
+        const { data: root } = await supabaseAdmin
+          .from('post_comments')
+          .select('id')
+          .eq('id', parent.parent_comment_id)
+          .maybeSingle();
+        if (root) parentComment = { ...parent, id: root.id };
       }
     }
 
@@ -240,28 +298,48 @@ export async function POST(
         post_type,
         party_id: partyId,
         user_id: userId,
-        author_name,
+        member_id: memberId,
+        parent_comment_id: parentComment?.id ?? null,
+        author_name: authorName,
         author_type: authorType,
         content,
       })
-      .select(`
-        id,
-        author_name,
-        author_type,
-        content,
-        created_at,
-        party:party_id (
-          id,
-          name,
-          role,
-          color
-        )
-      `)
+      .select(COMMENT_SELECT)
       .single();
 
     if (error) {
       logger.error('Error creating comment:', error);
       return NextResponse.json({ error: 'Failed to create comment' }, { status: 500 });
+    }
+
+    // @mentions + reply notifications. A failure here never fails the comment itself.
+    try {
+      const mentions = await filterValidMentions(clientId, parseMentions(content));
+      if (mentions.length > 0) {
+        const { error: mentionError } = await supabaseAdmin.from('comment_mentions').insert(
+          mentions.map(m => ({
+            comment_id: comment.id,
+            member_id: m.kind === 'member' ? m.id : null,
+            user_id: m.kind === 'user' ? m.id : null,
+          }))
+        );
+        if (mentionError) logger.error('Error saving comment mentions:', mentionError);
+      }
+
+      await notifyCommentRecipients({
+        clientId,
+        postId,
+        postType: post_type,
+        commentId: comment.id,
+        content,
+        authorName,
+        author: { memberId, userId },
+        mentions,
+        parentComment,
+        appUrl: getRequestAppUrl(request),
+      });
+    } catch (notifyError) {
+      logger.error('Error sending comment notifications:', notifyError);
     }
 
     return NextResponse.json({ comment }, { status: 201 });

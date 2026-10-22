@@ -9,12 +9,14 @@ import {
   Loader2,
 } from "lucide-react";
 import Link from "next/link";
+import { PortalSignIn } from "@/components/PortalSignIn";
+import { PortalProfileMenu } from "@/components/PortalProfileMenu";
 
 
-function PortalLayoutContent({ children }: { children: React.ReactNode }) {
-  const { client, party, isLoading, error, pageTitle, topBarActions } = usePortal();
+function PortalLayoutContent({ token, children }: { token: string; children: React.ReactNode }) {
+  const { client, party, member, isMemberLoading, setMember, isLoading, error, pageTitle, topBarActions } = usePortal();
 
-  if (isLoading) {
+  if (isLoading || (client && isMemberLoading)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="p-8 text-center">
@@ -61,6 +63,18 @@ function PortalLayoutContent({ children }: { children: React.ReactNode }) {
           </Button>
         </Card>
       </div>
+    );
+  }
+
+  // Everyone signs in as themselves (name + email) before using the portal
+  if (!member) {
+    return (
+      <PortalSignIn
+        token={token}
+        clientName={client.name}
+        clientLogoUrl={client.logo_url}
+        onSignedIn={setMember}
+      />
     );
   }
 
@@ -116,6 +130,8 @@ function PortalLayoutContent({ children }: { children: React.ReactNode }) {
             </div>
 
             {topBarActions}
+
+            <PortalProfileMenu token={token} />
           </div>
         </div>
       </header>
@@ -149,7 +165,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   return (
     <PortalProvider token={token}>
-      <PortalLayoutContent>
+      <PortalLayoutContent token={token}>
         {children}
       </PortalLayoutContent>
     </PortalProvider>

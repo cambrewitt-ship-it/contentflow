@@ -17,9 +17,24 @@ export interface PortalParty {
   color: string | null;
 }
 
+/** The individual person signed in to the portal on this device. */
+export interface PortalMember {
+  id: string;
+  name: string;
+  email: string;
+  color: string | null;
+  party_id: string | null;
+  email_notifications: boolean;
+}
+
 interface PortalContextType {
   client: PortalClient | null;
   party: PortalParty | null;
+  /** Signed-in person (null until they sign in with name + email). */
+  member: PortalMember | null;
+  isMemberLoading: boolean;
+  setMember: (member: PortalMember | null) => void;
+  signOutMember: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
   logout: () => void;
@@ -46,6 +61,8 @@ export function PortalProvider({
 }) {
   const [client, setClient] = useState<PortalClient | null>(null);
   const [party, setParty] = useState<PortalParty | null>(null);
+  const [member, setMember] = useState<PortalMember | null>(null);
+  const [isMemberLoading, setIsMemberLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -164,6 +181,38 @@ export function PortalProvider({
     }
   };
 
+  // Who is signed in on this device — not cached, the cookie is the source of truth
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setIsMemberLoading(true);
+    fetch(`/api/portal/members/me?token=${encodeURIComponent(token)}`)
+      .then(res => (res.ok ? res.json() : { member: null }))
+      .then(data => {
+        if (!cancelled) setMember(data.member ?? null);
+      })
+      .catch(err => logger.error('PortalContext: member lookup failed:', err))
+      .finally(() => {
+        if (!cancelled) setIsMemberLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const signOutMember = async () => {
+    try {
+      await fetch('/api/portal/members/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+    } catch (err) {
+      logger.error('PortalContext: sign out failed:', err);
+    }
+    setMember(null);
+  };
+
   useEffect(() => {
     if (!token) return;
     // Skip if already validated this exact token or a call is in-flight
@@ -178,6 +227,10 @@ export function PortalProvider({
   const value = {
     client,
     party,
+    member,
+    isMemberLoading,
+    setMember,
+    signOutMember,
     isLoading,
     error,
     logout,

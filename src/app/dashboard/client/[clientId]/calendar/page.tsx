@@ -3170,7 +3170,6 @@ export default function CalendarPage() {
           getAccessToken={getAccessToken}
           clientId={clientId}
           onTagsChange={handlePostTagsChange}
-          authorName={user?.user_metadata?.full_name || user?.email || 'Agency'}
           accountName={clientName || undefined}
           accountAvatarUrl={clientLogoUrl || undefined}
           isSavingCaption={savingCaptionPostIds.has(postDetailModal.id)}
@@ -3211,7 +3210,7 @@ export default function CalendarPage() {
           upload={uploadDetailModal}
           onClose={() => setUploadDetailModal(null)}
           getAccessToken={getAccessToken}
-          authorName={user?.user_metadata?.full_name || user?.email || 'Agency'}
+          clientId={clientId}
           onDelete={(upload) => {
             const existingEntry = Object.entries(clientUploads).find(([, items]) =>
               items.some(item => item.id === upload.id)
