@@ -138,7 +138,14 @@ const nextConfig: NextConfig = {
   
   // Keep resend (email SDK) as a server-side external so Turbopack doesn't try
   // to statically bundle its optional @react-email/render dynamic import.
-  serverExternalPackages: ['resend'],
+  // ffmpeg-static ships a native binary (used for email video thumbnails) — it must
+  // be required from node_modules at runtime, not bundled.
+  serverExternalPackages: ['resend', 'ffmpeg-static'],
+
+  // Make sure the ffmpeg binary is deployed with the routes that send comment emails.
+  outputFileTracingIncludes: {
+    '/api/posts/[postId]/comments': ['./node_modules/ffmpeg-static/ffmpeg'],
+  },
 
   // Allow Next.js Image Optimization to resize/convert images from Vercel Blob Storage
   images: {

@@ -336,7 +336,8 @@ const PORTAL_EMAIL_STYLES = `
     .code { font-size: 32px; letter-spacing: 8px; font-weight: 700; color: #0f172a; background: #f1f5f9; border-radius: 8px; padding: 16px; text-align: center; margin: 16px 0 24px; }
     .quote { background: #f8fafc; border-left: 3px solid #6366f1; padding: 12px 16px; border-radius: 4px; font-size: 14px; color: #334155; line-height: 1.6; margin-bottom: 20px; white-space: pre-wrap; }
     .post { font-size: 13px; color: #64748b; margin-bottom: 24px; }
-    .post img { width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; }
+    .post img { display: block; width: 100%; max-width: 360px; height: auto; border-radius: 8px; margin: 0 auto 8px; }
+    .video-placeholder { display: block; background: #0f172a; color: #ffffff !important; text-decoration: none; text-align: center; padding: 48px 16px; border-radius: 8px; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
     .cta { display: block; background: #6366f1; color: #ffffff !important; text-decoration: none; text-align: center; padding: 14px 24px; border-radius: 8px; font-weight: 600; font-size: 15px; }
     .footer { padding: 20px 32px; border-top: 1px solid #f1f5f9; }
     .footer p { font-size: 12px; color: #94a3b8; margin: 0; }
@@ -414,6 +415,8 @@ export interface CommentNotificationEmailParams {
   commentText: string; // plain text, mentions already flattened
   postCaption: string | null;
   postImageUrl: string | null;
+  /** The post's media is a video — postImageUrl (if set) is a thumbnail of it. */
+  postIsVideo?: boolean;
   link: string;
 }
 
@@ -423,7 +426,7 @@ export async function sendCommentNotificationEmail(
   const resend = getResend();
   if (!resend) return { success: false, error: 'Email not configured' };
 
-  const { to, recipientName, authorName, clientName, reason, commentText, postCaption, postImageUrl, link } = params;
+  const { to, recipientName, authorName, clientName, reason, commentText, postCaption, postImageUrl, postIsVideo, link } = params;
   const action = reason === 'mention' ? 'mentioned you' : 'replied to your comment';
   const caption = postCaption
     ? postCaption.length > 160 ? postCaption.substring(0, 160) + '…' : postCaption
@@ -449,9 +452,13 @@ export async function sendCommentNotificationEmail(
       <div class="body">
         <p style="font-size:15px;color:#1e293b;margin-top:0;">Hi ${escapeHtml(recipientName)},</p>
         <div class="quote">${escapeHtml(commentText)}</div>
-        ${postImageUrl || caption ? `
+        ${postImageUrl || postIsVideo || caption ? `
         <div class="post">
-          ${postImageUrl ? `<img src="${escapeHtml(postImageUrl)}" alt="Post" />` : ''}
+          ${postImageUrl
+            ? `<a href="${safeLink}"><img src="${escapeHtml(postImageUrl)}" alt="${postIsVideo ? 'Video' : 'Post'}" /></a>`
+            : postIsVideo
+              ? `<a href="${safeLink}" class="video-placeholder">&#9654;&nbsp; Watch the video in the portal</a>`
+              : ''}
           ${caption ? `<div>${escapeHtml(caption)}</div>` : ''}
         </div>` : ''}
         <a href="${safeLink}" class="cta">Reply in the portal →</a>

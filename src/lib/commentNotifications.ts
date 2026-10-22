@@ -5,6 +5,7 @@
 import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
 import { sendCommentNotificationEmail } from '@/lib/email';
+import { getEmailMediaPreview } from '@/lib/emailMedia';
 import { mentionsToPlainText, type Mentionable, type ParsedMention } from '@/lib/mentions';
 
 const supabase = createClient(
@@ -128,12 +129,20 @@ async function getPostPreview(postId: string, postType: CommentPostType) {
       .select('notes, file_url, file_type')
       .eq('id', postId)
       .maybeSingle();
-    const isImage = typeof data?.file_type === 'string' && data.file_type.startsWith('image/');
-    return { caption: data?.notes ?? null, imageUrl: isImage ? data?.file_url ?? null : null };
+    return { caption: data?.notes ?? null, ...(await getEmailMediaPreview(data?.file_url, data?.file_type)) };
   }
-  const table = postType === 'calendar_scheduled' ? 'calendar_scheduled_posts' : 'scheduled_posts';
-  const { data } = await supabase.from(table).select('caption, image_url').eq('id', postId).maybeSingle();
-  return { caption: data?.caption ?? null, imageUrl: data?.image_url ?? null };
+  if (postType === 'calendar_scheduled') {
+    const { data } = await supabase
+      .from('calendar_scheduled_posts')
+      .select('caption, image_url, media_urls')
+      .eq('id', postId)
+      .maybeSingle();
+    // Carousels keep their media in media_urls — the first item is the cover
+    const firstMedia = (data?.media_urls as string[] | null)?.[0] ?? data?.image_url;
+    return { caption: data?.caption ?? null, ...(await getEmailMediaPreview(firstMedia)) };
+  }
+  const { data } = await supabase.from('scheduled_posts').select('caption, image_url').eq('id', postId).maybeSingle();
+  return { caption: data?.caption ?? null, ...(await getEmailMediaPreview(data?.image_url)) };
 }
 
 /**
@@ -218,6 +227,7 @@ export async function notifyCommentRecipients(params: NotifyParams): Promise<voi
         commentText,
         postCaption: preview.caption,
         postImageUrl: preview.imageUrl,
+        postIsVideo: preview.isVideo,
         link: r.link,
       }).then(res => ({ r, ok: res.success }))
     )
