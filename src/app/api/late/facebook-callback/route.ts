@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 import { getRequestAppUrl } from '@/lib/requestAppUrl';
+import { buildOAuthReturnUrl } from '@/lib/returnPath';
 
 
 export async function GET(req: NextRequest) {
@@ -37,6 +38,10 @@ export async function GET(req: NextRequest) {
     const connected = searchParams.get('connected');
     const profileId = searchParams.get('profileId');
     const username = searchParams.get('username');
+    // The screen the user started the connection from; falls back to the defaults below
+    const returnTo = searchParams.get('returnTo');
+    const backTo = (fallbackUrl: string, params: Record<string, string>) =>
+      buildOAuthReturnUrl(appUrl, returnTo, params) ?? fallbackUrl;
 
     // Clean up clientId if it has additional data appended (common issue with some OAuth flows)
     if (clientId && clientId.includes('-ct_')) {
@@ -66,7 +71,12 @@ export async function GET(req: NextRequest) {
     if (error) {
       const errorRedirectUrl = `${appUrl}/dashboard/client/${clientId}?connected=facebook&status=error&error=${encodeURIComponent(error)}&error_description=${encodeURIComponent(errorDescription || error)}`;
       logger.debug('Facebook OAuth error - redirecting with error', { error, errorDescription });
-      return NextResponse.redirect(errorRedirectUrl);
+      return NextResponse.redirect(backTo(errorRedirectUrl, {
+        connected: 'facebook',
+        status: 'error',
+        error,
+        error_description: errorDescription || error,
+      }));
     }
 
     // Handle successful connection - check for various success indicators
@@ -79,7 +89,12 @@ export async function GET(req: NextRequest) {
         : `${appUrl}/dashboard/client/${clientId}`;
       const successRedirectUrl = `${basePath}?connected=facebook&status=success&profileId=${profileId || ''}&username=${encodeURIComponent(username || '')}`;
       logger.debug('Facebook OAuth success - redirecting with success', { profileId, username });
-      return NextResponse.redirect(successRedirectUrl);
+      return NextResponse.redirect(backTo(successRedirectUrl, {
+        connected: 'facebook',
+        status: 'success',
+        profileId: profileId || '',
+        username: username || '',
+      }));
     }
 
     // Handle case where connection status is unclear
@@ -89,7 +104,11 @@ export async function GET(req: NextRequest) {
       hasError: !!error 
     });
     const warningRedirectUrl = `${appUrl}/dashboard/client/${clientId}?connected=facebook&status=warning&message=${encodeURIComponent('Connection status unclear')}`;
-    return NextResponse.redirect(warningRedirectUrl);
+    return NextResponse.redirect(backTo(warningRedirectUrl, {
+      connected: 'facebook',
+      status: 'warning',
+      message: 'Connection status unclear',
+    }));
 
   } catch (error: unknown) {
     logger.error('💥 Error in Facebook callback route:', error);

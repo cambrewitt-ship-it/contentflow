@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, User, CreditCard, Home } from 'lucide-react';
 import { useEffect } from 'react';
 import PlanBadge from '@/components/PlanBadge';
+import { loginUrlForCurrentPage } from '@/lib/returnPath';
 
 const tabs = [
   {
@@ -33,7 +34,7 @@ export default function SettingsLayout({
   // Wait for the session to load before redirecting, or a refresh bounces signed-in users out
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/auth/login');
+      router.push(loginUrlForCurrentPage());
     }
   }, [user, loading, router]);
 

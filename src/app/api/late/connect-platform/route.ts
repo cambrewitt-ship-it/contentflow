@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 import { getRequestAppUrl } from '@/lib/requestAppUrl';
+import { safeReturnPath } from '@/lib/returnPath';
 import { requireAuth } from '@/lib/authHelpers';
 
 const lateApiKey = process.env.LATE_API_KEY!;
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
   try {
     // Parse request body
     const body = await req.json();
-    const { platform, clientId, source } = body;
+    const { platform, clientId, source, returnTo } = body;
 
     // Validate required fields
     if (!platform || !clientId) {
@@ -190,9 +191,12 @@ export async function POST(req: NextRequest) {
 
     
     const correctAppUrl = getRequestAppUrl(req);
+    // returnTo goes first: LATE has been seen appending data to the last param
+    const safeReturnTo = safeReturnPath(returnTo);
+    const returnToParam = safeReturnTo ? `returnTo=${encodeURIComponent(safeReturnTo)}&` : '';
     const callbackUrl = source === 'onboarding'
-      ? `${correctAppUrl}/api/late/oauth-callback?clientId=${clientId}&source=onboarding`
-      : `${correctAppUrl}/api/late/oauth-callback?clientId=${clientId}`;
+      ? `${correctAppUrl}/api/late/oauth-callback?${returnToParam}clientId=${clientId}&source=onboarding`
+      : `${correctAppUrl}/api/late/oauth-callback?${returnToParam}clientId=${clientId}`;
 
     logger.debug('OAuth callback URL prepared', {
       callbackUrl: callbackUrl

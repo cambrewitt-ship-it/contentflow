@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ArrowRight, Check, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { currentReturnPath } from '@/lib/returnPath'
 import {
   FacebookIcon,
   InstagramIcon,
@@ -128,8 +129,8 @@ export default function ConnectPlatformsPage({ params }: { params: Promise<{ cli
       const apiRoute = platform === 'facebook' ? '/api/late/connect-facebook' : '/api/late/connect-platform'
       const requestBody =
         platform === 'facebook'
-          ? { clientId, source: 'onboarding' }
-          : { platform, clientId, source: 'onboarding' }
+          ? { clientId, source: 'onboarding', returnTo: currentReturnPath() }
+          : { platform, clientId, source: 'onboarding', returnTo: currentReturnPath() }
 
       const response = await fetch(apiRoute, {
         method: 'POST',

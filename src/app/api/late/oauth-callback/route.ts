@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 import { getRequestAppUrl } from '@/lib/requestAppUrl';
+import { buildOAuthReturnUrl } from '@/lib/returnPath';
 import { createSupabaseServer } from '@/lib/supabaseServer';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
 
@@ -34,6 +35,10 @@ export async function GET(req: NextRequest) {
     const errorDescription = searchParams.get('error_description');
     let clientId = searchParams.get('clientId');
     const source = searchParams.get('source');
+    // The screen the user started the connection from; falls back to the defaults below
+    const returnTo = searchParams.get('returnTo');
+    const backTo = (fallbackUrl: string, params: Record<string, string>) =>
+      buildOAuthReturnUrl(appUrl, returnTo, params) ?? fallbackUrl;
     
     // Clean up clientId if it has additional data appended (common issue with some OAuth flows)
     if (clientId && clientId.includes('-ct_')) {
@@ -67,7 +72,10 @@ export async function GET(req: NextRequest) {
         ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=${encodeURIComponent(errorDescription || error)}`
         : `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=${encodeURIComponent(errorDescription || error)}`;
       
-      return NextResponse.redirect(errorRedirectUrl);
+      return NextResponse.redirect(backTo(errorRedirectUrl, {
+        oauth_error: platform || 'unknown',
+        error_description: errorDescription || error,
+      }));
     }
 
     // Validate required parameters
@@ -77,7 +85,10 @@ export async function GET(req: NextRequest) {
         ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=Missing required OAuth parameters`
         : `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=Missing required OAuth parameters`;
       
-      return NextResponse.redirect(errorRedirectUrl);
+      return NextResponse.redirect(backTo(errorRedirectUrl, {
+        oauth_error: platform || 'unknown',
+        error_description: 'Missing required OAuth parameters',
+      }));
     }
 
     // Validate client ownership before performing database operations
@@ -134,7 +145,11 @@ export async function GET(req: NextRequest) {
         : `${appUrl}/dashboard/client/${clientId}`;
       const successRedirectUrl = `${basePath}?connected=${platform}&status=success${username ? `&username=${encodeURIComponent(username)}` : ''}`;
 
-      return NextResponse.redirect(successRedirectUrl);
+      return NextResponse.redirect(backTo(successRedirectUrl, {
+        connected: platform,
+        status: 'success',
+        ...(username ? { username } : {}),
+      }));
     } else {
       // Fallback to general dashboard if no clientId
       const fallbackRedirectUrl = `${appUrl}/dashboard?oauth_success=${platform}${username ? `&username=${encodeURIComponent(username)}` : ''}`;

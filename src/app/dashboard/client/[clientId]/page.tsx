@@ -11,6 +11,7 @@ import { CompactMonthCalendar } from '@/components/CompactMonthCalendar'
 import { useAuth } from '@/contexts/AuthContext'
 import OnboardingChecklist from '@/components/OnboardingChecklist'
 import { Client, BrandDocument, WebsiteScrape, OAuthMessage } from '@/types/api'
+import { currentReturnPath } from '@/lib/returnPath'
 import { 
   FacebookIcon, 
   InstagramIcon, 
@@ -678,8 +679,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         : '/api/late/connect-platform'
       
       const requestBody = platform === 'facebook'
-        ? { clientId }
-        : { platform, clientId }
+        ? { clientId, returnTo: currentReturnPath() }
+        : { platform, clientId, returnTo: currentReturnPath() }
       
       const response = await fetch(apiRoute, {
         method: 'POST',

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
+import { loginUrlForCurrentPage } from '../lib/returnPath';
 // Note: Using console instead of logger for client-side debugging
 // import logger from '../lib/logger';
 
@@ -48,8 +49,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
       setLoading(false);
       
-      // Redirect to login
-      window.location.href = '/auth/login';
+      // Redirect to login, coming back here afterwards
+      window.location.href = loginUrlForCurrentPage();
     } catch (error) {
       console.error('❌ Error clearing auth storage:', error);
       // Force redirect even if clearing fails

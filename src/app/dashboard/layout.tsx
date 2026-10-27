@@ -9,6 +9,7 @@ import MobileBottomNav from "@/components/MobileBottomNav";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { loginUrlForCurrentPage } from "@/lib/returnPath";
 
 // Module-level cache: set to true once we confirm the user has ≥1 client.
 // Resets on hard page refresh (by design — keeps the gate accurate).
@@ -52,7 +53,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!loading && !user && pathname?.startsWith('/dashboard')) {
       console.log('🔒 Not authenticated, redirecting to login...');
-      router.push('/auth/login');
+      router.push(loginUrlForCurrentPage());
     }
   }, [user, loading, router, pathname]);
 
