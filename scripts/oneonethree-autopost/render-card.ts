@@ -426,7 +426,7 @@ export async function compositeTikTokScreenshotSlide(screenshot: Buffer, text: s
     .toBuffer();
 
   const border = 14;
-  const maxWidth = SLIDE_WIDTH - 80 - border * 2;
+  const maxWidth = SLIDE_WIDTH - 36 - border * 2;
   const maxHeight = 820 - border * 2;
   const shot = await sharp(screenshot).resize(maxWidth, maxHeight, { fit: "inside" }).png().toBuffer({ resolveWithObject: true });
   const cardWidth = shot.info.width + border * 2;
