@@ -1,3 +1,5 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 // First-pass branded template renderer for TikTok carousel slides, single
@@ -277,6 +279,126 @@ export async function compositePhotoSlide(photoBuffer: Buffer, opts: PhotoSlideO
 
   return sharp(resizedPhoto)
     .composite([{ input: Buffer.from(overlaySvg), top: 0, left: 0 }])
+    .png()
+    .toBuffer();
+}
+
+// TikTok-native photo slide: a full-bleed photo with the copy in TikTok's own
+// caption look -- black TikTok Sans on white rounded boxes, one box per line,
+// centred. Each "\n\n"-separated block of the slide's text becomes its own
+// stacked caption (first block = the slide's headline, the rest = body), spread
+// down the frame so the photo still reads between them. Text is measured and
+// rendered by Pango with the bundled font (assets/fonts, SIL OFL), so line
+// boxes fit the real glyph widths rather than wrapText's estimate.
+const TIKTOK_FONT_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), "assets", "fonts", "TikTokSans-Bold.ttf");
+const TIKTOK_FONT_FAMILY = "TikTok Sans Light"; // the family name in the fontsource build's name table
+const TIKTOK_FONT_SIZE = 48;
+const TIKTOK_LINE_HEIGHT = 60;
+const TIKTOK_BOX_PAD_X = 22;
+const TIKTOK_BOX_RADIUS = 16;
+const TIKTOK_MAX_LINE_WIDTH = 780;
+
+function escapePango(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function renderTikTokLine(line: string): Promise<{ buffer: Buffer; width: number; height: number }> {
+  const { data, info } = await sharp({
+    text: {
+      // Family and weight go in markup: a plain font description doesn't
+      // resolve the fontfile's family and silently falls back to a system font.
+      text: `<span font_family="${TIKTOK_FONT_FAMILY}" weight="bold" size="${TIKTOK_FONT_SIZE}pt" foreground="#111111">${escapePango(line)}</span>`,
+      fontfile: TIKTOK_FONT_FILE,
+      dpi: 72,
+      rgba: true,
+    },
+  })
+    .png()
+    .toBuffer({ resolveWithObject: true });
+  return { buffer: data, width: info.width, height: info.height };
+}
+
+// Greedy wrap at the max width, then narrow the width while the line count
+// holds, so lines come out even instead of leaving one word on the last line.
+async function wrapTikTokBlock(text: string): Promise<{ buffer: Buffer; width: number; height: number }[]> {
+  let best = await wrapTikTokBlockAt(text, TIKTOK_MAX_LINE_WIDTH);
+  if (best.length < 2) return best;
+  for (let width = TIKTOK_MAX_LINE_WIDTH - 40; width >= 360; width -= 40) {
+    const lines = await wrapTikTokBlockAt(text, width);
+    if (lines.length > best.length) break;
+    best = lines;
+  }
+  return best;
+}
+
+async function wrapTikTokBlockAt(text: string, maxWidth: number): Promise<{ buffer: Buffer; width: number; height: number }[]> {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: { buffer: Buffer; width: number; height: number }[] = [];
+  let current = "";
+  let currentRender: { buffer: Buffer; width: number; height: number } | null = null;
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    const rendered = await renderTikTokLine(candidate);
+    if (rendered.width > maxWidth && currentRender) {
+      lines.push(currentRender);
+      current = word;
+      currentRender = await renderTikTokLine(word);
+    } else {
+      current = candidate;
+      currentRender = rendered;
+    }
+  }
+  if (currentRender) lines.push(currentRender);
+  return lines;
+}
+
+// Vertical centre (as a fraction of slide height) of each caption block,
+// by how many blocks the slide has.
+const TIKTOK_BLOCK_CENTRES: Record<number, number[]> = {
+  1: [0.42],
+  2: [0.3, 0.62],
+  3: [0.2, 0.47, 0.76],
+};
+
+export async function compositeTikTokSlide(photoBuffer: Buffer, text: string): Promise<Buffer> {
+  const blocks = text
+    .split(/\n\s*\n/)
+    .map((b) => b.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const centres = TIKTOK_BLOCK_CENTRES[blocks.length] ?? TIKTOK_BLOCK_CENTRES[1];
+
+  const resizedPhoto = await sharp(photoBuffer)
+    .resize(SLIDE_WIDTH, SLIDE_HEIGHT, { fit: "cover", position: "attention" })
+    .toBuffer();
+
+  const rects: string[] = [];
+  const textLayers: sharp.OverlayOptions[] = [];
+  for (let b = 0; b < blocks.length; b++) {
+    const lines = await wrapTikTokBlock(blocks[b]);
+    const blockHeight = lines.length * TIKTOK_LINE_HEIGHT;
+    let top = Math.round(SLIDE_HEIGHT * centres[b] - blockHeight / 2);
+    for (const line of lines) {
+      const boxWidth = line.width + TIKTOK_BOX_PAD_X * 2;
+      const boxLeft = Math.round((SLIDE_WIDTH - boxWidth) / 2);
+      // Boxes overlap their neighbours by a few px so stacked lines read as
+      // one caption, the way TikTok's own text tool joins them.
+      rects.push(
+        `<rect x="${boxLeft}" y="${top - 3}" width="${boxWidth}" height="${TIKTOK_LINE_HEIGHT + 6}" rx="${TIKTOK_BOX_RADIUS}" fill="#FFFFFF"/>`
+      );
+      textLayers.push({
+        input: line.buffer,
+        left: Math.round((SLIDE_WIDTH - line.width) / 2),
+        top: top + Math.round((TIKTOK_LINE_HEIGHT - line.height) / 2),
+      });
+      top += TIKTOK_LINE_HEIGHT;
+    }
+  }
+
+  const boxesSvg = `<svg width="${SLIDE_WIDTH}" height="${SLIDE_HEIGHT}" xmlns="http://www.w3.org/2000/svg">${rects.join("")}</svg>`;
+
+  return sharp(resizedPhoto)
+    .composite([{ input: Buffer.from(boxesSvg), top: 0, left: 0 }, ...textLayers])
     .png()
     .toBuffer();
 }
