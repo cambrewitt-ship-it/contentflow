@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { PortalTagDropdown } from "@/components/PortalTagDropdown";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
+import { PostTimeChip } from "@/components/PostTimeChip";
 import { PlatformBadges } from "@/components/PlatformBadges";
 import { PublishStatusBadge } from "@/components/PublishStatusBadge";
 import { ApprovalStatusEditor, type EditableApprovalStatus } from "@/components/ApprovalStatusEditor";
@@ -684,6 +685,33 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     setCaptionSaveError(null);
   };
 
+  // ── Save posting time ────────────────────────────────────────────────────
+
+  const [postTime, setPostTime] = useState(isPost ? (item.data as ModalPost).scheduled_time ?? null : null);
+
+  const handleSaveTime = async (newTime: string): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/portal/calendar", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: portalToken,
+          postId: (item.data as ModalPost).id,
+          scheduled_time: newTime,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return data.error ?? "Failed to update time";
+      }
+      setPostTime(`${newTime}:00`);
+      onActioned();
+      return null;
+    } catch {
+      return "Failed to update time";
+    }
+  };
+
   // ── Save scheduled date ──────────────────────────────────────────────────
 
   const handleSaveDate = async (dateKeyOverride?: string) => {
@@ -952,6 +980,9 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                   )}
                 </button>
               )}
+              {isPost && hasAssignedDate && (
+                <PostTimeChip time={postTime} onSave={handleSaveTime} />
+              )}
               {dateSaveError && (
                 <span className="text-xs text-red-600">{dateSaveError}</span>
               )}
@@ -1073,7 +1104,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                     }
                     scheduledTime={
                       isPost
-                        ? (item.data as ModalPost).scheduled_time ?? undefined
+                        ? postTime ?? undefined
                         : undefined
                     }
                   />

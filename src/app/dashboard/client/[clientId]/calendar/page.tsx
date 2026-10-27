@@ -1040,8 +1040,9 @@ export default function CalendarPage() {
     }
   };
 
-  const handleEditScheduledPost = async (post: Post, newTime: string) => {
-    if (!newTime || newTime === post.scheduled_time?.slice(0, 5)) return;
+  // Resolves to an error message, or null once saved
+  const handleEditScheduledPost = async (post: Post, newTime: string): Promise<string | null> => {
+    if (!newTime || newTime === post.scheduled_time?.slice(0, 5)) return null;
     
     try {
       // Add to editing time state
@@ -1083,7 +1084,8 @@ export default function CalendarPage() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to update');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to update');
       }
       
       // Update local state instead of refreshing entire calendar
@@ -1098,11 +1100,13 @@ export default function CalendarPage() {
         });
         return updated;
       });
-      
+      setPostDetailModal(prev => (prev && prev.id === post.id ? { ...prev, scheduled_time: timeToSave } : prev));
+      return null;
     } catch (error) {
       console.error('Error updating post:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setError(`Failed to update time: ${errorMessage}`);
+      return errorMessage;
     } finally {
       // Remove from editing time state
       setEditingTimePostIds(prev => {
@@ -1602,7 +1606,10 @@ export default function CalendarPage() {
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ postId, updates: { scheduled_date: newDateKey } }),
       });
-      if (!response.ok) throw new Error(`Failed to update date: ${response.statusText}`);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to update date: ${response.statusText}`);
+      }
       setScheduledPosts(prev => {
         const updated = { ...prev };
         if (updated[oldDateKey!]) {
@@ -3188,6 +3195,10 @@ export default function CalendarPage() {
             const ok = await handleChangePostDate(postDetailModal.id, newDateKey);
             if (ok) setPostDetailModal(prev => prev ? { ...prev, scheduled_date: newDateKey } : prev);
             return ok;
+          }}
+          onChangeTime={(newTime) => {
+            const post = Object.values(scheduledPosts).flat().find(p => p.id === postDetailModal.id);
+            return post ? handleEditScheduledPost(post, newTime) : Promise.resolve('Post not found');
           }}
           onChangeTargetPlatforms={async (platforms) => {
             const ok = await handleUpdateTargetPlatforms(postDetailModal.id, platforms);

@@ -5,6 +5,7 @@ import { createSupabaseWithToken, createSupabaseAdmin } from '@/lib/supabaseServ
 import { uuidSchema } from '@/lib/validators';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
 import { TARGET_PLATFORM_IDS, normalizeTargetPlatforms } from '@/lib/targetPlatforms';
+import { syncLateSchedule } from '@/lib/lateReschedule';
 
 const booleanStringSchema = z
   .union([z.literal('true'), z.literal('false')])
@@ -513,6 +514,15 @@ export async function PATCH(request: Request) {
     // Use admin client to bypass slow RLS policy evaluation
     // Security: ownership already verified above via verifyClientOwnership()
     const adminSupabase = createSupabaseAdmin();
+
+    // Moving the day or time of a post already scheduled in LATE must move it there too
+    const lateSync = await syncLateSchedule(adminSupabase, postId, {
+      scheduled_date: typeof updates.scheduled_date === 'string' ? updates.scheduled_date : undefined,
+      scheduled_time: typeof updates.scheduled_time === 'string' ? updates.scheduled_time : undefined,
+    });
+    if (!lateSync.ok) {
+      return NextResponse.json({ error: lateSync.error }, { status: lateSync.status });
+    }
     
     // Ensure image_url is preserved if not being updated
     const updateData = {
@@ -567,6 +577,11 @@ export async function PUT(request: Request) {
     // Security: ownership already verified above via verifyClientOwnership()
     const adminSupabase = createSupabaseAdmin();
     const now = new Date().toISOString();
+
+    const lateSync = await syncLateSchedule(adminSupabase, postId, { scheduled_date: scheduledDate });
+    if (!lateSync.ok) {
+      return NextResponse.json({ error: lateSync.error }, { status: lateSync.status });
+    }
     
     const { error } = await adminSupabase
       .from('calendar_scheduled_posts')

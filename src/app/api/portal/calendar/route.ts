@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import logger from '@/lib/logger';
 import { resolvePortalToken } from '@/lib/portalAuth';
+import { normalizeTimeOfDay, syncLateSchedule } from '@/lib/lateReschedule';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -283,7 +284,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { token, postId, scheduled_date, caption } = body;
+    const { token, postId, scheduled_date, scheduled_time, caption } = body;
 
     if (!token || !postId) {
       return NextResponse.json(
@@ -291,9 +292,16 @@ export async function PATCH(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (scheduled_date === undefined && caption === undefined) {
+    if (scheduled_date === undefined && scheduled_time === undefined && caption === undefined) {
       return NextResponse.json(
-        { error: 'At least one of scheduled_date or caption is required' },
+        { error: 'At least one of scheduled_date, scheduled_time or caption is required' },
+        { status: 400 }
+      );
+    }
+    const normalizedTime = scheduled_time === undefined ? undefined : normalizeTimeOfDay(scheduled_time);
+    if (normalizedTime === null) {
+      return NextResponse.json(
+        { error: 'scheduled_time must be a time like 14:30' },
         { status: 400 }
       );
     }
@@ -323,8 +331,15 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Moving the day or time of a post already scheduled in LATE must move it there too
+    const lateSync = await syncLateSchedule(supabase, postId, { scheduled_date, scheduled_time: normalizedTime });
+    if (!lateSync.ok) {
+      return NextResponse.json({ error: lateSync.error }, { status: lateSync.status });
+    }
+
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (scheduled_date !== undefined) updates.scheduled_date = scheduled_date;
+    if (normalizedTime !== undefined) updates.scheduled_time = normalizedTime;
     if (caption !== undefined) updates.caption = caption;
 
     const { error: updateError } = await supabase

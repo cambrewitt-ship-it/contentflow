@@ -4,6 +4,7 @@ import { checkSocialMediaPostingPermission } from '@/lib/subscriptionMiddleware'
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
 import { toLateMediaItem, LateUploadError } from '@/lib/lateMedia';
+import { zonedLocalToUtcMs } from '@/lib/lateReschedule';
 
 // Carousel posts re-host each extra photo on LATE before scheduling
 export const maxDuration = 300;
@@ -11,27 +12,6 @@ export const maxDuration = 300;
 const PAST_DUE_BUFFER_MS = 60 * 1000;
 // Platforms that reject posts without a photo or video
 const MEDIA_REQUIRED_PLATFORMS = new Set(['instagram', 'tiktok', 'youtube', 'pinterest']);
-
-// Converts a wall-clock "YYYY-MM-DDTHH:mm[:ss]" in an IANA timezone to a UTC timestamp
-function zonedLocalToUtcMs(localDateTime: string, timeZone: string): number {
-  const asUtc = Date.parse(`${localDateTime}Z`);
-  if (Number.isNaN(asUtc)) return NaN;
-  const offsetAt = (ms: number) => {
-    const parts = Object.fromEntries(
-      new Intl.DateTimeFormat('en-US', {
-        timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-      }).formatToParts(ms).map((p) => [p.type, Number(p.value)])
-    );
-    return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) - ms;
-  };
-  try {
-    const guess = asUtc - offsetAt(asUtc);
-    return asUtc - offsetAt(guess); // second pass settles DST boundaries
-  } catch {
-    return NaN; // unknown timezone
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {

@@ -16,6 +16,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
+import { PostTimeChip } from "@/components/PostTimeChip";
 import { PlatformBadges, PlatformPicker } from "@/components/PlatformBadges";
 import { PublishStatusBadge } from "@/components/PublishStatusBadge";
 import { PostTagPicker, type PostTag } from "@/components/PostTagPicker";
@@ -67,6 +68,8 @@ interface Props {
   isResubmitting?: boolean;
   onChangeDate?: (newDateKey: string) => Promise<boolean>;
   isChangingDate?: boolean;
+  /** Save a new posting time ("HH:MM"); resolves to an error message, or null on success. */
+  onChangeTime?: (newTime: string) => Promise<string | null>;
   onChangeTargetPlatforms?: (platforms: TargetPlatform[]) => Promise<boolean>;
   /** Set or clear ("pending") the approval status. */
   onChangeApprovalStatus?: (status: EditableApprovalStatus) => Promise<boolean>;
@@ -176,7 +179,7 @@ function PipelineSteps({ steps }: { steps: ApprovalStep[] }) {
   );
 }
 
-export function ClientPostDetailModal({ post, onClose, getAccessToken, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate, onChangeTargetPlatforms, onChangeApprovalStatus, scheduleAccounts = [], onSchedule, schedulingPlatform, clientId, onTagsChange }: Props) {
+export function ClientPostDetailModal({ post, onClose, getAccessToken, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate, onChangeTime, onChangeTargetPlatforms, onChangeApprovalStatus, scheduleAccounts = [], onSchedule, schedulingPlatform, clientId, onTagsChange }: Props) {
   const [tagAnchor, setTagAnchor] = useState<HTMLButtonElement | null>(null);
   const canEditTags = !!clientId && !!onTagsChange;
   const [targetPlatforms, setTargetPlatforms] = useState<TargetPlatform[]>(() =>
@@ -397,6 +400,9 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
                   })}
                   {isChangingDate && <Loader2 className="w-3 h-3 animate-spin" />}
                 </button>
+              )}
+              {post.scheduled_date && (
+                <PostTimeChip time={post.scheduled_time} onSave={onChangeTime} />
               )}
             </div>
             {isDatePickerOpen && post.scheduled_date && (
