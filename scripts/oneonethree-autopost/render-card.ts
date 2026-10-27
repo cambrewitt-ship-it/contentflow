@@ -360,13 +360,24 @@ const TIKTOK_BLOCK_CENTRES: Record<number, number[]> = {
   3: [0.2, 0.47, 0.76],
 };
 
-export async function compositeTikTokSlide(photoBuffer: Buffer, text: string): Promise<Buffer> {
+// Screenshot slides keep the captions in the top third, clear of the card.
+const TIKTOK_SCREENSHOT_BLOCK_CENTRES: Record<number, number[]> = {
+  1: [0.17],
+  2: [0.12, 0.27],
+  3: [0.09, 0.19, 0.29],
+};
+
+export async function compositeTikTokSlide(
+  photoBuffer: Buffer,
+  text: string,
+  blockCentres: Record<number, number[]> = TIKTOK_BLOCK_CENTRES
+): Promise<Buffer> {
   const blocks = text
     .split(/\n\s*\n/)
     .map((b) => b.trim())
     .filter(Boolean)
     .slice(0, 3);
-  const centres = TIKTOK_BLOCK_CENTRES[blocks.length] ?? TIKTOK_BLOCK_CENTRES[1];
+  const centres = blockCentres[blocks.length] ?? blockCentres[1];
 
   const resizedPhoto = await sharp(photoBuffer)
     .resize(SLIDE_WIDTH, SLIDE_HEIGHT, { fit: "cover", position: "attention" })
@@ -401,4 +412,48 @@ export async function compositeTikTokSlide(photoBuffer: Buffer, text: string): P
     .composite([{ input: Buffer.from(boxesSvg), top: 0, left: 0 }, ...textLayers])
     .png()
     .toBuffer();
+}
+
+// TikTok-native slide for a real product screenshot: the screenshot itself,
+// blurred and darkened, fills the frame; a crisp copy sits in a white rounded
+// card in the lower two thirds; the captions go above it. Never used with a
+// drawn or generated UI -- real screenshots only.
+export async function compositeTikTokScreenshotSlide(screenshot: Buffer, text: string): Promise<Buffer> {
+  const background = await sharp(screenshot)
+    .resize(SLIDE_WIDTH, SLIDE_HEIGHT, { fit: "cover" })
+    .blur(40)
+    .modulate({ brightness: 0.55 })
+    .toBuffer();
+
+  const border = 14;
+  const maxWidth = SLIDE_WIDTH - 80 - border * 2;
+  const maxHeight = 820 - border * 2;
+  const shot = await sharp(screenshot).resize(maxWidth, maxHeight, { fit: "inside" }).png().toBuffer({ resolveWithObject: true });
+  const cardWidth = shot.info.width + border * 2;
+  const cardHeight = shot.info.height + border * 2;
+  const radius = 26;
+  const cardMask = Buffer.from(
+    `<svg width="${cardWidth}" height="${cardHeight}" xmlns="http://www.w3.org/2000/svg"><rect width="${cardWidth}" height="${cardHeight}" rx="${radius}" fill="#FFFFFF"/></svg>`
+  );
+  const card = await sharp(cardMask)
+    .composite([{ input: shot.data, left: border, top: border }])
+    .png()
+    .toBuffer();
+  const roundedCard = await sharp(card).composite([{ input: cardMask, blend: "dest-in" }]).png().toBuffer();
+
+  // Centre the card in the space below the captions (from ~38% down).
+  const areaTop = Math.round(SLIDE_HEIGHT * 0.38);
+  const cardTop = areaTop + Math.max(0, Math.round((SLIDE_HEIGHT - areaTop - cardHeight) / 2));
+  const shadow = Buffer.from(
+    `<svg width="${SLIDE_WIDTH}" height="${SLIDE_HEIGHT}" xmlns="http://www.w3.org/2000/svg"><defs><filter id="s" x="-10%" y="-10%" width="120%" height="130%"><feGaussianBlur stdDeviation="18"/></filter></defs><rect x="${Math.round((SLIDE_WIDTH - cardWidth) / 2)}" y="${cardTop + 14}" width="${cardWidth}" height="${cardHeight}" rx="${radius}" fill="#000000" opacity="0.45" filter="url(#s)"/></svg>`
+  );
+  const composed = await sharp(background)
+    .composite([
+      { input: shadow, top: 0, left: 0 },
+      { input: roundedCard, top: cardTop, left: Math.round((SLIDE_WIDTH - cardWidth) / 2) },
+    ])
+    .png()
+    .toBuffer();
+
+  return compositeTikTokSlide(composed, text, TIKTOK_SCREENSHOT_BLOCK_CENTRES);
 }
