@@ -1590,6 +1590,7 @@ export default function CalendarPage() {
 
   // Changes only the day-of-week for an already-scheduled post, keeping its time — used by the
   // post detail modal's inline day picker (choosing another day within the post's current week).
+  // Moves the post on the board straight away and puts it back if the save fails
   const handleChangePostDate = async (postId: string, newDateKey: string): Promise<boolean> => {
     let postToMove: Post | null = null;
     let oldDateKey: string | null = null;
@@ -1598,6 +1599,22 @@ export default function CalendarPage() {
       if (found) { postToMove = found; oldDateKey = dateKey; }
     });
     if (!postToMove || !oldDateKey || oldDateKey === newDateKey) return false;
+    const original: Post = postToMove;
+    const fromKey: string = oldDateKey;
+
+    const movePost = (from: string, to: string, post: Post) => {
+      setScheduledPosts(prev => {
+        const updated = { ...prev };
+        if (updated[from]) {
+          updated[from] = updated[from].filter(p => p.id !== postId);
+          if (updated[from].length === 0) delete updated[from];
+        }
+        updated[to] = [...(updated[to] || []), post];
+        return updated;
+      });
+    };
+
+    movePost(fromKey, newDateKey, { ...original, scheduled_date: newDateKey });
 
     try {
       const accessToken = requireAccessToken();
@@ -1610,17 +1627,9 @@ export default function CalendarPage() {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || `Failed to update date: ${response.statusText}`);
       }
-      setScheduledPosts(prev => {
-        const updated = { ...prev };
-        if (updated[oldDateKey!]) {
-          updated[oldDateKey!] = updated[oldDateKey!].filter(p => p.id !== postId);
-          if (updated[oldDateKey!].length === 0) delete updated[oldDateKey!];
-        }
-        updated[newDateKey] = [...(updated[newDateKey] || []), { ...(postToMove as Post), scheduled_date: newDateKey }];
-        return updated;
-      });
       return true;
     } catch (error) {
+      movePost(newDateKey, fromKey, original);
       setError(error instanceof Error ? error.message : 'Failed to update date');
       return false;
     }
@@ -3192,8 +3201,11 @@ export default function CalendarPage() {
             return ok;
           }}
           onChangeDate={async (newDateKey) => {
-            const ok = await handleChangePostDate(postDetailModal.id, newDateKey);
-            if (ok) setPostDetailModal(prev => prev ? { ...prev, scheduled_date: newDateKey } : prev);
+            const postId = postDetailModal.id;
+            const previousDateKey = postDetailModal.scheduled_date;
+            setPostDetailModal(prev => (prev && prev.id === postId ? { ...prev, scheduled_date: newDateKey } : prev));
+            const ok = await handleChangePostDate(postId, newDateKey);
+            if (!ok) setPostDetailModal(prev => (prev && prev.id === postId ? { ...prev, scheduled_date: previousDateKey } : prev));
             return ok;
           }}
           onChangeTime={(newTime) => {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   X,
   Loader2,
+  Check,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -242,19 +243,25 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
 
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [dateChangeError, setDateChangeError] = useState<string | null>(null);
+  const [isSavingDate, setIsSavingDate] = useState(false);
+  const [dateSaved, setDateSaved] = useState(false);
+  const isDateBusy = isChangingDate || isSavingDate;
 
+  // The parent shows the new day straight away and puts the old one back if the save fails
   const handleSelectDate = async (newDateKey: string) => {
-    if (!onChangeDate || newDateKey === post.scheduled_date) {
-      setIsDatePickerOpen(false);
-      return;
-    }
-    setDateChangeError(null);
-    const ok = await onChangeDate(newDateKey);
-    if (!ok) {
-      setDateChangeError("Failed to update date");
-      return;
-    }
     setIsDatePickerOpen(false);
+    if (!onChangeDate || newDateKey === post.scheduled_date) return;
+    setDateChangeError(null);
+    setDateSaved(false);
+    setIsSavingDate(true);
+    const ok = await onChangeDate(newDateKey);
+    setIsSavingDate(false);
+    if (!ok) {
+      setDateChangeError("Couldn't move this post. It's back on its original day.");
+      return;
+    }
+    setDateSaved(true);
+    setTimeout(() => setDateSaved(false), 2000);
   };
 
   const [steps, setSteps] = useState<ApprovalStep[]>([]);
@@ -388,7 +395,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
                 <button
                   type="button"
                   onClick={() => onChangeDate && setIsDatePickerOpen((open) => !open)}
-                  disabled={!onChangeDate || isChangingDate}
+                  disabled={!onChangeDate || isDateBusy}
                   className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-full px-2 py-0.5 transition-colors disabled:hover:bg-gray-100"
                   title={onChangeDate ? "Change the day within this week" : undefined}
                 >
@@ -398,7 +405,11 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
                     day: "numeric",
                     month: "short",
                   })}
-                  {isChangingDate && <Loader2 className="w-3 h-3 animate-spin" />}
+                  {isDateBusy ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : dateSaved ? (
+                    <Check className="w-3 h-3 text-emerald-600" />
+                  ) : null}
                 </button>
               )}
               {post.scheduled_date && (
@@ -411,12 +422,12 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
                   weekStart={weekStartForDateKey(post.scheduled_date)}
                   selectedDateKey={post.scheduled_date}
                   onSelect={handleSelectDate}
-                  disabled={isChangingDate}
+                  disabled={isDateBusy}
                 />
-                {dateChangeError && (
-                  <p className="text-xs text-red-600 mt-1">{dateChangeError}</p>
-                )}
               </div>
+            )}
+            {dateChangeError && (
+              <p className="text-xs text-red-600">{dateChangeError}</p>
             )}
           </div>
           <button

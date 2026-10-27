@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   X,
   Loader2,
+  Check,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -350,6 +351,9 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   const [editDateValue, setEditDateValue] = useState(initialDateKey);
   const [isSavingDate, setIsSavingDate] = useState(false);
   const [dateSaveError, setDateSaveError] = useState<string | null>(null);
+  // The day shown in the header once changed here; item.data keeps the day the modal opened with
+  const [currentDateKey, setCurrentDateKey] = useState<string | null>(null);
+  const [dateSaved, setDateSaved] = useState(false);
 
   // Scroll comments into view on load
   const scrollToBottom = () => {
@@ -716,12 +720,23 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
 
   const handleSaveDate = async (dateKeyOverride?: string) => {
     const nextDateKey = dateKeyOverride ?? editDateValue;
-    if (!nextDateKey || nextDateKey === initialDateKey) {
+    const previousDateKey = currentDateKey;
+    if (!nextDateKey || nextDateKey === (currentDateKey ?? initialDateKey)) {
       setIsEditingDate(false);
       return;
     }
+    // Show the new day straight away; put the old one back if the save fails
+    setCurrentDateKey(nextDateKey);
+    setEditDateValue(nextDateKey);
+    setIsEditingDate(false);
+    setDateSaved(false);
     setIsSavingDate(true);
     setDateSaveError(null);
+    const revert = (message: string) => {
+      setCurrentDateKey(previousDateKey);
+      setEditDateValue(previousDateKey ?? initialDateKey);
+      setDateSaveError(message);
+    };
     try {
       if (isPost) {
         const res = await fetch("/api/portal/calendar", {
@@ -735,7 +750,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          setDateSaveError(data.error ?? "Failed to update date");
+          revert(data.error ?? "Failed to update date");
           return;
         }
       } else {
@@ -751,15 +766,15 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
           })
         ));
         if (results.some(r => !r.ok)) {
-          setDateSaveError("Failed to update date");
+          revert("Failed to update date");
           return;
         }
       }
-      setEditDateValue(nextDateKey);
-      setIsEditingDate(false);
+      setDateSaved(true);
+      setTimeout(() => setDateSaved(false), 2000);
       onActioned();
     } catch {
-      setDateSaveError("Failed to update date");
+      revert("Failed to update date");
     } finally {
       setIsSavingDate(false);
     }
@@ -966,8 +981,8 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                   title={hasAssignedDate ? "Change the day within this week" : "Set date"}
                 >
                   <Calendar className="w-3 h-3" />
-                  {dateStr
-                    ? new Date(dateStr).toLocaleDateString("en-GB", {
+                  {currentDateKey || dateStr
+                    ? new Date(currentDateKey ? `${currentDateKey}T12:00:00` : dateStr!).toLocaleDateString("en-GB", {
                         weekday: "short",
                         day: "numeric",
                         month: "short",
@@ -975,6 +990,8 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                     : "Set date"}
                   {isSavingDate ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : dateSaved ? (
+                    <Check className="w-3 h-3 text-emerald-600" />
                   ) : (
                     <Pencil className="w-2.5 h-2.5 opacity-60" />
                   )}
