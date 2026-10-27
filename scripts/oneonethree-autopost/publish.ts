@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { renderSlideCard, renderAdCard, compositePhotoSlide, PRODUCT_STYLE_GUARDRAILS, type Product } from "./render-card.js";
+import { renderSlideCard, renderAdCard, compositePhotoSlide, compositeTikTokSlide, PRODUCT_STYLE_GUARDRAILS, type Product } from "./render-card.js";
 import { uploadImageToMediaBucket, insertMediaGalleryRow, generateStyledImage } from "./image.js";
 import { computeSlots } from "./schedule.js";
 import { isProductSocialPost, type ProductSocialPost } from "./product-types.js";
@@ -159,6 +159,22 @@ async function uploadOrPreview(
   return uploadImageToMediaBucket(supabase, buffer, filename);
 }
 
+type RenderStyle = "editorial" | "tiktok-native";
+
+// Photo direction for "tiktok-native" carousels: a candid phone photo of a
+// real-looking workspace, the way creators shoot their own desks, so the
+// white caption boxes read as native TikTok text rather than a designed ad.
+// Same no-legible-text rule as every other image prompt.
+const TIKTOK_NATIVE_PHOTO_GUARDRAILS = `Style: a candid, slightly imperfect smartphone photo, as if a person working
+at a media or marketing agency snapped their own workspace for TikTok. Natural window or overhead office light,
+real clutter (laptops, a second monitor, notebooks, sticky notes, a coffee cup, cables, a plant). People, if
+present, are seen from behind, side-on or with faces turned to their screen, never posing for the camera. No
+invented logos or brand marks. No on-image text, captions, or typography of any kind. Do not depict any screen,
+dashboard, app UI, spreadsheet, or document with legible content -- image models render on-screen text as
+garbled nonsense; keep screens out of focus, angled away, or reduced to an unreadable glow. Not glossy, not
+staged, no stock-photo cliches. Leave calm, low-detail areas in the upper and middle of the frame where white
+caption boxes will be placed afterward. Render the concrete scene described below plainly and believably.`;
+
 // Dispatches a single slide's `visual` string to the right renderer:
 // - "photo: <scene>" -> AI-generated photo background (product-aware style
 //   guardrails) with the slide's real vector text composited on top.
@@ -174,7 +190,8 @@ async function renderSlideVisual(
   product: Product,
   text: string,
   visual: string,
-  eyebrow?: string | null
+  eyebrow?: string | null,
+  renderStyle: RenderStyle = "editorial"
 ): Promise<Buffer> {
   if (visual.startsWith("photo:")) {
     if (!openai) {
@@ -182,8 +199,11 @@ async function renderSlideVisual(
       return renderSlideCard({ product, text, eyebrow });
     }
     const scenePrompt = visual.slice("photo:".length).trim();
-    const image = await generateStyledImage(openai, scenePrompt, PRODUCT_STYLE_GUARDRAILS[product], "portrait");
-    return compositePhotoSlide(image.buffer, { product, text, eyebrow });
+    const guardrails = renderStyle === "tiktok-native" ? TIKTOK_NATIVE_PHOTO_GUARDRAILS : PRODUCT_STYLE_GUARDRAILS[product];
+    const image = await generateStyledImage(openai, scenePrompt, guardrails, "portrait");
+    return renderStyle === "tiktok-native"
+      ? compositeTikTokSlide(image.buffer, text)
+      : compositePhotoSlide(image.buffer, { product, text, eyebrow });
   }
   if (visual.startsWith("screenshot:")) {
     const slug = visual.slice("screenshot:".length).trim();
@@ -214,7 +234,7 @@ async function publishTikTokCarousel(
   const mediaUrls: string[] = [];
   for (let i = 0; i < post.slides.length; i++) {
     const slide = post.slides[i];
-    const buffer = await renderSlideVisual(openai, assets, vaultFile, `slide ${i + 1}`, post.product, slide.text, slide.visual, `${i + 1}/${post.slides.length}`);
+    const buffer = await renderSlideVisual(openai, assets, vaultFile, `slide ${i + 1}`, post.product, slide.text, slide.visual, `${i + 1}/${post.slides.length}`, post.render_style ?? "editorial");
     const filename = `${vaultFile.replace(".json.md", "")}-slide${i + 1}-${Date.now()}.png`;
     const url = await uploadOrPreview(supabase, buffer, filename);
     mediaUrls.push(url);

@@ -67,6 +67,7 @@ export async function middleware(req: NextRequest) {
     '/api/stripe/callback', // Stripe checkout callback (handles auth internally)
     '/api/late/oauth-callback', // Social OAuth return from LATE (handles auth internally)
     '/api/late/facebook-callback', // Facebook OAuth return from LATE
+    '/api/ingest/', // Agent ingest (bearer token, checked in the route)
   ];
 
   // Define public dynamic routes

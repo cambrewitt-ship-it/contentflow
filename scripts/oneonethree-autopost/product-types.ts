@@ -7,7 +7,7 @@ export type Product = "planpulse" | "content-manager";
 
 interface Slide {
   text: string;
-  visual: string; // "text-on-background" | "screenshot: <slug>"
+  visual: string; // "text-on-background" | "screenshot: <slug>" | "photo: <scene>"
 }
 
 export interface TikTokCarouselPost {
@@ -15,6 +15,8 @@ export interface TikTokCarouselPost {
   platform: "tiktok";
   format: "tiktok-carousel";
   product: Product;
+  /** "tiktok-native": photo slides with TikTok-style white caption boxes. Omitted = the editorial style. */
+  render_style?: "editorial" | "tiktok-native";
   slides: Slide[];
   caption: string;
   cta: string | null;

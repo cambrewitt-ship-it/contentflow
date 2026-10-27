@@ -55,6 +55,7 @@ const routePatterns: Record<string, RateLimitTier> = {
   '/api/post-approvals': 'authenticated',
   '/api/onboarding': 'authenticated',
   '/api/schedulePost': 'authenticated',
+  '/api/ingest': 'authenticated',
   '/api': 'public',
 };
 
