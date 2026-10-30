@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import OpenAI from 'openai';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isValidImageData, isValidMediaData } from '../../../lib/blobUpload';
@@ -6,7 +6,7 @@ import { getUpcomingHolidays } from '../../../lib/data/holidays';
 import { handleApiError } from '../../../lib/apiErrorHandler';
 import { validateApiRequest } from '../../../lib/validationMiddleware';
 import { aiRequestSchema } from '../../../lib/validators';
-import { withAICreditCheck, trackAICreditUsage, checkAICreditsPermissionForUser } from '../../../lib/subscriptionMiddleware';
+import { trackAICreditUsage, checkAICreditsPermissionForUser } from '../../../lib/subscriptionMiddleware';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { sanitizeAndValidateContentIdeas } from '@/lib/ai-utils';
@@ -230,38 +230,45 @@ function getContentHierarchy(
 // Fetch brand context for a client
 async function getBrandContext(supabase: SupabaseClient, clientId: string) {
   try {
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .select(
-        `company_description, website_url, brand_tone, target_audience, value_proposition, region, timezone, ${BRAND_VOICE_COLUMNS}`
-      )
-      .eq('id', clientId)
-      .single();
+    // The three lookups are independent, so run them together. Documents and the
+    // website scrape are only referenced by presence/count in the prompts, so fetch
+    // just enough to know they exist rather than their full extracted text.
+    const [
+      { data: client, error: clientError },
+      { data: documents, error: docsError },
+      { data: scrapes, error: scrapeError },
+    ] = await Promise.all([
+      supabase
+        .from('clients')
+        .select(
+          `company_description, website_url, brand_tone, target_audience, value_proposition, region, timezone, ${BRAND_VOICE_COLUMNS}`
+        )
+        .eq('id', clientId)
+        .single(),
+      supabase
+        .from('brand_documents')
+        .select('original_filename')
+        .eq('client_id', clientId)
+        .eq('processing_status', 'completed')
+        .not('extracted_text', 'is', null),
+      supabase
+        .from('website_scrapes')
+        .select('page_title, meta_description')
+        .eq('client_id', clientId)
+        .eq('scrape_status', 'completed')
+        .not('scraped_content', 'is', null)
+        .order('scraped_at', { ascending: false })
+        .limit(1),
+    ]);
 
     if (clientError || !client) {
       logger.error('Could not fetch client brand info:', { error: clientError?.message });
       return null;
     }
 
-    const { data: documents, error: docsError } = await supabase
-      .from('brand_documents')
-      .select('extracted_text, original_filename')
-      .eq('client_id', clientId)
-      .eq('processing_status', 'completed')
-      .not('extracted_text', 'is', null);
-
     if (docsError) {
       logger.error('Could not fetch brand documents:', { error: docsError.message });
     }
-
-    const { data: scrapes, error: scrapeError } = await supabase
-      .from('website_scrapes')
-      .select('scraped_content, page_title, meta_description')
-      .eq('client_id', clientId)
-      .eq('scrape_status', 'completed')
-      .not('scraped_content', 'is', null)
-      .order('scraped_at', { ascending: false })
-      .limit(1);
 
     if (scrapeError) {
       logger.error('Could not fetch website scrapes:', { error: scrapeError.message });
@@ -381,7 +388,9 @@ export async function POST(request: NextRequest) {
       if (auth.error) return auth.error;
       supabase = auth.supabase;
 
-      const subscriptionCheck = await withAICreditCheck(request, 1);
+      // The token was already verified above — check credits by user id rather than
+      // re-verifying it with a second auth-server round trip.
+      const subscriptionCheck = await checkAICreditsPermissionForUser(auth.user.id, 1);
       if (!subscriptionCheck.allowed) {
         logger.error('Subscription check failed:', subscriptionCheck.error);
         return NextResponse.json(
@@ -500,12 +509,15 @@ export async function POST(request: NextRequest) {
 
     if ((result && result.status === 200) || (result && result.success)) {
       const bodyData = body as Record<string, unknown>;
-      await trackAICreditUsage(userId, 1, body.action as string, bodyData.clientId as string | undefined, {
-        copyType: bodyData.copyType as string | undefined,
-        copyTone: bodyData.copyTone as string | undefined,
-        postNotesStyle: bodyData.postNotesStyle as string | undefined,
-        imageFocus: bodyData.imageFocus as string | undefined,
-      });
+      // Bill the credit after the response is sent so the user isn't kept waiting on it
+      after(() =>
+        trackAICreditUsage(userId, 1, body.action as string, bodyData.clientId as string | undefined, {
+          copyType: bodyData.copyType as string | undefined,
+          copyTone: bodyData.copyTone as string | undefined,
+          postNotesStyle: bodyData.postNotesStyle as string | undefined,
+          imageFocus: bodyData.imageFocus as string | undefined,
+        })
+      );
     }
 
     return result;

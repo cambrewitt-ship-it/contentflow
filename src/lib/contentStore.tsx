@@ -4,7 +4,7 @@ import React from 'react'
 import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { uploadMediaToBlob, getMediaType } from './blobUpload'
 import { extractVideoThumbnail } from './videoUtils'
-import { compressImageIfNeeded, prepareImageDataForAI } from './imageCompression'
+import { compressImageIfNeeded, dataUrlByteSize, fitImageForVision, prepareImageDataForAI } from './imageCompression'
 import logger from './logger'
 
 export interface Caption {
@@ -534,7 +534,8 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
             reader.onerror = reject
           })
           reader.readAsDataURL(blob)
-          imageData = await base64Promise
+          imageData = await fitImageForVision(await base64Promise)
+          actualImageSize = dataUrlByteSize(imageData)
           
           // Compress if needed (HTTPS URLs might point to large images)
           // Use 3MB limit to account for base64 overhead + other request fields (Vercel 4.5MB limit)
@@ -565,7 +566,8 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
             reader.onerror = reject
           })
           reader.readAsDataURL(blob)
-          imageData = await base64Promise
+          imageData = await fitImageForVision(await base64Promise)
+          actualImageSize = dataUrlByteSize(imageData)
           
           // Compress if needed (browser blob URLs might be large)
           // Use 3MB limit to account for base64 overhead + other request fields (Vercel 4.5MB limit)
@@ -581,10 +583,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
             actualImageSize = Math.floor((compressedBase64.length * 3) / 4) - compressedPadding
           }
         } else if (isBase64) {
-          // Already base64: Calculate size and compress if needed
-          const base64Data = imageData.split(',')[1] || imageData
-          const padding = (base64Data.match(/=/g) || []).length
-          actualImageSize = Math.floor((base64Data.length * 3) / 4) - padding
+          // Already base64: fit to the vision resolution, then compress if still needed
+          imageData = await fitImageForVision(imageData)
+          actualImageSize = dataUrlByteSize(imageData)
           
           // Compress if needed
           // Use 3MB limit to account for base64 overhead + other request fields (Vercel 4.5MB limit)
