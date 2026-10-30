@@ -5,6 +5,7 @@ import { X, Loader2, Sparkles, RefreshCw, Plus, AlertCircle, Upload as UploadIco
 import { uploadMediaToBlob, getMediaType } from '@/lib/blobUpload';
 import { extractVideoThumbnail } from '@/lib/videoUtils';
 import { prepareImageDataForAI } from '@/lib/imageCompression';
+import { readCaptionStream } from '@/lib/captionStream';
 import { SocialPreviewCard } from '@/components/SocialPreviewCard';
 import { WeekDayChooser } from '@/components/WeekDayChooser';
 import { ChatCaptionOption } from '@/components/ChatCaptionOption';
@@ -223,11 +224,12 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
           clientId,
           copyType: 'social-media',
           portalToken: token,
+          stream: true,
         }),
       });
-      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
         const creditError = classifyCreditError(data);
         if (creditError) {
           setCreditDialogMessage(creditError);
@@ -237,9 +239,20 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
         throw new Error((data.error as string) || `Failed to generate captions: ${response.status}`);
       }
 
-      const captionTexts: string[] = data.captions || [];
-      const newCaptions = captionTexts.map((text, i) => ({ id: `caption-${Date.now()}-${i}`, text }));
-      setCaptions(newCaptions);
+      // Show the captions as they're written; the final event carries the cleaned-up versions
+      const ts = Date.now();
+      const toCaptions = (texts: string[]) => texts.map((text, i) => ({ id: `caption-${ts}-${i}`, text }));
+      const previousCaptions = captions;
+      try {
+        const captionTexts = await readCaptionStream(response, (partial) => {
+          if (partial.length > 0) setCaptions(toCaptions(partial));
+        });
+        setCaptions(toCaptions(captionTexts));
+      } catch (streamError) {
+        // Don't leave half-written captions behind if generation fails part-way
+        setCaptions(previousCaptions);
+        throw streamError;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate captions');
     } finally {
@@ -287,7 +300,11 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
     }
   };
 
-  const runChatCaption = async (instruction: string, history: { role: 'user' | 'assistant'; content: string }[]) => {
+  const runChatCaption = async (
+    instruction: string,
+    history: { role: 'user' | 'assistant'; content: string }[],
+    onPartial: (captions: string[]) => void
+  ) => {
     if (!media) return;
     const imageData = await prepareImageDataForAI(media);
     const response = await fetch('/api/ai', {
@@ -302,14 +319,17 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
         clientId,
         copyType: 'social-media',
         portalToken: token,
+        stream: true,
       }),
     });
-    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
       const creditError = classifyCreditError(data);
       throw new Error(creditError || (data.error as string) || `Error ${response.status}`);
     }
-    return (data.captions || []) as string[];
+    return readCaptionStream(response, (partial) => {
+      if (partial.length > 0) onPartial(partial);
+    });
   };
 
   // Chat mode starts on "Generate Text" (post notes are an optional prompt)
@@ -327,9 +347,12 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
     setChatLoading(true);
     try {
       const aiContext = postNotes?.trim() || 'Generate engaging social media captions for this content.';
-      const captionTexts = await runChatCaption(aiContext, []);
       const ts = Date.now();
-      const newCaptions: Caption[] = (captionTexts || []).map((text, i) => ({ id: `chat-init-${ts}-${i}`, text }));
+      const toChatCaptions = (texts: string[]): Caption[] => texts.map((text, i) => ({ id: `chat-init-${ts}-${i}`, text }));
+      const captionTexts = await runChatCaption(aiContext, [], (partial) => {
+        setChatMessages([{ id: loadingId, role: 'assistant', content: '', captions: toChatCaptions(partial), isLoading: false }]);
+      });
+      const newCaptions = toChatCaptions(captionTexts || []);
       setCaptions(newCaptions);
       setChatMessages([{ id: loadingId, role: 'assistant', content: '', captions: newCaptions, isLoading: false }]);
     } catch (err) {
@@ -372,13 +395,21 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
           role: m.role,
           content: m.role === 'assistant' ? (m.captions?.map((c) => c.text).join('\n\n') || m.content) : m.content,
         }));
-      const captionTexts = await runChatCaption(instruction, history);
       const ts = Date.now();
-      const newCaptions: Caption[] = (captionTexts || []).map((text, i) => ({ id: `chat-${aiMsgId}-${i}-${ts}`, text }));
-      setChatMessages((prev) => prev.map((m) => (m.id === aiMsgId ? { ...m, captions: newCaptions, isLoading: false } : m)));
+      const toChatCaptions = (texts: string[]): Caption[] => texts.map((text, i) => ({ id: `chat-${aiMsgId}-${i}-${ts}`, text }));
+      const showCaptions = (texts: string[]) =>
+        setChatMessages((prev) => prev.map((m) => (m.id === aiMsgId ? { ...m, captions: toChatCaptions(texts), isLoading: false } : m)));
+      const captionTexts = await runChatCaption(instruction, history, showCaptions);
+      const newCaptions = toChatCaptions(captionTexts || []);
+      showCaptions(captionTexts || []);
+      // A caption picked while it was still being written was copied in early — give it its finished text
+      setCaptions((prev) => prev.map((c) => {
+        const finished = newCaptions.find((n) => n.id === c.id);
+        return finished ? { ...c, text: finished.text } : c;
+      }));
     } catch (err) {
       setChatMessages((prev) => prev.map((m) =>
-        m.id === aiMsgId ? { ...m, content: err instanceof Error ? err.message : 'Failed to generate. Please try again.', isLoading: false } : m
+        m.id === aiMsgId ? { ...m, captions: undefined, content: err instanceof Error ? err.message : 'Failed to generate. Please try again.', isLoading: false } : m
       ));
     } finally {
       setChatLoading(false);

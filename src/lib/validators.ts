@@ -252,6 +252,7 @@ export const aiRequestSchema = z.discriminatedUnion('action', [
     postNotesStyle: postNotesStyleSchema.optional(),
     imageFocus: imageFocusSchema.optional(),
     portalToken: z.string().optional(),
+    stream: z.boolean().optional(), // Stream captions back as NDJSON while they're written
   }),
 
   // Caption remixing
@@ -286,6 +287,7 @@ export const aiRequestSchema = z.discriminatedUnion('action', [
       })
     ).max(30).optional(),
     portalToken: z.string().optional(),
+    stream: z.boolean().optional(), // Stream captions back as NDJSON while they're written
   }),
 ]);
 

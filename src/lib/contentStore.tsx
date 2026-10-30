@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { uploadMediaToBlob, getMediaType } from './blobUpload'
 import { extractVideoThumbnail } from './videoUtils'
 import { compressImageIfNeeded, dataUrlByteSize, fitImageForVision, prepareImageDataForAI } from './imageCompression'
+import { readCaptionStream } from './captionStream'
 import logger from './logger'
 
 export interface Caption {
@@ -622,7 +623,8 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         copyTone: copyTone,
         postNotesStyle: notesInterpretation,
         imageFocus: contentFocus,
-        contentType: !image ? 'text' : isVideo ? 'video' : 'image'
+        contentType: !image ? 'text' : isVideo ? 'video' : 'image',
+        stream: true,
       }
 
       // Convert request body to string (always needed for fetch)
@@ -717,79 +719,83 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         }
       }
 
-      // Parse response as JSON even if response.ok is false (to check for insufficient credits)
-      let data
-      try {
-        const responseText = await response.text()
-        try {
-          data = JSON.parse(responseText)
-        } catch (parseError) {
-          // If parsing fails, log and throw generic error
-          logger.error('API response error - failed to parse JSON:', response.status, responseText)
-          throw new Error(`Failed to generate captions: ${response.status}`)
-        }
-      } catch (readError) {
-        // If reading fails entirely
-        logger.error('API response error - failed to read response:', response.status)
-        throw readError instanceof Error ? readError : new Error(`Failed to generate captions: ${response.status}`)
-      }
-
-      // Check for insufficient credits error. Note: a 403 alone is NOT sufficient evidence -
-      // requireClientOwnership also returns 403 ("Forbidden") for unrelated auth/ownership
-      // failures, so we only classify as a credit error when the response actually says so.
-      const hasInsufficientCreditsError = data &&
-        typeof data.error === 'object' &&
-        data.error !== null &&
-        'code' in data.error &&
-        (data.error as { code: string }).code === 'INSUFFICIENT_CREDITS'
-      const hasCreditErrorMessage = data &&
-        typeof data.error === 'string' &&
-        (data.error.includes('credit') || data.error.includes('Credit') || data.error.includes('AI credit'))
-
-      const insufficientCredits = hasInsufficientCreditsError || hasCreditErrorMessage
-
-      if (insufficientCredits) {
-        const serverMessage = hasInsufficientCreditsError
-          ? (data.error as { message?: string }).message
-          : (typeof data.error === 'string' ? data.error : undefined)
-        const error = new Error('INSUFFICIENT_CREDITS')
-        error.name = 'InsufficientCreditsError'
-        ;(error as Error & { details?: string }).details = serverMessage
-        throw error
-      }
-
+      // Errors (auth, credits, validation) come back as plain JSON before any streaming starts
       if (!response.ok) {
+        // Parse the JSON error body (to check for insufficient credits)
+        let data
+        try {
+          const responseText = await response.text()
+          try {
+            data = JSON.parse(responseText)
+          } catch (parseError) {
+            // If parsing fails, log and throw generic error
+            logger.error('API response error - failed to parse JSON:', response.status, responseText)
+            throw new Error(`Failed to generate captions: ${response.status}`)
+          }
+        } catch (readError) {
+          // If reading fails entirely
+          logger.error('API response error - failed to read response:', response.status)
+          throw readError instanceof Error ? readError : new Error(`Failed to generate captions: ${response.status}`)
+        }
+
+        // Check for insufficient credits error. Note: a 403 alone is NOT sufficient evidence -
+        // requireClientOwnership also returns 403 ("Forbidden") for unrelated auth/ownership
+        // failures, so we only classify as a credit error when the response actually says so.
+        const hasInsufficientCreditsError = data &&
+          typeof data.error === 'object' &&
+          data.error !== null &&
+          'code' in data.error &&
+          (data.error as { code: string }).code === 'INSUFFICIENT_CREDITS'
+        const hasCreditErrorMessage = data &&
+          typeof data.error === 'string' &&
+          (data.error.includes('credit') || data.error.includes('Credit') || data.error.includes('AI credit'))
+
+        const insufficientCredits = hasInsufficientCreditsError || hasCreditErrorMessage
+
+        if (insufficientCredits) {
+          const serverMessage = hasInsufficientCreditsError
+            ? (data.error as { message?: string }).message
+            : (typeof data.error === 'string' ? data.error : undefined)
+          const error = new Error('INSUFFICIENT_CREDITS')
+          error.name = 'InsufficientCreditsError'
+          ;(error as Error & { details?: string }).details = serverMessage
+          throw error
+        }
+
         logger.error('API response error:', response.status, data)
         const serverMessage = typeof data?.error === 'string' ? data.error : undefined
         throw new Error(serverMessage || `Failed to generate captions: ${response.status}`)
       }
 
-      if (data.captions && Array.isArray(data.captions) && data.captions.length > 0) {
-        // Convert the captions array to the expected format with IDs
-        const newCaptions = data.captions.map((text: string, index: number) => ({
-          id: `caption-${Date.now()}-${index}`,
-          text: text,
-          isSelected: false
-        }))
-
-        setCaptions(newCaptions)
-        
-        // Trigger refresh of credits after successful generation
-        // CreditsContext will listen for this event and refresh
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('credits-used'));
-        }
-      } else {
-        logger.error('No captions in response or empty array:', {
-          hasCaptions: !!data.captions,
-          isArray: Array.isArray(data.captions),
-          captionsLength: Array.isArray(data.captions) ? data.captions.length : 0,
-          responseData: data
+      // Show the captions as they're written; the final event carries the cleaned-up versions
+      const ts = Date.now()
+      const toCaptions = (texts: string[]) => texts.map((text, index) => ({
+        id: `caption-${ts}-${index}`,
+        text,
+        isSelected: false
+      }))
+      const previousCaptions = captions
+      let captionTexts: string[]
+      try {
+        captionTexts = await readCaptionStream(response, (partial) => {
+          if (partial.length > 0) setCaptions(toCaptions(partial))
         })
-        throw new Error(
-          data.error || 
-          'No captions were generated. Please try again with different content or notes.'
-        )
+      } catch (streamError) {
+        // Don't leave half-written captions behind if generation fails part-way
+        setCaptions(previousCaptions)
+        throw streamError
+      }
+
+      if (captionTexts.length === 0) {
+        setCaptions(previousCaptions)
+        throw new Error('No captions were generated. Please try again with different content or notes.')
+      }
+      setCaptions(toCaptions(captionTexts))
+
+      // Trigger refresh of credits after successful generation
+      // CreditsContext will listen for this event and refresh
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('credits-used'));
       }
     } catch (error) {
       logger.error('Error generating AI captions:', error)
@@ -936,12 +942,11 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ action: 'generate_captions', imageData, aiContext, clientId, copyType }),
+        body: JSON.stringify({ action: 'generate_captions', imageData, aiContext, clientId, copyType, stream: true }),
       })
 
-      const data = await response.json().catch(() => ({}))
-
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
         const creditError = classifyCreditError(data)
         if (creditError) {
           setChatMessages([])
@@ -953,9 +958,14 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         throw new Error((data.error as string) || `Error ${response.status}`)
       }
 
-      const captionTexts: string[] = data.captions || []
+      // Show the captions in the chat as they're written
       const ts = Date.now()
-      const newCaptions: ChatCaption[] = captionTexts.map((text, i) => ({ id: `chat-init-${ts}-${i}`, text }))
+      const toChatCaptions = (texts: string[]): ChatCaption[] => texts.map((text, i) => ({ id: `chat-init-${ts}-${i}`, text }))
+      const captionTexts = await readCaptionStream(response, (partial) => {
+        if (partial.length === 0) return
+        setChatMessages([{ id: loadingId, role: 'assistant', content: '', captions: toChatCaptions(partial), isLoading: false }])
+      })
+      const newCaptions = toChatCaptions(captionTexts)
 
       setCaptions(newCaptions)
       setChatMessages([{ id: loadingId, role: 'assistant', content: '', captions: newCaptions, isLoading: false }])
@@ -1018,27 +1028,37 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           aiContext: postNotes?.trim() || undefined,
           clientId,
           copyType,
+          stream: true,
         }),
       })
 
-      const data = await response.json().catch(() => ({}))
-
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
         const creditError = classifyCreditError(data)
         throw new Error(creditError || (data.error as string) || `Error ${response.status}`)
       }
 
-      const captionTexts: string[] = data.captions || []
+      // Show the captions in the chat as they're written
       const ts = Date.now()
-      const newCaptions: ChatCaption[] = captionTexts.map((text, i) => ({ id: `chat-${aiMsgId}-${i}-${ts}`, text }))
-
-      setChatMessages(prev => prev.map(m =>
-        m.id === aiMsgId ? { ...m, captions: newCaptions, isLoading: false } : m
+      const toChatCaptions = (texts: string[]): ChatCaption[] => texts.map((text, i) => ({ id: `chat-${aiMsgId}-${i}-${ts}`, text }))
+      const showCaptions = (texts: string[]) => setChatMessages(prev => prev.map(m =>
+        m.id === aiMsgId ? { ...m, captions: toChatCaptions(texts), isLoading: false } : m
       ))
+      const captionTexts = await readCaptionStream(response, (partial) => {
+        if (partial.length > 0) showCaptions(partial)
+      })
+      const newCaptions = toChatCaptions(captionTexts)
+      showCaptions(captionTexts)
+      // A caption picked while it was still being written was copied into the store early —
+      // give it its finished text
+      setCaptions(prev => prev.map(c => {
+        const finished = newCaptions.find(n => n.id === c.id)
+        return finished ? { ...c, text: finished.text } : c
+      }))
     } catch (error) {
       setChatMessages(prev => prev.map(m =>
         m.id === aiMsgId
-          ? { ...m, content: error instanceof Error ? error.message : 'Failed to generate. Please try again.', isLoading: false }
+          ? { ...m, captions: undefined, content: error instanceof Error ? error.message : 'Failed to generate. Please try again.', isLoading: false }
           : m
       ))
     } finally {
