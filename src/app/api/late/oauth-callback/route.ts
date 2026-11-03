@@ -1,14 +1,17 @@
-// app/api/late/oauth-callback/route.ts
+// app/api/late/oauth-callback/route.ts — OAuth return from Zernio (formerly LATE)
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 import { getRequestAppUrl } from '@/lib/requestAppUrl';
-import { buildOAuthReturnUrl } from '@/lib/returnPath';
+import { buildOAuthReturnUrl, oauthCompleteUrl } from '@/lib/returnPath';
 import { createSupabaseServer } from '@/lib/supabaseServer';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
 
 export async function GET(req: NextRequest) {
   // Get the correct app URL
   const appUrl = getRequestAppUrl(req);
+  // Every outcome goes through the public completion page, never straight to an
+  // auth-protected screen, so a browser without a session isn't sent to login.
+  const finish = (url: string) => NextResponse.redirect(oauthCompleteUrl(appUrl, url));
   
   try {
     // Handle malformed URLs with multiple ? characters
@@ -75,7 +78,7 @@ export async function GET(req: NextRequest) {
         ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=${encodeURIComponent(errorDescription || error)}`
         : `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=${encodeURIComponent(errorDescription || error)}`;
       
-      return NextResponse.redirect(backTo(errorRedirectUrl, {
+      return finish(backTo(errorRedirectUrl, {
         oauth_error: platform || 'unknown',
         error_description: errorDescription || error,
       }));
@@ -89,7 +92,7 @@ export async function GET(req: NextRequest) {
         ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=Missing required OAuth parameters`
         : `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=Missing required OAuth parameters`;
       
-      return NextResponse.redirect(backTo(errorRedirectUrl, {
+      return finish(backTo(errorRedirectUrl, {
         oauth_error: platform || 'unknown',
         error_description: 'Missing required OAuth parameters',
       }));
@@ -98,7 +101,7 @@ export async function GET(req: NextRequest) {
     // Validate client ownership before performing database operations
     if (!clientId) {
       const errorRedirectUrl = `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=Missing client identifier`;
-      return NextResponse.redirect(errorRedirectUrl);
+      return finish(errorRedirectUrl);
     }
 
     // This route is hit by a browser redirect from LATE, so there is no Bearer header —
@@ -152,7 +155,7 @@ export async function GET(req: NextRequest) {
         : `${appUrl}/dashboard/client/${clientId}`;
       const successRedirectUrl = `${basePath}?connected=${platform}&status=success${username ? `&username=${encodeURIComponent(username)}` : ''}`;
 
-      return NextResponse.redirect(backTo(successRedirectUrl, {
+      return finish(backTo(successRedirectUrl, {
         connected: platform,
         status: 'success',
         ...(username ? { username } : {}),
@@ -161,7 +164,7 @@ export async function GET(req: NextRequest) {
       // Fallback to general dashboard if no clientId
       const fallbackRedirectUrl = `${appUrl}/dashboard?oauth_success=${platform}${username ? `&username=${encodeURIComponent(username)}` : ''}`;
       logger.debug('Redirecting to general dashboard (fallback)', { platform });
-      return NextResponse.redirect(fallbackRedirectUrl);
+      return finish(fallbackRedirectUrl);
     }
 
   } catch (error: unknown) {
@@ -187,6 +190,6 @@ export async function GET(req: NextRequest) {
       ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Unexpected error during OAuth`
       : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Unexpected error during OAuth`;
     
-    return NextResponse.redirect(errorRedirectUrl);
+    return finish(errorRedirectUrl);
   }
 }

@@ -60,3 +60,26 @@ export function loginUrlForCurrentPage(): string {
   const here = window.location.pathname + window.location.search;
   return `/auth/login?redirectTo=${encodeURIComponent(here)}`;
 }
+
+/** Public page every social OAuth callback lands on; see src/app/oauth/complete/page.tsx. */
+export const OAUTH_COMPLETE_PATH = '/oauth/complete';
+
+/**
+ * Wraps an OAuth callback's final destination (an absolute dashboard URL) in the
+ * public completion page. That page forwards signed-in users to `destination`
+ * and shows the result to anyone whose browser has no session (e.g. the OAuth
+ * flow finished in the Instagram/Facebook in-app browser), so a social
+ * connection never ends on the login screen.
+ */
+export function oauthCompleteUrl(appUrl: string, destination: string): string {
+  let next = '/dashboard';
+  try {
+    const url = new URL(destination, appUrl);
+    if (url.origin === new URL(appUrl).origin) {
+      next = safeReturnPath(url.pathname + url.search) ?? next;
+    }
+  } catch {
+    // keep the default
+  }
+  return `${appUrl}${OAUTH_COMPLETE_PATH}?next=${encodeURIComponent(next)}`;
+}

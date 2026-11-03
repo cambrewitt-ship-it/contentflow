@@ -57,6 +57,7 @@ export async function middleware(req: NextRequest) {
     '/terms',
     '/blog',
     '/social-preview',
+    '/oauth/complete', // Social OAuth result page (forwards signed-in users on)
   ];
 
   // Define public API routes that don't require authentication

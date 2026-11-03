@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 import { getRequestAppUrl } from '@/lib/requestAppUrl';
-import { buildOAuthReturnUrl } from '@/lib/returnPath';
+import { buildOAuthReturnUrl, oauthCompleteUrl } from '@/lib/returnPath';
 
 
 export async function GET(req: NextRequest) {
   logger.debug('Facebook callback request received');
   // Get the correct app URL
   const appUrl = getRequestAppUrl(req);
+  // Every outcome goes through the public completion page, never straight to an
+  // auth-protected screen, so a browser without a session isn't sent to login.
+  const finish = (url: string) => NextResponse.redirect(oauthCompleteUrl(appUrl, url));
 
   try {
     // Handle malformed URLs with multiple ? characters
@@ -64,14 +67,14 @@ export async function GET(req: NextRequest) {
     // Validate clientId is present
     if (!clientId) {
       const errorRedirectUrl = `${appUrl}/dashboard?oauth_error=facebook&error_description=Missing client ID`;
-      return NextResponse.redirect(errorRedirectUrl);
+      return finish(errorRedirectUrl);
     }
 
     // Handle OAuth errors from Facebook
     if (error) {
       const errorRedirectUrl = `${appUrl}/dashboard/client/${clientId}?connected=facebook&status=error&error=${encodeURIComponent(error)}&error_description=${encodeURIComponent(errorDescription || error)}`;
       logger.debug('Facebook OAuth error - redirecting with error', { error, errorDescription });
-      return NextResponse.redirect(backTo(errorRedirectUrl, {
+      return finish(backTo(errorRedirectUrl, {
         connected: 'facebook',
         status: 'error',
         error,
@@ -89,7 +92,7 @@ export async function GET(req: NextRequest) {
         : `${appUrl}/dashboard/client/${clientId}`;
       const successRedirectUrl = `${basePath}?connected=facebook&status=success&profileId=${profileId || ''}&username=${encodeURIComponent(username || '')}`;
       logger.debug('Facebook OAuth success - redirecting with success', { profileId, username });
-      return NextResponse.redirect(backTo(successRedirectUrl, {
+      return finish(backTo(successRedirectUrl, {
         connected: 'facebook',
         status: 'success',
         profileId: profileId || '',
@@ -104,7 +107,7 @@ export async function GET(req: NextRequest) {
       hasError: !!error 
     });
     const warningRedirectUrl = `${appUrl}/dashboard/client/${clientId}?connected=facebook&status=warning&message=${encodeURIComponent('Connection status unclear')}`;
-    return NextResponse.redirect(backTo(warningRedirectUrl, {
+    return finish(backTo(warningRedirectUrl, {
       connected: 'facebook',
       status: 'warning',
       message: 'Connection status unclear',
@@ -131,6 +134,6 @@ export async function GET(req: NextRequest) {
       ? `${appUrl}/dashboard/client/${clientId}?connected=facebook&status=error&error_description=${encodeURIComponent('Unexpected error during Facebook OAuth')}`
       : `${appUrl}/dashboard?oauth_error=facebook&error_description=${encodeURIComponent('Unexpected error during Facebook OAuth')}`;
     
-    return NextResponse.redirect(errorRedirectUrl);
+    return finish(errorRedirectUrl);
   }
 }

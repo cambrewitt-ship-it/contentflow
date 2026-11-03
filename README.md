@@ -19,6 +19,7 @@ A modern SaaS landing page for Content Manager, an AI-powered social media manag
 - **Shadcn/ui**: Modern component library
 - **Inter Font**: Professional typography
 - **Supabase**: Database and authentication
+- **Zernio (formerly LATE, getlate.dev)**: Social account connections and posting. The code still calls it LATE (`src/app/api/late/*`, `LATE_API_KEY`); see CLAUDE.md
 - **Meta Graph API**: Facebook and Instagram integration
 
 ## Getting Started
