@@ -41,8 +41,11 @@ import {
   useSensor,
   useSensors,
   closestCorners,
+  pointerWithin,
+  CollisionDetection,
   useDroppable,
   useDraggable,
+  useDndContext,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -599,16 +602,37 @@ function BoardCard({
   );
 }
 
+// Prefix for the "Add a post" drop zones, so collision detection can favour them under the pointer.
+const ADD_BUTTON_DROP_PREFIX = 'week-add-';
+
+// The board's droppables are mostly cards, which closestCorners picks well. But a card just
+// above the short "Add a post" button can win even with the pointer on the button, so when the
+// pointer is inside one of those buttons, that button is the target.
+const boardCollisionDetection: CollisionDetection = (args) => {
+  const underPointer = pointerWithin(args).filter((c) => String(c.id).startsWith(ADD_BUTTON_DROP_PREFIX));
+  return underPointer.length > 0 ? underPointer : closestCorners(args);
+};
+
 function AddCardFooter({
+  weekStart,
   onClick,
   onNativeDrop,
 }: {
+  weekStart: Date;
   onClick?: () => void;
   onNativeDrop?: (e: React.DragEvent) => void;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
+  // Also a dnd-kit drop target, so dragging a post here moves it to this week (the page then
+  // asks which day). Client uploads can't be moved, so they don't light it up.
+  const { setNodeRef, isOver, active } = useDroppable({
+    id: `${ADD_BUTTON_DROP_PREFIX}${weekStart.toISOString()}`,
+    data: { dateKey: null, weekStart: weekStart.toISOString() },
+  });
+  const isPostOver = isOver && !!active && !String(active.id).startsWith('client-upload-');
   return (
     <button
+      ref={setNodeRef}
       type="button"
       onClick={onClick}
       onDragOver={(e) => {
@@ -625,12 +649,16 @@ function AddCardFooter({
         setIsDragOver(false);
         onNativeDrop?.(e);
       }}
-      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-        isDragOver ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-400' : 'text-[#44546f] hover:bg-[#091e4224] hover:text-[#172b4d]'
+      className={`w-full flex items-center gap-2 px-2 rounded-lg text-sm font-medium transition-all ${
+        isPostOver
+          ? 'justify-center py-5 bg-blue-100 text-blue-700 border-2 border-dashed border-blue-400'
+          : isDragOver
+            ? 'py-1.5 bg-blue-100 text-blue-700 ring-2 ring-blue-400'
+            : 'py-1.5 text-[#44546f] hover:bg-[#091e4224] hover:text-[#172b4d]'
       }`}
     >
-      <Plus className="w-4 h-4" />
-      {isDragOver ? 'Drop to add a post' : 'Add a post'}
+      {isPostOver ? <CalendarDays className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+      {isPostOver ? 'Drop to move to this week' : isDragOver ? 'Drop to add a post' : 'Add a post'}
     </button>
   );
 }
@@ -664,6 +692,14 @@ function BoardList({
     id: `week-fallback-${weekStart.toISOString()}`,
     data: { dateKey: null, weekStart: weekStart.toISOString() },
   });
+
+  // A post held over this week's "Add a post" button: outline the whole list too, since the
+  // dragged card sits on top of the button and hides most of its highlight.
+  const { active: dragActive, over: dragOver } = useDndContext();
+  const isMoveTarget =
+    !!dragActive &&
+    !String(dragActive.id).startsWith('client-upload-') &&
+    dragOver?.id === `${ADD_BUTTON_DROP_PREFIX}${weekStart.toISOString()}`;
 
   const postEntries = entries.filter((e): e is Extract<WeekEntry, { type: 'post' }> => e.type === 'post');
   const items = postEntries.map((e) => postKeyOf(e.post));
@@ -708,8 +744,8 @@ function BoardList({
     <div
       data-board-list
       data-current-week={isCurrent ? '' : undefined}
-      className={`w-[300px] max-w-[calc(100vw-3rem)] snap-center flex-shrink-0 max-h-full flex flex-col rounded-xl bg-[#f1f2f4] ${TRELLO_SHADOW} ${
-        isCurrent ? 'ring-2 ring-white' : ''
+      className={`w-[300px] max-w-[calc(100vw-3rem)] snap-center flex-shrink-0 max-h-full flex flex-col rounded-xl ${TRELLO_SHADOW} transition-colors ${
+        isMoveTarget ? 'bg-blue-50 ring-2 ring-blue-400' : `bg-[#f1f2f4] ${isCurrent ? 'ring-2 ring-white' : ''}`
       }`}
     >
       <div className="flex items-center gap-1 pl-3 pr-1.5 pt-2 pb-1">
@@ -803,6 +839,7 @@ function BoardList({
 
       <div className="px-2 pb-2 pt-1">
         <AddCardFooter
+          weekStart={weekStart}
           onClick={() => props.onAddCardClick?.(weekStart)}
           onNativeDrop={(e) => props.onAddButtonDrop?.(e, weekStart)}
         />
@@ -1141,6 +1178,8 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const hasInitializedStartWeek = useRef(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
+  // A post is over a week's "Add a post" button: fade the dragged card so the button shows through.
+  const [overAddButton, setOverAddButton] = useState(false);
   // The chosen background; null = nothing chosen yet, so the board uses the brand default.
   const [bgId, setBgId] = useState<string | null>(null);
   const [density, setDensity] = useState<Density>('cover');
@@ -1352,6 +1391,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const handleDragStart = (event: DragStartEvent) => setActiveId(String(event.active.id));
 
   const handleDragOver = (event: DragOverEvent) => {
+    setOverAddButton(!!event.over && String(event.over.id).startsWith(ADD_BUTTON_DROP_PREFIX));
     setDragOverDay((event.over?.data.current as { dateKey?: string } | undefined)?.dateKey ?? null);
   };
 
@@ -1360,6 +1400,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setDragOverDay(null);
+    setOverAddButton(false);
     setActiveId(null);
     const activeIdStr = String(active.id);
     if (activeIdStr.startsWith('client-upload-') || !over) return;
@@ -1592,10 +1633,15 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
         ) : (
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCorners}
+            collisionDetection={boardCollisionDetection}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
+            onDragCancel={() => {
+              setDragOverDay(null);
+              setOverAddButton(false);
+              setActiveId(null);
+            }}
           >
             {isMonth ? (
               <div className="flex-1 min-w-0 overflow-auto calendar-hscroll p-3">
@@ -1659,7 +1705,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
 
             <DragOverlay>
               {activePost && activePost.type === 'post' ? (
-                <div className={`${isMonth ? 'w-[160px] text-xs' : 'w-[284px] text-sm'} rotate-3 rounded-lg bg-white shadow-2xl px-3 py-2 text-[#172b4d] line-clamp-3`}>
+                <div className={`${isMonth ? 'w-[160px] text-xs' : 'w-[284px] text-sm'} rotate-3 rounded-lg bg-white shadow-2xl px-3 py-2 text-[#172b4d] line-clamp-3 transition-opacity ${overAddButton ? 'opacity-50' : ''}`}>
                   {activePost.post.caption || 'Post'}
                 </div>
               ) : null}
