@@ -27,9 +27,12 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(cleanUrl);
     
     // Extract parameters from URL
-    const success = searchParams.get('success');
-    const platform = searchParams.get('platform');
-    const profileId = searchParams.get('profileId');
+    // LATE returns `connected=<platform>` on success; older flows sent `success` + `platform`
+    const connected = searchParams.get('connected');
+    const connectedPlatform = connected && !['true', '1'].includes(connected) ? connected : null;
+    const platform = searchParams.get('platform') || connectedPlatform;
+    const success = searchParams.get('success') === 'true' || !!connected;
+    let profileId = searchParams.get('profileId');
     const username = searchParams.get('username');
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
@@ -79,7 +82,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Validate required parameters
-    if (!success || !platform || !profileId) {
+    if (!success || !platform) {
+      logger.warn('OAuth callback missing parameters', { params: Array.from(searchParams.keys()) });
 
       const errorRedirectUrl = clientId 
         ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=Missing required OAuth parameters`
@@ -106,12 +110,15 @@ export async function GET(req: NextRequest) {
     if (user) {
       const { data: client } = await supabase
         .from('clients')
-        .select('id')
+        .select('id, late_profile_id')
         .eq('id', clientId)
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (client) {
+      // Fall back to the client's LATE profile when the callback omits it
+      profileId = profileId || client?.late_profile_id || null;
+
+      if (client && profileId) {
         // Upsert the connection in a single round trip (insert or update on conflict)
         const now = new Date().toISOString();
         const { error: upsertError } = await supabase
