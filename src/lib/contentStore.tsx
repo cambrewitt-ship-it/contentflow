@@ -44,6 +44,15 @@ export interface UploadedImage {
   mimeType?: string
   videoThumbnail?: string // Thumbnail image for videos (first frame)
   uploadFailed?: boolean
+  // Layered design from the in-app image editor, so reopening the editor keeps text,
+  // overlays and filters editable instead of working on the flattened export.
+  design?: ImageDesign
+}
+
+export interface ImageDesign {
+  json: Record<string, unknown>
+  width: number
+  height: number
 }
 
 // Serializable version for localStorage
@@ -89,6 +98,7 @@ export interface ContentStore {
   setContentIdeas: (ideas: ContentIdea[]) => void
   addImage: (file: File, options?: { activate?: boolean }) => Promise<void>
   removeImage: (id: string) => void
+  replaceImage: (id: string, file: File, design?: ImageDesign) => Promise<void>
   updateImageNotes: (id: string, notes: string) => void
   updateCaption: (id: string, text: string) => void
   selectCaption: (id: string) => void
@@ -431,6 +441,46 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     if (activeImageId === id) {
       const next = remaining[Math.min(Math.max(removedIndex, 0), remaining.length - 1)]
       setActiveImageId(next ? next.id : null)
+    }
+  }
+
+  // Swap an image for an edited version (from the image editor): show it straight away,
+  // then upload it and point the post at the new blob URL.
+  const replaceImage = async (id: string, file: File, design?: ImageDesign) => {
+    const previewUrl = URL.createObjectURL(file)
+    setUploadedImages(prev =>
+      prev.map(img =>
+        img.id === id
+          ? {
+              ...img,
+              file,
+              preview: previewUrl,
+              blobUrl: undefined,
+              uploadFailed: false,
+              mediaType: 'image',
+              mimeType: file.type,
+              videoThumbnail: undefined,
+              design,
+            }
+          : img
+      )
+    )
+    try {
+      const uploadResult = await uploadMediaToBlob(file, `content-${Date.now()}-${file.name}`)
+      setUploadedImages(prev =>
+        prev.map(img =>
+          // Only apply if this edit is still the current version of the image
+          img.id === id && img.preview === previewUrl
+            ? { ...img, blobUrl: uploadResult.url, preview: uploadResult.url, mimeType: uploadResult.mimeType }
+            : img
+        )
+      )
+      URL.revokeObjectURL(previewUrl)
+    } catch (error) {
+      logger.error('❌ Failed to upload edited image:', error)
+      setUploadedImages(prev =>
+        prev.map(img => (img.id === id && img.preview === previewUrl ? { ...img, uploadFailed: true } : img))
+      )
     }
   }
 
@@ -1193,6 +1243,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     setContentIdeas,
     addImage,
     removeImage,
+    replaceImage,
     updateImageNotes,
     updateCaption,
     selectCaption,

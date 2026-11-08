@@ -11,8 +11,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Settings, Images, Upload, FileText, Bot } from 'lucide-react'
+import { Loader2, Plus, Edit3, Wand2, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Settings, Images, Upload, FileText, Bot } from 'lucide-react'
 import PhotoSwapDialog from '@/components/PhotoSwapDialog'
+import dynamic from 'next/dynamic'
 import { isVideoUrl } from '@/lib/videoUtils'
 import Link from 'next/link'
 import { SocialPreviewColumn } from './SocialPreviewColumn'
@@ -26,6 +27,9 @@ import { ThinkingIndicator } from '@/components/ThinkingIndicator'
 import ContentAgentPanel from '@/components/ContentAgentPanel'
 import { publishedCaption } from '@/lib/candidateCaption'
 import type { AutopilotCandidate } from '@/types/autopilot'
+
+// Canva-style image editor — loaded only when opened (Fabric.js is browser-only and large)
+const ImageEditor = dynamic(() => import('@/components/image-editor/ImageEditor'), { ssr: false })
 
 interface Project {
   id: string
@@ -869,6 +873,7 @@ function ContentSuiteContent({
     setActiveImageId,
     addImage,
     removeImage,
+    replaceImage,
     contentFocus,
     setContentFocus,
     copyTone,
@@ -894,6 +899,10 @@ function ContentSuiteContent({
   
   const { user } = useAuth()
   
+  // Image editor: which uploaded image is open in it
+  const [editorImageId, setEditorImageId] = useState<string | null>(null)
+  const editorImage = editorImageId ? uploadedImages.find(img => img.id === editorImageId) : undefined
+
   // Gallery picker state (lives here so setUploadedImages / setActiveImageId are in scope)
   const [galleryPickerOpen, setGalleryPickerOpen] = useState(false)
 
@@ -2210,6 +2219,26 @@ function ContentSuiteContent({
                       </button>
                     </div>
 
+                    {/* Canva-style image editor */}
+                    {editorImage && (
+                      <ImageEditor
+                        key={editorImage.id}
+                        imageUrl={editorImage.blobUrl || editorImage.preview}
+                        file={editorImage.file}
+                        design={editorImage.design}
+                        otherImages={uploadedImages
+                          .filter(img => img.id !== editorImage.id && img.mediaType !== 'video' && !img.uploadFailed)
+                          .map(img => img.blobUrl || img.preview)}
+                        brandLogoUrl={client?.logo_url}
+                        brandName={client?.name}
+                        onCancel={() => setEditorImageId(null)}
+                        onSave={async (file, design) => {
+                          setEditorImageId(null)
+                          await replaceImage(editorImage.id, file, design)
+                        }}
+                      />
+                    )}
+
                     {/* Gallery Picker Dialog */}
                     <PhotoSwapDialog
                       open={galleryPickerOpen}
@@ -2289,6 +2318,23 @@ function ContentSuiteContent({
                                   </svg>
                                 </div>
                               </div>
+                            )}
+
+                            {/* Edit (Canva-style editor) — images only, once they've loaded */}
+                            {media.mediaType !== 'video' && !isUploading && !hasUploadError && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setActiveImageId(media.id)
+                                  setEditorImageId(media.id)
+                                }}
+                                className="absolute bottom-1 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-blue-700 shadow hover:bg-white"
+                                title="Edit image — add text, logos, filters"
+                              >
+                                <Wand2 className="w-3 h-3" />
+                                Edit
+                              </button>
                             )}
 
                             {/* Remove button */}
