@@ -1202,6 +1202,35 @@ export default function CalendarPage() {
     }
   };
 
+  // Save a post's photos after one was edited in the image editor (from its detail modal).
+  const handleUpdatePostMedia = async (postId: string, mediaUrls: string[]): Promise<boolean> => {
+    const imageUrl = mediaUrls[0] ?? null;
+    const multi = mediaUrls.length > 1 ? mediaUrls : null;
+    try {
+      const accessToken = requireAccessToken();
+      const response = await fetch('/api/calendar/scheduled', {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId, updates: { image_url: imageUrl, media_urls: multi } }),
+      });
+      if (!response.ok) throw new Error(`Failed to update image (${response.status})`);
+
+      setScheduledPosts(prevScheduled => {
+        const updated = { ...prevScheduled };
+        Object.keys(updated).forEach(date => {
+          updated[date] = updated[date].map(p =>
+            p.id === postId ? { ...p, image_url: imageUrl ?? p.image_url, media_urls: multi } as typeof p : p
+          );
+        });
+        return updated;
+      });
+      return true;
+    } catch (error) {
+      console.error('Error updating post image:', error);
+      return false;
+    }
+  };
+
   // Set or clear ("pending") a post's approval status from its detail modal.
   const handleSetApprovalStatus = async (
     postId: string,
@@ -3220,6 +3249,18 @@ export default function CalendarPage() {
           onChangeApprovalStatus={async (status) => {
             const ok = await handleSetApprovalStatus(postDetailModal.id, status);
             if (ok) setPostDetailModal(prev => prev ? { ...prev, approval_status: status } : prev);
+            return ok;
+          }}
+          onSaveMedia={async (mediaUrls) => {
+            const postId = postDetailModal.id;
+            const ok = await handleUpdatePostMedia(postId, mediaUrls);
+            if (ok) {
+              setPostDetailModal(prev =>
+                prev && prev.id === postId
+                  ? { ...prev, image_url: mediaUrls[0] ?? prev.image_url, media_urls: mediaUrls.length > 1 ? mediaUrls : null }
+                  : prev
+              );
+            }
             return ok;
           }}
           scheduleAccounts={connectedAccounts}

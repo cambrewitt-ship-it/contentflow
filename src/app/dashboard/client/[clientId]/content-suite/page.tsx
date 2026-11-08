@@ -13,7 +13,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Loader2, Plus, Edit3, Wand2, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Settings, Images, Upload, FileText, Bot } from 'lucide-react'
 import PhotoSwapDialog from '@/components/PhotoSwapDialog'
-import dynamic from 'next/dynamic'
 import { isVideoUrl } from '@/lib/videoUtils'
 import Link from 'next/link'
 import { SocialPreviewColumn } from './SocialPreviewColumn'
@@ -27,9 +26,7 @@ import { ThinkingIndicator } from '@/components/ThinkingIndicator'
 import ContentAgentPanel from '@/components/ContentAgentPanel'
 import { publishedCaption } from '@/lib/candidateCaption'
 import type { AutopilotCandidate } from '@/types/autopilot'
-
-// Canva-style image editor — loaded only when opened (Fabric.js is browser-only and large)
-const ImageEditor = dynamic(() => import('@/components/image-editor/ImageEditor'), { ssr: false })
+import { LazyImageEditor as ImageEditor } from '@/components/image-editor'
 
 interface Project {
   id: string

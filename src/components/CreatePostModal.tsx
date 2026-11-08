@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Loader2, Sparkles, Images, RefreshCw, Plus, AlertCircle, Upload as UploadIcon, Check, Inbox } from 'lucide-react';
+import { X, Loader2, Sparkles, Images, RefreshCw, Plus, AlertCircle, Upload as UploadIcon, Check, Inbox, Wand2 } from 'lucide-react';
+import { LazyImageEditor } from '@/components/image-editor';
 import { ContentStoreProvider, useContentStore } from '@/lib/contentStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { SocialPreviewCard } from '@/components/SocialPreviewCard';
@@ -101,6 +102,7 @@ function CreatePostModalContent({
     setPostNotes,
     addImage,
     removeImage,
+    replaceImage,
     copyType,
     generateAICaptions,
     remixCaption,
@@ -123,6 +125,9 @@ function CreatePostModalContent({
   const [customCaption, setCustomCaption] = useState('');
   const [customMode, setCustomMode] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  // Image editor: which uploaded photo is open in it
+  const [editorImageId, setEditorImageId] = useState<string | null>(null);
+  const editorImage = editorImageId ? uploadedImages.find((img) => img.id === editorImageId) : undefined;
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState('12:00');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -436,6 +441,17 @@ function CreatePostModalContent({
                             <div className="absolute inset-0 bg-red-500/70 flex items-center justify-center" title="Upload failed">
                               <AlertCircle className="w-4 h-4 text-white" />
                             </div>
+                          )}
+                          {img.mediaType !== 'video' && !isUploading && !img.uploadFailed && (
+                            <button
+                              type="button"
+                              aria-label={`Edit photo ${i + 1}`}
+                              title="Edit image — add text, logos, filters"
+                              onClick={(e) => { e.stopPropagation(); setActiveImageId(img.id); setEditorImageId(img.id); }}
+                              className="absolute bottom-0.5 right-0.5 w-5 h-5 rounded-full bg-white/95 hover:bg-white text-blue-700 shadow flex items-center justify-center"
+                            >
+                              <Wand2 className="w-3 h-3" />
+                            </button>
                           )}
                           <button
                             type="button"
@@ -809,6 +825,25 @@ function CreatePostModalContent({
         currentMediaGalleryId={null}
         onPhotoSelected={handleGalleryPhotoSelected}
       />
+
+      {editorImage && (
+        <LazyImageEditor
+          key={editorImage.id}
+          imageUrl={editorImage.blobUrl || editorImage.preview}
+          file={editorImage.file}
+          design={editorImage.design}
+          otherImages={uploadedImages
+            .filter((img) => img.id !== editorImage.id && img.mediaType !== 'video' && !img.uploadFailed)
+            .map((img) => img.blobUrl || img.preview)}
+          brandLogoUrl={accountAvatarUrl}
+          brandName={accountName}
+          onCancel={() => setEditorImageId(null)}
+          onSave={async (file, design) => {
+            setEditorImageId(null);
+            await replaceImage(editorImage.id, file, design);
+          }}
+        />
+      )}
 
       <Dialog open={showCreditDialog} onOpenChange={setShowCreditDialog}>
         <DialogContent className="max-w-sm">

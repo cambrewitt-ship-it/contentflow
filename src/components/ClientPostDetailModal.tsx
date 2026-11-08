@@ -13,7 +13,11 @@ import {
   ArrowUp,
   RotateCcw,
   Tag,
+  Wand2,
 } from "lucide-react";
+import { LazyImageEditor } from "@/components/image-editor";
+import { uploadMediaToBlob } from "@/lib/blobUpload";
+import { isVideoUrl } from "@/lib/videoUtils";
 import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
@@ -82,6 +86,8 @@ interface Props {
   /** With onTagsChange, lets the agency add/remove the post's tags from the modal. */
   clientId?: string;
   onTagsChange?: (postId: string, tags: PostTag[]) => void;
+  /** Save the post's photos after one was changed in the image editor. */
+  onSaveMedia?: (mediaUrls: string[]) => Promise<boolean>;
 }
 
 function weekStartForDateKey(dateKey: string): Date {
@@ -180,13 +186,43 @@ function PipelineSteps({ steps }: { steps: ApprovalStep[] }) {
   );
 }
 
-export function ClientPostDetailModal({ post, onClose, getAccessToken, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate, onChangeTime, onChangeTargetPlatforms, onChangeApprovalStatus, scheduleAccounts = [], onSchedule, schedulingPlatform, clientId, onTagsChange }: Props) {
+export function ClientPostDetailModal({ post, onClose, getAccessToken, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate, onChangeTime, onChangeTargetPlatforms, onChangeApprovalStatus, scheduleAccounts = [], onSchedule, schedulingPlatform, clientId, onTagsChange, onSaveMedia }: Props) {
   const [tagAnchor, setTagAnchor] = useState<HTMLButtonElement | null>(null);
   const canEditTags = !!clientId && !!onTagsChange;
   const [targetPlatforms, setTargetPlatforms] = useState<TargetPlatform[]>(() =>
     normalizeTargetPlatforms(post.target_platforms)
   );
   const [platformsError, setPlatformsError] = useState<string | null>(null);
+
+  // Image editor: the post's photos, which one is open, and the save in flight
+  const postMedia = (post.media_urls?.length ? post.media_urls : [post.image_url]).filter(
+    (u): u is string => !!u
+  );
+  const [editorIndex, setEditorIndex] = useState<number | null>(null);
+  const [savingMediaIndex, setSavingMediaIndex] = useState<number | null>(null);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  // Once a post is with Zernio (LATE), it publishes the image it was sent — changing
+  // ours wouldn't change theirs, so editing waits until it's unscheduled.
+  const sentToZernio = post.late_status === "scheduled" || post.late_status === "published";
+  const canEditImages = !!onSaveMedia && !sentToZernio;
+
+  const handleSaveEditedImage = async (index: number, file: File) => {
+    if (!onSaveMedia) return;
+    setEditorIndex(null);
+    setSavingMediaIndex(index);
+    setMediaError(null);
+    try {
+      const { url } = await uploadMediaToBlob(file, `content-${Date.now()}-${file.name}`);
+      const next = postMedia.map((u, i) => (i === index ? url : u));
+      const ok = await onSaveMedia(next);
+      if (!ok) setMediaError("Couldn't save the edited image. Please try again.");
+    } catch (err) {
+      logger.error("Failed to save edited image:", err);
+      setMediaError("Couldn't upload the edited image. Please try again.");
+    } finally {
+      setSavingMediaIndex(null);
+    }
+  };
   const [isSavingPlatforms, setIsSavingPlatforms] = useState(false);
 
   const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform>(() => {
@@ -371,10 +407,12 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
   };
 
   useEffect(() => {
+    // While the image editor is open, Escape belongs to it
+    if (editorIndex !== null) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, editorIndex]);
 
   return (
     <div
@@ -470,6 +508,55 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
                 scheduledDate={post.scheduled_date ?? undefined}
                 scheduledTime={post.scheduled_time ?? undefined}
               />
+
+              {onSaveMedia && postMedia.some((u) => !isVideoUrl(u)) && (
+                <div className="mt-3">
+                  <div className="flex gap-2 flex-wrap">
+                    {postMedia.map((url, i) =>
+                      isVideoUrl(url) ? null : (
+                        <div key={`${i}-${url}`} className="relative w-14 h-14 rounded-lg overflow-hidden border border-gray-200">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                          {savingMediaIndex === i ? (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <Loader2 className="w-4 h-4 text-white animate-spin" />
+                            </div>
+                          ) : (
+                            canEditImages && (
+                              <button
+                                type="button"
+                                onClick={() => setEditorIndex(i)}
+                                disabled={savingMediaIndex !== null}
+                                className="absolute inset-x-1 bottom-1 flex items-center justify-center gap-0.5 rounded-full bg-white/95 hover:bg-white text-[10px] font-semibold text-blue-700 shadow py-0.5"
+                                title="Edit image — add text, logos, filters"
+                              >
+                                <Wand2 className="w-2.5 h-2.5" /> Edit
+                              </button>
+                            )
+                          )}
+                        </div>
+                      )
+                    )}
+                  </div>
+                  {sentToZernio && (
+                    <p className="mt-1.5 text-[11px] text-gray-500">
+                      This post has already been sent for publishing, so its image can&apos;t be edited here.
+                    </p>
+                  )}
+                  {mediaError && <p className="mt-1.5 text-[11px] text-red-600">{mediaError}</p>}
+                </div>
+              )}
+
+              {editorIndex !== null && postMedia[editorIndex] && (
+                <LazyImageEditor
+                  imageUrl={postMedia[editorIndex]}
+                  otherImages={postMedia.filter((u, i) => i !== editorIndex && !isVideoUrl(u))}
+                  brandLogoUrl={accountAvatarUrl}
+                  brandName={accountName}
+                  onCancel={() => setEditorIndex(null)}
+                  onSave={(file) => handleSaveEditedImage(editorIndex, file)}
+                />
+              )}
             </div>
           </div>
 
