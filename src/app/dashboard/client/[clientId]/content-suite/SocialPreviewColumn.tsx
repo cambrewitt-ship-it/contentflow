@@ -3,7 +3,7 @@
 import { useContentStore } from '@/lib/contentStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, X, FolderOpen, Calendar, Clock, Check, AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Plus, Send } from 'lucide-react'
+import { Loader2, X, FolderOpen, Calendar, Clock, Check, AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Plus, Send, Wand2 } from 'lucide-react'
 import { 
   FacebookIcon, 
   InstagramIcon, 
@@ -69,6 +69,8 @@ interface SocialPreviewColumnProps {
   getSelectedCaption?: () => string
   customCaptionFromPreview?: string
   onOpenScheduleModal?: () => void
+  /** Opens the Design Studio on the photo being previewed. */
+  onEditActiveImage?: () => void
 }
 
 export function SocialPreviewColumn({
@@ -88,6 +90,7 @@ export function SocialPreviewColumn({
   getSelectedCaption,
   customCaptionFromPreview = '',
   onOpenScheduleModal,
+  onEditActiveImage,
 }: SocialPreviewColumnProps) {
   const { getAccessToken } = useAuth()
   const {
@@ -1397,9 +1400,29 @@ export function SocialPreviewColumn({
 
                 {/* Mobile Preview Container */}
                 <div className="bg-gray-100 p-4 rounded-lg">
-                  <div className="text-center text-xs text-gray-500 mb-2">
-                    Mobile Preview - {PREVIEW_PLATFORM_LABELS[selectedPreviewPlatform] || selectedPreviewPlatform}
-                  </div>
+                  {(() => {
+                    const active = uploadedImages.find(img => img.id === activeImageId) as
+                      | { mediaType?: string; blobUrl?: string; uploadFailed?: boolean }
+                      | undefined
+                    const canDesign = !!onEditActiveImage && !!active && active.mediaType !== 'video' && !!active.blobUrl && !active.uploadFailed
+                    return (
+                      <div className={`flex items-center gap-2 mb-2 ${canDesign ? 'justify-between' : 'justify-center'}`}>
+                        <div className="text-xs text-gray-500">
+                          Mobile Preview - {PREVIEW_PLATFORM_LABELS[selectedPreviewPlatform] || selectedPreviewPlatform}
+                        </div>
+                        {canDesign && (
+                          <button
+                            type="button"
+                            onClick={onEditActiveImage}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-fuchsia-600 to-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:opacity-90"
+                          >
+                            <Wand2 className="w-3.5 h-3.5" />
+                            Design this photo
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })()}
                   {(uploadedImages.length > 0 || selectedPreviewPlatform === 'linkedin' || selectedPreviewPlatform === 'tiktok') ? renderPlatformPreview() : (
                     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden max-w-sm mx-auto">
                       {/* Platform Header */}

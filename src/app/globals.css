@@ -133,6 +133,10 @@
     font-kerning: normal;
     font-variant-ligatures: common-ligatures;
   }
+  /* Font previews (Design Studio, Brand Kit) must show their own font despite the rule on * above */
+  [data-font-preview] {
+    font-family: var(--font-preview) !important;
+  }
   html {
     background: var(--background);
     background-attachment: fixed !important;

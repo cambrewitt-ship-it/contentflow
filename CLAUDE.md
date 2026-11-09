@@ -32,3 +32,19 @@ the whole codebase (and Vercel env vars).
   in-app browser), so connecting an account never ends on the login screen.
   Keep it that way for any new platform callback, and keep both callbacks and
   `/oauth/complete` in the middleware's public lists.
+
+## Design Studio (image editor) and Brand Kits
+
+- The in-app image editor is called **Design Studio** in the UI (never "Canva" —
+  it's our own Fabric.js editor). Code: `src/components/image-editor/`; open it via
+  `LazyImageEditor` from `@/components/image-editor`. Entry points: Content Suite
+  (Design Studio button, thumbnail "Design" bar, "Design this photo" on the preview),
+  Create Post ("Design" button) and the calendar post modal.
+- Each client has a **Brand Kit** (logos, colours, heading/body fonts incl. uploaded
+  font files, uploads library): table `client_brand_kits` (migrations/031-brand-kits.sql,
+  run by hand in Supabase), API `/api/clients/[clientId]/brand-kit` (+ `/font` for
+  font files, stored in the `media` bucket under `brand-kits/`). UI:
+  `src/components/brand-kit/` — on the client dashboard and in the editor's Brand tab.
+- Uploaded fonts are loaded with the FontFace API (CSP `font-src` doesn't allow
+  storage URLs). Previews of a font in the DOM need `fontPreview()` from
+  `image-editor/fonts.ts`, because globals.css forces Poppins on `*` with `!important`.

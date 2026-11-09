@@ -53,7 +53,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { extractLogoPalette } from '@/lib/logoPalette'
 import type { ImageDesign } from '@/lib/contentStore'
-import { EDITOR_FONTS, ensureAllFontsLoaded, ensureFontLoaded } from './fonts'
+import { EDITOR_FONTS, ensureAllFontsLoaded, ensureFontLoaded, fontPreview, type EditorFont } from './fonts'
+import { useBrandKit, kitFonts, loadCustomFont, resolveKitFont, customFontFamily } from '@/components/brand-kit/useBrandKit'
+import { BrandKitManager } from '@/components/brand-kit/BrandKitManager'
 
 // The WebGL filter backend crops photos larger than its texture size; the 2D one doesn't.
 if (typeof window !== 'undefined') setFilterBackend(new Canvas2dFilterBackend())
@@ -62,8 +64,8 @@ if (typeof window !== 'undefined') setFilterBackend(new Canvas2dFilterBackend())
 // Types & constants
 
 export interface ImageEditorProps {
-  /** URL of the image to edit (blob:, data: or https). */
-  imageUrl: string
+  /** URL of the image to edit (blob:, data: or https). Leave out to start from a blank canvas. */
+  imageUrl?: string
   /** The original file when we still have it — avoids any cross-origin issues. */
   file?: File
   /** A previously saved layered design, reopened with every layer still editable. */
@@ -72,6 +74,10 @@ export interface ImageEditorProps {
   otherImages?: string[]
   brandLogoUrl?: string
   brandName?: string
+  /** Loads this client's brand kit (logos, colours, fonts, uploads) into the editor. */
+  clientId?: string
+  /** Canvas size for a blank design. */
+  blankSize?: 'square' | 'portrait' | 'story' | 'landscape'
   onCancel: () => void
   onSave: (file: File, design: ImageDesign) => void | Promise<void>
 }
@@ -198,6 +204,8 @@ export default function ImageEditor({
   otherImages = [],
   brandLogoUrl,
   brandName,
+  clientId,
+  blankSize = 'square',
   onCancel,
   onSave,
 }: ImageEditorProps) {
@@ -214,7 +222,8 @@ export default function ImageEditor({
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [errorMessage, setErrorMessage] = useState('')
   const [saving, setSaving] = useState(false)
-  const [tab, setTab] = useState<Tab>('text')
+  // With a client's brand kit, open on it — it's the quickest way to an on-brand design
+  const [tab, setTab] = useState<Tab>(clientId ? 'brand' : 'text')
   const [sizeId, setSizeId] = useState<string>('original')
   const [originalSize, setOriginalSize] = useState({ width: 1080, height: 1080 })
   const [adjust, setAdjust] = useState<Adjustments>(DEFAULT_ADJUST)
@@ -222,6 +231,12 @@ export default function ImageEditor({
   const [brandColors, setBrandColors] = useState<string[]>([])
   const [dirty, setDirty] = useState(false)
   const [notice, setNotice] = useState('')
+
+  // The client's brand kit: logos, colours, fonts and uploads library
+  const brandKit = useBrandKit(clientId)
+  const kit = brandKit.kit
+  const accentColor = kit.colors[0] ?? brandColors[0] ?? '#3b82f6'
+  const fontOptions = kitFonts(kit)
 
   const fc = () => fcRef.current
   const getBase = () => fc()?.getObjects().find((o) => (o as FabricWithMeta).cfRole === 'base') as FabricImage | undefined
@@ -429,8 +444,9 @@ export default function ImageEditor({
             await canvas.loadFromJSON(design.json)
             if (disposed) return
             const base = getBase() as (FabricImage & FabricWithMeta) | undefined
-            if (base) {
-              setAdjust(base.cfAdjust ?? DEFAULT_ADJUST)
+            const hadBase = ((design.json.objects as { cfRole?: string }[] | undefined) ?? []).some((o) => o.cfRole === 'base')
+            if (base || !hadBase) {
+              setAdjust(base?.cfAdjust ?? DEFAULT_ADJUST)
               const preset = SIZE_PRESETS.find((p) => p.width === design.width && p.height === design.height)
               setSizeId(preset?.id ?? 'original')
               setOriginalSize({ width: design.width, height: design.height })
@@ -448,7 +464,19 @@ export default function ImageEditor({
         }
 
         const fromFile = !!file && file.size > 0 && file.type.startsWith('image/')
-        const src = fromFile ? URL.createObjectURL(file) : imageUrl
+        if (!fromFile && !imageUrl) {
+          // Blank design
+          const preset = SIZE_PRESETS.find((p) => p.id === blankSize) ?? SIZE_PRESETS[0]
+          sizeRef.current = { width: preset.width, height: preset.height }
+          setOriginalSize({ width: preset.width, height: preset.height })
+          setSizeId(preset.id)
+          fitToStage()
+          historyRef.current.lock = false
+          resetHistory()
+          setStatus('ready')
+          return
+        }
+        const src = fromFile ? URL.createObjectURL(file) : (imageUrl as string)
         const prepared = await prepareSource(src, MAX_SOURCE_SIDE, fromFile)
         if (disposed) return
         const base = (await FabricImage.fromURL(prepared.url)) as FabricImage & FabricWithMeta
@@ -510,6 +538,35 @@ export default function ImageEditor({
     }
   }, [brandLogoUrl])
 
+  // Uploaded brand fonts: load them, then re-measure any text drawn before they arrived
+  useEffect(() => {
+    if (!kit.fonts.length) return
+    let cancelled = false
+    Promise.all(kit.fonts.map(loadCustomFont)).then(() => {
+      const canvas = fcRef.current
+      if (cancelled || !canvas) return
+      canvas.getObjects().forEach((o) => {
+        if (o instanceof Textbox) {
+          o.initDimensions()
+          o.setCoords()
+          o.dirty = true
+        }
+      })
+      canvas.requestRenderAll()
+      rerender()
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [kit.fonts, status])
+
+  /** Make sure a font (built-in or uploaded brand font) is loaded before drawing with it. */
+  const prepareFont = async (family: string, weight: number) => {
+    const custom = kit.fonts.find((f) => customFontFamily(f.id) === family)
+    if (custom) await loadCustomFont(custom)
+    else await ensureFontLoaded(family, weight)
+  }
+
   // Lock the page behind the editor
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -543,8 +600,11 @@ export default function ImageEditor({
       outline: { text: 'BIG NEWS', font: 'Anton', size: 150, weight: 'normal', fill: 'rgba(0,0,0,0)', y: 0.5 },
       quote: { text: '“Your quote here”', font: 'Playfair Display', size: 72, weight: 'normal', fill: '#ffffff', y: 0.5 },
     }[kind]
-    const font = EDITOR_FONTS.find((f) => f.label === presets.font) ?? EDITOR_FONTS[0]
-    await ensureFontLoaded(font.family, presets.weight === 'bold' ? 700 : 400)
+    // Headings and body copy use the brand kit's fonts when it has them
+    const kitFont =
+      kind === 'heading' ? resolveKitFont(kit, kit.headingFont) : kind === 'subheading' || kind === 'body' ? resolveKitFont(kit, kit.bodyFont) : null
+    const font = kitFont ?? EDITOR_FONTS.find((f) => f.label === presets.font) ?? EDITOR_FONTS[0]
+    await prepareFont(font.family, presets.weight === 'bold' ? 700 : 400)
     const tb = new Textbox(presets.text, {
       width: width * 0.8,
       fontSize: presets.size * u,
@@ -558,7 +618,7 @@ export default function ImageEditor({
       shadow: kind === 'outline' || kind === 'label' ? undefined : new Shadow({ color: 'rgba(0,0,0,0.35)', blur: 12 * u, offsetX: 0, offsetY: 2 * u }),
     })
     if (kind === 'label') {
-      tb.set({ backgroundColor: brandColors[0] ?? '#111827', width: width * 0.4, charSpacing: 150 })
+      tb.set({ backgroundColor: kit.colors[0] ?? brandColors[0] ?? '#111827', width: width * 0.4, charSpacing: 150 })
     }
     if (kind === 'outline') {
       tb.set({ stroke: '#ffffff', strokeWidth: 3 * u, charSpacing: 40 })
@@ -567,10 +627,27 @@ export default function ImageEditor({
     setTab('text')
   }
 
+  const addBrandText = async (font: EditorFont, role: 'heading' | 'body') => {
+    const { width } = sizeRef.current
+    const u = width / 1080
+    await prepareFont(font.family, role === 'heading' ? 700 : 400)
+    const tb = new Textbox(role === 'heading' ? 'Your headline' : 'Add your text here', {
+      width: width * 0.8,
+      fontSize: (role === 'heading' ? 120 : 44) * u,
+      fontFamily: font.family,
+      fontWeight: role === 'heading' ? 'bold' : 'normal',
+      fill: '#ffffff',
+      textAlign: 'center',
+      lineHeight: 1.1,
+      shadow: new Shadow({ color: 'rgba(0,0,0,0.35)', blur: 12 * u, offsetX: 0, offsetY: 2 * u }),
+    })
+    placeCentered(tb, role === 'heading' ? 0.35 : 0.55)
+  }
+
   const addShape = (kind: 'rect' | 'rounded' | 'circle' | 'triangle' | 'bar' | 'fade' | 'tint' | 'frame') => {
     const { width, height } = sizeRef.current
     const m = Math.min(width, height)
-    const accent = brandColors[0] ?? '#3b82f6'
+    const accent = accentColor
     let obj: FabricObject
     switch (kind) {
       case 'rect':
@@ -648,6 +725,8 @@ export default function ImageEditor({
     for (const f of Array.from(files)) {
       if (!f.type.startsWith('image/')) continue
       await addImageOverlay(URL.createObjectURL(f), {}, true)
+      // Keep it in the client's Brand Kit so it can be reused on other designs
+      if (clientId) brandKit.addImage(f, 'uploads')
     }
   }
 
@@ -673,7 +752,7 @@ export default function ImageEditor({
   const setFont = async (family: string) => {
     const obj = fc()?.getActiveObject()
     if (!isText(obj)) return
-    await ensureFontLoaded(family, obj.fontWeight === 'bold' ? 700 : 400)
+    await prepareFont(family, obj.fontWeight === 'bold' ? 700 : 400)
     update({ fontFamily: family }, { immediate: true })
   }
 
@@ -867,14 +946,15 @@ export default function ImageEditor({
   const h = historyRef.current
   const canUndo = h.index > 0
   const canRedo = h.index < h.stack.length - 1
-  const swatches = Array.from(new Set([...brandColors, ...BASIC_COLORS]))
+  const swatches = Array.from(new Set([...kit.colors, ...brandColors, ...BASIC_COLORS]))
+  const hasBase = !!getBase()
 
   const tabs: { id: Tab; label: string; icon: typeof Type }[] = [
+    { id: 'brand', label: 'Brand', icon: Palette },
     { id: 'text', label: 'Text', icon: Type },
     { id: 'elements', label: 'Elements', icon: Shapes },
     { id: 'uploads', label: 'Uploads', icon: Upload },
-    { id: 'brand', label: 'Brand', icon: Palette },
-    { id: 'adjust', label: 'Adjust', icon: SlidersHorizontal },
+    { id: 'adjust', label: hasBase ? 'Adjust' : 'Background', icon: SlidersHorizontal },
   ]
 
   const ui = (
@@ -893,7 +973,7 @@ export default function ImageEditor({
           className="h-9 max-w-[11rem] rounded-md border border-gray-300 bg-white px-2 text-sm"
           aria-label="Canvas size"
         >
-          <option value="original">Original size</option>
+          {hasBase && <option value="original">Original size</option>}
           {SIZE_PRESETS.map((p) => (
             <option key={p.id} value={p.id}>
               {p.label} — {p.hint}
@@ -912,7 +992,8 @@ export default function ImageEditor({
         </Button>
         <Button onClick={save} disabled={status !== 'ready' || saving} className="bg-blue-600 text-white hover:bg-blue-700">
           {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Save<span className="hidden sm:inline">&nbsp;to post</span>
+          <span className="sm:hidden">Save</span>
+          <span className="hidden sm:inline">Save to post</span>
         </Button>
       </header>
 
@@ -936,10 +1017,10 @@ export default function ImageEditor({
               <div className="space-y-2">
                 <PanelTitle>Add text</PanelTitle>
                 <button onClick={() => addText('heading')} className="w-full rounded-lg border border-gray-200 px-3 py-3 text-left hover:border-blue-400">
-                  <span className="text-2xl" style={{ fontFamily: EDITOR_FONTS[2].family }}>Add a heading</span>
+                  <span className="text-2xl" {...fontPreview(resolveKitFont(kit, kit.headingFont)?.family ?? EDITOR_FONTS[2].family)}>Add a heading</span>
                 </button>
                 <button onClick={() => addText('subheading')} className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-left hover:border-blue-400">
-                  <span className="text-base font-bold" style={{ fontFamily: EDITOR_FONTS[1].family }}>Add a subheading</span>
+                  <span className="text-base font-bold" {...fontPreview(resolveKitFont(kit, kit.bodyFont)?.family ?? EDITOR_FONTS[1].family)}>Add a subheading</span>
                 </button>
                 <button onClick={() => addText('body')} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-left text-sm hover:border-blue-400">
                   Add body text
@@ -952,14 +1033,15 @@ export default function ImageEditor({
                   <button
                     onClick={() => addText('outline')}
                     className="rounded-lg border border-gray-200 bg-gray-700 px-2 py-2 text-xl text-transparent hover:border-blue-400"
-                    style={{ fontFamily: EDITOR_FONTS[3].family, WebkitTextStroke: '1px white' }}
+                    data-font-preview=""
+                    style={{ ...fontPreview(EDITOR_FONTS[3].family).style, WebkitTextStroke: '1px white' }}
                   >
                     BIG NEWS
                   </button>
                   <button
                     onClick={() => addText('quote')}
                     className="col-span-2 rounded-lg border border-gray-200 px-2 py-2 text-lg italic hover:border-blue-400"
-                    style={{ fontFamily: EDITOR_FONTS[5].family }}
+                    {...fontPreview(EDITOR_FONTS[5].family)}
                   >
                     “Your quote here”
                   </button>
@@ -979,7 +1061,7 @@ export default function ImageEditor({
                     <div className="mt-auto h-1/3 w-full rounded bg-gray-900/75" />
                   </ToolTile>
                   <ToolTile onClick={() => addShape('tint')} label="Colour tint">
-                    <div className="h-full w-full rounded opacity-40" style={{ background: brandColors[0] ?? '#3b82f6' }} />
+                    <div className="h-full w-full rounded opacity-40" style={{ background: accentColor }} />
                   </ToolTile>
                   <ToolTile onClick={() => addShape('frame')} label="Frame">
                     <div className="h-full w-full rounded border-2 border-white outline outline-1 outline-gray-300" />
@@ -1017,7 +1099,33 @@ export default function ImageEditor({
                     e.target.value = ''
                   }}
                 />
-                <p className="text-xs text-gray-500">Logos, product shots, stickers — PNGs with transparent backgrounds work best.</p>
+                <p className="text-xs text-gray-500">
+                  Logos, product shots, stickers — PNGs with transparent backgrounds work best.
+                  {clientId && ` Uploads are saved to ${brandName ? `${brandName}'s` : 'the'} Brand Kit for next time.`}
+                </p>
+                {brandKit.busy === 'uploads' && (
+                  <p className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Saving to Brand Kit…
+                  </p>
+                )}
+                {kit.uploads.length > 0 && (
+                  <>
+                    <PanelTitle className="pt-2">Brand uploads</PanelTitle>
+                    <div className="grid grid-cols-3 gap-2">
+                      {kit.uploads.map((u) => (
+                        <button
+                          key={u.id}
+                          onClick={() => addImageOverlay(u.url)}
+                          title={u.name}
+                          className="aspect-square overflow-hidden rounded-md border border-gray-200 bg-[repeating-conic-gradient(#f3f4f6_0_25%,#fff_0_50%)] bg-[length:12px_12px] p-1 hover:border-blue-400"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={u.url} alt={u.name} className="h-full w-full object-contain" />
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
                 {otherImages.length > 0 && (
                   <>
                     <PanelTitle className="pt-2">From this post</PanelTitle>
@@ -1034,7 +1142,31 @@ export default function ImageEditor({
               </div>
             )}
 
-            {tab === 'brand' && (
+            {tab === 'brand' && clientId && (
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">{brandName ? `${brandName} Brand Kit` : 'Brand Kit'}</h3>
+                  <a
+                    href={`/dashboard/client/${clientId}#brand-kit`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="whitespace-nowrap text-[11px] font-medium text-blue-600 hover:underline"
+                  >
+                    Open full kit ↗
+                  </a>
+                </div>
+                <BrandKitManager
+                  brandKit={brandKit}
+                  compact
+                  onUseLogo={(logo) => addImageOverlay(logo.url, { widthRatio: 0.22, yRatio: 0.88 })}
+                  onUseUpload={(u) => addImageOverlay(u.url)}
+                  onUseColor={applyColor}
+                  onUseFont={addBrandText}
+                />
+              </div>
+            )}
+
+            {tab === 'brand' && !clientId && (
               <div className="space-y-3">
                 <PanelTitle>{brandName ? `${brandName} logo` : 'Logo'}</PanelTitle>
                 {brandLogoUrl ? (
@@ -1064,6 +1196,7 @@ export default function ImageEditor({
 
             {tab === 'adjust' && (
               <div className="space-y-4">
+                {hasBase && (<>
                 <div>
                   <PanelTitle>Photo</PanelTitle>
                   <div className="grid grid-cols-2 gap-2">
@@ -1096,9 +1229,10 @@ export default function ImageEditor({
                   <Slider label="Blur" min={0} max={0.5} step={0.01} value={adjust.blur} onChange={(v) => applyAdjust({ ...adjust, blur: v })} />
                   <Button variant="ghost" size="sm" onClick={() => applyAdjust(DEFAULT_ADJUST, true)}>Reset adjustments</Button>
                 </div>
+                </>)}
                 <div>
                   <PanelTitle>Background colour</PanelTitle>
-                  <p className="mb-2 text-xs text-gray-500">Shows when the photo doesn&apos;t fill the canvas.</p>
+                  {hasBase && <p className="mb-2 text-xs text-gray-500">Shows when the photo doesn&apos;t fill the canvas.</p>}
                   <ColorRow
                     value={colorValue(fc()?.backgroundColor, '#ffffff')}
                     swatches={swatches}
@@ -1162,6 +1296,7 @@ export default function ImageEditor({
               swatches={swatches}
               update={update}
               setFont={setFont}
+              fonts={fontOptions}
               toggleShadow={toggleShadow}
               toggleOutline={toggleOutline}
               layer={layer}
@@ -1186,6 +1321,7 @@ function SelectionPanel({
   swatches,
   update,
   setFont,
+  fonts,
   toggleShadow,
   toggleOutline,
   layer,
@@ -1197,6 +1333,7 @@ function SelectionPanel({
   swatches: string[]
   update: (props: Record<string, unknown>, opts?: { immediate?: boolean }) => void
   setFont: (family: string) => void
+  fonts: (EditorFont & { value: string; custom?: boolean })[]
   toggleShadow: () => void
   toggleOutline: () => void
   layer: (a: 'forward' | 'backward' | 'front' | 'back') => void
@@ -1207,7 +1344,8 @@ function SelectionPanel({
   const isBase = obj.cfRole === 'base'
   const text = isText(obj) ? obj : null
   const shape = isShape(obj)
-  const fontLabel = text ? EDITOR_FONTS.find((f) => f.family === text.fontFamily)?.label ?? 'Custom' : ''
+  const currentFont = text ? fonts.find((f) => f.family === text.fontFamily) : undefined
+  const fontValue = text ? currentFont?.value ?? 'Custom' : ''
   const u = (obj.canvas?.getWidth() ?? 1080) / (obj.canvas?.getZoom() ?? 1) / 1080
 
   return (
@@ -1217,20 +1355,31 @@ function SelectionPanel({
       {text && (
         <div className="space-y-3">
           <select
-            value={fontLabel}
+            value={fontValue}
             onChange={(e) => {
-              const f = EDITOR_FONTS.find((x) => x.label === e.target.value)
+              const f = fonts.find((x) => x.value === e.target.value)
               if (f) setFont(f.family)
             }}
             className="h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm"
             aria-label="Font"
           >
-            {fontLabel === 'Custom' && <option value="Custom">Custom</option>}
-            {EDITOR_FONTS.map((f) => (
-              <option key={f.label} value={f.label} style={{ fontFamily: f.family }}>
-                {f.label}
-              </option>
-            ))}
+            {fontValue === 'Custom' && <option value="Custom">Custom</option>}
+            {fonts.some((f) => f.custom) && (
+              <optgroup label="Brand fonts">
+                {fonts.filter((f) => f.custom).map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Fonts">
+              {fonts.filter((f) => !f.custom).map((f) => (
+                <option key={f.value} value={f.value} style={{ fontFamily: f.family }}>
+                  {f.label}
+                </option>
+              ))}
+            </optgroup>
           </select>
           <div className="flex items-center gap-2">
             <label className="text-xs text-gray-500">Size</label>

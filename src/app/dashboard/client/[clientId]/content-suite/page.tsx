@@ -899,6 +899,11 @@ function ContentSuiteContent({
   // Image editor: which uploaded image is open in it
   const [editorImageId, setEditorImageId] = useState<string | null>(null)
   const editorImage = editorImageId ? uploadedImages.find(img => img.id === editorImageId) : undefined
+  // ...or a blank design at this size
+  const [blankDesignSize, setBlankDesignSize] = useState<'square' | 'portrait' | 'story' | 'landscape' | null>(null)
+  const designableImage = (img?: { mediaType?: string; blobUrl?: string; uploadFailed?: boolean }) =>
+    !!img && img.mediaType !== 'video' && !!img.blobUrl && !img.uploadFailed
+  const activeDesignable = uploadedImages.find(img => img.id === activeImageId && designableImage(img))
 
   // Gallery picker state (lives here so setUploadedImages / setActiveImageId are in scope)
   const [galleryPickerOpen, setGalleryPickerOpen] = useState(false)
@@ -2205,6 +2210,42 @@ function ContentSuiteContent({
                           className="hidden"
                         />
                       </div>
+                      {/* Design Studio — edit a photo or start from a blank canvas */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            data-testid="design-studio-button"
+                            className="relative flex items-center justify-center gap-1.5 w-full py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-r from-fuchsia-600 to-blue-600 hover:opacity-90 shadow-sm transition-opacity"
+                          >
+                            <Wand2 className="w-4 h-4" />
+                            Design Studio
+                            <span className="absolute -top-2 -right-2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-950 shadow">
+                              New
+                            </span>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-64">
+                          {activeDesignable && (
+                            <>
+                              <DropdownMenuItem onClick={() => setEditorImageId(activeDesignable.id)}>
+                                <Wand2 className="w-4 h-4 mr-2 text-fuchsia-600" />
+                                Design the selected photo
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
+                          <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Start from blank</div>
+                          <DropdownMenuItem onClick={() => setBlankDesignSize('square')}>Square post · 1:1</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setBlankDesignSize('portrait')}>Portrait post · 4:5</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setBlankDesignSize('story')}>Story / Reel cover · 9:16</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setBlankDesignSize('landscape')}>Landscape · 1.91:1</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/client/${clientId}#brand-kit`}>Manage Brand Kit</Link>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       {/* Pick from Media Gallery */}
                       <button
                         type="button"
@@ -2216,7 +2257,26 @@ function ContentSuiteContent({
                       </button>
                     </div>
 
-                    {/* Canva-style image editor */}
+                    {/* Design Studio on a blank canvas */}
+                    {blankDesignSize && (
+                      <ImageEditor
+                        key={`blank-${blankDesignSize}`}
+                        blankSize={blankDesignSize}
+                        otherImages={uploadedImages
+                          .filter(img => designableImage(img))
+                          .map(img => img.blobUrl || img.preview)}
+                        brandLogoUrl={client?.logo_url}
+                        brandName={client?.name}
+                        clientId={clientId}
+                        onCancel={() => setBlankDesignSize(null)}
+                        onSave={async (file, design) => {
+                          setBlankDesignSize(null)
+                          await addImage(file, { design })
+                        }}
+                      />
+                    )}
+
+                    {/* Design Studio on an uploaded photo */}
                     {editorImage && (
                       <ImageEditor
                         key={editorImage.id}
@@ -2228,6 +2288,7 @@ function ContentSuiteContent({
                           .map(img => img.blobUrl || img.preview)}
                         brandLogoUrl={client?.logo_url}
                         brandName={client?.name}
+                        clientId={clientId}
                         onCancel={() => setEditorImageId(null)}
                         onSave={async (file, design) => {
                           setEditorImageId(null)
@@ -2247,6 +2308,38 @@ function ContentSuiteContent({
 
                     {/* Uploaded Media Thumbnails - To the right of upload box */}
                     <div className="flex gap-3 flex-wrap items-start min-w-0">
+                      {/* Until there's media, introduce the Design Studio here */}
+                      {uploadedImages.length === 0 && (
+                        <div className="w-full rounded-2xl border border-fuchsia-100 bg-gradient-to-br from-fuchsia-50 via-white to-blue-50 p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-600 to-blue-600 text-white">
+                              <Wand2 className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-800">Design Studio is built in</p>
+                              <p className="mt-0.5 text-xs leading-relaxed text-gray-600">
+                                Upload a photo, then click <span className="font-semibold text-fuchsia-700">Design</span> to add text, logos and
+                                brand colours — or start a graphic from a blank canvas. No more jumping out to another design tool.
+                              </p>
+                              <div className="mt-2.5 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setBlankDesignSize('square')}
+                                  className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-fuchsia-600 to-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:opacity-90"
+                                >
+                                  <Wand2 className="h-3.5 w-3.5" /> Start a design
+                                </button>
+                                <Link
+                                  href={`/dashboard/client/${clientId}#brand-kit`}
+                                  className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                  Set up {client?.name ? `${client.name}'s` : 'the'} Brand Kit
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       {uploadedImages.map((media) => {
                         // Only show spinner while actively uploading — not if upload failed
                         const isUploading = !media.blobUrl && !media.uploadFailed && (media.preview?.startsWith('blob:') || media.preview?.startsWith('data:'))
@@ -2326,11 +2419,11 @@ function ContentSuiteContent({
                                   setActiveImageId(media.id)
                                   setEditorImageId(media.id)
                                 }}
-                                className="absolute bottom-1 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-blue-700 shadow hover:bg-white"
-                                title="Edit image — add text, logos, filters"
+                                className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-1 rounded-b-md bg-gradient-to-r from-fuchsia-600/95 to-blue-600/95 py-1 text-[11px] font-semibold text-white hover:from-fuchsia-600 hover:to-blue-600"
+                                title="Open in Design Studio — add text, logos, brand colours, filters"
                               >
                                 <Wand2 className="w-3 h-3" />
-                                Edit
+                                Design
                               </button>
                             )}
 
@@ -2811,6 +2904,7 @@ function ContentSuiteContent({
                 getSelectedCaption={getSelectedCaption}
                 customCaptionFromPreview={customCaptionFromPreview}
                 onOpenScheduleModal={() => setIsScheduleModalOpen(true)}
+                onEditActiveImage={activeDesignable ? () => setEditorImageId(activeDesignable.id) : undefined}
               />
             </div>
 

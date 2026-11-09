@@ -1,4 +1,5 @@
 import localFont from 'next/font/local'
+import type { CSSProperties } from 'react'
 import { poppins, montserrat } from '@/app/fonts'
 
 // Display fonts for the image editor. Self-hosted (latin subset, SIL Open Font License)
@@ -27,6 +28,12 @@ export const EDITOR_FONTS: EditorFont[] = [
   { label: 'Arial', family: 'Arial, Helvetica, sans-serif' },
   { label: 'Georgia', family: 'Georgia, serif' },
 ]
+
+/** Props that make an element preview a font (overrides the app-wide font rule). */
+export const fontPreview = (family: string) => ({
+  'data-font-preview': '',
+  style: { ['--font-preview' as string]: family } as CSSProperties,
+})
 
 export const fontByLabel = (label: string) => EDITOR_FONTS.find((f) => f.label === label) ?? EDITOR_FONTS[0]
 

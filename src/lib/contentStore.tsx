@@ -96,7 +96,7 @@ export interface ContentStore {
   setCopyTone: (tone: CopyTone) => void
   setCopyType: (copyType: 'social-media' | 'email-marketing') => void
   setContentIdeas: (ideas: ContentIdea[]) => void
-  addImage: (file: File, options?: { activate?: boolean }) => Promise<void>
+  addImage: (file: File, options?: { activate?: boolean; design?: ImageDesign }) => Promise<void>
   removeImage: (id: string) => void
   replaceImage: (id: string, file: File, design?: ImageDesign) => Promise<void>
   updateImageNotes: (id: string, notes: string) => void
@@ -353,7 +353,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Empty dependency array - only run on mount/unmount
 
-  const addImage = async (file: File, options?: { activate?: boolean }) => {
+  const addImage = async (file: File, options?: { activate?: boolean; design?: ImageDesign }) => {
     const id = `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const detectedType = getMediaType(file)
     const mediaType = detectedType === 'unknown' ? undefined : detectedType
@@ -386,7 +386,8 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       preview: previewUrl, 
       mediaType,
       mimeType: file.type,
-      videoThumbnail: videoThumbnail
+      videoThumbnail: videoThumbnail,
+      design: options?.design,
     }
     setUploadedImages(prev => [...prev, newImage])
     if (options?.activate !== false) {

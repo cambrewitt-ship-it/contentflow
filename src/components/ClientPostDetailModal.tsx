@@ -553,6 +553,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
                   otherImages={postMedia.filter((u, i) => i !== editorIndex && !isVideoUrl(u))}
                   brandLogoUrl={accountAvatarUrl}
                   brandName={accountName}
+                  clientId={clientId}
                   onCancel={() => setEditorIndex(null)}
                   onSave={(file) => handleSaveEditedImage(editorIndex, file)}
                 />

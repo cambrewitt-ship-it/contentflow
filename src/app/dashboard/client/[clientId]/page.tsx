@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Plus, Edit3, Calendar, Trash2, Upload, X, Image, File, RefreshCw, Loader2, Check, AlertTriangle, Minus } from 'lucide-react'
 import Link from 'next/link'
 import BrandInformationPanel from '@/components/BrandInformationPanel'
+import BrandKitSection from '@/components/brand-kit/BrandKitSection'
 import { CompactMonthCalendar } from '@/components/CompactMonthCalendar'
 import { useAuth } from '@/contexts/AuthContext'
 import OnboardingChecklist from '@/components/OnboardingChecklist'
@@ -1574,6 +1575,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   brandDocuments={brandDocuments}
                   websiteScrapes={websiteScrapes}
                 />
+              </div>
+
+              {/* Brand Kit (Design Studio) */}
+              <div className="border-t-2 pt-8">
+                <BrandKitSection clientId={clientId} />
               </div>
 
               {/* Delete Client Section */}

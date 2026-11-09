@@ -128,6 +128,7 @@ function CreatePostModalContent({
   // Image editor: which uploaded photo is open in it
   const [editorImageId, setEditorImageId] = useState<string | null>(null);
   const editorImage = editorImageId ? uploadedImages.find((img) => img.id === editorImageId) : undefined;
+  const [blankDesignOpen, setBlankDesignOpen] = useState(false);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState('12:00');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -585,6 +586,22 @@ function CreatePostModalContent({
                   <Images className="w-3.5 h-3.5" />
                   Gallery
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Design the selected photo, or start a graphic from a blank canvas
+                    const active = uploadedImages.find(
+                      (img) => img.id === activeImageId && img.mediaType !== 'video' && img.blobUrl && !img.uploadFailed
+                    );
+                    if (active) setEditorImageId(active.id);
+                    else setBlankDesignOpen(true);
+                  }}
+                  title="Add text, logos and brand colours — or start from a blank canvas"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg text-white bg-gradient-to-r from-fuchsia-600 to-blue-600 hover:opacity-90 transition-opacity"
+                >
+                  <Wand2 className="w-3.5 h-3.5" />
+                  Design
+                </button>
               </div>
               <p className="text-[11px] text-gray-500 mt-1.5">
                 {hasFailedUpload
@@ -826,6 +843,20 @@ function CreatePostModalContent({
         onPhotoSelected={handleGalleryPhotoSelected}
       />
 
+      {blankDesignOpen && (
+        <LazyImageEditor
+          blankSize="square"
+          brandLogoUrl={accountAvatarUrl}
+          brandName={accountName}
+          clientId={clientId}
+          onCancel={() => setBlankDesignOpen(false)}
+          onSave={async (file, design) => {
+            setBlankDesignOpen(false);
+            await addImage(file, { design });
+          }}
+        />
+      )}
+
       {editorImage && (
         <LazyImageEditor
           key={editorImage.id}
@@ -837,6 +868,7 @@ function CreatePostModalContent({
             .map((img) => img.blobUrl || img.preview)}
           brandLogoUrl={accountAvatarUrl}
           brandName={accountName}
+          clientId={clientId}
           onCancel={() => setEditorImageId(null)}
           onSave={async (file, design) => {
             setEditorImageId(null);
