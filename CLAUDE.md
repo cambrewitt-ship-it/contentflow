@@ -64,3 +64,9 @@ the whole codebase (and Vercel env vars).
   code that publishes to Zernio should do the same.
 - The library is managed in "Accounts & Hashtags" on the client dashboard, or from the menu's
   "Manage" row. Portal (client-facing) caption boxes aren't wired up — the API is agency-only.
+- Handles are saved automatically: every `@handle` in the client's past captions (calendar tables,
+  plus posts made directly on Instagram, read from Zernio's `GET /v1/analytics?source=external`
+  at most daily, after the GET response) becomes an account. Deleted ones go in `dismissed_handles`
+  so they aren't re-added (migrations/033-caption-library-auto-import.sql). Logic lives in
+  `src/lib/captionLibraryServer.ts`. Zernio analytics needs the Analytics add-on on legacy plans
+  (402 otherwise — shown in the manager, not an error).
