@@ -9,6 +9,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { isSingleClientTier } from "../../lib/tierUtils";
 import OnboardingChecklist from "../../components/OnboardingChecklist";
+import { AttentionSummary, ClientPulse, usePortfolio } from "../../components/analytics/Portfolio";
 
 interface Client {
   id: string;
@@ -55,6 +56,8 @@ export default function Dashboard() {
   const { user, signOut, getAccessToken } = useAuth();
   const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
+  // How every client is doing, and what needs attention (analytics snapshots + calendar)
+  const portfolio = usePortfolio(clients.length > 0);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
@@ -440,6 +443,13 @@ export default function Dashboard() {
             </h2>
           </div>
 
+          {clients.length > 0 && (
+            <AttentionSummary
+              clients={portfolio.clients}
+              names={Object.fromEntries(clients.map((c) => [c.id, c.name]))}
+            />
+          )}
+
           {clients.length === 0 ? (
             <div className="p-12 text-center">
               <User className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
@@ -517,6 +527,8 @@ export default function Dashboard() {
                       </p>
                     )}
                     
+                    <ClientPulse clientId={client.id} pulse={portfolio.clients[client.id]} />
+
                     {/* Action Buttons */}
                     <div className="flex gap-3 mb-4">
                       <Link 

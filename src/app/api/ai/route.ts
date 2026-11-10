@@ -8,6 +8,7 @@ import { validateApiRequest } from '../../../lib/validationMiddleware';
 import { aiRequestSchema } from '../../../lib/validators';
 import { trackAICreditUsage, checkAICreditsPermissionForUser } from '../../../lib/subscriptionMiddleware';
 import logger from '@/lib/logger';
+import { getPerformancePrompt } from '@/lib/analytics/store';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { sanitizeAndValidateContentIdeas } from '@/lib/ai-utils';
 import { detectPromptLeakage, logLeakageIncident } from '@/lib/ai-monitoring';
@@ -277,7 +278,11 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
     // Only the voice sources switched on for this client (TOV, examples, do's/don'ts)
     const voice = resolveBrandVoice(client);
 
+    // What has actually worked for this client (real post results), refreshed in the background
+    const performance = await getPerformancePrompt(clientId);
+
     const brandContext = {
+      performance,
       company: client.company_description,
       tone: client.brand_tone,
       audience: client.target_audience,
@@ -839,7 +844,8 @@ ${brandContext.dos ? `✅ ALWAYS INCLUDE: ${brandContext.dos}` : ''}
 ${brandContext.donts ? `❌ NEVER INCLUDE: ${brandContext.donts}` : ''}` : ''}
 
 ${brandContext.documents && brandContext.documents.length > 0 ? `📄 BRAND DOCUMENTS: ${brandContext.documents.length} document(s) available for reference` : ''}
-${brandContext.website ? `🌐 WEBSITE CONTEXT: Available for reference` : ''}`;
+${brandContext.website ? `🌐 WEBSITE CONTEXT: Available for reference` : ''}
+${copyType === 'email-marketing' ? '' : brandContext.performance}`;
     }
 
     const systemPrompt =
@@ -1204,6 +1210,9 @@ async function remixCaption(
       if (brandContext.donts) {
         systemPrompt += `Don't: ${brandContext.donts}\n`;
       }
+      if (brandContext.performance) {
+        systemPrompt += `\n${brandContext.performance}\n`;
+      }
     }
 
     systemPrompt += getAntiAiSlopGuidelines();
@@ -1317,6 +1326,7 @@ async function chatCaption(
         if (brandContext.dos) brandContextSection += `\n✅ Always include: ${brandContext.dos}\n`;
         if (brandContext.donts) brandContextSection += `❌ Never include: ${brandContext.donts}\n`;
       }
+      if (brandContext.performance) brandContextSection += `\n${brandContext.performance}\n`;
     }
 
     const systemPrompt = `You are a social media copywriter iterating on captions through a conversation.

@@ -20,6 +20,7 @@ import {
   CreditCard,
   Calendar,
   Images,
+  BarChart3,
   Bot,
   PenSquare,
   Link2,
@@ -335,6 +336,12 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                 href: `/dashboard/client/${clientIdFromPath}/calendar`,
                 icon: Calendar,
                 active: !!pathname?.includes("/calendar"),
+              },
+              {
+                name: "Analytics",
+                href: `/dashboard/client/${clientIdFromPath}/analytics`,
+                icon: BarChart3,
+                active: !!pathname?.includes("/analytics"),
               },
               {
                 name: "Media Gallery",

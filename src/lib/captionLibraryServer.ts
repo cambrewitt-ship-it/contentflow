@@ -310,6 +310,28 @@ export async function syncExternalCaptionUsage(admin: SupabaseClient, clientId: 
   }
 }
 
+/** Median engagement per hashtag from the analytics snapshot (migration 034), lowercased keys. */
+async function hashtagPerformance(admin: SupabaseClient, clientId: string): Promise<Map<string, number>> {
+  const { data, error } = await admin.from('client_analytics').select('insights').eq('client_id', clientId).maybeSingle()
+  const tags = !error && data?.insights && Array.isArray(data.insights.hashtags) ? data.insights.hashtags : []
+  return new Map(
+    (tags as Array<{ tag?: unknown; medianEngagementRate?: unknown }>)
+      .filter((t) => typeof t.tag === 'string' && typeof t.medianEngagementRate === 'number')
+      .map((t) => [String(t.tag).toLowerCase(), t.medianEngagementRate as number])
+  )
+}
+
+/** Hashtags with known performance first (best first), then the rest by use. */
+function withHashtagPerformance(tags: UsageCount[], perf: Map<string, number>): UsageCount[] {
+  if (!perf.size) return tags
+  return tags
+    .map((t) => {
+      const er = perf.get(t.value.toLowerCase())
+      return er === undefined ? t : { ...t, engagementRate: er }
+    })
+    .sort((a, b) => (b.engagementRate ?? -1) - (a.engagementRate ?? -1) || b.count - a.count)
+}
+
 // ---------------------------------------------------------------------------
 // What the caption boxes and the manager read
 // ---------------------------------------------------------------------------
@@ -339,7 +361,10 @@ export async function getCaptionLibraryForClient(
   const usedHandles = mergeUsage(calendar.usedHandles, row.external?.handles ?? []).filter(
     (h) => !dismissed.has(h.value)
   )
-  const usedHashtags = mergeUsage(calendar.usedHashtags, row.external?.hashtags ?? [])
+  const usedHashtags = withHashtagPerformance(
+    mergeUsage(calendar.usedHashtags, row.external?.hashtags ?? []),
+    await hashtagPerformance(admin, clientId)
+  )
 
   // Every handle used in a past caption is saved as an account automatically
   const { accounts, added } = withAutoAddedAccounts(row.library.accounts, usedHandles, row.dismissed)

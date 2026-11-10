@@ -2416,6 +2416,7 @@ export default function CalendarPage() {
         approval_status: post.approval_status,
         platforms_scheduled: post.platforms_scheduled,
         late_status: post.late_status ?? null,
+        late_post_id: post.late_post_id ?? null,
         target_platforms: post.target_platforms ?? [],
         tags: post.tags ?? [],
       });
@@ -2475,7 +2476,7 @@ export default function CalendarPage() {
       fresh.late_status !== postDetailModal.late_status ||
       (fresh.platforms_scheduled ?? []).join() !== (postDetailModal.platforms_scheduled ?? []).join()
     ) {
-      setPostDetailModal(prev => prev ? { ...prev, late_status: fresh.late_status ?? null, platforms_scheduled: fresh.platforms_scheduled } : prev);
+      setPostDetailModal(prev => prev ? { ...prev, late_status: fresh.late_status ?? null, late_post_id: fresh.late_post_id ?? null, platforms_scheduled: fresh.platforms_scheduled } : prev);
     }
   }, [scheduledPosts, postDetailModal]);
 

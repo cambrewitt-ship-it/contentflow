@@ -6,6 +6,7 @@ import { createNotification } from '@/lib/notifications';
 import logger from '@/lib/logger';
 import { formatTovPromptSection } from '@/lib/brandVoice';
 import { getCaptionRuleTexts, formatPlaybookPromptSection } from '@/lib/captionPlaybook';
+import { getBestTimes, getPerformancePrompt } from '@/lib/analytics/store';
 import { getStylePreferences } from '@/lib/preference-engine';
 import {
   inferHemisphere,
@@ -73,7 +74,7 @@ export async function generateContentPlan(
   // Step 1: Gather context (same data the old engine fetched — now served to
   // the agent via tools instead of pre-stuffed into one giant prompt).
   logger.info('Autopilot v3: gathering context', { clientId });
-  const [brandCtx, events, recentPosts, existingPosts, gallery, project, stylePrefs, captionRules] =
+  const [brandCtx, events, recentPosts, existingPosts, gallery, project, stylePrefs, captionRules, performancePrompt, bestSlots] =
     await Promise.all([
       fetchBrandContext(clientId),
       getEventsForRange(clientId, startDate, endDate),
@@ -83,6 +84,8 @@ export async function generateContentPlan(
       getOrCreateDefaultProject(clientId, userId),
       getStylePreferences(clientId),
       getCaptionRuleTexts(clientId),
+      getPerformancePrompt(clientId),
+      getBestTimes(clientId),
     ]);
 
   const client = brandCtx.client;
@@ -205,6 +208,8 @@ export async function generateContentPlan(
     adPlatform,
     brief: brief ?? null,
     captionRules,
+    performancePrompt,
+    bestSlots,
   };
 
   logger.info('Autopilot v3: starting agent loop', { model: MODEL, candidateCount, clientId });
@@ -397,7 +402,11 @@ export async function regenerateCaption(params: {
   platforms: string[];
 }): Promise<string> {
   const { clientId, galleryItem, postType, platforms } = params;
-  const [brandCtx, captionRules] = await Promise.all([fetchBrandContext(clientId), getCaptionRuleTexts(clientId)]);
+  const [brandCtx, captionRules, performancePrompt] = await Promise.all([
+    fetchBrandContext(clientId),
+    getCaptionRuleTexts(clientId),
+    getPerformancePrompt(clientId),
+  ]);
   const client = brandCtx.client;
 
   const prompt = `You are a social media copywriter. Write a single caption for a ${postType} post on ${platforms.join(' and ')}.
@@ -410,6 +419,7 @@ Caption don'ts: ${client?.caption_donts || 'none'}
 ${client?.brand_voice_examples ? `Brand voice examples (match this voice):\n${client.brand_voice_examples}\n` : ''}
 ${formatTovPromptSection(client?.brand_tov ?? null)}
 ${formatPlaybookPromptSection(captionRules)}
+${performancePrompt}
 
 Photo details:
 - Description: ${galleryItem.ai_description || 'none'}

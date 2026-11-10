@@ -59,6 +59,10 @@ export interface RunContext {
   brief: RunBrief | null;
   // The client's caption playbook — rules from the agency's feedback on past posts.
   captionRules: string[];
+  // What has actually worked for this client (real post results from analytics)
+  performancePrompt: string;
+  // Best posting times in the client's timezone (0 = Monday), strongest first
+  bestSlots: Array<{ day: number; hour: number }>;
 }
 
 // ── Tool schemas ─────────────────────────────────────────────────────────────
@@ -215,6 +219,17 @@ export const AGENT_TOOL_DEFS = TOOL_DEFS.filter(
   t => t.type === 'function' && AGENT_TOOL_NAMES.has(t.function.name)
 );
 
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** The client's best posting hour for a date (that weekday's best slot, else their best overall), else noon. */
+function bestTimeFor(ctx: RunContext, date: string | null | undefined): string {
+  if (!ctx.bestSlots.length) return '12:00';
+  const d = date ? new Date(`${date}T12:00:00Z`) : null;
+  const weekday = d && !Number.isNaN(d.getTime()) ? (d.getUTCDay() + 6) % 7 : -1;
+  const slot = ctx.bestSlots.find(s => s.day === weekday) ?? ctx.bestSlots[0];
+  return `${String(slot.hour).padStart(2, '0')}:00`;
+}
+
 /** Everything the get_* tools would return, gathered once for the first message. */
 export function buildContextBriefing(ctx: RunContext): string {
   const section = (title: string, data: unknown) => `## ${title}\n${JSON.stringify(data)}`;
@@ -225,6 +240,10 @@ export function buildContextBriefing(ctx: RunContext): string {
     section('Season and holidays', dispatchTool('get_nz_context', '{}', ctx)),
     section('Style preferences and account manager feedback', dispatchTool('get_style_preferences', '{}', ctx)),
     section('Recent posts (last 14 days — avoid repeating these)', dispatchTool('get_recent_posts', '{}', ctx)),
+    ...(ctx.performancePrompt ? [`## What has worked for this account (real results)\n${ctx.performancePrompt}`] : []),
+    ...(ctx.bestSlots.length
+      ? [section('Best posting times (client timezone, strongest first — use for suggested_time)', ctx.bestSlots.map(s => `${DAY_NAMES[s.day]} ${String(s.hour).padStart(2, '0')}:00`))]
+      : []),
   ].join('\n\n');
 }
 
@@ -494,7 +513,7 @@ export function dispatchTool(name: string, argsJson: string, ctx: RunContext): u
 
       const galleryItem = ctx.galleryMap.get(mediaGalleryId)!;
       const suggestedTimeRaw = typeof args.suggested_time === 'string' ? args.suggested_time : '';
-      const suggestedTime = suggestedTimeRaw.includes(':') ? suggestedTimeRaw : '12:00';
+      const suggestedTime = suggestedTimeRaw.includes(':') ? suggestedTimeRaw : bestTimeFor(ctx, suggestedDate);
 
       ctx.scratchpad.posts.push({
         media_gallery_id: mediaGalleryId,

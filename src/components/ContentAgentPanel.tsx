@@ -159,7 +159,18 @@ export default function ContentAgentPanel({
   const [brief, setBrief] = useState<RunBrief>(DEFAULT_RUN_BRIEF);
 
   useEffect(() => {
-    setBrief(loadSavedBrief(clientId));
+    const saved = loadSavedBrief(clientId);
+    // ?brief= from an Analytics recommendation prefills the prompt, then leaves the URL
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get('brief');
+    if (fromUrl) {
+      setBrief({ ...saved, prompt: fromUrl.slice(0, 1000) });
+      params.delete('brief');
+      const qs = params.toString();
+      window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+    } else {
+      setBrief(saved);
+    }
   }, [clientId]);
 
   const updateBrief = useCallback(

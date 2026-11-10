@@ -70,3 +70,23 @@ the whole codebase (and Vercel env vars).
   so they aren't re-added (migrations/033-caption-library-auto-import.sql). Logic lives in
   `src/lib/captionLibraryServer.ts`. Zernio analytics needs the Analytics add-on on legacy plans
   (402 otherwise — shown in the manager, not an error).
+
+## Analytics and the learning loop
+
+- Results come from Zernio's Analytics API (`src/lib/analytics/zernio.ts`: post list with metrics,
+  best times, dashboard). Usage-based Zernio plans include it; 402 = no analytics (shown, not an error).
+- Each client has a snapshot in `client_analytics` (migrations/034-client-analytics.sql, run by hand):
+  a year of published posts with metrics (incl. posts made directly on the platforms), best times,
+  computed insights and weekly AI recommendations. `src/lib/analytics/store.ts` refreshes it when
+  older than 6h — after the response (`runAfterResponse`), never inline in AI prompts.
+- `src/lib/analytics/insights.ts` turns results into "what works" (format, day/time, caption length,
+  hashtags, top/weak posts, trend). Findings only claim a difference with 3+ posts per side and a
+  15%+ gap. `formatPerformancePrompt` feeds them into caption generation (`/api/ai` via
+  `getBrandContext().performance`), the Content Agent (context briefing + best-time `suggested_time`)
+  and `regenerateCaption`. New AI writing paths should include `getPerformancePrompt(clientId)`.
+- UI: Analytics page (`/dashboard/client/[clientId]/analytics`, `src/components/analytics/`),
+  results in the calendar post modal (`PostResults`, by `late_post_id`), and the agency overview on
+  `/dashboard` (`/api/analytics/portfolio`: status strip per client + "Needs attention").
+  Recommendation buttons open the Content Agent with `?brief=`.
+- `/api/cron/weekly-insights` (GitHub Actions, Monday NZ morning) refreshes every connected client,
+  writes recommendations and sends an `analytics_insights` notification.

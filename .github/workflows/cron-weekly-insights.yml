@@ -1,0 +1,16 @@
+name: Weekly Analytics Insights
+
+on:
+  schedule:
+    - cron: '17 19 * * 0'  # Sunday 19:17 UTC = Monday morning in NZ
+  workflow_dispatch:       # Allow manual trigger
+
+jobs:
+  weekly-insights:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Refresh analytics and write recommendations
+        run: |
+          curl -f -X GET "${{ secrets.APP_URL }}/api/cron/weekly-insights" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

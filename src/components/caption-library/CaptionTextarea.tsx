@@ -160,7 +160,11 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
 
       const pool: Array<{ tag: string; note: string }> = []
       for (const t of aiTags ?? []) pool.push({ tag: t, note: 'AI pick' })
-      for (const t of data?.usedHashtags ?? []) pool.push({ tag: t.value, note: `used ${t.count}×` })
+      for (const t of data?.usedHashtags ?? [])
+        pool.push({
+          tag: t.value,
+          note: t.engagementRate !== undefined ? `${t.engagementRate.toFixed(1)}% eng · ${t.count}×` : `used ${t.count}×`,
+        })
       for (const s of data?.hashtagSets ?? []) for (const t of s.tags) pool.push({ tag: t, note: s.name })
       const seen = new Set<string>()
       pool

@@ -36,6 +36,8 @@ export interface CaptionLibrary {
 export interface UsageCount {
   value: string
   count: number
+  /** Hashtags only: median engagement rate (%) of published posts using it, when known */
+  engagementRate?: number
 }
 
 /**

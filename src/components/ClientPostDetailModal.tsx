@@ -36,6 +36,7 @@ import {
   type ThreadComment,
 } from "@/components/comments";
 import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea';
+import { PostResults } from "@/components/analytics/PostResults";
 
 interface ApprovalStep {
   id: string;
@@ -57,6 +58,8 @@ export interface ClientPostDetailItem {
   approval_status?: string;
   platforms_scheduled?: string[];
   late_status?: string | null;
+  /** Zernio post id once scheduled — used to show the post's results */
+  late_post_id?: string | null;
   target_platforms?: string[] | null;
   tags?: Array<{ id: string; name: string; color: string }>;
 }
@@ -184,6 +187,13 @@ function PipelineSteps({ steps }: { steps: ApprovalStep[] }) {
       ))}
     </div>
   );
+}
+
+/** True once the post's scheduled time has passed. */
+function isPastPost(post: ClientPostDetailItem): boolean {
+  if (!post.scheduled_date) return false;
+  const at = Date.parse(`${post.scheduled_date}T${post.scheduled_time || "00:00"}`);
+  return !Number.isNaN(at) && at <= Date.now();
 }
 
 export function ClientPostDetailModal({ post, onClose, getAccessToken, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate, onChangeTime, onChangeTargetPlatforms, onChangeApprovalStatus, scheduleAccounts = [], onSchedule, schedulingPlatform, clientId, onTagsChange, onSaveMedia }: Props) {
@@ -667,6 +677,11 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
                   <p className="text-xs text-red-600 mt-1">{platformsError}</p>
                 )}
               </div>
+
+              {/* Results once it's been published */}
+              {clientId && post.late_post_id && isPastPost(post) && (
+                <PostResults clientId={clientId} latePostId={post.late_post_id} />
+              )}
 
               {/* Caption */}
               <div>
