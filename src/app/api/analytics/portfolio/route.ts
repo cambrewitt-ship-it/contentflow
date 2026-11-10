@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const admin = createSupabaseAdmin();
     const { data: clients, error } = await admin
       .from('clients')
-      .select('id, late_profile_id')
+      .select('id, late_profile_id, autopilot_enabled, autopilot_settings, posting_preferences')
       .eq('user_id', auth.user.id);
     if (error) throw error;
     const ids = (clients ?? []).map((c) => c.id as string);
@@ -77,6 +77,12 @@ export async function GET(request: NextRequest) {
       const next7 = scheduled.get(id) ?? 0;
       if (!connected) attention.push({ level: 'critical', text: 'No social accounts connected' });
       else if (next7 === 0) attention.push({ level: 'critical', text: 'Nothing scheduled for the next 7 days' });
+      else {
+        const target = Number((client.posting_preferences as Record<string, unknown> | null)?.posts_per_week) || 0;
+        if (target && next7 < target) {
+          attention.push({ level: 'warning', text: `Only ${next7} of ${target} posts scheduled for the next 7 days` });
+        }
+      }
       const waiting = awaiting.get(id) ?? 0;
       if (waiting > 0) attention.push({ level: 'warning', text: `${waiting} post${waiting === 1 ? '' : 's'} awaiting approval` });
       if (engagementChange !== null && engagementChange <= -0.2) {
@@ -96,6 +102,7 @@ export async function GET(request: NextRequest) {
         scheduledNext7: next7,
         awaitingApproval: waiting,
         topRecommendation: snapshot?.recommendations[0]?.title ?? null,
+        autoFill: client.autopilot_enabled === true && (client.autopilot_settings as Record<string, unknown> | null)?.fill_gaps === true,
         attention,
       };
     });

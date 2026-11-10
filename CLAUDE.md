@@ -90,3 +90,18 @@ the whole codebase (and Vercel env vars).
   Recommendation buttons open the Content Agent with `?brief=`.
 - `/api/cron/weekly-insights` (GitHub Actions, Monday NZ morning) refreshes every connected client,
   writes recommendations and sends an `analytics_insights` notification.
+
+## Keeping calendars filled, and monthly reports
+
+- "Keep the calendar filled" (`autopilot_settings.fill_gaps`, Agent Settings): `/api/cron/fill-gaps`
+  (daily, GitHub Actions) checks each opted-in client's next 7 days against
+  `posting_preferences.posts_per_week` and, if short, runs the Content Agent for that window with a
+  brief built from the analytics (`src/lib/autopilot-gapfill.ts`). Skips clients with a plan waiting
+  or run in the last 3 days, or without enough AI credits. The engine's own "plan ready"
+  notification/email tells the manager.
+- Monthly client reports: `client_reports` (migrations/035-client-reports.sql), built by
+  `src/lib/analytics/reports.ts` (month totals from Zernio, the month's posts from the snapshot, an
+  AI-written plain-English summary), frozen per month with a `share_token`. Public page
+  `/report/[token]` + `/api/reports/[token]` (in the middleware's public lists, noindex), printable
+  to PDF. Agency UI: "Monthly reports" card on the Analytics page. `/api/cron/monthly-reports` builds
+  last month's for every connected client on the 1st and sends a `monthly_report_ready` notification.

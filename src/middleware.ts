@@ -62,6 +62,7 @@ export async function middleware(req: NextRequest) {
 
   // Define public API routes that don't require authentication
   const publicApiPrefixes = [
+    '/api/reports/', // Shared monthly client reports (share token, checked in the route)
     '/api/portal/', // Client portal (uses token auth)
     '/api/auth/',   // Auth endpoints
     '/api/stripe/webhook', // Stripe webhooks
@@ -73,6 +74,7 @@ export async function middleware(req: NextRequest) {
 
   // Define public dynamic routes
   const publicDynamicPrefixes = [
+    '/report/', // Shared monthly client reports
     '/portal/',     // Client portal pages
     '/approval/',   // Approval pages with tokens
     '/blog/',       // Blog article pages

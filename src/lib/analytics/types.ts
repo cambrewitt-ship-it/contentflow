@@ -145,6 +145,8 @@ export interface PortfolioClient {
   scheduledNext7: number
   awaitingApproval: number
   topRecommendation: string | null
+  /** "Keep the calendar filled" is on: gaps get drafted automatically each morning */
+  autoFill: boolean
   /** Things a manager should look at, most urgent first */
   attention: Array<{ level: 'critical' | 'warning'; text: string }>
 }

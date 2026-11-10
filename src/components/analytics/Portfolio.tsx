@@ -76,7 +76,8 @@ export function ClientPulse({ clientId, pulse }: { clientId: string; pulse: Port
       {pulse.attention.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {pulse.attention.map((a) => (
-            <span
+            <Link
+              href={attentionHref(clientId, a.text)}
               key={a.text}
               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
                 a.level === 'critical' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'
@@ -84,7 +85,8 @@ export function ClientPulse({ clientId, pulse }: { clientId: string; pulse: Port
             >
               {a.level === 'critical' ? <AlertCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
               {a.text}
-            </span>
+              {isGap(a.text) && pulse.autoFill && ' · auto-drafting'}
+            </Link>
           ))}
         </div>
       )}
@@ -99,6 +101,19 @@ export function ClientPulse({ clientId, pulse }: { clientId: string; pulse: Port
       )}
     </div>
   )
+}
+
+const isGap = (text: string) => text.startsWith('Nothing scheduled') || text.startsWith('Only ')
+
+/** Where each attention item leads: gaps open the Content Agent with a ready brief. */
+function attentionHref(clientId: string, text: string): string {
+  if (text.startsWith('No social')) return `/dashboard/client/${clientId}/connect-platforms`
+  if (isGap(text)) {
+    const brief = `Fill the gaps in the next 7 days (${text.toLowerCase()}). Put posts on the empty days first and lean into what has performed best.`
+    return `/dashboard/client/${clientId}/autopilot?brief=${encodeURIComponent(brief)}`
+  }
+  if (text.startsWith('Engagement down') || text.startsWith('Posting slowed')) return `/dashboard/client/${clientId}/analytics`
+  return `/dashboard/client/${clientId}/calendar`
 }
 
 export function AttentionSummary({
@@ -121,19 +136,13 @@ export function AttentionSummary({
         {items.slice(0, 8).map((a) => (
           <li key={`${a.clientId}:${a.text}`} className="flex items-center gap-2 text-sm">
             <span className={`h-2 w-2 flex-shrink-0 rounded-full ${a.level === 'critical' ? 'bg-red-500' : 'bg-amber-400'}`} />
-            <Link
-              href={
-                a.text.startsWith('No social')
-                  ? `/dashboard/client/${a.clientId}/connect-platforms`
-                  : a.text.startsWith('Nothing scheduled')
-                    ? `/dashboard/client/${a.clientId}/autopilot`
-                    : `/dashboard/client/${a.clientId}/calendar`
-              }
-              className="hover:underline"
-            >
+            <Link href={attentionHref(a.clientId, a.text)} className="hover:underline">
               <span className="font-medium text-gray-900">{names[a.clientId] ?? 'Client'}</span>
               <span className="text-gray-600"> — {a.text}</span>
             </Link>
+            {isGap(a.text) && clients[a.clientId]?.autoFill && (
+              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">auto-drafting</span>
+            )}
           </li>
         ))}
       </ul>

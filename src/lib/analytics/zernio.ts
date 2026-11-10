@@ -168,10 +168,15 @@ function toTotals(raw: unknown): DashboardTotals {
 export async function fetchDashboard(profileId: string, days: number): Promise<AnalyticsDashboard> {
   const to = new Date()
   const from = new Date(to.getTime() - (days - 1) * 86_400_000)
+  return fetchDashboardRange(profileId, day(from), day(to))
+}
+
+/** The same for fixed dates (YYYY-MM-DD, inclusive), e.g. a calendar month. */
+export async function fetchDashboardRange(profileId: string, fromDate: string, toDate: string): Promise<AnalyticsDashboard> {
   const data = await get<Record<string, unknown>>('/analytics/dashboard', {
     profileId,
-    fromDate: day(from),
-    toDate: day(to),
+    fromDate,
+    toDate,
     compare: 'previous_period',
     topPosts: '0',
     recentPosts: '0',
@@ -179,8 +184,8 @@ export async function fetchDashboard(profileId: string, days: number): Promise<A
   const followers = (data.followers ?? {}) as Record<string, unknown>
   const prevFollowers = data.previousFollowers as Record<string, unknown> | undefined
   return {
-    fromDate: day(from),
-    toDate: day(to),
+    fromDate,
+    toDate,
     totals: toTotals(data.totals),
     previousTotals: data.previousTotals ? toTotals(data.previousTotals) : null,
     followers: { current: num(followers.current), gained: num(followers.gained) },

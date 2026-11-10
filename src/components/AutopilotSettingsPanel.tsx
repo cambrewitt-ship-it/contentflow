@@ -762,6 +762,31 @@ function AutopilotControlSection({
             </Select>
           </div>
 
+          {/* Keep the calendar filled */}
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium text-gray-700">Keep the calendar filled</p>
+              <p className="text-[11px] text-gray-500">
+                Each morning, if the next 7 days have fewer posts than your posts-per-week target, the agent drafts the
+                missing posts for your approval, leaning into what has performed best. Uses AI credits like a normal run.
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Keep the calendar filled"
+              onClick={() => setSettings(prev => ({ ...prev, fill_gaps: !prev.fill_gaps }))}
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                settings.fill_gaps ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
+                  settings.fill_gaps ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Auto-publish timeout */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">

@@ -56,6 +56,9 @@ const routePatterns: Record<string, RateLimitTier> = {
   '/api/onboarding': 'authenticated',
   '/api/schedulePost': 'authenticated',
   '/api/ingest': 'authenticated',
+  '/api/analytics': 'authenticated',
+  // Shared monthly report links (no login, read-only)
+  '/api/reports': 'portalAuth',
   '/api': 'public',
 };
 

@@ -21,6 +21,7 @@ import { authedFetchJson } from '@/lib/authedFetch'
 import { slotLabel } from '@/lib/analytics/insights'
 import type { AnalyticsPost, ClientAnalyticsResponse, GroupStat, Recommendation } from '@/lib/analytics/types'
 import { MetricChart } from './MetricChart'
+import { ReportsCard } from './ReportsCard'
 
 // A client's results: totals vs the previous period, a daily chart, what's working
 // (computed from real post results), the AI's recommendations with one-click actions,
@@ -398,6 +399,8 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
             </div>
 
             <div className="space-y-6 lg:col-span-2">
+              <ReportsCard clientId={clientId} />
+
               <Card title="What's working" icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}>
                 {i?.findings.length ? (
                   <ul className="space-y-2 text-sm text-gray-700">
