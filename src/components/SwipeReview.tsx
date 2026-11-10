@@ -7,6 +7,7 @@ import { PostSocialPreview } from '@/components/PostSocialPreview';
 import PostFeedbackPanel from '@/components/PostFeedbackPanel';
 import { authedFetchJson } from '@/lib/authedFetch';
 import { normalizeHashtags, publishedCaption } from '@/lib/candidateCaption';
+import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea';
 
 interface Props {
   planId: string;
@@ -262,7 +263,7 @@ function CopyEditor({
             <span className="flex justify-between text-xs font-semibold text-gray-400 uppercase tracking-wide">
               Caption <span className="font-normal normal-case tabular-nums">{caption.length} / 2200</span>
             </span>
-            <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={8} className={`${inputClass} resize-y text-[15px] leading-relaxed`} />
+            <CaptionTextarea unstyled clientId={candidate.client_id} value={caption} onChange={e => setCaption(e.target.value)} rows={8} className={`${inputClass} resize-y text-[15px] leading-relaxed`} />
           </label>
           <label className="block space-y-1">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Hashtags</span>

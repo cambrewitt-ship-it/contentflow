@@ -70,6 +70,7 @@ interface PageProps {
 }
 
 import { useContentStore } from '@/lib/contentStore'
+import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea'
 
 export default function ContentSuitePage({ params }: PageProps) {
   const { clientId } = use(params)
@@ -2608,7 +2609,7 @@ function ContentSuiteContent({
                   {/* ── Custom Mode: write your own caption ── */}
                   {customMode && (
                     <div className="pt-3">
-                      <Textarea
+                      <CaptionTextarea clientId={clientId}
                         value={customModeCaption?.text ?? ''}
                         onChange={(e) => handleCustomModeCaptionChange(e.target.value)}
                         placeholder={`Write your own ${copyType === 'social-media' ? 'caption' : 'email copy'}...`}
@@ -2797,7 +2798,7 @@ function ContentSuiteContent({
                                   >
                                     {isFirstEmpty || caption.id === 'custom-caption-1' ? (
                                       <div className="flex flex-col items-center justify-center py-8">
-                                        <Textarea
+                                        <CaptionTextarea clientId={clientId}
                                           value={caption.text}
                                           onChange={(e) => {
                                             const newText = e.target.value
@@ -2828,7 +2829,7 @@ function ContentSuiteContent({
                                       </div>
                                     ) : (
                                       <div className="space-y-2">
-                                        <Textarea
+                                        <CaptionTextarea clientId={clientId}
                                           value={caption.text}
                                           onChange={(e) => {
                                             const newText = e.target.value

@@ -8,6 +8,7 @@ import { Plus, Edit3, Calendar, Trash2, Upload, X, Image, File, RefreshCw, Loade
 import Link from 'next/link'
 import BrandInformationPanel from '@/components/BrandInformationPanel'
 import BrandKitSection from '@/components/brand-kit/BrandKitSection'
+import CaptionLibrarySection from '@/components/caption-library/CaptionLibrarySection'
 import { CompactMonthCalendar } from '@/components/CompactMonthCalendar'
 import { useAuth } from '@/contexts/AuthContext'
 import OnboardingChecklist from '@/components/OnboardingChecklist'
@@ -1580,6 +1581,11 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               {/* Brand Kit (Design Studio) */}
               <div className="border-t-2 pt-8">
                 <BrandKitSection clientId={clientId} />
+              </div>
+
+              {/* Accounts to tag + hashtag sets (caption @/# autocomplete) */}
+              <div className="border-t-2 pt-8">
+                <CaptionLibrarySection clientId={clientId} />
               </div>
 
               {/* Delete Client Section */}

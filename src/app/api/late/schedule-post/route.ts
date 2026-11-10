@@ -5,6 +5,7 @@ import { requireClientOwnership } from '@/lib/authHelpers';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
 import { toLateMediaItem, LateUploadError } from '@/lib/lateMedia';
 import { zonedLocalToUtcMs } from '@/lib/lateReschedule';
+import { withFacebookCaptions } from '@/lib/captionLibraryServer';
 
 // Carousel posts re-host each extra photo on LATE before scheduling
 export const maxDuration = 300;
@@ -186,9 +187,13 @@ export async function POST(request: NextRequest) {
       : { scheduledFor: localDateTime, timezone: clientTimezone }; // e.g. "2024-09-16T18:00:00"
 
     // Log what we're sending to LATE
+    // Facebook can't tag through the API, so saved @instagramhandles read as the
+    // account's Facebook name there (customContent is Zernio's per-platform caption).
+    const platformsWithCaptions = await withFacebookCaptions(supabase, clientId, finalContent, platforms);
+
     const requestBody = {
       content: finalContent,
-      platforms: platforms,
+      platforms: platformsWithCaptions,
       ...scheduleTiming,
       ...(lateMediaUrl
         ? {

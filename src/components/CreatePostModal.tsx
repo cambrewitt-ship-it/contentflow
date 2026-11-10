@@ -14,9 +14,9 @@ import { GeneratePromptBox, ChatRefineInput } from '@/components/CaptionPrompt';
 import { useInputGlide } from '@/hooks/useInputGlide';
 import { PlatformPicker } from '@/components/PlatformBadges';
 import { normalizeTargetPlatforms, type TargetPlatform } from '@/lib/targetPlatforms';
-import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea';
 
 interface Project {
   id: string;
@@ -537,7 +537,7 @@ function CreatePostModalContent({
                 {existingPost ? (
                   <div className="mt-3 space-y-1">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Caption</p>
-                    <Textarea
+                    <CaptionTextarea clientId={clientId}
                       value={existingCaption}
                       onChange={(e) => setExistingCaption(e.target.value)}
                       placeholder="Write a caption..."
@@ -691,7 +691,7 @@ function CreatePostModalContent({
 
               {customMode ? (
                 <div className="space-y-1">
-                  <Textarea
+                  <CaptionTextarea clientId={clientId}
                     value={customCaption}
                     onChange={(e) => setCustomCaption(e.target.value)}
                     placeholder="Write your own caption..."

@@ -3,6 +3,7 @@ import logger from '@/lib/logger';
 import { requireAuth } from '@/lib/authHelpers';
 import { checkSocialMediaPostingPermission, trackPostCreation } from '@/lib/subscriptionMiddleware';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
+import { withFacebookCaptions } from '@/lib/captionLibraryServer';
 import { sendAutopilotPublishedEmail } from '@/lib/email';
 import { createNotification } from '@/lib/notifications';
 
@@ -51,7 +52,7 @@ async function scheduleViaLate(params: {
   lateMediaUrl: string;
   scheduledFor: string;
   timezone: string;
-  platforms: Array<{ platform: string; accountId: string }>;
+  platforms: Array<{ platform: string; accountId: string; customContent?: string }>;
 }): Promise<string | null> {
   const body = {
     content: params.caption.trim() || 'Posted via Content Manager',
@@ -176,7 +177,8 @@ export async function POST(
           lateMediaUrl,
           scheduledFor,
           timezone: clientTimezone,
-          platforms,
+          // Saved @instagramhandles read as Facebook names on Facebook
+          platforms: await withFacebookCaptions(admin, plan.client_id, (post.caption || '').trim(), platforms),
         });
 
         // Update post record

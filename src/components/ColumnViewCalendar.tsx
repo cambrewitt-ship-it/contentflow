@@ -32,6 +32,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { type ContentEvent, EVENT_TYPE_COLORS } from '@/components/EventsCalendarLayer';
+import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea';
 
 export function EventIndicatorsInline({ events }: { events: ContentEvent[] }) {
   const visible = events.slice(0, 4);
@@ -834,7 +835,7 @@ function SortablePostCard({
       <div className="px-2 mb-1">
         {isEditingCaption ? (
           <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-            <textarea
+            <CaptionTextarea unstyled clientId={clientId}
               ref={captionTextareaRef}
               value={editedCaption}
               onChange={(e) => setEditedCaption(e.target.value)}

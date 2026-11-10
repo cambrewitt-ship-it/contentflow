@@ -18,7 +18,6 @@ import {
 import { LazyImageEditor } from "@/components/image-editor";
 import { uploadMediaToBlob } from "@/lib/blobUpload";
 import { isVideoUrl } from "@/lib/videoUtils";
-import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
 import { PostTimeChip } from "@/components/PostTimeChip";
@@ -36,6 +35,7 @@ import {
   useMentionables,
   type ThreadComment,
 } from "@/components/comments";
+import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea';
 
 interface ApprovalStep {
   id: string;
@@ -682,7 +682,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
                 </div>
                 {isEditingCaption ? (
                   <div>
-                    <Textarea
+                    <CaptionTextarea clientId={clientId}
                       autoFocus
                       value={editedCaption}
                       onChange={(e) => setEditedCaption(e.target.value)}

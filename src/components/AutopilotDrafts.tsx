@@ -8,6 +8,7 @@ import { PostSocialPreview } from '@/components/PostSocialPreview';
 import { authedFetchJson } from '@/lib/authedFetch';
 import { publishedCaption } from '@/lib/candidateCaption';
 import type { AutopilotCandidate } from '@/types/autopilot';
+import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea';
 
 interface Props {
   clientId: string;
@@ -411,7 +412,7 @@ function DraftPreview({
 
         {editing ? (
           <div className="space-y-2 rounded-2xl border border-gray-200 bg-white p-3">
-            <textarea
+            <CaptionTextarea unstyled clientId={draft.client_id}
               value={captionDraft}
               onChange={e => setCaptionDraft(e.target.value)}
               onKeyDown={e => {
