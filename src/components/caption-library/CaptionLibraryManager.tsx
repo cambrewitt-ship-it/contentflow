@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, AtSign, Check, Hash, Loader2, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, AtSign, Check, Hash, Instagram, Loader2, Plus, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -57,6 +57,9 @@ export function CaptionLibraryManager({ clientId, onSaved }: { clientId: string;
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  // Handles of saved accounts deleted in this draft, so auto-import doesn't bring them back
+  const [removedHandles, setRemovedHandles] = useState<string[]>([])
+  const [filter, setFilter] = useState('')
 
   // Start the draft from the saved library (and take later loads while nothing's been edited)
   useEffect(() => {
@@ -65,6 +68,7 @@ export function CaptionLibraryManager({ clientId, onSaved }: { clientId: string;
     const d = toDraft(data)
     setAccounts(d.accounts)
     setSets(d.sets)
+    setRemovedHandles([])
     setLoadedFor({ accounts: data.accounts, hashtagSets: data.hashtagSets })
   }, [data, dirty, loadedFor])
 
@@ -76,11 +80,18 @@ export function CaptionLibraryManager({ clientId, onSaved }: { clientId: string;
   const editAccounts = edit(setAccounts)
   const editSets = edit(setSets)
 
-  const savedHandles = useMemo(
-    () => new Set(accounts.map((a) => normalizeHandle(a.instagram)).filter(Boolean)),
-    [accounts]
-  )
-  const unsavedUsedHandles = (data?.usedHandles ?? []).filter((h) => !savedHandles.has(h.value)).slice(0, 24)
+  const usage = useMemo(() => new Map((data?.usedHandles ?? []).map((h) => [h.value, h.count])), [data?.usedHandles])
+  const visibleAccounts = useMemo(() => {
+    const q = filter.trim().toLowerCase().replace(/^@/, '')
+    if (!q) return accounts
+    return accounts.filter((a) => [a.name, a.instagram, a.facebook].some((v) => v.toLowerCase().includes(q)))
+  }, [accounts, filter])
+  const removeAccount = (a: DraftAccount) => {
+    const handle = normalizeHandle(a.instagram)
+    if (handle) setRemovedHandles((prev) => [...prev, handle])
+    editAccounts((prev) => prev.filter((x) => x.id !== a.id))
+  }
+  const ext = data?.externalImport
   const topUsedTags = (data?.usedHashtags ?? []).slice(0, 30)
 
   const save = async () => {
@@ -103,7 +114,8 @@ export function CaptionLibraryManager({ clientId, onSaved }: { clientId: string;
             name: s.name.trim() || 'Untitled set',
             tags: parseTags(s.tagsText).slice(0, CAPTION_LIBRARY_LIMITS.tagsPerSet),
           })),
-      })
+      }, removedHandles)
+      setRemovedHandles([])
       setDirty(false)
       setLoadedFor(null)
       setSavedAt(Date.now())
@@ -142,7 +154,22 @@ export function CaptionLibraryManager({ clientId, onSaved }: { clientId: string;
         <p className="mb-3 text-xs text-gray-500">
           Type @ in a caption to tag these. Instagram gets <span className="font-medium">@handle</span>{' '}(a real tag);
           Facebook can&apos;t tag through the API, so on Facebook the handle is swapped for the Facebook name.
+          Every @handle used in a past caption is added here automatically — add a Facebook name where it matters.
         </p>
+        <ExternalImportNote status={ext?.status} postCount={ext?.postCount ?? 0} syncedAt={ext?.syncedAt ?? null} />
+
+        {accounts.length > 8 && (
+          <div className="relative mb-3 max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder={`Search ${accounts.length} accounts`}
+              aria-label="Search accounts"
+              className="h-8 pl-9"
+            />
+          </div>
+        )}
 
         {accounts.length > 0 && (
           <div className="mb-2 hidden grid-cols-[1fr_1fr_1fr_auto] gap-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 sm:grid">
@@ -153,7 +180,7 @@ export function CaptionLibraryManager({ clientId, onSaved }: { clientId: string;
           </div>
         )}
         <div className="space-y-2">
-          {accounts.map((a) => {
+          {visibleAccounts.map((a) => {
             const handle = normalizeHandle(a.instagram)
             const badHandle = !!a.instagram.trim() && !/^[a-z0-9._]{1,30}$/.test(handle)
             const set = (patch: Partial<DraftAccount>) =>
@@ -163,7 +190,14 @@ export function CaptionLibraryManager({ clientId, onSaved }: { clientId: string;
                 key={a.id}
                 className="grid grid-cols-1 gap-2 rounded-lg border border-gray-100 p-2 sm:grid-cols-[1fr_1fr_1fr_auto] sm:border-0 sm:p-0"
               >
-                <Input value={a.name} onChange={(e) => set({ name: e.target.value })} placeholder="Name" aria-label="Name" />
+                <div className="relative">
+                  <Input value={a.name} onChange={(e) => set({ name: e.target.value })} placeholder="Name" aria-label="Name" className={usage.get(handle) ? "pr-16" : undefined} />
+                  {usage.get(handle) && (
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">
+                      used {usage.get(handle)}×
+                    </span>
+                  )}
+                </div>
                 <div>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">@</span>
@@ -188,7 +222,7 @@ export function CaptionLibraryManager({ clientId, onSaved }: { clientId: string;
                   type="button"
                   variant="ghost"
                   size="icon"
-                  onClick={() => editAccounts((prev) => prev.filter((x) => x.id !== a.id))}
+                  onClick={() => removeAccount(a)}
                   aria-label="Remove account"
                   className="justify-self-end text-gray-400 hover:text-red-600"
                 >
@@ -211,29 +245,6 @@ export function CaptionLibraryManager({ clientId, onSaved }: { clientId: string;
           <Plus className="mr-1 h-4 w-4" /> Add account
         </Button>
 
-        {unsavedUsedHandles.length > 0 && (
-          <div className="mt-4">
-            <p className="mb-2 text-xs font-medium text-gray-500">Tagged in past captions — click to save:</p>
-            <div className="flex flex-wrap gap-1.5">
-              {unsavedUsedHandles.map((h) => (
-                <button
-                  key={h.value}
-                  type="button"
-                  onClick={() =>
-                    editAccounts((prev) => [
-                      ...prev,
-                      { id: crypto.randomUUID(), name: h.value, instagram: h.value, facebook: '' },
-                    ])
-                  }
-                  className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-700 hover:border-fuchsia-300 hover:bg-fuchsia-50"
-                >
-                  <Plus className="h-3 w-3" />@{h.value}
-                  <span className="text-gray-400">{h.count}×</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </section>
 
       {/* Hashtag sets */}
@@ -351,5 +362,32 @@ export function CaptionLibraryManager({ clientId, onSaved }: { clientId: string;
         {error && <span className="text-sm text-red-600">{error}</span>}
       </div>
     </div>
+  )
+}
+
+function ExternalImportNote({
+  status,
+  postCount,
+  syncedAt,
+}: {
+  status: string | undefined
+  postCount: number
+  syncedAt: string | null
+}) {
+  if (!status) return null
+  const when = syncedAt ? new Date(syncedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : null
+  const text =
+    status === 'ok'
+      ? `Also includes ${postCount} post${postCount === 1 ? '' : 's'} made directly on Instagram (last 12 months${when ? `, checked ${when}` : ''}).`
+      : status === 'unavailable'
+        ? "Posts made directly on Instagram can't be read: the Zernio plan doesn't include analytics."
+        : status === 'not_connected'
+          ? 'Connect Instagram to also pick up handles from posts made directly on Instagram.'
+          : "Couldn't read posts made directly on Instagram this time — it'll try again tomorrow."
+  return (
+    <p className="mb-3 flex items-start gap-1.5 text-xs text-gray-500">
+      <Instagram className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+      <span>{text}</span>
+    </p>
   )
 }

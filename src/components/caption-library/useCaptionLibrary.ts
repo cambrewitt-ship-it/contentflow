@@ -48,6 +48,7 @@ export function loadCaptionLibrary(clientId: string, force = false): Promise<voi
           hashtagSets: data.hashtagSets ?? [],
           usedHandles: data.usedHandles ?? [],
           usedHashtags: data.usedHashtags ?? [],
+          externalImport: data.externalImport ?? null,
           setupRequired: data.setupRequired,
         },
         loading: false,
@@ -74,13 +75,16 @@ export function useCaptionLibrary(clientId: string | null | undefined) {
     if (clientId) void loadCaptionLibrary(clientId)
   }, [clientId])
 
-  /** Save accounts + hashtag sets. Throws with a readable message on failure. */
+  /**
+   * Save accounts + hashtag sets. `removedHandles` are handles of accounts the user
+   * deleted, so they aren't auto-imported again. Throws with a readable message on failure.
+   */
   const save = useCallback(
-    async (library: CaptionLibrary) => {
+    async (library: CaptionLibrary, removedHandles: string[] = []) => {
       if (!clientId) return
       const res = await authedFetchJson<{ library: CaptionLibrary }>(`/api/clients/${clientId}/caption-library`, {
         method: 'PUT',
-        body: { library },
+        body: { library, removedHandles },
       })
       const current = entries.get(clientId)?.data
       setEntry(clientId, {

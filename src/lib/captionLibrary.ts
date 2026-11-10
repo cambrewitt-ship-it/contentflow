@@ -38,11 +38,21 @@ export interface UsageCount {
   count: number
 }
 
+/**
+ * Result of reading the client's Instagram posts made outside the app from Zernio:
+ * ok | unavailable (Zernio plan has no analytics) | not_connected | failed
+ */
+export type ExternalImportStatus = 'ok' | 'unavailable' | 'not_connected' | 'failed'
+
 /** What GET /api/clients/[clientId]/caption-library returns. */
 export interface CaptionLibraryResponse extends CaptionLibrary {
-  /** @handles and #hashtags from the client's past captions, most used first. */
+  /**
+   * @handles and #hashtags from the client's past captions (calendar + Instagram posts
+   * made outside the app), most used first. Handles are also auto-saved as accounts.
+   */
   usedHandles: UsageCount[]
   usedHashtags: UsageCount[]
+  externalImport?: { status: ExternalImportStatus; postCount: number; syncedAt: string | null } | null
   setupRequired?: string
 }
 

@@ -1,17 +1,10 @@
 'use client'
 
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { AtSign, Hash, Loader2, Plus, Settings2, Sparkles } from 'lucide-react'
+import { AtSign, Hash, Loader2, Settings2, Sparkles } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import {
-  accountInsertText,
-  extractHashtags,
-  isValidHandle,
-  normalizeHandle,
-  type CaptionAccount,
-  type HashtagSet,
-} from '@/lib/captionLibrary'
+import { accountInsertText, extractHashtags, type CaptionAccount, type HashtagSet } from '@/lib/captionLibrary'
 import { caretCoordinates } from './caretPosition'
 import { CaptionLibraryDialog } from './CaptionLibraryDialog'
 import { suggestHashtags, useCaptionLibrary } from './useCaptionLibrary'
@@ -32,7 +25,6 @@ interface Props extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
 type Item =
   | { type: 'account'; key: string; account: CaptionAccount }
   | { type: 'handle'; key: string; handle: string; count: number }
-  | { type: 'save-handle'; key: string; handle: string }
   | { type: 'set'; key: string; set: HashtagSet }
   | { type: 'tag'; key: string; tag: string; note: string }
   | { type: 'ai'; key: string }
@@ -104,7 +96,6 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
   const [position, setPosition] = useState<React.CSSProperties>({})
   const [aiTags, setAiTags] = useState<string[] | null>(null)
   const [aiState, setAiState] = useState<{ loading: boolean; error: string | null }>({ loading: false, error: null })
-  const [saveError, setSaveError] = useState<string | null>(null)
   const [manageOpen, setManageOpen] = useState(false)
 
   const updateQuery = useCallback(
@@ -126,7 +117,6 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
         setActiveIndex(0)
         setQuery(next)
       }
-      setSaveError(null)
     },
     []
   )
@@ -156,11 +146,6 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
         .slice(0, Math.max(0, 8 - out.length))
         .forEach(({ h }) => out.push({ type: 'handle', key: `h:${h.value}`, handle: h.value, count: h.count }))
 
-      const typed = normalizeHandle(q)
-      const known = saved.has(typed) || out.some((i) => i.type === 'handle' && i.handle === typed)
-      if (typed.length >= 2 && isValidHandle(typed) && !known && !data?.setupRequired) {
-        out.push({ type: 'save-handle', key: `s:${typed}`, handle: typed })
-      }
     } else {
       // Tags already in the caption (apart from the one being typed) aren't suggested again
       const present = new Set(
@@ -246,18 +231,6 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
     }
   }
 
-  const saveHandle = async (handle: string) => {
-    if (!data) return
-    setSaveError(null)
-    try {
-      const account: CaptionAccount = { id: crypto.randomUUID(), name: handle, instagram: handle, facebook: null }
-      await library.save({ accounts: [...data.accounts, account], hashtagSets: data.hashtagSets })
-      replaceQuery(`@${handle}`)
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Could not save')
-    }
-  }
-
   const choose = (item: Item) => {
     switch (item.type) {
       case 'account':
@@ -271,8 +244,6 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
         const tags = item.set.tags.filter((t) => !present.has(t.toLowerCase()))
         return replaceQuery(tags.map((t) => `#${t}`).join(' ') || '')
       }
-      case 'save-handle':
-        return void saveHandle(item.handle)
       case 'ai':
         return void runAi()
       case 'manage':
@@ -373,11 +344,10 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
           ))}
           {query?.trigger === '@' && !items.some((i) => i.type === 'account' || i.type === 'handle') && (
             <p className="px-3 py-1.5 text-xs text-gray-500">
-              {query.text ? 'No saved account matches.' : 'No saved accounts yet.'} Instagram can&apos;t be searched — type
-              the exact @handle, or save it below.
+              {query.text ? 'No saved account matches.' : 'No saved accounts yet.'} Instagram can&apos;t be searched —
+              type the exact @handle. It&apos;s saved automatically once it&apos;s in a saved caption.
             </p>
           )}
-          {saveError && <p className="px-3 py-1.5 text-xs text-red-600">{saveError}</p>}
           {aiState.error && query?.trigger === '#' && (
             <p className="px-3 py-1.5 text-xs text-red-600">{aiState.error}</p>
           )}
@@ -444,15 +414,6 @@ function MenuRow({
           <AtSign className="h-4 w-4 flex-shrink-0 text-gray-400" />
           <span className="min-w-0 flex-1 truncate text-gray-900">{item.handle}</span>
           <span className="text-[10px] text-gray-400">used {item.count}×</span>
-        </button>
-      )
-    case 'save-handle':
-      return (
-        <button {...props} className={cn(base, 'text-blue-700')}>
-          <Plus className="h-4 w-4 flex-shrink-0" />
-          <span className="min-w-0 flex-1 truncate">
-            Save <span className="font-medium">@{item.handle}</span> and insert
-          </span>
         </button>
       )
     case 'set':
