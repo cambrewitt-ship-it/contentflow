@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import logger from '@/lib/logger'
 import { completionParams } from '@/lib/openaiParams'
 import { median } from './insights'
+import { getAudienceSummary } from '@/lib/comments/store'
 import { refreshSnapshot } from './store'
 import { fetchDashboardRange, ZernioAnalyticsError } from './zernio'
 import type { AnalyticsDashboard, AnalyticsPost } from './types'
@@ -99,6 +100,7 @@ async function writeSummary(
       caption: p.content.slice(0, 160),
     })),
     planned_focus_from_analytics: plans,
+    comments: d.audience ?? null,
   }
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -206,6 +208,10 @@ export async function generateReport(
     topPosts: [...posts]
       .sort((a, b) => b.metrics.engagement - a.metrics.engagement || b.metrics.reach - a.metrics.reach)
       .slice(0, 5),
+  }
+  const audience = await getAudienceSummary(admin, clientId, 0, { from: `${start}T00:00:00Z`, to: `${end}T23:59:59Z` }).catch(() => null)
+  if (audience && audience.total > 0) {
+    base.audience = { total: audience.total, positive: audience.positive, negative: audience.negative, questions: audience.questions.slice(0, 5) }
   }
   const plans = snapshot === 'missing_table' ? [] : snapshot.recommendations.map((r) => `${r.title}: ${r.detail}`)
   const data: ReportData = { ...base, summary: await writeSummary(base, plans), generatedAt: new Date().toISOString() }

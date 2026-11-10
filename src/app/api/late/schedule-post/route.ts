@@ -189,7 +189,22 @@ export async function POST(request: NextRequest) {
     // Log what we're sending to LATE
     // Facebook can't tag through the API, so saved @instagramhandles read as the
     // account's Facebook name there (customContent is Zernio's per-platform caption).
-    const platformsWithCaptions = await withFacebookCaptions(supabase, clientId, finalContent, platforms);
+    const platformsWithFbCaptions = await withFacebookCaptions(supabase, clientId, finalContent, platforms);
+
+    // "First comment" (usually the link): Zernio posts it on Facebook right after
+    // publishing; on Instagram the Feed Checker posts it once the post is live.
+    // Missing column (migration 036 not run) just means no first comment.
+    const { data: firstCommentRow } = await supabase
+      .from('calendar_scheduled_posts')
+      .select('first_comment')
+      .eq('id', postId)
+      .maybeSingle();
+    const firstComment = typeof firstCommentRow?.first_comment === 'string' ? firstCommentRow.first_comment.trim() : '';
+    const platformsWithCaptions = firstComment
+      ? platformsWithFbCaptions.map((p) =>
+          String(p.platform).toLowerCase() === 'facebook' ? { ...p, platformSpecificData: { firstComment } } : p
+        )
+      : platformsWithFbCaptions;
 
     const requestBody = {
       content: finalContent,

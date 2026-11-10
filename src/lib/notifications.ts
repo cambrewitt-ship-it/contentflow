@@ -9,7 +9,9 @@ export type NotificationType =
   | 'drive_sync_new_creative'
   | 'drive_sync_failed'
   | 'analytics_insights'
-  | 'monthly_report_ready';
+  | 'monthly_report_ready'
+  | 'feed_check_issues'
+  | 'comments_need_attention';
 
 export interface CreateNotificationParams {
   userId: string;

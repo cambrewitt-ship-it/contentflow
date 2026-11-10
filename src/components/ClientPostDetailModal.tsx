@@ -37,6 +37,8 @@ import {
 } from "@/components/comments";
 import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea';
 import { PostResults } from "@/components/analytics/PostResults";
+import { PostComments } from "@/components/social-comments/PostComments";
+import { FirstCommentField } from "@/components/social-comments/FirstCommentField";
 
 interface ApprovalStep {
   id: string;
@@ -680,8 +682,14 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
 
               {/* Results once it's been published */}
               {clientId && post.late_post_id && isPastPost(post) && (
-                <PostResults clientId={clientId} latePostId={post.late_post_id} />
+                <>
+                  <PostResults clientId={clientId} latePostId={post.late_post_id} />
+                  <PostComments clientId={clientId} latePostId={post.late_post_id} />
+                </>
               )}
+
+              {/* First comment (e.g. the link for "link in comments" posts) */}
+              {clientId && <FirstCommentField clientId={clientId} postId={post.id} />}
 
               {/* Caption */}
               <div>

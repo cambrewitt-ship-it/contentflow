@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
+import { rejectUnauthorizedCron } from '@/lib/cronAuth';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { createNotification } from '@/lib/notifications';
 import { generateRecommendations, refreshSnapshot } from '@/lib/analytics/store';
@@ -19,11 +20,8 @@ const TIME_BUDGET_MS = 270_000;
 const CONCURRENCY = 3;
 
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (process.env.NODE_ENV === 'production' && cronSecret && req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
-    logger.warn('Unauthorized weekly insights cron attempt');
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const rejected = rejectUnauthorizedCron(req, 'weekly-insights');
+  if (rejected) return rejected;
 
   const started = Date.now();
   const admin = createSupabaseAdmin();

@@ -28,6 +28,8 @@ export interface ReportData {
   byPlatform: Array<{ platform: string; posts: number; engagement: number }>
   byFormat: Array<{ format: string; posts: number; medianEngagementRate: number }>
   topPosts: AnalyticsPost[]
+  /** What people said in the comments this month (when comments are synced) */
+  audience?: { total: number; positive: number; negative: number; questions: string[] } | null
   summary: ReportSummary
   generatedAt: string
 }

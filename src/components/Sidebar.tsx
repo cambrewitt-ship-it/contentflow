@@ -21,6 +21,8 @@ import {
   Calendar,
   Images,
   BarChart3,
+  MessagesSquare,
+  ShieldCheck,
   Bot,
   PenSquare,
   Link2,
@@ -342,6 +344,18 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
                 href: `/dashboard/client/${clientIdFromPath}/analytics`,
                 icon: BarChart3,
                 active: !!pathname?.includes("/analytics"),
+              },
+              {
+                name: "Comments",
+                href: `/dashboard/client/${clientIdFromPath}/comments`,
+                icon: MessagesSquare,
+                active: !!pathname?.includes("/comments"),
+              },
+              {
+                name: "Feed Checker",
+                href: `/dashboard/client/${clientIdFromPath}/feed-checker`,
+                icon: ShieldCheck,
+                active: !!pathname?.includes("/feed-checker"),
               },
               {
                 name: "Media Gallery",

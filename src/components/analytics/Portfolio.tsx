@@ -113,6 +113,8 @@ function attentionHref(clientId: string, text: string): string {
     return `/dashboard/client/${clientId}/autopilot?brief=${encodeURIComponent(brief)}`
   }
   if (text.startsWith('Engagement down') || text.startsWith('Posting slowed')) return `/dashboard/client/${clientId}/analytics`
+  if (text.includes('Feed Checker')) return `/dashboard/client/${clientId}/feed-checker`
+  if (text.includes('waiting for a reply')) return `/dashboard/client/${clientId}/comments`
   return `/dashboard/client/${clientId}/calendar`
 }
 

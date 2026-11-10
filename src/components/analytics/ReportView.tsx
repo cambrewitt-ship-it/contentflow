@@ -154,6 +154,26 @@ export function ReportView({ report, actions }: { report: ReportData; actions?: 
         </section>
       )}
 
+      {report.audience && report.audience.total > 0 && (
+        <section className="break-inside-avoid">
+          <h3 className="mb-2 font-semibold">What people said</h3>
+          <p className="text-gray-700">
+            {report.audience.total.toLocaleString()} comments this month — {report.audience.positive.toLocaleString()} positive
+            {report.audience.negative ? `, ${report.audience.negative.toLocaleString()} negative` : ''}.
+          </p>
+          {report.audience.questions.length > 0 && (
+            <>
+              <p className="mt-2 text-sm text-gray-500">Questions people asked:</p>
+              <ul className="mt-1 space-y-1">
+                {report.audience.questions.map((q) => (
+                  <li key={q} className="text-sm italic text-gray-700">&ldquo;{q}&rdquo;</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
+
       {report.byPlatform.length > 0 && (
         <section className="break-inside-avoid">
           <h3 className="mb-2 font-semibold">By platform</h3>

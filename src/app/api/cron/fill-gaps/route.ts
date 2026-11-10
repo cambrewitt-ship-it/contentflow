@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
+import { rejectUnauthorizedCron } from '@/lib/cronAuth';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { fillGapsForClient } from '@/lib/autopilot-gapfill';
 
@@ -19,11 +20,8 @@ const TIME_BUDGET_MS = 200_000;
 const CONCURRENCY = 2;
 
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (process.env.NODE_ENV === 'production' && cronSecret && req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
-    logger.warn('Unauthorized fill-gaps cron attempt');
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const rejected = rejectUnauthorizedCron(req, 'fill-gaps');
+  if (rejected) return rejected;
 
   const started = Date.now();
   const admin = createSupabaseAdmin();

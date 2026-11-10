@@ -1,0 +1,19 @@
+name: Feed Checker
+
+on:
+  schedule:
+    # Three times a day across NZ business hours (UTC): 7:23am, 12:23pm, 5:23pm NZDT
+    - cron: '23 18 * * *'
+    - cron: '23 23 * * *'
+    - cron: '23 4 * * *'
+  workflow_dispatch:       # Allow manual trigger
+
+jobs:
+  feed-checker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check feeds, moderate comments, refresh inboxes
+        run: |
+          curl -f -X GET "${{ secrets.APP_URL }}/api/cron/feed-checker" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

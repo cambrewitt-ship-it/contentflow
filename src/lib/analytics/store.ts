@@ -6,6 +6,7 @@ import { createSupabaseAdmin } from '@/lib/supabaseServer'
 import { completionParams } from '@/lib/openaiParams'
 import { computeInsights, formatPerformancePrompt, localiseSlots, slotLabel } from './insights'
 import { fetchBestTimes, fetchDashboard, fetchPublishedPosts, ZernioAnalyticsError } from './zernio'
+import { formatAudiencePrompt, getAudienceSummary } from '@/lib/comments/store'
 import type { AnalyticsPost, AnalyticsStatus, BestTimeSlot, PerformanceInsights, Recommendation } from './types'
 
 // Per-client analytics snapshot (table client_analytics, migration 034): the posts'
@@ -169,10 +170,12 @@ export async function getPerformancePrompt(clientId: string): Promise<string> {
     const snapshot = await readSnapshot(admin, clientId)
     if (!snapshot || snapshot === 'missing_table') {
       if (snapshot === null) runAfterResponse(() => refreshSnapshot(createSupabaseAdmin(), clientId))
-      return ''
+      return formatAudiencePrompt(await getAudienceSummary(admin, clientId).catch(() => null))
     }
     if (isStale(snapshot.syncedAt)) runAfterResponse(() => refreshSnapshot(createSupabaseAdmin(), clientId))
-    return formatPerformancePrompt(snapshot.insights)
+    // What the audience asks and says in comments: questions make good post ideas
+    const audience = formatAudiencePrompt(await getAudienceSummary(admin, clientId).catch(() => null))
+    return [formatPerformancePrompt(snapshot.insights), audience].filter(Boolean).join('\n\n')
   } catch (err) {
     logger.error('Performance prompt failed:', err)
     return ''
@@ -228,6 +231,8 @@ export async function generateRecommendations(
     previous_30_days: i.trend.previous,
     top_posts: i.topPosts.map((p) => ({ format: p.format, er: p.metrics.engagementRate, caption: p.content.slice(0, 300) })),
     weak_posts: i.weakPosts.map((p) => ({ format: p.format, er: p.metrics.engagementRate, caption: p.content.slice(0, 200) })),
+    // Questions and complaints in comments: answering them makes good content
+    audience_comments_last_30_days: await getAudienceSummary(admin, clientId).catch(() => null),
   }
 
   try {

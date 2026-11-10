@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     const today = new Date();
     const in7 = new Date(today.getTime() + 7 * 86_400_000);
-    const [{ data: upcoming }, snapshots] = await Promise.all([
+    const [{ data: upcoming }, snapshots, { data: openComments }, { data: openChecks }] = await Promise.all([
       admin
         .from('calendar_scheduled_posts')
         .select('client_id, approval_status')
@@ -41,7 +41,17 @@ export async function GET(request: NextRequest) {
         .gte('scheduled_date', ymd(today))
         .lte('scheduled_date', ymd(in7)),
       Promise.all(ids.map((id) => readSnapshot(admin, id).catch(() => null))),
+      // Missing tables (migration 036 not run) just mean no counts
+      admin.from('client_comments').select('client_id').in('client_id', ids).eq('status', 'new').eq('is_own', false).limit(5000),
+      admin.from('client_feed_checks').select('client_id').in('client_id', ids).eq('status', 'open').limit(5000),
     ]);
+    const countBy = (rows: Array<{ client_id: unknown }> | null) => {
+      const m = new Map<string, number>();
+      for (const r of rows ?? []) m.set(r.client_id as string, (m.get(r.client_id as string) ?? 0) + 1);
+      return m;
+    };
+    const commentsWaiting = countBy(openComments);
+    const postIssues = countBy(openChecks);
 
     const scheduled = new Map<string, number>();
     const awaiting = new Map<string, number>();
@@ -92,6 +102,10 @@ export async function GET(request: NextRequest) {
         attention.push({ level: 'warning', text: `Posting slowed (${recent.posts} vs ${previous.posts} posts)` });
       }
       if (snapshot?.status === 'failed') attention.push({ level: 'warning', text: "Couldn't read latest results" });
+      const issues = postIssues.get(id) ?? 0;
+      if (issues) attention.push({ level: 'critical', text: `${issues} post${issues === 1 ? '' : 's'} flagged by the Feed Checker` });
+      const comments = commentsWaiting.get(id) ?? 0;
+      if (comments) attention.push({ level: 'warning', text: `${comments} comment${comments === 1 ? '' : 's'} waiting for a reply` });
 
       return {
         clientId: id,

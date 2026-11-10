@@ -1,0 +1,52 @@
+import crypto from 'crypto'
+import logger from '@/lib/logger'
+import { createWebhook, listWebhooks } from './api'
+
+// Zernio webhooks into the app (comment.received for now). The app registers its own
+// endpoint, so there's nothing to set up by hand: ensureZernioWebhook() runs from the
+// daily Feed Checker cron. The signing secret is derived from LATE_API_KEY, so no
+// extra environment variable is needed and it rotates with the key.
+
+export const WEBHOOK_PATH = '/api/late/webhook'
+export const WEBHOOK_EVENTS = ['comment.received']
+
+export function webhookSecret(): string | null {
+  const key = process.env.LATE_API_KEY
+  if (!key) return null
+  return crypto.createHmac('sha256', key).update('contentflow-zernio-webhook-v1').digest('hex')
+}
+
+export function verifyWebhookSignature(rawBody: string, signature: string | null): boolean {
+  const secret = webhookSecret()
+  if (!secret || !signature) return false
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex')
+  const a = Buffer.from(expected)
+  const b = Buffer.from(signature.trim().toLowerCase())
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
+function publicBaseUrl(): string | null {
+  const base = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL
+  if (!base || !base.startsWith('https://') || /localhost|127\.0\.0\.1/.test(base)) return null
+  // Only production registers: previews would point Zernio at short-lived URLs
+  if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') return null
+  return base.replace(/\/+$/, '')
+}
+
+/** Register the app's webhook with Zernio if it isn't there yet. Safe to call often. */
+export async function ensureZernioWebhook(): Promise<'exists' | 'created' | 'skipped'> {
+  const base = publicBaseUrl()
+  const secret = webhookSecret()
+  if (!base || !secret) return 'skipped'
+  const url = `${base}${WEBHOOK_PATH}`
+  try {
+    const hooks = await listWebhooks()
+    if (hooks.some((h) => h.url === url && h.isActive !== false)) return 'exists'
+    await createWebhook({ name: 'Content Manager comments', url, secret, events: WEBHOOK_EVENTS })
+    logger.info('Registered Zernio webhook', { url })
+    return 'created'
+  } catch (err) {
+    logger.error('Zernio webhook registration failed:', err)
+    return 'skipped'
+  }
+}

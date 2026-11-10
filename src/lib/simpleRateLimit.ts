@@ -25,6 +25,8 @@ export type RateLimitTier = keyof typeof rateLimits;
 // Route patterns
 const routePatterns: Record<string, RateLimitTier> = {
   '/api/stripe/webhook': 'webhook', // Stripe webhooks need high limits (must be before /api/stripe)
+  '/api/late/webhook': 'webhook',   // Zernio webhooks (must be before /api/late)
+  '/api/cron': 'webhook',           // Scheduled jobs
   '/api/stripe': 'authenticated',   // All other Stripe calls — per-user, high limit
   '/api/ai': 'ai',
   '/api/analyze-website-temp': 'ai',

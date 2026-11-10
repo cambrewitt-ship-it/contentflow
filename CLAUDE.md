@@ -105,3 +105,25 @@ the whole codebase (and Vercel env vars).
   `/report/[token]` + `/api/reports/[token]` (in the middleware's public lists, noindex), printable
   to PDF. Agency UI: "Monthly reports" card on the Analytics page. `/api/cron/monthly-reports` builds
   last month's for every connected client on the 1st and sends a `monthly_report_ready` notification.
+
+## Comments inbox and the Feed Checker
+
+- Zernio's Comments API (`src/lib/zernio/api.ts`) feeds `client_comments` (migrations/036-comments-and-feed-checker.sql):
+  synced per client (`src/lib/comments/sync.ts`, at most every 10 min on view + cron) and pushed in real time
+  by the `comment.received` webhook at `/api/late/webhook` (public; HMAC secret derived from `LATE_API_KEY`
+  in `src/lib/zernio/webhook.ts`; the app registers the webhook itself from the Feed Checker cron, production only).
+- `src/lib/comments/store.ts`: AI triage (sentiment, category, reply + private-reply drafts in the brand's voice),
+  actions (reply, private DM, hide/unhide, like/unlike, delete, done), `autoModerate` (Feed Checker settings), and the
+  audience summary that `getPerformancePrompt` adds to every AI prompt ("questions people keep asking").
+  UI: `/dashboard/client/[clientId]/comments` (`src/components/social-comments/`), comments in the calendar post modal,
+  keyword auto-DMs (Zernio comment automations), counts in the dashboard "Needs attention".
+- Feed Checker (`src/lib/feedChecker/check.ts`, `/dashboard/client/[clientId]/feed-checker`, settings in
+  `clients.feed_agent_settings`): checks recent Facebook/Instagram posts and the next 7 days of calendar posts for
+  spelling/grammar/tone of voice and "link in comments" with no link; posts pending "first comments"
+  (`calendar_scheduled_posts.first_comment`: Zernio's `firstComment` on Facebook at scheduling, the checker on
+  Instagram); hides spam/abuse or all negative comments and likes positive ones (❤️ reply fallback where likes
+  aren't allowed — Meta's API has no "love" reaction and Instagram comment likes are restricted). Facebook captions
+  the app published can be fixed in place (`POST /v1/posts/{id}/edit`); Instagram captions can't be edited.
+  `/api/cron/feed-checker` runs 3×/day.
+- Cron routes are public at the middleware (`/api/cron/`) and guarded by `rejectUnauthorizedCron`
+  (`src/lib/cronAuth.ts`): production requires `CRON_SECRET`.
