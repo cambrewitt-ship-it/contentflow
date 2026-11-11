@@ -21,3 +21,11 @@ export const montserrat = localFont({
   variable: "--font-montserrat",
   display: "swap",
 });
+
+// Geist Sans — the app's UI typeface (variable font, SIL OFL 1.1, from the `geist` package)
+export const geist = localFont({
+  src: "./geist-variable.woff2",
+  weight: "100 900",
+  variable: "--font-geist-sans",
+  display: "swap",
+});

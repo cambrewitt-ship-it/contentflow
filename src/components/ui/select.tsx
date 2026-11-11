@@ -61,7 +61,7 @@ export function SelectTrigger({ className, children }: SelectTriggerProps) {
       type="button"
       onClick={() => setOpen(!open)}
       className={cn(
-        'flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+        'flex h-9 w-full items-center justify-between rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground shadow-xs ring-offset-background transition-[border-color,box-shadow] duration-150 hover:border-gray-300 focus:outline-none focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-50',
         className
       )}
     >
@@ -114,7 +114,7 @@ export function SelectContent({ className, children }: SelectContentProps) {
   return (
     <div
       className={cn(
-        'absolute z-50 mt-1 w-full min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md',
+        'glass-strong absolute z-50 mt-1 w-full min-w-[8rem] overflow-hidden rounded-lg text-popover-foreground animate-in fade-in-0 zoom-in-95 duration-100',
         className
       )}
       onClick={e => e.stopPropagation()}
@@ -144,8 +144,8 @@ export function SelectItem({ value: itemValue, className, children }: SelectItem
         setOpen(false);
       }}
       className={cn(
-        'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground',
-        isSelected && 'bg-accent font-medium',
+        'relative flex w-full cursor-pointer select-none items-center rounded-md py-1.5 pl-2 pr-8 text-sm text-left outline-none transition-colors hover:bg-blue-100/70 hover:text-accent-foreground focus:bg-blue-100/70 focus:text-accent-foreground',
+        isSelected && 'bg-accent font-medium text-blue-700',
         className
       )}
     >
@@ -161,9 +161,9 @@ export function SelectGroup({ children }: { children: React.ReactNode }) {
 }
 
 export function SelectLabel({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('py-1.5 pl-2 pr-8 text-xs font-semibold', className)}>{children}</div>;
+  return <div className={cn('py-1.5 pl-2 pr-8 text-xs font-medium text-muted-foreground', className)}>{children}</div>;
 }
 
 export function SelectSeparator({ className }: { className?: string }) {
-  return <div className={cn('-mx-1 my-1 h-px bg-muted', className)} />;
+  return <div className={cn('-mx-1 my-1 h-px bg-border/80', className)} />;
 }

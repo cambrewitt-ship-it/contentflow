@@ -4,10 +4,94 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ════════════════════════════════════════════════════════════════════════
+   Content Manager design system — global tokens
+   Palette: background #F6F9FD · primary #356DF3 · cyan #40C5ED · navy #172B4D
+            light blue #EAF4FF · surfaces #FFFFFF · borders #E5EAF2
+            muted text #64748B · main text #172B4D
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Palette, shadows and type scale (become Tailwind utilities).
+   The gray and blue scales are re-tuned to the brand so existing
+   text-gray-* / bg-blue-* classes across the app pick up the new look. */
+@theme {
+  /* Cool, navy-tinted neutrals — gray-200 = border, gray-500 = muted, gray-900 = main text */
+  --color-gray-50: #f7f9fc;
+  --color-gray-100: #eff3f8;
+  --color-gray-200: #e5eaf2;
+  --color-gray-300: #d2dae6;
+  --color-gray-400: #97a3b6;
+  --color-gray-500: #64748b;
+  --color-gray-600: #4d5b74;
+  --color-gray-700: #36445e;
+  --color-gray-800: #233353;
+  --color-gray-900: #172b4d;
+  --color-gray-950: #0e1b33;
+
+  /* Brand blue — blue-600 is the primary #356DF3 */
+  --color-blue-50: #f2f7ff;
+  --color-blue-100: #eaf4ff;
+  --color-blue-200: #cfe0fe;
+  --color-blue-300: #a8c4fb;
+  --color-blue-400: #739ff8;
+  --color-blue-500: #4c80f5;
+  --color-blue-600: #356df3;
+  --color-blue-700: #2858d8;
+  --color-blue-800: #2347ad;
+  --color-blue-900: #213d86;
+  --color-blue-950: #172750;
+
+  /* Named brand colours */
+  --color-brand: #356df3;
+  --color-brand-cyan: #40c5ed;
+  --color-brand-violet: #7c5cfa;
+  --color-navy: #172b4d;
+  --color-light-blue: #eaf4ff;
+  --color-surface: #ffffff;
+  --color-canvas: #f6f9fd;
+
+  /* Soft, layered shadows tinted with the navy text colour */
+  --shadow-2xs: 0 1px 0 rgb(23 43 77 / 0.03);
+  --shadow-xs: 0 1px 2px rgb(23 43 77 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(23 43 77 / 0.04), 0 1px 3px rgb(23 43 77 / 0.06);
+  --shadow-md: 0 1px 2px rgb(23 43 77 / 0.04), 0 4px 12px -2px rgb(23 43 77 / 0.08);
+  --shadow-lg: 0 2px 4px rgb(23 43 77 / 0.04), 0 12px 24px -6px rgb(23 43 77 / 0.10);
+  --shadow-xl: 0 4px 8px rgb(23 43 77 / 0.04), 0 20px 40px -12px rgb(23 43 77 / 0.14);
+  --shadow-2xl: 0 8px 16px rgb(23 43 77 / 0.05), 0 32px 64px -16px rgb(23 43 77 / 0.20);
+  --shadow-card: 0 1px 2px rgb(23 43 77 / 0.04), 0 2px 8px -2px rgb(23 43 77 / 0.06);
+  --shadow-card-hover: 0 2px 4px rgb(23 43 77 / 0.04), 0 10px 24px -8px rgb(23 43 77 / 0.12);
+  --shadow-popover: 0 0 0 1px rgb(23 43 77 / 0.04), 0 4px 8px -2px rgb(23 43 77 / 0.06), 0 16px 40px -8px rgb(23 43 77 / 0.16);
+  --shadow-button: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 1px 2px rgb(23 43 77 / 0.14);
+
+  /* Type hierarchy — text-page-title, text-section-title, text-card-title, text-body, text-caption */
+  --text-page-title: 1.625rem;               /* 26px */
+  --text-page-title--line-height: 2rem;
+  --text-page-title--letter-spacing: -0.022em;
+  --text-page-title--font-weight: 600;
+  --text-section-title: 1.0625rem;           /* 17px */
+  --text-section-title--line-height: 1.5rem;
+  --text-section-title--letter-spacing: -0.012em;
+  --text-section-title--font-weight: 600;
+  --text-card-title: 0.9375rem;              /* 15px */
+  --text-card-title--line-height: 1.375rem;
+  --text-card-title--letter-spacing: -0.01em;
+  --text-card-title--font-weight: 600;
+  --text-body: 0.875rem;                     /* 14px */
+  --text-body--line-height: 1.375rem;
+  --text-body-sm: 0.8125rem;                 /* 13px */
+  --text-body-sm--line-height: 1.25rem;
+  --text-caption: 0.75rem;                   /* 12px */
+  --text-caption--line-height: 1rem;
+  --text-micro: 0.6875rem;                   /* 11px */
+  --text-micro--line-height: 0.875rem;
+
+  --ease-smooth: cubic-bezier(0.2, 0, 0, 1);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: 'Poppins', 'Inter', 'SF Pro Display', 'Aptos', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif;
+  --font-sans: var(--font-ui);
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -38,94 +122,174 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: calc(var(--radius) - 4px);   /* 8px  */
+  --radius-md: calc(var(--radius) - 2px);   /* 10px */
+  --radius-lg: var(--radius);               /* 12px */
+  --radius-xl: calc(var(--radius) + 4px);   /* 16px */
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: linear-gradient(135deg, #ffffff 0%, #f8fafc 25%, #e0f2fe 50%, #bae6fd 75%, #7dd3fc 100%);
-  --foreground: #374151;
+  /* Typeface: Geist Sans (self-hosted, see src/app/fonts) */
+  --font-ui: var(--font-geist-sans), 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'Helvetica Neue', system-ui, sans-serif;
+
+  --radius: 0.75rem;
+
+  /* Core palette */
+  --background: #f6f9fd;
+  --foreground: #172b4d;
   --card: #ffffff;
-  --card-foreground: #374151;
+  --card-foreground: #172b4d;
   --popover: #ffffff;
-  --popover-foreground: #374151;
-  --primary: #2563eb;
+  --popover-foreground: #172b4d;
+  --primary: #356df3;
+  --primary-hover: #2c62e6;
+  --primary-active: #2858d8;
   --primary-foreground: #ffffff;
-  --secondary: #f8fafc;
-  --secondary-foreground: #374151;
-  --muted: #f1f5f9;
+  --secondary: #eff3f8;
+  --secondary-foreground: #172b4d;
+  --muted: #f1f5fa;
   --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #374151;
-  --destructive: #ef4444;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #2563eb;
-  --chart-1: #3b82f6;
-  --chart-2: #1d4ed8;
-  --chart-3: #1e40af;
-  --chart-4: #1e3a8a;
-  --chart-5: #1e293b;
-  --sidebar: #f8fafc;
-  --sidebar-foreground: #374151;
-  --sidebar-primary: #2563eb;
+  --accent: #eaf4ff;
+  --accent-foreground: #172b4d;
+  --destructive: #e5484d;
+  --border: #e5eaf2;
+  --input: #dde4ee;
+  --ring: #356df3;
+  --chart-1: #356df3;
+  --chart-2: #40c5ed;
+  --chart-3: #7c5cfa;
+  --chart-4: #172b4d;
+  --chart-5: #97a3b6;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #172b4d;
+  --sidebar-primary: #356df3;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f1f5f9;
-  --sidebar-accent-foreground: #374151;
-  --sidebar-border: #e2e8f0;
-  --sidebar-ring: #2563eb;
+  --sidebar-accent: #eaf4ff;
+  --sidebar-accent-foreground: #172b4d;
+  --sidebar-border: #e5eaf2;
+  --sidebar-ring: #356df3;
+
+  /* Atmospheric page background: pale blue, white and a breath of cyan */
+  --app-gradient:
+    radial-gradient(1100px 620px at 8% -8%, rgb(234 244 255 / 0.95), transparent 62%),
+    radial-gradient(900px 520px at 96% 4%, rgb(64 197 237 / 0.09), transparent 60%),
+    radial-gradient(1000px 700px at 60% 112%, rgb(53 109 243 / 0.06), transparent 62%),
+    linear-gradient(180deg, #f9fbfe 0%, #f6f9fd 45%, #f3f8fd 100%);
+
+  /* Brand gradients — AI gradient is for important AI actions only */
+  --gradient-brand: linear-gradient(135deg, #356df3 0%, #40c5ed 100%);
+  --gradient-ai: linear-gradient(135deg, #356df3 0%, #6366f1 55%, #7c5cfa 100%);
+  --gradient-ai-hover: linear-gradient(135deg, #2c62e6 0%, #575ae8 55%, #6f4ff0 100%);
+
+  /* Glass (floating elements only) */
+  --glass-bg: rgb(255 255 255 / 0.78);
+  --glass-bg-strong: rgb(255 255 255 / 0.9);
+  --glass-border: rgb(229 234 242 / 0.85);
+  --glass-blur: 18px;
+
+  /* Spacing rhythm (4px base) for custom CSS */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
 }
 
 .dark {
-  --background: #0f172a;
-  --foreground: #f8fafc;
-  --card: #1e293b;
-  --card-foreground: #f8fafc;
-  --popover: #1e293b;
-  --popover-foreground: #f8fafc;
-  --primary: #3b82f6;
+  --background: #0e1b33;
+  --foreground: #f1f5fa;
+  --card: #172b4d;
+  --card-foreground: #f1f5fa;
+  --popover: #172b4d;
+  --popover-foreground: #f1f5fa;
+  --primary: #4c80f5;
+  --primary-hover: #5b8bf6;
+  --primary-active: #356df3;
   --primary-foreground: #ffffff;
-  --secondary: #1e293b;
-  --secondary-foreground: #f8fafc;
-  --muted: #334155;
-  --muted-foreground: #94a3b8;
-  --accent: #334155;
-  --accent-foreground: #f8fafc;
-  --destructive: #ef4444;
-  --border: #334155;
-  --input: #334155;
-  --ring: #3b82f6;
-  --chart-1: #3b82f6;
-  --chart-2: #1d4ed8;
-  --chart-3: #1e40af;
-  --chart-4: #1e3a8a;
-  --chart-5: #1e293b;
-  --sidebar: #1e293b;
-  --sidebar-foreground: #f8fafc;
-  --sidebar-primary: #3b82f6;
+  --secondary: #233353;
+  --secondary-foreground: #f1f5fa;
+  --muted: #233353;
+  --muted-foreground: #97a3b6;
+  --accent: #233353;
+  --accent-foreground: #f1f5fa;
+  --destructive: #e5484d;
+  --border: #2b3d5e;
+  --input: #2b3d5e;
+  --ring: #4c80f5;
+  --chart-1: #4c80f5;
+  --chart-2: #40c5ed;
+  --chart-3: #7c5cfa;
+  --chart-4: #f1f5fa;
+  --chart-5: #97a3b6;
+  --sidebar: #172b4d;
+  --sidebar-foreground: #f1f5fa;
+  --sidebar-primary: #4c80f5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #334155;
-  --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: #334155;
-  --sidebar-ring: #3b82f6;
+  --sidebar-accent: #233353;
+  --sidebar-accent-foreground: #f1f5fa;
+  --sidebar-border: #2b3d5e;
+  --sidebar-ring: #4c80f5;
+}
+
+/* ── Reusable surface utilities ─────────────────────────────────────── */
+
+/* Solid white card surface: fine border, soft layered shadow */
+@utility surface-card {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+}
+
+/* Glass — for floating elements: dropdowns, popovers, overlays, contextual panels */
+@utility glass {
+  background-color: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  box-shadow: var(--shadow-popover);
+}
+@utility glass-strong {
+  background-color: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+  backdrop-filter: blur(24px) saturate(170%);
+  box-shadow: var(--shadow-popover);
+}
+
+/* Brand gradients */
+@utility bg-gradient-ai {
+  background-image: var(--gradient-ai);
+}
+@utility bg-gradient-brand {
+  background-image: var(--gradient-brand);
+}
+@utility text-gradient-ai {
+  background-image: var(--gradient-ai);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    font-family: 'Poppins', 'Inter', 'SF Pro Display', 'Aptos', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif !important;
+    font-family: var(--font-ui) !important;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
   body {
-    @apply bg-background text-foreground font-sans;
-    background-attachment: fixed !important;
+    @apply text-foreground font-sans;
+    /* The atmospheric gradient lives on <html>; body stays see-through */
+    background-color: transparent;
     min-height: 100vh !important;
-    font-family: 'Poppins', 'Inter', 'SF Pro Display', 'Aptos', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif !important;
+    font-family: var(--font-ui) !important;
+    font-size: 0.875rem;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -138,15 +302,22 @@
     font-family: var(--font-preview) !important;
   }
   html {
-    background: var(--background);
+    background-color: var(--background);
+    background-image: var(--app-gradient);
     background-attachment: fixed !important;
     min-height: 100vh !important;
-    font-family: 'Poppins', 'Inter', 'SF Pro Display', 'Aptos', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif !important;
+    color: var(--foreground);
+    font-family: var(--font-ui) !important;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    scrollbar-color: #cdd6e3 transparent;
   }
-  
+
+  ::selection {
+    background-color: rgb(53 109 243 / 0.18);
+  }
+
   /* Smooth typography utilities */
   .text-smooth {
     -webkit-font-smoothing: antialiased;
@@ -156,8 +327,8 @@
     font-kerning: normal;
     font-variant-ligatures: common-ligatures;
   }
-  
-  /* Enhanced font smoothing for headings */
+
+  /* Headings: navy, tight tracking */
   h1, h2, h3, h4, h5, h6 {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -166,8 +337,9 @@
     font-kerning: normal;
     font-variant-ligatures: common-ligatures;
     font-weight: 600;
+    letter-spacing: -0.015em;
   }
-  
+
   /* Smooth text for body content */
   p, span, div, a, button, input, textarea, label {
     -webkit-font-smoothing: antialiased;
@@ -177,7 +349,7 @@
     font-kerning: normal;
     font-variant-ligatures: common-ligatures;
   }
-  
+
   /* Hide scrollbar utility */
   .scrollbar-hide {
     -ms-overflow-style: none;
@@ -186,6 +358,33 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Subtle, thin scrollbars everywhere else */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: #d2dae6;
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #97a3b6;
+  }
+}
+
+/* Full-page shells that use bg-background stay see-through so the
+   atmospheric gradient on <html> shows behind every page. */
+.min-h-screen.bg-background,
+.h-dvh.bg-background,
+.h-screen.bg-background,
+.h-full.bg-background {
+  background-color: transparent;
 }
 
 /* Column calendar scroll container — always-visible scrollbar */
@@ -194,15 +393,16 @@
   width: 8px;
 }
 .calendar-hscroll::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 4px;
+  background: #eff3f8;
+  border-radius: 999px;
 }
 .calendar-hscroll::-webkit-scrollbar-thumb {
-  background: #94a3b8;
-  border-radius: 4px;
+  background: #c3cddc;
+  border: 0;
+  border-radius: 999px;
 }
 .calendar-hscroll::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: #97a3b6;
 }
 
 
@@ -234,9 +434,9 @@
     from var(--prompt-glow-angle),
     transparent 0deg,
     transparent 220deg,
-    #60a5fa 275deg,
-    #818cf8 305deg,
-    #c4b5fd 340deg,
+    #40c5ed 265deg,
+    #356df3 300deg,
+    #7c5cfa 340deg,
     transparent 360deg
   );
 }
@@ -286,7 +486,7 @@
 
 /* ── AI thinking indicator ───────────────────────────────────────── */
 .thinking-shimmer {
-  background: linear-gradient(90deg, #9ca3af 0%, #9ca3af 35%, #2563eb 50%, #9ca3af 65%, #9ca3af 100%);
+  background: linear-gradient(90deg, #97a3b6 0%, #97a3b6 35%, #356df3 50%, #97a3b6 65%, #97a3b6 100%);
   background-size: 250% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -312,7 +512,7 @@
   .thinking-shimmer,
   .thinking-step-in {
     animation: none;
-    color: #6b7280;
+    color: #64748b;
   }
 }
 

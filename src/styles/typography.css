@@ -1,140 +1,143 @@
 /* Enhanced Typography Styles for Smoother Text Rendering */
+/* Element-level defaults live in the base layer so Tailwind utilities
+   (font-semibold, leading-*, tracking-*) on individual elements win. */
+@layer base {
 
-/* Poppins font optimizations */
-* {
-  font-family: 'Poppins', 'Inter', 'SF Pro Display', 'Aptos', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif;
-}
-
-/* Font smoothing and rendering optimizations */
-* {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1, 'pnum' 1, 'tnum' 0, 'onum' 1, 'lnum' 0, 'zero' 0;
-  font-kerning: normal;
-  font-variant-ligatures: common-ligatures;
-  font-variant-numeric: oldstyle-nums;
-}
-
-/* Enhanced heading typography with Poppins optimizations */
-h1, h2, h3, h4, h5, h6 {
-  font-family: 'Poppins', sans-serif;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.3;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
-  font-kerning: normal;
-  font-variant-ligatures: common-ligatures;
-}
-
-/* Smooth body text with Poppins optimizations */
-p, span, div, a, button, input, textarea, label, li {
-  font-family: 'Poppins', sans-serif;
-  font-weight: 400;
-  letter-spacing: 0;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
-  font-kerning: normal;
-  font-variant-ligatures: common-ligatures;
-}
-
-/* Enhanced button typography */
-button {
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-
-/* Smooth input and form elements */
-input, textarea, select {
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-
-/* Card and container text */
-.card, .bg-white, .bg-card {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-
-/* Small text improvements */
-.text-xs, .text-sm {
-  letter-spacing: 0.025em;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-
-/* Medium text improvements */
-.text-base, .text-lg {
-  letter-spacing: -0.01em;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-
-/* Large text improvements */
-.text-xl, .text-2xl, .text-3xl {
-  letter-spacing: -0.025em;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-
-/* Utility classes for smooth typography */
-.text-smooth {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
-  font-kerning: normal;
-  font-variant-ligatures: common-ligatures;
-}
-
-.text-ultra-smooth {
-  -webkit-font-smoothing: subpixel-antialiased;
-  -moz-osx-font-smoothing: auto;
-  text-rendering: geometricPrecision;
-  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1, 'pnum' 1, 'tnum' 0, 'onum' 1, 'lnum' 0, 'zero' 0;
-  font-kerning: normal;
-  font-variant-ligatures: common-ligatures;
-  font-variant-numeric: oldstyle-nums;
-}
-
-/* Dark mode typography adjustments */
-.dark * {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-
-/* High DPI display optimizations */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  /* UI typeface: Geist Sans (--font-ui is defined in globals.css) */
   * {
+    font-family: var(--font-ui);
+  }
+
+  /* Font smoothing and rendering optimizations */
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+    font-kerning: normal;
+    font-variant-ligatures: common-ligatures;
+  }
+
+  /* Heading typography */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.3;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+    font-kerning: normal;
+    font-variant-ligatures: common-ligatures;
+  }
+
+  /* Body text */
+  p, span, div, a, button, input, textarea, label, li {
+    font-family: var(--font-ui);
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+    font-kerning: normal;
+    font-variant-ligatures: common-ligatures;
+  }
+
+  /* Enhanced button typography */
+  button {
+    font-weight: 500;
+    letter-spacing: -0.006em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
-}
 
-/* Print typography */
-@media print {
-  * {
+  /* Smooth input and form elements */
+  input, textarea, select {
+    font-weight: 400;
+    letter-spacing: -0.01em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+  }
+
+  /* Card and container text */
+  .card, .bg-white, .bg-card {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Small text improvements */
+  .text-xs, .text-sm {
+    letter-spacing: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Medium text improvements */
+  .text-base, .text-lg {
+    letter-spacing: -0.008em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Large text improvements */
+  .text-xl, .text-2xl, .text-3xl {
+    letter-spacing: -0.02em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Utility classes for smooth typography */
+  .text-smooth {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+    font-kerning: normal;
+    font-variant-ligatures: common-ligatures;
+  }
+
+  .text-ultra-smooth {
+    -webkit-font-smoothing: subpixel-antialiased;
+    -moz-osx-font-smoothing: auto;
+    text-rendering: geometricPrecision;
+    font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1, 'pnum' 1, 'tnum' 0, 'onum' 1, 'lnum' 0, 'zero' 0;
+    font-kerning: normal;
+    font-variant-ligatures: common-ligatures;
+    font-variant-numeric: oldstyle-nums;
+  }
+
+  /* Dark mode typography adjustments */
+  .dark * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* High DPI display optimizations */
+  @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    * {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+  }
+
+  /* Print typography */
+  @media print {
+    * {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
   }
 }
 
