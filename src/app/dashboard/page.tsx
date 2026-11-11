@@ -1,27 +1,30 @@
 "use client";
-import { User, Plus, Calendar, CalendarCheck, Clock, Activity, Users, Building2, AlertTriangle, Loader2 } from "lucide-react";
+import { User, Plus, CalendarCheck, CalendarDays, Clock, Users, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { isSingleClientTier } from "../../lib/tierUtils";
 import OnboardingChecklist from "../../components/OnboardingChecklist";
-import { AttentionSummary, usePortfolio } from "../../components/analytics/Portfolio";
+import { usePortfolio } from "../../components/analytics/Portfolio";
 import {
-  BrandCard,
-  BrandHero,
-  BrandPerformancePanel,
-  CreateContentButton,
-  MetricGrid,
-  PortfolioPerformancePanel,
-  QuickActions,
-  WeekAheadPanel,
-  type Metric,
-} from "../../components/home/HomeDashboard";
+  attentionItems,
+  AttentionBanner,
+  ClientCard,
+  ContentSuitePromo,
+  CreateContentAction,
+  formatCompact,
+  KpiColumn,
+  SectionCard,
+  StatCard,
+  Timeline,
+  WelcomeHeader,
+  type TimelineItem,
+} from "../../components/home/DashboardOverview";
+import ClientDashboard from "./client/[clientId]/page";
 
-const compactNumber = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
 
 interface Client {
   id: string;
@@ -347,6 +350,52 @@ export default function Dashboard() {
     }
   }, [loading, subscription, clients, router]);
 
+  // Upcoming activity for the agency overview: each brand's next scheduled post,
+  // from the same read-only activity feed the brand dashboard shows.
+  const [upcoming, setUpcoming] = useState<Array<{ clientId: string; date: string; time: string | null; caption: string; status: string }>>([]);
+  const [upcomingLoading, setUpcomingLoading] = useState(false);
+  useEffect(() => {
+    if (clients.length < 2) return;
+    const token = getAccessToken();
+    if (!token) return;
+    let cancelled = false;
+    setUpcomingLoading(true);
+    Promise.all(
+      clients.slice(0, 12).map(async (c) => {
+        try {
+          const res = await fetch(`/api/clients/${c.id}/activity-logs`, {
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          });
+          if (!res.ok) return null;
+          const data = await res.json();
+          const next = (data.activities || []).find(
+            (a: { type?: string; details?: { scheduledDate?: string } | null }) => a.type === 'next_scheduled' && a.details?.scheduledDate
+          );
+          if (!next) return null;
+          return {
+            clientId: c.id,
+            date: next.details.scheduledDate as string,
+            time: (next.details.scheduledTime as string | null) ?? null,
+            caption: (next.details.caption as string) || '',
+            status: (next.status as string) || '',
+          };
+        } catch {
+          return null;
+        }
+      })
+    )
+      .then((rows) => {
+        if (cancelled) return;
+        setUpcoming(rows.filter((r): r is NonNullable<typeof r> => !!r));
+      })
+      .finally(() => {
+        if (!cancelled) setUpcomingLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [clients, getAccessToken]);
+
   // Show loading state while fetching data or while redirecting
   if (loading || isRedirecting) {
     return (
@@ -427,134 +476,76 @@ export default function Dashboard() {
     const fullName = profile?.full_name || '';
     return fullName.split(' ')[0] || profile?.username || user?.email?.split('@')[0] || 'User';
   })();
-  const singleBrand = clients.length === 1 ? clients[0] : null;
+
+  // One brand: the home is that brand's own dashboard (with its Activity Hub and calendar)
+  if (clients.length === 1) {
+    return <SingleBrandHome clientId={clients[0].id} />;
+  }
+
   const pulses = portfolio.clients;
   const names = Object.fromEntries(clients.map((c) => [c.id, c.name]));
-  const logos = Object.fromEntries(clients.map((c) => [c.id, c.logo_url]));
-
-  // Totals of the existing per-brand overview counts
-  const portfolioList = Object.values(pulses);
-  const totalScheduled = portfolioList.reduce((n, p) => n + p.scheduledNext7, 0);
-  const totalAwaiting = portfolioList.reduce((n, p) => n + p.awaitingApproval, 0);
-  const totalAttention = portfolioList.reduce((n, p) => n + p.attention.length, 0);
-  const totalCritical = portfolioList.reduce((n, p) => n + p.attention.filter((a) => a.level === 'critical').length, 0);
-  const totalUnread = Object.values(unreadCounts).reduce((n, c) => n + (c || 0), 0);
+  const portfolioList = clients.map((c) => pulses[c.id]).filter(Boolean);
   const metricsLoading = clients.length > 0 && !portfolio.loaded;
+  const sum = (f: (p: (typeof portfolioList)[number]) => number) => portfolioList.reduce((n, p) => n + f(p!), 0);
+  const totalScheduled = sum((p) => p.scheduledNext7);
+  const totalAwaiting = sum((p) => p.awaitingApproval);
+  const totalFollowers = sum((p) => p.followers?.current ?? 0);
+  const totalGained = sum((p) => p.followers?.gained30d ?? 0);
+  const totalPosts30 = sum((p) => p.last30?.posts ?? 0);
+  const items = attentionItems(clients.map((c) => pulses[c.id]));
+  const critical = items.filter((i) => i.level === 'critical').length;
+  const perBrand = (f: (p: (typeof portfolioList)[number]) => number) =>
+    clients.filter((c) => pulses[c.id]).map((c) => ({ label: c.name, value: f(pulses[c.id]) }));
+  const engagementRows = clients
+    .map((c) => ({ c, r: pulses[c.id]?.last30 }))
+    .filter((x) => x.r && x.r.posts > 0)
+    .sort((a, b) => b.r!.medianEngagementRate - a.r!.medianEngagementRate);
+  const engagementMax = Math.max(...engagementRows.map((x) => x.r!.medianEngagementRate), 0);
 
-  const singlePulse = singleBrand ? pulses[singleBrand.id] : undefined;
-  const metrics: Metric[] = singleBrand
-    ? [
-        {
-          label: 'Scheduled',
-          value: singlePulse?.scheduledNext7 ?? '—',
-          hint: 'Next 7 days',
-          icon: CalendarCheck,
-          href: `/dashboard/client/${singleBrand.id}/calendar`,
-          tone: 'blue',
-        },
-        {
-          label: 'Awaiting approval',
-          value: singlePulse?.awaitingApproval ?? '—',
-          hint: 'Posts in the next 7 days',
-          icon: Clock,
-          href: `/dashboard/client/${singleBrand.id}/calendar`,
-          tone: singlePulse && singlePulse.awaitingApproval > 0 ? 'amber' : 'cyan',
-        },
-        {
-          label: 'Engagement',
-          value:
-            singlePulse?.last30 && singlePulse.last30.posts
-              ? `${singlePulse.last30.medianEngagementRate.toFixed(1)}%`
-              : '—',
-          hint: singlePulse?.last30 ? `Median · ${singlePulse.last30.posts} posts in 30 days` : 'Last 30 days',
-          icon: Activity,
-          href: `/dashboard/client/${singleBrand.id}/analytics`,
-          tone: 'violet',
-        },
-        {
-          label: 'Followers',
-          value: singlePulse?.followers ? compactNumber.format(singlePulse.followers.current) : '—',
-          hint:
-            singlePulse?.followers && singlePulse.followers.gained30d !== 0
-              ? `${singlePulse.followers.gained30d > 0 ? '+' : ''}${compactNumber.format(singlePulse.followers.gained30d)} in 30 days`
-              : 'Across connected accounts',
-          icon: Users,
-          href: `/dashboard/client/${singleBrand.id}/analytics`,
-          tone: 'emerald',
-        },
-      ]
-    : [
-        { label: 'Brands', value: clients.length, hint: 'Managed in this workspace', icon: Building2, tone: 'blue' },
-        { label: 'Scheduled', value: totalScheduled, hint: 'Posts in the next 7 days', icon: CalendarCheck, tone: 'cyan' },
-        {
-          label: 'Awaiting approval',
-          value: totalAwaiting,
-          hint: 'Posts in the next 7 days',
-          icon: Clock,
-          tone: totalAwaiting > 0 ? 'amber' : 'emerald',
-        },
-        {
-          label: 'Needs attention',
-          value: totalAttention,
-          hint: totalCritical > 0 ? `${totalCritical} urgent` : totalUnread > 0 ? `${totalUnread} unread notifications` : 'Across all brands',
-          icon: AlertTriangle,
-          tone: totalCritical > 0 ? 'red' : totalAttention > 0 ? 'amber' : 'emerald',
-        },
-      ];
+  const timeline: TimelineItem[] = upcoming
+    .map((u) => {
+      const when = new Date(`${u.date}T${u.time ? u.time.slice(0, 5) : '00:00'}`);
+      const p = pulses[u.clientId];
+      return {
+        id: u.clientId,
+        when,
+        dateOnly: !u.time,
+        title: `Scheduled post – ${names[u.clientId] ?? 'Client'}`,
+        subtitle: u.caption && u.caption !== 'No caption' ? u.caption : undefined,
+        href: `/dashboard/client/${u.clientId}/calendar`,
+        badge:
+          p && p.awaitingApproval > 0 ? (
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 ring-1 ring-blue-100">Approval</span>
+          ) : undefined,
+      };
+    })
+    .filter((t) => !Number.isNaN(t.when.getTime()))
+    .sort((a, b) => a.when.getTime() - b.when.getTime())
+    .slice(0, 5);
 
   return (
     <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* ── Welcome ─────────────────────────────────────────────────── */}
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.022em] text-gray-900">
-              Welcome back, {firstName}!
-            </h1>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500">
-              {/* Time and Date - only show after at least one business profile exists */}
-              {clients.length > 0 && currentDate && (
-                <>
-                  <span className="text-gray-700">{currentDate}</span>
-                  <span className="font-medium tabular-nums text-gray-700">{currentTime}</span>
-                  <span className="text-gray-300">·</span>
-                </>
-              )}
-              <span>
-                {clients.length === 0
-                  ? "Let's set up your first brand."
-                  : singleBrand
-                    ? `Here's what's happening with ${singleBrand.name}.`
-                    : `Here's what's happening across your ${clients.length} brands.`}
+        <WelcomeHeader
+          logo={<img src="/cm-logo.png" alt="Content Manager" className="w-14 mix-blend-multiply md:w-16" />}
+          title={<>Welcome back, {firstName}!</>}
+          subtitle={clients.length === 0 ? "Let's set up your first business profile." : "Here's what's happening with your clients."}
+          meta={
+            clients.length > 0 && currentDate ? (
+              <span className="inline-flex flex-wrap items-center gap-x-2">
+                <span>{currentDate}</span>
+                <span className="tabular-nums">{currentTime}</span>
+                {subscription && (
+                  <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${getPlanBadgeColor()}`}>
+                    {getPlanLabel()}
+                  </span>
+                )}
               </span>
-              {subscription && (
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${getPlanBadgeColor()}`}>
-                  {getPlanLabel()}
-                </span>
-              )}
-            </p>
-          </div>
-          {clients.length > 0 && (
-            <div className="flex flex-shrink-0 items-center gap-2">
-              {singleBrand ? (
-                <Button asChild variant="outline" size="lg" className="h-10 rounded-xl">
-                  <Link href={`/dashboard/client/${singleBrand.id}/calendar`}>
-                    <Calendar />
-                    Calendar
-                  </Link>
-                </Button>
-              ) : (
-                <Button asChild variant="outline" size="lg" className="h-10 rounded-xl">
-                  <Link href="/dashboard/clients/new">
-                    <Plus />
-                    Add brand
-                  </Link>
-                </Button>
-              )}
-              <CreateContentButton brands={clients} />
-            </div>
-          )}
-        </header>
+            ) : undefined
+          }
+          actions={clients.length > 0 ? <CreateContentAction brands={clients} /> : undefined}
+        />
 
         {/* Onboarding Checklist */}
         <div className="max-w-3xl empty:hidden [&>div]:mb-0">
@@ -563,13 +554,11 @@ export default function Dashboard() {
 
         {clients.length === 0 ? (
           /* ── No brands yet ───────────────────────────────────────────── */
-          <div className="mx-auto max-w-lg rounded-2xl border border-gray-200/80 bg-white/90 p-10 text-center shadow-card backdrop-blur-sm">
+          <div className="mx-auto max-w-lg rounded-3xl border border-white/80 bg-white/90 p-10 text-center shadow-card backdrop-blur-sm">
             <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-100 to-cyan-100/70 text-blue-700 ring-1 ring-blue-200/60">
               <User className="h-7 w-7" />
             </div>
-            <h3 className="text-[17px] font-semibold text-gray-900 mb-1">
-              No business profiles yet
-            </h3>
+            <h3 className="text-[17px] font-semibold text-gray-900 mb-1">No business profiles yet</h3>
             <p className="mb-6 text-sm text-gray-500">Add your brand to start creating and scheduling content.</p>
             <Link href="/dashboard/clients/new">
               <Button size="lg" className="h-10 rounded-xl px-6">
@@ -580,61 +569,134 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            {/* ── Overview metrics ─────────────────────────────────────── */}
-            <MetricGrid metrics={metrics} loading={metricsLoading} />
+            {/* ── Needs attention ─────────────────────────────────────── */}
+            <AttentionBanner items={items} names={names} showBrand />
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              {/* ── Main column ──────────────────────────────────────────── */}
-              <div className="min-w-0 space-y-6 lg:col-span-2">
-                {singleBrand && (
-                  <BrandHero brand={singleBrand} pulse={singlePulse} unread={unreadCounts[singleBrand.id] || 0} />
-                )}
+            {/* ── Metrics ─────────────────────────────────────────────── */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard
+                icon={CalendarCheck}
+                value={totalScheduled}
+                label="Scheduled Posts"
+                note="Next 7 days"
+                tone="blue"
+                bars={perBrand((p) => p.scheduledNext7)}
+                loading={metricsLoading}
+              />
+              <StatCard
+                icon={Clock}
+                value={totalAwaiting}
+                label="Awaiting Approval"
+                note={totalAwaiting > 0 ? 'Posts in the next 7 days' : 'Nothing waiting'}
+                tone="violet"
+                bars={perBrand((p) => p.awaitingApproval)}
+                loading={metricsLoading}
+              />
+              <StatCard
+                icon={Users}
+                value={totalFollowers ? formatCompact(totalFollowers) : '—'}
+                label="Followers"
+                change={totalGained ? { value: `${totalGained > 0 ? '+' : ''}${formatCompact(totalGained)} (30d)`, up: totalGained > 0 } : null}
+                note="Across connected accounts"
+                tone="emerald"
+                bars={perBrand((p) => p.followers?.current ?? 0)}
+                loading={metricsLoading}
+              />
+              <StatCard
+                icon={AlertTriangle}
+                value={items.length}
+                label="Needs Attention"
+                note={critical > 0 ? `${critical} urgent` : items.length ? 'To review' : 'All clear'}
+                tone={critical > 0 ? 'red' : items.length ? 'amber' : 'emerald'}
+                bars={perBrand((p) => p.attention.length)}
+                loading={metricsLoading}
+              />
+            </div>
 
-                <AttentionSummary
-                  clients={pulses}
-                  names={names}
-                  logos={logos}
-                  showBrand={!singleBrand}
-                  loaded={portfolio.loaded}
-                />
+            {/* ── Clients + upcoming ──────────────────────────────────── */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+              <section>
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-[22px] font-bold tracking-[-0.02em] text-gray-900">Your Clients</h2>
+                  <Link
+                    href="/dashboard/clients/new"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-[13px] font-medium text-gray-800 shadow-xs transition-colors hover:bg-gray-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add client
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {clients.map((client) => (
+                    <ClientCard key={client.id} brand={client} pulse={pulses[client.id]} unread={unreadCounts[client.id] || 0} />
+                  ))}
+                </div>
+              </section>
 
-                {singleBrand ? (
-                  <BrandPerformancePanel brand={singleBrand} pulse={singlePulse} loaded={portfolio.loaded} />
-                ) : (
-                  <section>
-                    <div className="mb-3 flex items-center justify-between">
-                      <h2 className="text-[17px] font-semibold tracking-[-0.012em] text-gray-900">
-                        Your Business Profiles
-                      </h2>
-                      <span className="text-xs text-gray-500">{clients.length} brands</span>
-                    </div>
-                    <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-2">
-                      {clients.map((client) => (
-                        <BrandCard
-                          key={client.id}
-                          brand={client}
-                          pulse={pulses[client.id]}
-                          unread={unreadCounts[client.id] || 0}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                )}
-              </div>
+              <SectionCard title="Upcoming Activity" icon={CalendarDays}>
+                <Timeline items={timeline} loading={upcomingLoading && !upcoming.length} empty="No upcoming posts scheduled." />
+              </SectionCard>
+            </div>
 
-              {/* ── Side column ──────────────────────────────────────────── */}
-              <aside className="min-w-0 space-y-6">
-                <WeekAheadPanel brands={clients} portfolio={pulses} loaded={portfolio.loaded} />
-                {singleBrand ? (
-                  <QuickActions brandId={singleBrand.id} />
-                ) : (
-                  <PortfolioPerformancePanel brands={clients} portfolio={pulses} loaded={portfolio.loaded} />
-                )}
-              </aside>
+            {/* ── Performance + Content Suite ─────────────────────────── */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+              <SectionCard
+                title="Performance Overview"
+                action={<span className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-[13px] font-medium text-gray-700">Last 30 days</span>}
+              >
+                <div className="grid gap-6 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] md:items-center">
+                  <div>
+                    <p className="mb-3 text-xs font-medium text-gray-500">Median engagement rate by client</p>
+                    {!portfolio.loaded ? (
+                      <div className="space-y-3">
+                        {[0, 1, 2].map((i) => <div key={i} className="h-6 animate-pulse rounded-lg bg-gray-50" />)}
+                      </div>
+                    ) : engagementRows.length === 0 ? (
+                      <p className="rounded-2xl bg-gray-50/80 px-4 py-6 text-center text-[13px] text-gray-500">
+                        Results appear once clients have connected accounts and published posts.
+                      </p>
+                    ) : (
+                      <ul className="space-y-3">
+                        {engagementRows.slice(0, 6).map(({ c, r }) => (
+                          <li key={c.id}>
+                            <Link href={`/dashboard/client/${c.id}/analytics`} className="group block">
+                              <div className="mb-1 flex items-center justify-between gap-2 text-[13px]">
+                                <span className="truncate text-gray-700 group-hover:text-gray-900">{c.name}</span>
+                                <span className="font-semibold tabular-nums text-gray-900">{r!.medianEngagementRate.toFixed(1)}%</span>
+                              </div>
+                              <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                                <div
+                                  className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-[width] duration-700"
+                                  style={{ width: `${engagementMax ? Math.max(4, (r!.medianEngagementRate / engagementMax) * 100) : 0}%` }}
+                                />
+                              </div>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 divide-x divide-gray-100">
+                    <KpiColumn
+                      value={totalGained ? `${totalGained > 0 ? '+' : ''}${formatCompact(totalGained)}` : '—'}
+                      label="Followers gained"
+                      positive={totalGained ? totalGained > 0 : null}
+                    />
+                    <KpiColumn value={portfolio.loaded ? String(totalPosts30) : '—'} label="Posts published" />
+                    <KpiColumn value={portfolio.loaded ? String(totalScheduled) : '—'} label="Scheduled next 7 days" />
+                  </div>
+                </div>
+              </SectionCard>
+              <ContentSuitePromo brands={clients} />
             </div>
           </>
         )}
       </div>
     </div>
   );
+}
+
+/** One-brand accounts: Home shows that brand's dashboard (overview, Activity Hub and calendar). */
+function SingleBrandHome({ clientId }: { clientId: string }) {
+  const params = useMemo(() => Promise.resolve({ clientId }), [clientId]);
+  return <ClientDashboard params={params} />;
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { Button } from "../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/legacy/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/legacy/card";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabaseClient";
 import { useState, useEffect, Fragment, useMemo, useRef } from "react";
@@ -315,7 +315,7 @@ export default function HomeContent() {
   }, [videoError, videoSrc]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="legacy-theme min-h-screen bg-background">
       {/* Navigation */}
       <nav className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
