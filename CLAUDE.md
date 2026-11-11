@@ -111,7 +111,8 @@ the whole codebase (and Vercel env vars).
 - Zernio's Comments API (`src/lib/zernio/api.ts`) feeds `client_comments` (migrations/036-comments-and-feed-checker.sql):
   synced per client (`src/lib/comments/sync.ts`, at most every 10 min on view + cron) and pushed in real time
   by the `comment.received` webhook at `/api/late/webhook` (public; HMAC secret derived from `LATE_API_KEY`
-  in `src/lib/zernio/webhook.ts`; the app registers the webhook itself from the Feed Checker cron, production only).
+  in `src/lib/zernio/webhook.ts`; the app registers the webhook itself — `ensureZernioWebhookOccasionally` after
+  dashboard/Comments page loads, and the Feed Checker cron — production only, no user setup).
 - `src/lib/comments/store.ts`: AI triage (sentiment, category, reply + private-reply drafts in the brand's voice),
   actions (reply, private DM, hide/unhide, like/unlike, delete, done), `autoModerate` (Feed Checker settings), and the
   audience summary that `getPerformancePrompt` adds to every AI prompt ("questions people keep asking").

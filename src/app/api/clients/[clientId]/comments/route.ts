@@ -5,6 +5,7 @@ import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { runAfterResponse } from '@/lib/analytics/store';
 import { COMMENTS_SETUP_MESSAGE, isMissingTable, listComments } from '@/lib/comments/store';
 import { commentsSyncedAt, refreshComments } from '@/lib/comments/sync';
+import { ensureZernioWebhookOccasionally } from '@/lib/zernio/webhook';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       .eq('is_own', false);
     const syncedAt = await commentsSyncedAt(admin, clientId);
     runAfterResponse(async () => {
+      await ensureZernioWebhookOccasionally();
       await refreshComments(createSupabaseAdmin(), clientId);
     });
     return NextResponse.json({ success: true, comments, needsReply: needsReply ?? 0, syncedAt });

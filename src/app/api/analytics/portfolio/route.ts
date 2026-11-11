@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/authHelpers';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { isStale, readSnapshot, refreshSnapshot, runAfterResponse, type AnalyticsSnapshot } from '@/lib/analytics/store';
 import type { PortfolioClient } from '@/lib/analytics/types';
+import { ensureZernioWebhookOccasionally } from '@/lib/zernio/webhook';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -121,6 +122,8 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Live comment alerts switch themselves on (one-time, app-wide)
+    runAfterResponse(() => ensureZernioWebhookOccasionally());
     return NextResponse.json({ success: true, clients: result });
   } catch (error) {
     logger.error('GET analytics portfolio error:', error);

@@ -85,8 +85,8 @@ export function AdPostsCard({ clientId, onAdded }: { clientId: string; onAdded: 
           {live === 'off' && (
             <p className="mb-3 flex gap-1.5 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-              Live comment alerts aren&apos;t switched on yet, so new ads won&apos;t be found automatically. They switch on when the
-              Feed Checker scheduled job runs in production — or add an ad below.
+              Live comment alerts couldn&apos;t be switched on, so new ads won&apos;t be found automatically. This happens outside the
+              live site (it needs the production address in NEXT_PUBLIC_APP_URL). You can still add an ad below.
             </p>
           )}
           {live === 'on' && (

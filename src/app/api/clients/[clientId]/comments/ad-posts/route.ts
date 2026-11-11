@@ -4,7 +4,7 @@ import { requireClientOwnership } from '@/lib/authHelpers';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { getPostComments, listAccounts } from '@/lib/zernio/api';
 import { adPostIdCandidates, isMissingTable, syncAdThread, trackAdPost, triageComments } from '@/lib/comments/store';
-import { webhookStatus } from '@/lib/zernio/webhook';
+import { ensureZernioWebhook, webhookStatus } from '@/lib/zernio/webhook';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -27,7 +27,12 @@ export async function GET(request: NextRequest, { params }: Params) {
       .eq('client_id', clientId)
       .order('last_comment_at', { ascending: false })
       .limit(50),
-    webhookStatus(),
+    // Not on yet? Switch it on now (one-time, app-wide) and report the result
+    webhookStatus().then(async (status) => {
+      if (status !== 'off') return status;
+      const result = await ensureZernioWebhook();
+      return result === 'skipped' ? status : 'on';
+    }),
   ]);
   if (error && isMissingTable(error)) {
     return NextResponse.json({ success: true, adPosts: [], liveAlerts: live, setupRequired: 'Ad comments need migrations/037-ad-comments.sql.' });

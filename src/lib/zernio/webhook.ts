@@ -44,6 +44,7 @@ export async function ensureZernioWebhook(): Promise<'exists' | 'created' | 'ski
     if (hooks.some((h) => h.url === url && h.isActive !== false)) return 'exists'
     await createWebhook({ name: 'Content Manager comments', url, secret, events: WEBHOOK_EVENTS })
     logger.info('Registered Zernio webhook', { url })
+    statusCache = { at: Date.now(), value: 'on' }
     return 'created'
   } catch (err) {
     logger.error('Zernio webhook registration failed:', err)
@@ -67,4 +68,18 @@ export async function webhookStatus(): Promise<'on' | 'off' | 'unknown'> {
   }
   statusCache = { at: Date.now(), value }
   return value
+}
+
+let lastEnsured = 0
+
+/**
+ * The app switches on live comment alerts by itself: this runs (after the response)
+ * whenever someone opens the dashboard or a Comments page, at most every 6 hours per
+ * server instance, so no one ever has to set anything up.
+ */
+export async function ensureZernioWebhookOccasionally(): Promise<void> {
+  if (Date.now() - lastEnsured < 6 * 3600_000) return
+  lastEnsured = Date.now()
+  const result = await ensureZernioWebhook()
+  if (result === 'skipped') lastEnsured = Date.now() - 6 * 3600_000 + 10 * 60_000 // retry in 10 minutes
 }
