@@ -3,18 +3,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
+  Activity,
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
   Bot,
   CalendarClock,
+  CheckCircle2,
   ExternalLink,
+  Eye,
+  Heart,
+  Layers,
   Lightbulb,
   Loader2,
   RefreshCw,
   Sparkles,
   TrendingUp,
+  Users,
+  type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { authedFetchJson } from '@/lib/authedFetch'
@@ -55,29 +62,63 @@ function Delta({ value }: { value: number | null }) {
   const up = value >= 0
   const Icon = up ? ArrowUpRight : ArrowDownRight
   return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${up ? 'text-emerald-700' : 'text-red-700'}`}>
-      <Icon className="h-3.5 w-3.5" />
-      {Math.abs(Math.round(value * 100))}% <span className="font-normal text-gray-500">vs previous</span>
+    <span className="inline-flex items-center gap-1.5 text-xs">
+      <span
+        className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium ${up ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
+      >
+        <Icon className="h-3 w-3" />
+        {Math.abs(Math.round(value * 100))}%
+      </span>
+      <span className="text-gray-500">vs previous</span>
     </span>
   )
 }
 
-function StatTile({ label, value, delta, note }: { label: string; value: string; delta?: number | null; note?: React.ReactNode }) {
+function StatTile({
+  label,
+  value,
+  delta,
+  note,
+  icon: Icon,
+  featured,
+}: {
+  label: string
+  value: string
+  delta?: number | null
+  note?: React.ReactNode
+  icon?: LucideIcon
+  featured?: boolean
+}) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">{value}</p>
-      <div className="mt-1">{note ?? <Delta value={delta ?? null} />}</div>
+    <div
+      className={`relative overflow-hidden rounded-2xl border p-4 shadow-card transition-shadow duration-200 hover:shadow-card-hover ${
+        featured ? 'border-blue-200/70 bg-gradient-to-br from-white via-white to-blue-50/80' : 'border-gray-200/80 bg-white'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-gray-500">{label}</p>
+        {Icon && (
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+            <Icon className="h-3.5 w-3.5" />
+          </span>
+        )}
+      </div>
+      <p className="mt-2 text-[26px] font-semibold leading-8 tracking-[-0.02em] tabular-nums text-gray-900">{value}</p>
+      <div className="mt-1.5">{note ?? <Delta value={delta ?? null} />}</div>
     </div>
   )
 }
 
 function Card({ title, icon, children, action }: { title: string; icon?: React.ReactNode; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-5">
+    <section className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-card">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="flex items-center gap-2 font-semibold text-gray-900">
-          {icon}
+        <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-gray-900">
+          {icon && (
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-50 ring-1 ring-gray-200/80 [&>svg]:h-3.5 [&>svg]:w-3.5">
+              {icon}
+            </span>
+          )}
           {title}
         </h3>
         {action}
@@ -95,15 +136,15 @@ function GroupBars({ groups, empty }: { groups: GroupStat[]; empty: string }) {
     <div className="space-y-2.5">
       {solid.map((g) => (
         <div key={g.key} title={`${g.count} posts · median ${g.medianEngagementRate}% engagement · median reach ${fmt(g.medianReach)}`}>
-          <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+          <div className="mb-1 flex items-baseline justify-between gap-2 text-[13px]">
             <span className="text-gray-700">{g.label}</span>
-            <span className="tabular-nums text-gray-900">
+            <span className="font-medium tabular-nums text-gray-900">
               {g.medianEngagementRate.toFixed(1)}% <span className="text-xs text-gray-400">· {g.count} posts</span>
             </span>
           </div>
-          <div className="h-2 rounded-full bg-gray-100">
+          <div className="h-2 overflow-hidden rounded-full bg-gray-100">
             <div
-              className={`h-2 rounded-full ${g.count < 3 ? 'bg-blue-300' : 'bg-blue-600'}`}
+              className={`h-2 rounded-full transition-[width] duration-700 ease-out ${g.count < 3 ? 'bg-blue-200' : 'bg-gradient-to-r from-blue-600 to-cyan-400'}`}
               style={{ width: `${Math.max(2, (g.medianEngagementRate / max) * 100)}%` }}
             />
           </div>
@@ -118,8 +159,8 @@ function PostRow({ post, median }: { post: AnalyticsPost; median: number }) {
   const m = post.metrics
   const vs = median ? m.engagementRate / median : null
   return (
-    <div className="flex items-start gap-3 border-b border-gray-100 py-3 last:border-0">
-      <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100">
+    <div className="-mx-2 flex items-start gap-3 rounded-xl border-b border-gray-100 px-2 py-3 transition-colors last:border-0 hover:bg-gray-50/70">
+      <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl bg-gray-100 ring-1 ring-gray-200/70">
         {post.thumbnailUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={post.thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -132,23 +173,25 @@ function PostRow({ post, median }: { post: AnalyticsPost; median: number }) {
           <span className="capitalize">{post.format}</span>
           <span>·</span>
           <span>{new Date(post.publishedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-          {post.isExternal && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px]">posted directly</span>}
+          {post.isExternal && <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-gray-200">posted directly</span>}
           {post.url && (
             <a href={post.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-blue-600 hover:underline">
               View <ExternalLink className="h-3 w-3" />
             </a>
           )}
         </div>
-        <p className="mt-0.5 line-clamp-2 text-sm text-gray-800">{post.content || <span className="text-gray-400">No caption</span>}</p>
-        <div className="mt-1 flex flex-wrap gap-x-3 text-xs tabular-nums text-gray-600">
+        <p className="mt-0.5 line-clamp-2 text-[13px] leading-5 text-gray-800">{post.content || <span className="text-gray-400">No caption</span>}</p>
+        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums text-gray-500">
           <span>{compact.format(m.reach || m.views)} {m.reach ? 'reach' : 'views'}</span>
           <span>{fmt(m.likes)} likes</span>
           <span>{fmt(m.comments)} comments</span>
           {m.shares > 0 && <span>{fmt(m.shares)} shares</span>}
           {m.saves > 0 && <span>{fmt(m.saves)} saves</span>}
-          <span className="font-medium text-gray-900">{m.engagementRate.toFixed(1)}% engagement</span>
+          <span className="font-semibold text-gray-900">{m.engagementRate.toFixed(1)}% engagement</span>
           {vs !== null && (
-            <span className={vs >= 1.2 ? 'text-emerald-700' : vs <= 0.8 ? 'text-red-700' : 'text-gray-500'}>
+            <span
+              className={`rounded-full px-1.5 font-medium ${vs >= 1.2 ? 'bg-emerald-50 text-emerald-700' : vs <= 0.8 ? 'bg-red-50 text-red-700' : 'text-gray-500'}`}
+            >
               {vs >= 1 ? `${vs.toFixed(1)}x usual` : `${Math.round((1 - vs) * 100)}% below usual`}
             </span>
           )}
@@ -166,13 +209,15 @@ function RecommendationCard({ rec, clientId }: { rec: Recommendation; clientId: 
         ? `/dashboard/client/${clientId}/calendar`
         : null
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
-      <p className="font-medium text-gray-900">{rec.title}</p>
-      <p className="mt-1 text-sm text-gray-600">{rec.detail}</p>
+    <div className="rounded-xl border border-gray-200/80 bg-gradient-to-br from-white to-blue-50/40 p-4 transition-colors hover:border-blue-200">
+      <p className="text-[14px] font-semibold text-gray-900">{rec.title}</p>
+      <p className="mt-1 text-[13px] leading-5 text-gray-600">{rec.detail}</p>
       {href && (
         <Link
           href={href}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
+          className={`mt-3 inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium shadow-button transition-[filter,background-color] ${
+            rec.action === 'adjust_schedule' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gradient-ai text-white hover:brightness-105'
+          }`}
         >
           {rec.action === 'adjust_schedule' ? <CalendarClock className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
           {rec.action === 'adjust_schedule' ? 'Open calendar' : 'Create with Content Agent'}
@@ -237,41 +282,50 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
   }, [data?.recentPosts, range])
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
-            <BarChart3 className="h-6 w-6 text-blue-600" /> Analytics
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
+    <div className="mx-auto max-w-7xl space-y-6 px-4 py-5 md:px-6 md:py-7">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 gap-3.5">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 text-blue-600 ring-1 ring-blue-100">
+            <BarChart3 className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+          <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.022em] text-gray-900">Analytics</h1>
+          <p className="mt-1 text-[13px] leading-5 text-gray-500">
             Results from every connected account, including posts made directly on the platforms.
             {data?.syncedAt && ` Updated ${new Date(data.syncedAt).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.`}
           </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-lg bg-gray-100 p-1" role="tablist" aria-label="Date range">
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <div
+            className="inline-flex rounded-xl border border-gray-200/80 bg-white/80 p-1 shadow-xs backdrop-blur-sm"
+            role="tablist"
+            aria-label="Date range"
+          >
             {RANGES.map((r) => (
               <button
                 key={r.days}
                 role="tab"
                 aria-selected={range === r.days}
                 onClick={() => setRange(r.days)}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium ${range === r.days ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors sm:px-3 ${
+                  range === r.days ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }`}
               >
                 {r.label}
               </button>
             ))}
           </div>
-          <Button variant="outline" size="sm" onClick={() => refresh('data')} disabled={!!refreshing} title="Re-read results from Zernio">
+          <Button variant="outline" size="icon" className="h-[38px] w-[38px] rounded-xl" onClick={() => refresh('data')} disabled={!!refreshing} title="Re-read results from Zernio" aria-label="Refresh results">
             <RefreshCw className={`h-4 w-4 ${refreshing === 'data' ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
 
-      {error && <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <p className="rounded-xl border border-red-200/80 bg-red-50/80 px-3.5 py-2.5 text-[13px] text-red-700">{error}</p>}
 
       {data && data.status !== 'ok' && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200/80 bg-amber-50/80 px-3.5 py-2.5 text-[13px] text-amber-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>
             {data.message}
@@ -288,56 +342,73 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
       )}
 
       {loading && !data ? (
-        <div className="flex items-center justify-center gap-2 py-24 text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin" /> Reading results…
+        <div className="space-y-6" aria-busy="true">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            {[0, 1, 2, 3, 4].map((n) => (
+              <div key={n} className="h-[118px] animate-pulse rounded-2xl border border-gray-200/60 bg-white/70" />
+            ))}
+          </div>
+          <div className="flex h-72 items-center justify-center gap-2 rounded-2xl border border-gray-200/60 bg-white/70 text-[13px] text-gray-500">
+            <Loader2 className="h-4 w-4 animate-spin text-blue-600" /> Reading results…
+          </div>
         </div>
       ) : (
         <>
           {d && (
-            <div className={`grid grid-cols-2 gap-3 md:grid-cols-5 ${loading ? 'opacity-60' : ''}`}>
+            <div className={`grid grid-cols-2 gap-3 transition-opacity md:grid-cols-5 [&>*:first-child]:col-span-2 md:[&>*:first-child]:col-span-1 ${loading ? 'opacity-60' : ''}`}>
               <StatTile
+                icon={Users}
+                featured
                 label="Followers"
                 value={fmt(d.followers.current)}
                 note={
-                  <span className={`text-xs font-medium ${d.followers.gained >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                    {d.followers.gained >= 0 ? '+' : ''}
-                    {fmt(d.followers.gained)} <span className="font-normal text-gray-500">this period</span>
+                  <span className="inline-flex items-center gap-1.5 text-xs">
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 font-medium ${d.followers.gained >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
+                    >
+                      {d.followers.gained >= 0 ? '+' : ''}
+                      {fmt(d.followers.gained)}
+                    </span>
+                    <span className="text-gray-500">this period</span>
                   </span>
                 }
               />
-              <StatTile label="Reach" value={compact.format(d.totals.reach)} delta={change(d.totals.reach, d.previousTotals?.reach)} />
+              <StatTile icon={Eye} label="Reach" value={compact.format(d.totals.reach)} delta={change(d.totals.reach, d.previousTotals?.reach)} />
               <StatTile
+                icon={Layers}
                 label="Impressions"
                 value={compact.format(d.totals.impressions)}
                 delta={change(d.totals.impressions, d.previousTotals?.impressions)}
               />
               <StatTile
+                icon={Heart}
                 label="Engagement"
                 value={compact.format(engagement(d.totals))}
                 delta={change(engagement(d.totals), d.previousTotals ? engagement(d.previousTotals) : null)}
               />
               <StatTile
+                icon={Activity}
                 label="Engagement rate"
                 value={`${d.totals.engagementRate.toFixed(2)}%`}
                 delta={change(d.totals.engagementRate, d.previousTotals?.engagementRate)}
               />
             </div>
           )}
-          {d && <p className="-mt-3 text-xs text-gray-500">Engagement is likes, comments, shares and saves. Changes compare with the period before.</p>}
+          {d && <p className="-mt-3 text-[11px] text-gray-500">Engagement is likes, comments, shares and saves. Changes compare with the period before.</p>}
 
           {d && (
             <Card
               title="Daily results"
               icon={<TrendingUp className="h-4 w-4 text-blue-600" />}
               action={
-                <div className="inline-flex flex-wrap rounded-lg bg-gray-100 p-1" role="tablist" aria-label="Metric">
+                <div className="inline-flex flex-wrap rounded-xl border border-gray-200/80 bg-gray-50/80 p-1" role="tablist" aria-label="Metric">
                   {CHART_METRICS.map((m) => (
                     <button
                       key={m.key}
                       role="tab"
                       aria-selected={metric === m.key}
                       onClick={() => setMetric(m.key)}
-                      className={`rounded-md px-2.5 py-1 text-xs font-medium ${metric === m.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${metric === m.key ? 'bg-white text-blue-700 shadow-sm ring-1 ring-gray-200/80' : 'text-gray-500 hover:text-gray-800'}`}
                     >
                       {m.label}
                     </button>
@@ -357,7 +428,7 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
                 action={
                   i && i.postCount >= 5 ? (
                     <Button variant="ghost" size="sm" onClick={() => refresh('ideas')} disabled={!!refreshing}>
-                      {refreshing === 'ideas' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+                      {refreshing === 'ideas' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-violet-600" />}
                       New ideas
                     </Button>
                   ) : null
@@ -403,10 +474,10 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
 
               <Card title="What's working" icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}>
                 {i?.findings.length ? (
-                  <ul className="space-y-2 text-sm text-gray-700">
+                  <ul className="space-y-2 text-[13px] leading-5 text-gray-700">
                     {i.findings.map((f) => (
-                      <li key={f} className="flex gap-2">
-                        <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-500" />
+                      <li key={f} className="flex gap-2.5 rounded-xl bg-emerald-50/50 px-3 py-2 ring-1 ring-emerald-100/70">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-emerald-600" />
                         {f}
                       </li>
                     ))}
@@ -428,13 +499,20 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
 
               {i && i.bestSlots.length > 0 && (
                 <Card title="Best times to post" icon={<CalendarClock className="h-4 w-4 text-blue-600" />}>
-                  <ol className="space-y-1.5 text-sm">
+                  <ol className="space-y-1.5 text-[13px]">
                     {i.bestSlots.map((s, n) => (
-                      <li key={`${s.day}-${s.hour}`} className="flex justify-between">
-                        <span className="text-gray-700">
-                          {n + 1}. {slotLabel(s)}
+                      <li key={`${s.day}-${s.hour}`} className="flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 transition-colors hover:bg-gray-50">
+                        <span className="flex items-center gap-2.5 text-gray-800">
+                          <span
+                            className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold ${
+                              n === 0 ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                            }`}
+                          >
+                            {n + 1}
+                          </span>
+                          <span className="font-medium">{slotLabel(s)}</span>
                         </span>
-                        <span className="tabular-nums text-gray-500">
+                        <span className="text-right text-xs tabular-nums text-gray-500">
                           avg {s.avgEngagement} engagements · {s.postCount} posts
                         </span>
                       </li>
@@ -456,10 +534,10 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
               )}
               {i && i.hashtags.length > 0 && (
                 <Card title="Hashtags by results" icon={<BarChart3 className="h-4 w-4 text-gray-500" />}>
-                  <div className="space-y-1.5 text-sm">
+                  <div className="space-y-0.5 text-[13px]">
                     {i.hashtags.slice(0, 12).map((h) => (
-                      <div key={h.tag} className="flex justify-between">
-                        <span className="text-gray-700">#{h.tag}</span>
+                      <div key={h.tag} className="flex justify-between rounded-lg px-2 py-1 transition-colors hover:bg-gray-50">
+                        <span className="font-medium text-blue-700">#{h.tag}</span>
                         <span className="tabular-nums text-gray-500">
                           {h.medianEngagementRate.toFixed(1)}% · {h.count} posts
                         </span>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 
 // Single-series daily line chart with a crosshair tooltip. One measure at a time
 // (switch metrics with the toggle above it) — never two scales on one axis.
@@ -27,10 +27,11 @@ function dateLabel(date: string, opts: Intl.DateTimeFormatOptions = { day: 'nume
   return new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, { ...opts, timeZone: 'UTC' })
 }
 
-export function MetricChart({ points, label, color = '#2563eb' }: { points: Point[]; label: string; color?: string }) {
+export function MetricChart({ points, label, color = '#356df3' }: { points: Point[]; label: string; color?: string }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState<number | null>(null)
+  const gradId = useId().replace(/:/g, '')
   // Draw at the real width so text stays readable on phones
   const [W, setW] = useState(720)
   useEffect(() => {
@@ -94,7 +95,7 @@ export function MetricChart({ points, label, color = '#2563eb' }: { points: Poin
       >
         {yTicks.map((t) => (
           <g key={t}>
-            <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke="#e5e7eb" strokeWidth={1} />
+            <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke="#e5eaf2" strokeWidth={1} strokeDasharray={t === yTicks[0] ? undefined : '3 4'} />
             <text x={PAD.left - 8} y={y(t) + 4} textAnchor="end" className="fill-gray-400 text-[11px]">
               {compact.format(t)}
             </text>
@@ -105,18 +106,24 @@ export function MetricChart({ points, label, color = '#2563eb' }: { points: Poin
             {dateLabel(date)}
           </text>
         ))}
-        <path d={area} fill={color} opacity={0.08} />
-        <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <defs>
+          <linearGradient id={`metric-fill-${gradId}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+            <stop offset="100%" stopColor="#40c5ed" stopOpacity={0.01} />
+          </linearGradient>
+        </defs>
+        <path d={area} fill={`url(#metric-fill-${gradId})`} />
+        <path d={path} fill="none" stroke={color} strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />
         {hover !== null && hp && (
           <g>
-            <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={H - PAD.bottom} stroke="#9ca3af" strokeWidth={1} strokeDasharray="3 3" />
+            <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={H - PAD.bottom} stroke="#97a3b6" strokeWidth={1} strokeDasharray="3 3" />
             <circle cx={x(hover)} cy={y(hp.value)} r={5} fill={color} stroke="white" strokeWidth={2} />
           </g>
         )}
       </svg>
       {hp && (
         <div
-          className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs shadow-md"
+          className="glass pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-xl px-2.5 py-1.5 text-xs"
           style={{ left: `${Math.min(88, Math.max(12, tooltipLeft))}%` }}
         >
           <div className="text-gray-500">{dateLabel(hp.date, { weekday: 'short', day: 'numeric', month: 'short' })}</div>

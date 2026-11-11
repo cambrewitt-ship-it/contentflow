@@ -72,8 +72,8 @@ export function ReportsCard({ clientId }: { clientId: string }) {
   }
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-5">
-      <h3 className="mb-1 flex items-center gap-2 font-semibold text-gray-900">
+    <section className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-card">
+      <h3 className="mb-1 flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-gray-900">
         <FileText className="h-4 w-4 text-blue-600" /> Monthly reports
       </h3>
       <p className="mb-4 text-xs text-gray-500">
@@ -89,7 +89,7 @@ export function ReportsCard({ clientId }: { clientId: string }) {
             <select
               value={month}
               onChange={(e) => setMonth(e.target.value)}
-              className="h-9 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 text-sm"
+              className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-white px-2 text-[13px] shadow-xs outline-none focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15"
               aria-label="Report month"
             >
               {months.map((m) => (
@@ -98,7 +98,7 @@ export function ReportsCard({ clientId }: { clientId: string }) {
                 </option>
               ))}
             </select>
-            <Button size="sm" className="h-9" onClick={() => build(month)} disabled={!!building}>
+            <Button size="sm" className="h-9 rounded-lg" onClick={() => build(month)} disabled={!!building}>
               {building === month ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
               {reports.some((r) => r.periodStart.startsWith(month)) ? 'Rebuild' : 'Build report'}
             </Button>
@@ -117,14 +117,14 @@ export function ReportsCard({ clientId }: { clientId: string }) {
                         href={`/report/${r.shareToken}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-gray-600 hover:bg-gray-100"
+                        className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
                       >
                         <ExternalLink className="h-3.5 w-3.5" /> Open
                       </a>
                       <button
                         type="button"
                         onClick={() => copy(r.shareToken)}
-                        className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-gray-600 hover:bg-gray-100"
+                        className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
                       >
                         {copied === r.shareToken ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
                         {copied === r.shareToken ? 'Copied' : 'Copy link'}
