@@ -82,19 +82,19 @@ const LIMIT = 50;
 function AnalysisStatusBadge({ status }: { status: MediaGalleryItem['ai_analysis_status'] }) {
   if (status === 'analyzing')
     return (
-      <div className="absolute top-2 left-2 bg-black/60 rounded-full p-1">
+      <div className="absolute top-2 left-2 rounded-full bg-gray-900/60 p-1 ring-1 ring-white/30 backdrop-blur-sm" title="Analysing">
         <Loader2 className="h-3 w-3 text-white animate-spin" />
       </div>
     );
   if (status === 'complete')
     return (
-      <div className="absolute top-2 left-2 bg-green-500/90 rounded-full p-1">
+      <div className="absolute top-2 left-2 rounded-full bg-emerald-500/90 p-1 ring-1 ring-white/40 backdrop-blur-sm" title="AI analysed">
         <CheckCircle2 className="h-3 w-3 text-white" />
       </div>
     );
   if (status === 'failed')
     return (
-      <div className="absolute top-2 left-2 bg-red-500/90 rounded-full p-1">
+      <div className="absolute top-2 left-2 rounded-full bg-red-500/90 p-1 ring-1 ring-white/40 backdrop-blur-sm" title="Analysis failed">
         <XCircle className="h-3 w-3 text-white" />
       </div>
     );
@@ -378,22 +378,26 @@ export default function MediaGalleryPage({
   const hasMore = items.length < total;
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 md:px-6 md:py-7">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Media Gallery</h1>
-          {!loading && (
-            <p className="text-sm text-gray-500 mt-1">
-              {total} item{total !== 1 ? 's' : ''}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 gap-3.5">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 text-blue-600 ring-1 ring-blue-100">
+            <ImageIcon className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.022em] text-gray-900">Media Gallery</h1>
+            <p className="mt-1 h-5 text-[13px] text-gray-500">
+              {!loading && <>{total} item{total !== 1 ? 's' : ''}</>}
             </p>
-          )}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
-            variant="outline"
+            variant="ai"
             onClick={handleAnalyzeAll}
             disabled={bulkAnalyzing || loading}
+            className="h-10 rounded-xl"
           >
             {bulkAnalyzing ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -404,29 +408,29 @@ export default function MediaGalleryPage({
               ? `Analysing ${bulkProgress.done}/${bulkProgress.total}...`
               : 'Analyse All Photos with AI'}
           </Button>
-          <Button onClick={() => setUploadOpen(true)}>
-            <Upload className="mr-2 h-4 w-4" />
+          <Button onClick={() => setUploadOpen(true)} className="h-10 rounded-xl">
+            <Upload className="h-4 w-4" />
             Upload Photos
           </Button>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="sticky top-0 z-20 -mx-1 flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200/70 bg-white/75 p-2 shadow-card backdrop-blur-xl">
         {/* Status toggle */}
-        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+        <div className="flex rounded-xl bg-gray-100/80 p-1 text-[13px]">
           <button
             onClick={() => { setStatus('available'); setOffset(0); }}
-            className={`px-4 py-2 font-medium transition-colors ${
-              status === 'available' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+            className={`rounded-lg px-3.5 py-1.5 font-medium transition-colors ${
+              status === 'available' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-gray-200/80' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             Available
           </button>
           <button
             onClick={() => { setStatus('archived'); setOffset(0); }}
-            className={`px-4 py-2 font-medium border-l border-gray-200 transition-colors ${
-              status === 'archived' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+            className={`rounded-lg px-3.5 py-1.5 font-medium transition-colors ${
+              status === 'archived' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-gray-200/80' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             Archived
@@ -437,7 +441,7 @@ export default function MediaGalleryPage({
         <select
           value={category}
           onChange={e => setCategory(e.target.value)}
-          className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="h-9 rounded-xl border border-gray-200/80 bg-white px-3 text-[13px] text-gray-700 shadow-xs outline-none transition-[border-color,box-shadow] hover:border-gray-300 focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15"
         >
           <option value="">All Categories</option>
           {CATEGORIES.map(c => (
@@ -449,7 +453,7 @@ export default function MediaGalleryPage({
         <select
           value={sort}
           onChange={e => setSort(e.target.value)}
-          className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="h-9 rounded-xl border border-gray-200/80 bg-white px-3 text-[13px] text-gray-700 shadow-xs outline-none transition-[border-color,box-shadow] hover:border-gray-300 focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15"
         >
           <option value="freshest">Freshest First</option>
           <option value="most-used">Most Used</option>
@@ -459,37 +463,39 @@ export default function MediaGalleryPage({
 
         {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <Input
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
             placeholder="Search photos..."
-            className="pl-9"
+            className="rounded-xl pl-9"
           />
         </div>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
+        <div className="rounded-xl border border-red-200/80 bg-red-50/80 px-3.5 py-2.5 text-[13px] text-red-700">
           {error}
         </div>
       )}
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7" aria-busy="true">
+          {Array.from({ length: 14 }).map((_, n) => (
+            <div key={n} className="aspect-square animate-pulse rounded-xl bg-gray-200/50" />
+          ))}
         </div>
       )}
 
       {/* Grid */}
       {!loading && displayItems.length > 0 && (
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-2">
+        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7">
           {displayItems.map(item => (
             <div
               key={item.id}
-              className="group relative rounded-lg overflow-hidden bg-gray-100 aspect-square cursor-pointer border border-gray-200 hover:border-gray-300 transition-colors"
+              className="group relative aspect-square cursor-pointer overflow-hidden rounded-xl bg-gray-100 shadow-xs ring-1 ring-gray-200/80 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover hover:ring-blue-300"
               onClick={() => openDetail(item)}
             >
               {item.media_type === 'image' ? (
@@ -498,7 +504,7 @@ export default function MediaGalleryPage({
                   alt={item.file_name || 'Gallery image'}
                   width={200}
                   height={200}
-                  className="w-full h-full object-cover"
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                   quality={70}
                 />
               ) : (
@@ -508,21 +514,21 @@ export default function MediaGalleryPage({
               )}
 
               {/* Hover dimmer */}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-all pointer-events-none" />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-gray-900/55 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
 
               {/* AI status */}
               <AnalysisStatusBadge status={item.ai_analysis_status} />
 
               {/* Three-dot menu */}
               <div
-                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-1.5 right-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
                 onClick={e => e.stopPropagation()}
               >
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      className="bg-white/90 hover:bg-white rounded-full p-1 shadow-sm transition-colors"
+                      className="rounded-full bg-white/85 p-1 shadow-sm ring-1 ring-white/60 backdrop-blur-sm transition-colors hover:bg-white"
                     >
                       <MoreHorizontal className="h-3.5 w-3.5 text-gray-700" />
                     </button>
@@ -560,13 +566,13 @@ export default function MediaGalleryPage({
                   {(item.ai_tags || []).slice(0, 2).map(tag => (
                     <span
                       key={tag}
-                      className="text-xs bg-black/60 text-white px-1.5 py-0.5 rounded"
+                      className="rounded-md bg-white/20 px-1.5 py-0.5 text-[11px] font-medium text-white ring-1 ring-white/25 backdrop-blur-sm"
                     >
                       {tag}
                     </span>
                   ))}
                   {item.times_used > 0 && (
-                    <span className="text-xs bg-blue-600/80 text-white px-1.5 py-0.5 rounded ml-auto">
+                    <span className="ml-auto rounded-md bg-blue-600/90 px-1.5 py-0.5 text-[11px] font-medium text-white">
                       {item.times_used}×
                     </span>
                   )}
@@ -579,12 +585,14 @@ export default function MediaGalleryPage({
 
       {/* Empty state */}
       {!loading && displayItems.length === 0 && (
-        <div className="text-center py-20">
-          <ImageIcon className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
+        <div className="flex flex-col items-center rounded-2xl border border-gray-200/80 bg-white/90 px-6 py-16 text-center shadow-card backdrop-blur-sm">
+          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 text-blue-600 ring-1 ring-blue-100">
+            <ImageIcon className="h-6 w-6" />
+          </span>
+          <h3 className="mb-1 text-[15px] font-semibold text-gray-900">
             {activeSearch || category ? 'No photos match your filters' : 'No photos yet'}
           </h3>
-          <p className="text-sm text-gray-500 mb-6">
+          <p className="mb-6 text-[13px] text-gray-500">
             {activeSearch || category
               ? 'Try adjusting your search or filters.'
               : 'Upload your first photos to get started.'}
@@ -605,6 +613,7 @@ export default function MediaGalleryPage({
             variant="outline"
             onClick={() => fetchItems(offset, true)}
             disabled={loadingMore}
+            className="rounded-xl"
           >
             {loadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Load more
@@ -626,7 +635,7 @@ export default function MediaGalleryPage({
         onOpenChange={open => { if (!open) setSelectedItem(null); }}
       >
         {selectedItem && (
-          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogContent className="max-w-2xl sm:max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
             <DialogHeader>
               <DialogTitle className="truncate pr-8">
                 {selectedItem.file_name || 'Media Item'}
@@ -635,7 +644,7 @@ export default function MediaGalleryPage({
 
             <div className="flex-1 overflow-y-auto space-y-5 pr-1">
               {/* Image preview */}
-              <div className="rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center max-h-64">
+              <div className="flex max-h-64 items-center justify-center overflow-hidden rounded-xl bg-gray-100 ring-1 ring-gray-200/70">
                 {selectedItem.media_type === 'image' ? (
                   <Image
                     src={selectedItem.media_url}
@@ -656,8 +665,8 @@ export default function MediaGalleryPage({
               {selectedItem.ai_analysis_status === 'complete' && (
                 <div className="space-y-3">
                   {selectedItem.ai_description && (
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                    <div className="rounded-xl bg-gradient-to-br from-violet-50/70 to-blue-50/60 p-3 ring-1 ring-violet-100/70">
+                      <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-gray-400">
                         AI Description
                       </p>
                       <p className="text-sm text-gray-700">{selectedItem.ai_description}</p>
@@ -666,26 +675,26 @@ export default function MediaGalleryPage({
                   <div className="grid grid-cols-3 gap-3 text-sm">
                     {selectedItem.ai_mood && (
                       <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Mood</p>
+                        <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-gray-400">Mood</p>
                         <p className="text-gray-700 capitalize">{selectedItem.ai_mood}</p>
                       </div>
                     )}
                     {selectedItem.ai_setting && (
                       <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Setting</p>
+                        <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-gray-400">Setting</p>
                         <p className="text-gray-700">{selectedItem.ai_setting}</p>
                       </div>
                     )}
                     {(selectedItem.ai_categories || []).length > 0 && (
                       <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Category</p>
+                        <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-gray-400">Category</p>
                         <p className="text-gray-700">{(selectedItem.ai_categories || []).join(', ')}</p>
                       </div>
                     )}
                   </div>
                   {(selectedItem.ai_tags || []).length > 0 && (
                     <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-gray-400">
                         AI Tags
                       </p>
                       <div className="flex flex-wrap gap-1">
@@ -714,11 +723,11 @@ export default function MediaGalleryPage({
                 </p>
               )}
 
-              <hr />
+              <hr className="border-gray-100" />
 
               {/* User tags */}
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.06em] text-gray-400">
                   Your Tags
                 </p>
                 <div className="flex flex-wrap gap-1 mb-2 min-h-[24px]">
@@ -756,7 +765,7 @@ export default function MediaGalleryPage({
 
               {/* User context */}
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.06em] text-gray-400">
                   Your Notes
                 </p>
                 <Textarea
@@ -769,13 +778,13 @@ export default function MediaGalleryPage({
 
               {/* User category */}
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.06em] text-gray-400">
                   Your Category
                 </p>
                 <select
                   value={editCategory}
                   onChange={e => setEditCategory(e.target.value)}
-                  className="w-full h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="h-9 w-full rounded-lg border border-input bg-white px-3 text-[13px] text-gray-700 shadow-xs outline-none transition-[border-color,box-shadow] hover:border-gray-300 focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15"
                 >
                   <option value="">Uncategorised</option>
                   {CATEGORIES.map(c => (
@@ -785,8 +794,8 @@ export default function MediaGalleryPage({
               </div>
 
               {/* Usage stats */}
-              <div className="bg-gray-50 rounded-lg p-3 space-y-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Usage Stats</p>
+              <div className="space-y-3 rounded-xl bg-gray-50/80 p-3.5 ring-1 ring-gray-200/60">
+                <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-gray-400">Usage Stats</p>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <p className="text-gray-400 text-xs">Times Used</p>
@@ -810,7 +819,7 @@ export default function MediaGalleryPage({
                   </div>
                   <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-green-500 rounded-full transition-all"
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all"
                       style={{ width: `${Math.min(100, (selectedItem.freshness_score || 0) * 100)}%` }}
                     />
                   </div>
@@ -819,7 +828,7 @@ export default function MediaGalleryPage({
             </div>
 
             <DialogFooter className="mt-4 flex-col sm:flex-row gap-2 sm:justify-between">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   size="sm"
