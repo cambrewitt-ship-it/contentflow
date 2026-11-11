@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { Calendar, Clock, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Trash2, Loader2, MessageCircle, Copy, Pencil, Check, Minus, X, Tag, FileText, CalendarDays, Sparkles } from 'lucide-react';
+import { Calendar, Clock, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Trash2, Loader2, MessageCircle, Copy, Pencil, Check, Minus, X, Tag, FileText, CalendarDays, Sparkles, GripVertical } from 'lucide-react';
 import { CarouselMedia } from '@/components/CarouselMedia';
 import { PlatformBadges } from '@/components/PlatformBadges';
 import { PublishStatusBadge } from '@/components/PublishStatusBadge';
@@ -559,17 +559,17 @@ function SortablePostCard({
     if (!post.approval_status) return null;
     
     const statusConfig = {
-      'approved': { bg: 'bg-green-100', text: 'text-green-700', label: 'Approved' },
-      'rejected': { bg: 'bg-red-100', text: 'text-red-700', label: 'Rejected' },
-      'needs_attention': { bg: 'bg-orange-100', text: 'text-orange-700', label: 'Improve' },
-      'pending': { bg: 'bg-gray-200', text: 'text-gray-700', label: 'Pending' },
-      'draft': { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Draft' },
+            'approved': { bg: 'bg-emerald-50 ring-emerald-100 before:bg-emerald-500', text: 'text-emerald-700', label: 'Approved' },
+      'rejected': { bg: 'bg-red-50 ring-red-100 before:bg-red-500', text: 'text-red-700', label: 'Rejected' },
+      'needs_attention': { bg: 'bg-amber-50 ring-amber-100 before:bg-amber-500', text: 'text-amber-800', label: 'Improve' },
+      'pending': { bg: 'bg-gray-100 ring-gray-200 before:bg-gray-400', text: 'text-gray-700', label: 'Pending' },
+      'draft': { bg: 'bg-gray-50 ring-gray-200 before:bg-gray-300', text: 'text-gray-600', label: 'Draft' },
     };
     
     const config = statusConfig[post.approval_status as keyof typeof statusConfig] || statusConfig.pending;
     
     return (
-      <span className={`text-xs px-1.5 py-0.5 rounded ${config.bg} ${config.text}`}>
+      <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full ring-1 before:h-1.5 before:w-1.5 before:rounded-full before:content-[''] ${config.bg} ${config.text}`}>
         {config.label}
       </span>
     );
@@ -660,18 +660,18 @@ function SortablePostCard({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setImgIndex(i => (i - 1 + total) % total); }}
-                    className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
+                    className="absolute left-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/85 text-gray-800 shadow-sm ring-1 ring-black/5 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors z-10"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setImgIndex(i => (i + 1) % total); }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/85 text-gray-800 shadow-sm ring-1 ring-black/5 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors z-10"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
-                  <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/50 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full z-10">
+                  <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 bg-gray-900/55 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full backdrop-blur-sm z-10">
                     {imgIndex + 1} / {total}
                   </div>
                 </>
@@ -707,8 +707,8 @@ function SortablePostCard({
       {...listeners}
       {...nativeDropHandlers}
       onClick={() => onPostClick?.(post)}
-      className={`rounded-lg border-2 bg-white overflow-hidden mb-2 shadow-sm hover:shadow-md transition-all duration-200 ${
-        isNativeDragOver ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : 'border-gray-200'
+      className={`rounded-xl border bg-white overflow-hidden mb-2.5 shadow-card hover:shadow-card-hover hover:-translate-y-px transition-all duration-200 ${
+        isNativeDragOver ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : 'border-gray-200/90'
       } ${isDragging ? 'opacity-50 scale-105' : ''} ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''} ${
         isDeleting ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer active:cursor-grabbing'
       } ${isSelected ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200' : ''}`}
@@ -717,15 +717,15 @@ function SortablePostCard({
       <PublishStatusBadge post={post} />
 
       {/* Header with Date and Status */}
-      <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200 p-2">
+      <div className="flex items-center justify-between mb-2 border-b border-gray-100 px-2.5 py-2">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-gray-600">
+          <span className="whitespace-nowrap text-xs font-medium text-gray-500">
             {post.scheduled_date ? `:: ${formatDate(post.scheduled_date)}` : ''}
           </span>
           <PlatformBadges platforms={post.target_platforms} size={18} />
           {post.source === 'autopilot' && (
             <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 text-[9px] font-semibold leading-none"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gradient-ai text-white text-[9px] font-semibold leading-none"
               title="AI-generated post"
             >
               <Sparkles className="h-2.5 w-2.5" />
@@ -742,10 +742,10 @@ function SortablePostCard({
                 onTogglePostSelection(post.id);
               }}
               disabled={isDeleting}
-              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+              className={`px-2 py-1 text-[11px] font-medium rounded-md transition-colors ${
                 isSelected
-                  ? 'bg-blue-500 text-white hover:bg-blue-600'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
+                  ? 'bg-blue-600 text-white shadow-sm hover:bg-blue-700'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900 border border-gray-200'
               }`}
               title={isSelected ? "Deselect post" : "Select post for scheduling or deletion"}
             >
@@ -802,26 +802,26 @@ function SortablePostCard({
         const mediaItems = allMedia.map((url) => ({ url, isVideo: isVideoUrl(url) }));
         const total = mediaItems.length;
         return (
-          <div className="w-full mb-2 px-2">
-            <div className="relative w-full rounded overflow-hidden">
+          <div className="w-full mb-2 px-2.5">
+            <div className="relative w-full rounded-lg overflow-hidden ring-1 ring-gray-200/70">
               <CarouselMedia items={mediaItems} index={imgIndex} alt="Post" className="w-full" />
               {total > 1 && (
                 <>
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setImgIndex(i => (i - 1 + total) % total); }}
-                    className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
+                    className="absolute left-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/85 text-gray-800 shadow-sm ring-1 ring-black/5 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors z-10"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setImgIndex(i => (i + 1) % total); }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/85 text-gray-800 shadow-sm ring-1 ring-black/5 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors z-10"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
-                  <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/50 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full z-10">
+                  <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 bg-gray-900/55 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full backdrop-blur-sm z-10">
                     {imgIndex + 1} / {total}
                   </div>
                 </>
@@ -839,7 +839,7 @@ function SortablePostCard({
               ref={captionTextareaRef}
               value={editedCaption}
               onChange={(e) => setEditedCaption(e.target.value)}
-              className="w-full text-xs text-gray-700 p-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              className="w-full text-xs text-gray-700 p-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-[3px] focus:ring-blue-500/15 focus:border-blue-500 resize-none"
               rows={4}
               placeholder="Enter caption..."
               onKeyDown={(e) => {
@@ -881,7 +881,7 @@ function SortablePostCard({
           </div>
         ) : (
           <div className="group relative">
-            <p className="text-xs text-gray-700 whitespace-pre-wrap pr-6">
+            <p className="text-xs leading-[1.125rem] text-gray-700 whitespace-pre-wrap pr-6">
               {post.caption || 'No caption'}
             </p>
             {onUpdateCaption && (
@@ -903,7 +903,7 @@ function SortablePostCard({
 
       {/* Time and Project - Editable */}
       {post.scheduled_time && (
-        <div className="flex items-center justify-between gap-2 text-xs text-gray-500 px-2 pb-2">
+        <div className="flex items-center justify-between gap-2 text-xs text-gray-500 px-2.5 pb-2.5 pt-1">
           <div className="flex items-center gap-1">
             <Clock className="w-3 h-3" />
             {isEditing ? (
@@ -943,7 +943,7 @@ function SortablePostCard({
                     setEditingPostId(post.id);
                   }
                 }}
-                className="cursor-pointer bg-white border border-gray-300 rounded px-2 py-1 hover:border-blue-500 hover:text-blue-600"
+                className="cursor-pointer bg-gray-50 border border-gray-200 rounded-md px-2 py-0.5 font-medium text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
                 title="Click to edit time"
               >
                 {formatTime(post.scheduled_time)}
@@ -969,7 +969,7 @@ function SortablePostCard({
 
       {/* Approval Comment */}
       {approvalComment && (
-        <div className="mt-2 mx-2 mb-2 rounded-md border border-blue-100 bg-blue-50 p-2">
+        <div className="mt-2 mx-2.5 mb-2 rounded-lg border border-blue-100 bg-blue-50/70 p-2">
           <div className="flex items-start gap-2">
             <MessageCircle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
             <div className="text-xs text-blue-700 whitespace-pre-wrap">
@@ -1004,7 +1004,7 @@ function SortablePostCard({
                 e.stopPropagation();
                 setIsTagModalOpen(true);
               }}
-              className="flex-shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              className="flex-shrink-0 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
               title="Add tag"
             >
               <Tag className="w-4 h-4" />
@@ -1094,8 +1094,8 @@ export function DateDivider({
           ? `group/divider mt-2 first:mt-0 mb-1 px-1 py-0.5 rounded-md transition-colors ${
               isNativeDragOver || isDragOver ? 'bg-blue-100 ring-2 ring-blue-400' : ''
             }`
-          : `mt-3 mb-1.5 pb-1 border-b rounded-t px-1 transition-colors ${
-              isNativeDragOver || isDragOver ? 'border-blue-400 bg-blue-50' : isTodayDay ? 'border-blue-200' : 'border-gray-200'
+          : `mt-4 first:mt-0 mb-2 pb-1.5 border-b px-1 rounded-t-lg transition-colors ${
+              isNativeDragOver || isDragOver ? 'border-blue-400 bg-blue-50' : isTodayDay ? 'border-blue-300' : 'border-gray-200/80'
             }`
       }
     >
@@ -1104,9 +1104,10 @@ export function DateDivider({
           <span className={`${isBoard ? 'text-[11px] tracking-wide' : 'text-xs'} font-semibold uppercase ${isTodayDay ? 'text-blue-700' : isBoard ? 'text-[#44546f]' : 'text-gray-700'}`}>
             {dayName}
           </span>
-          <span className={`${isBoard ? 'text-[11px]' : 'text-xs'} ${isTodayDay ? 'text-blue-600 font-bold' : isBoard ? 'text-[#626f86]' : 'text-gray-600'}`}>
+          <span className={`${isBoard ? 'text-[11px]' : 'text-xs'} ${isTodayDay ? (isBoard ? 'text-blue-600 font-bold' : 'inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 font-semibold text-white') : isBoard ? 'text-[#626f86]' : 'text-gray-600'}`}>
             {getDayNumber(dayDate)}
           </span>
+          {isTodayDay && !isBoard && <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">Today</span>}
         </div>
         {onEventAdd && (
           <button
@@ -1115,7 +1116,7 @@ export function DateDivider({
             className={
               isBoard
                 ? 'px-1.5 py-0.5 text-[11px] font-medium text-[#44546f] rounded hover:bg-[#091e4224] hover:text-purple-700 opacity-0 group-hover/divider:opacity-100 focus:opacity-100 transition'
-                : 'px-2 py-0.5 text-xs font-medium text-purple-600 border border-purple-300 rounded hover:bg-purple-50 transition-colors'
+                : 'px-2 py-0.5 text-[11px] font-medium text-gray-500 border border-gray-200 bg-white rounded-md hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 transition-colors'
             }
             title="Mark event or note"
           >
@@ -1458,7 +1459,7 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
       </div>
     );
   }
@@ -1497,13 +1498,13 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
               <div
                 key={column.weekStart.toISOString()}
                 data-week-column
-                className={`flex-shrink-0 w-80 rounded-lg border-2 border-transparent p-4 transition-all duration-200 ${opacityClass}`}
+                className={`flex-shrink-0 w-80 rounded-2xl border-2 border-transparent p-3 transition-all duration-200 ${isCurrent ? 'bg-blue-50/50' : 'bg-gray-50/60'} ${opacityClass}`}
               >
                 {/* Column Header */}
-                <div className={`flex items-center justify-center mb-4 pb-2 px-3 py-2 rounded ${isCurrent ? 'bg-blue-900' : 'bg-gray-700'}`}>
+                <div className={`sticky top-0 z-10 flex items-center justify-center mb-3 px-3 py-2 rounded-xl ${isCurrent ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-button' : 'bg-white/90 text-gray-800 ring-1 ring-gray-200/80 shadow-xs backdrop-blur-sm'}`}>
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-white" />
-                    <h3 className="font-semibold text-sm uppercase tracking-wide text-white">
+                    <Calendar className={`w-4 h-4 ${isCurrent ? 'text-white' : 'text-gray-400'}`} />
+                    <h3 className="font-semibold text-[13px] tracking-[-0.005em]">
                       {formatWeekCommencing(column.weekStart)}
                       {isCurrent && ' (CURRENT)'}
                     </h3>
@@ -1511,14 +1512,14 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
                       <button
                         type="button"
                         onClick={toggleSelectWeek}
-                        className="p-1 rounded hover:bg-white/15 transition-colors"
+                        className={`p-1 rounded-md transition-colors ${isCurrent ? 'hover:bg-white/15' : 'hover:bg-gray-100'}`}
                         title={allSelected ? 'Deselect all posts this week' : 'Select all posts this week'}
                         aria-label={allSelected ? 'Deselect all posts this week' : 'Select all posts this week'}
                         aria-pressed={allSelected ? true : someSelected ? 'mixed' : false}
                       >
                         <span
                           className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
-                            allSelected || someSelected ? 'bg-blue-500 border-blue-400 text-white' : 'bg-white/10 border-white/70 text-transparent'
+                            allSelected || someSelected ? (isCurrent ? 'bg-white border-white text-blue-600' : 'bg-blue-600 border-blue-600 text-white') : isCurrent ? 'bg-white/10 border-white/70 text-transparent' : 'bg-white border-gray-300 text-transparent'
                           }`}
                         >
                           {someSelected ? <Minus className="w-3 h-3" /> : <Check className="w-3 h-3" />}
@@ -1572,8 +1573,8 @@ export const ColumnViewCalendar = forwardRef<ColumnViewCalendarHandle, ColumnVie
 
       <DragOverlay>
         {activeId ? (
-          <div className="bg-white rounded-lg border-2 border-blue-400 p-3 shadow-xl opacity-95 transform rotate-2">
-            <div className="text-sm text-gray-600 font-medium">📝 Dragging post...</div>
+          <div className="glass-strong rounded-xl border-blue-300 p-3 opacity-95 transform rotate-2">
+            <div className="flex items-center gap-1.5 text-[13px] text-gray-700 font-medium"><GripVertical className="h-4 w-4 text-blue-600" /> Dragging post...</div>
           </div>
         ) : null}
       </DragOverlay>

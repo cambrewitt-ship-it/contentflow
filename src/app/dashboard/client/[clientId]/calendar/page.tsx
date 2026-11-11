@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Plus, Loader2, RefreshCw, User, Settings, Calendar, Copy, ExternalLink, Link as LinkIcon, CheckCircle, Columns, KanbanSquare, AlertCircle, FileDown, ArrowLeft, ArrowRight, Smartphone, Inbox } from 'lucide-react';
-import { Check, X, AlertTriangle, Minus } from 'lucide-react';
+import { Check, X, AlertTriangle, Minus, Pencil, XCircle, CheckSquare } from 'lucide-react';
 import { EditIndicators } from '@/components/EditIndicators';
 import { ColumnViewCalendar, type ColumnViewCalendarHandle } from '@/components/ColumnViewCalendar';
 import { TrelloBoardCalendar } from '@/components/TrelloBoardCalendar';
@@ -2580,11 +2580,11 @@ export default function CalendarPage() {
       className={
         variant === 'board'
           ? 'bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-3 w-max min-w-full text-sm [&_button]:py-1.5 [&_button]:px-3 [&_button]:text-sm [&_button]:whitespace-nowrap [&_select]:py-1.5 [&>div>a]:py-1.5'
-          : 'bg-white border-b border-gray-200 px-6 py-3 mb-4 rounded-lg shadow flex items-center justify-between gap-3'
+                    : 'bg-white/85 backdrop-blur-xl border border-gray-200/80 px-3 py-2.5 mb-4 rounded-2xl shadow-card flex items-center justify-between gap-3 overflow-x-auto calendar-hscroll text-[13px]'
       }
     >
-      {/* Left side - action buttons */}
-      <div className="flex items-center gap-3">
+            {/* Left side - action buttons */}
+      <div className="flex flex-shrink-0 items-center gap-2">
         <button
           onClick={() => {
             const totalPosts = Object.values(scheduledPosts).reduce((acc, week) => acc + week.length, 0);
@@ -2594,8 +2594,9 @@ export default function CalendarPage() {
               handleSelectAllPosts();
             }
           }}
-          className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-gray-600 hover:bg-gray-700"
+          className="h-9 px-3 rounded-lg flex items-center gap-1.5 whitespace-nowrap font-medium transition-all border border-gray-200 bg-white text-gray-700 shadow-xs hover:bg-gray-50 hover:border-gray-300"
         >
+                    <CheckSquare className="w-4 h-4 text-gray-500" />
           {(() => {
             const totalPosts = Object.values(scheduledPosts).reduce((acc, week) => acc + week.length, 0);
             return selectedPosts.size === totalPosts && totalPosts > 0 ? 'Deselect All' : 'Select All';
@@ -2605,14 +2606,14 @@ export default function CalendarPage() {
         <button
           onClick={handleBulkDelete}
           disabled={isDeleting || selectedPosts.size === 0}
-          className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-            isDeleting ? 'opacity-50 cursor-not-allowed bg-red-500' :
-            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-red-600' :
-            'bg-red-600 hover:bg-red-700'
+          className={`h-9 px-3 rounded-lg flex items-center gap-1.5 whitespace-nowrap font-medium transition-all border ${
+            isDeleting ? 'opacity-50 cursor-not-allowed border-red-200 bg-red-50 text-red-600' :
+            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed border-gray-200 bg-white text-gray-500' :
+            'border-red-200 bg-white text-red-600 shadow-xs hover:bg-red-50'
           }`}
         >
           {isDeleting && (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
           )}
           {isDeleting ? 'Deleting...' : `Delete ${selectedPosts.size || 0} Selected Post${selectedPosts.size === 1 ? '' : 's'}`}
         </button>
@@ -2620,16 +2621,16 @@ export default function CalendarPage() {
         <button
           onClick={handleExportToPDF}
           disabled={exportingPDF || selectedPosts.size === 0}
-          className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-            exportingPDF ? 'opacity-50 cursor-not-allowed bg-blue-500' :
-            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-blue-600' :
-            'bg-blue-600 hover:bg-blue-700'
+          className={`h-9 px-3 rounded-lg flex items-center gap-1.5 whitespace-nowrap font-medium transition-all border border-gray-200 bg-white text-gray-700 ${
+            exportingPDF ? 'opacity-50 cursor-not-allowed' :
+            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed' :
+            'shadow-xs hover:bg-gray-50 hover:border-gray-300'
           }`}
           title={selectedPosts.size === 0 ? 'Select posts to export' : 'Export selected posts to PDF'}
         >
           {exportingPDF ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
               Exporting...
             </>
           ) : (
@@ -2643,10 +2644,10 @@ export default function CalendarPage() {
         <button
           onClick={handleGenerateApprovalLink}
           disabled={generatingApprovalLink || selectedPosts.size === 0}
-          className={`px-4 py-2 text-white rounded flex items-center gap-2 transition-all ${
-            generatingApprovalLink ? 'opacity-50 cursor-not-allowed bg-purple-500' :
-            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed bg-purple-600' :
-            'bg-purple-600 hover:bg-purple-700'
+          className={`h-9 px-3 rounded-lg flex items-center gap-1.5 whitespace-nowrap font-medium text-white transition-all bg-blue-600 ${
+            generatingApprovalLink ? 'opacity-50 cursor-not-allowed' :
+            selectedPosts.size === 0 ? 'opacity-40 cursor-not-allowed' :
+            'shadow-button hover:bg-blue-700'
           }`}
           title={selectedPosts.size === 0 ? 'Select posts to create approval link' : 'Create approval link for client'}
         >
@@ -2665,7 +2666,7 @@ export default function CalendarPage() {
 
         <button
           onClick={handleOpenPortalModal}
-          className="px-4 py-2 text-white rounded flex items-center gap-2 transition-all bg-teal-600 hover:bg-teal-700"
+          className="h-9 px-3 rounded-lg flex items-center gap-1.5 whitespace-nowrap font-medium transition-all border border-teal-200 bg-teal-50/70 text-teal-800 hover:bg-teal-50 hover:border-teal-300"
           title="Get the client's Content Portal link"
         >
           <User className="w-4 h-4" />
@@ -2673,12 +2674,12 @@ export default function CalendarPage() {
         </button>
       </div>
 
-      {/* Right side - schedule + project filter + nav buttons */}
-      <div className="flex items-center gap-3">
+            {/* Right side - schedule + project filter + nav buttons */}
+      <div className="flex flex-shrink-0 items-center gap-2">
         {/* Schedule buttons */}
         {(connectedAccounts.length > 0 || selectedPosts.size > 0) && (
           <span
-            className={`text-sm py-2 transition-colors ${
+            className={`whitespace-nowrap py-2 text-xs font-medium transition-colors ${
             selectedPosts.size > 0 ? 'text-gray-600' : 'text-gray-900'
             }`}
           >
@@ -2730,7 +2731,7 @@ export default function CalendarPage() {
                 key={account._id}
                 onClick={() => handleScheduleToPlatform(account)}
                 disabled={isDisabled}
-                className={`px-3 py-1.5 text-white rounded text-sm flex items-center gap-2 transition-all ${
+                className={`h-9 px-3 text-white rounded-lg whitespace-nowrap font-medium flex items-center gap-2 transition-all shadow-button ${
                   isDisabled ? 'opacity-40 cursor-not-allowed' : ''
                 } ${platformBgColor}`}
                 title={
@@ -2756,7 +2757,7 @@ export default function CalendarPage() {
         ) : (
           selectedPosts.size > 0 && (
             <Link href={`/dashboard/client/${clientId}`}>
-              <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm flex items-center gap-2 transition-all">
+              <button className="h-9 px-3 rounded-lg whitespace-nowrap font-medium bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 shadow-button transition-all">
                 Connect Social Media to Publish
               </button>
             </Link>
@@ -2770,7 +2771,7 @@ export default function CalendarPage() {
         <select
           value={selectedProjectFilter}
           onChange={(e) => setSelectedProjectFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          className="h-9 px-3 border border-gray-200 rounded-lg text-[13px] font-medium text-gray-700 bg-white shadow-xs hover:border-gray-300 outline-none focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15 transition-colors"
         >
           <option value="all">All Projects</option>
           <option value="untagged">Untagged</option>
@@ -2789,8 +2790,8 @@ export default function CalendarPage() {
   const postsTrayContent = (
     <>
       {/* Sidebar Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 min-h-[73px]">
-        <h3 className="text-sm font-medium text-gray-700">Posts</h3>
+      <div className="flex items-center justify-between px-3 py-3 border-b border-gray-100 min-h-[60px]">
+        <h3 className="text-[13px] font-semibold text-gray-900">Posts</h3>
         <button
           onClick={() => fetchUnscheduledPosts(true)}
           disabled={isLoadingPosts}
@@ -2802,10 +2803,10 @@ export default function CalendarPage() {
       </div>
 
       {/* Sidebar Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-3">
         {/* Loading State for Unscheduled Posts */}
         {isLoadingPosts && projectPosts.length === 0 && (
-          <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="mb-3 p-2.5 bg-blue-50/80 border border-blue-100 rounded-xl">
             <div className="flex items-center">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
               <p className="text-sm text-blue-800">Loading...</p>
@@ -2816,7 +2817,7 @@ export default function CalendarPage() {
         {/* Posts Grid - Vertical Layout */}
         <div className="flex flex-col gap-3">
           {projectPosts.length === 0 && !isLoadingPosts ? (
-            <div className="text-gray-400 text-sm py-4 text-center">
+            <div className="text-gray-400 text-xs leading-5 py-4 text-center">
               No posts added yet. Add posts from Content Suite.
             </div>
           ) : (
@@ -2826,7 +2827,7 @@ export default function CalendarPage() {
               return (
                 <div
                   key={post.id}
-                  className={`w-full aspect-square rounded-lg overflow-hidden border-2 relative ${
+                  className={`group w-full aspect-square rounded-xl overflow-hidden border-2 relative shadow-xs transition-all ${
                     isMoving || isDeleting
                       ? 'border-blue-500 bg-blue-50 cursor-not-allowed opacity-50'
                       : 'border-gray-200 cursor-move hover:border-blue-400'
@@ -2864,7 +2865,7 @@ export default function CalendarPage() {
                       />
                       )}
                       {/* Action buttons */}
-                      <div className="absolute top-1 right-1 flex flex-col gap-1">
+                      <div className="absolute top-1.5 right-1.5 flex flex-col gap-1">
                         {/* Edit button */}
                         <button
                             onClick={(e) => {
@@ -2873,12 +2874,10 @@ export default function CalendarPage() {
                               // Navigate to content suite with editPostId parameter in same tab
                               window.location.href = `/dashboard/client/${clientId}/content-suite?editPostId=${post.id}`;
                             }}
-                            className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
+                            className="w-6 h-6 bg-white/90 hover:bg-white text-blue-600 rounded-full flex items-center justify-center shadow-sm ring-1 ring-black/5 backdrop-blur-sm transition-colors"
                             title="Edit in Content Suite"
                           >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
+                            <Pencil className="w-3 h-3" />
                           </button>
 
                           {/* Delete button */}
@@ -2890,10 +2889,10 @@ export default function CalendarPage() {
                                 handleDeleteUnscheduledPost(post.id);
                               }
                             }}
-                            className="w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold opacity-80 hover:opacity-100 transition-opacity"
+                            className="w-6 h-6 bg-white/90 hover:bg-red-50 text-red-600 rounded-full flex items-center justify-center shadow-sm ring-1 ring-black/5 backdrop-blur-sm transition-colors"
                             title="Delete post"
                           >
-                            ×
+                            <X className="w-3.5 h-3.5" />
                           </button>
                       </div>
                     </>
@@ -2980,16 +2979,14 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
-      <div className={`p-6 pb-8 ${isBoardShell && !error ? 'hidden' : ''}`}>
+      <div className={`px-4 py-5 md:px-6 md:pb-8 ${isBoardShell && !error ? 'hidden' : ''}`}>
       {/* Error Display */}
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div className="mb-4 px-3.5 py-2.5 bg-red-50/80 border border-red-200/80 rounded-xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <div className="text-red-600">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
+                <XCircle className="w-4 h-4" />
               </div>
               <div className="ml-3">
                 <p className="text-sm text-red-800">{error}</p>
@@ -2998,10 +2995,9 @@ export default function CalendarPage() {
             <button
               onClick={() => setError(null)}
               className="text-red-400 hover:text-red-600"
+              aria-label="Dismiss"
             >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -3013,7 +3009,7 @@ export default function CalendarPage() {
         <div className={`flex gap-6 relative min-w-0 ${isBoardShell ? 'hidden' : ''}`} style={{ height: 'calc(100vh - 200px)' }}>
           {/* Left Sidebar - Posts in Project (Vertical) */}
           <div
-            className="bg-white rounded-lg shadow transition-all duration-300 flex flex-col w-36 flex-shrink-0 sticky top-0"
+            className="bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200/80 shadow-card transition-all duration-300 flex flex-col w-36 flex-shrink-0 sticky top-0 overflow-hidden"
             style={{ height: 'calc(100vh - 200px)' }}
           >
             {postsTrayContent}
@@ -3025,36 +3021,36 @@ export default function CalendarPage() {
         {/* Calendar */}
         <div
           ref={calendarScrollRef}
-          className="bg-white rounded-lg shadow flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden"
+          className="bg-white rounded-2xl border border-gray-200/80 shadow-card flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden"
         >
           {isBoardShell ? (
               <div className="flex-1" />
             ) : (
               <>
-                <div className="p-4 border-b border-gray-200 min-h-[73px] flex items-center justify-between">
+                <div className="px-3 py-3 border-b border-gray-100 min-h-[60px] flex items-center justify-between gap-3">
                   <button
                     type="button"
                     onClick={() => columnViewRef.current?.navigate('left')}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-gray-600 text-sm font-medium shadow-sm transition hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300"
+                    className="flex h-9 items-center gap-1.5 px-3 rounded-lg border border-gray-200 bg-white text-gray-700 text-[13px] font-medium shadow-xs transition hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Previous
                   </button>
                   {/* View Toggle */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center bg-gray-100/80 rounded-xl p-1">
                       <button
                         onClick={() => setViewMode('month')}
-                        className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                        className="px-3 py-1.5 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5 text-gray-600 hover:text-gray-900"
                       >
                         <Calendar className="w-4 h-4" />
                         Month
                       </button>
                       <button
                         onClick={() => setViewMode('column')}
-                        className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 ${
+                        className={`px-3 py-1.5 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5 ${
                           viewMode === 'column'
-                            ? 'bg-white text-gray-900 shadow-sm'
+                            ? 'bg-white text-blue-700 shadow-sm ring-1 ring-gray-200/80'
                             : 'text-gray-600 hover:text-gray-900'
                         }`}
                       >
@@ -3063,20 +3059,20 @@ export default function CalendarPage() {
                       </button>
                       <button
                         onClick={() => setViewMode('board')}
-                        className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                        className="px-3 py-1.5 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5 text-gray-600 hover:text-gray-900"
                         title="Trello-style board (beta)"
                       >
                         <KanbanSquare className="w-4 h-4" />
                         Board
-                        <span className="px-1 py-px rounded bg-blue-100 text-blue-700 text-[9px] font-semibold uppercase leading-none">Beta</span>
+                        <span className="px-1 py-px rounded bg-gradient-ai text-white text-[9px] font-semibold uppercase leading-none">Beta</span>
                       </button>
                     </div>
                     <button
                       onClick={() => setShowEventsPanel(v => !v)}
-                      className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 border ${
+                      className={`h-9 px-3 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5 border ${
                         showEventsPanel
                           ? 'bg-blue-50 text-blue-700 border-blue-200'
-                          : 'text-gray-600 hover:text-gray-900 border-gray-200'
+                          : 'bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-gray-200 shadow-xs'
                       }`}
                     >
                       <Calendar className="w-4 h-4" />
@@ -3084,7 +3080,7 @@ export default function CalendarPage() {
                     </button>
                     <button
                       onClick={() => setShowFeedPreview(true)}
-                      className="px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-2 border text-gray-600 hover:text-gray-900 border-gray-200"
+                      className="h-9 px-3 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5 border bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-gray-200 shadow-xs"
                     >
                       <Smartphone className="w-4 h-4" />
                       Feed preview
@@ -3093,7 +3089,7 @@ export default function CalendarPage() {
                   <button
                     type="button"
                     onClick={() => columnViewRef.current?.navigate('right')}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-200 bg-white text-gray-600 text-sm font-medium shadow-sm transition hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300"
+                    className="flex h-9 items-center gap-1.5 px-3 rounded-lg border border-gray-200 bg-white text-gray-700 text-[13px] font-medium shadow-xs transition hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200"
                   >
                     Next
                     <ArrowRight className="h-4 w-4" />
