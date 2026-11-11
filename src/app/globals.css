@@ -516,6 +516,159 @@
   }
 }
 
+/* ── Ambient background ─────────────────────────────────────────────
+   A very light living atmosphere behind the whole app (AmbientBackground.tsx,
+   rendered in the root layout). Four huge, soft radial gradients drift on
+   long, out-of-phase loops (47–97s, prime-ish so the combination never visibly
+   repeats). Only transform/opacity animate, so it stays on the compositor.
+   A cursor glow (desktop) and click pulses are added by the component. */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+.ambient-blob {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+/* Pale blue wash, top left */
+.ambient-blob--1 {
+  width: 85vmax;
+  height: 85vmax;
+  left: -30vmax;
+  top: -38vmax;
+  background: radial-gradient(closest-side, rgb(234 244 255 / 0.95), rgb(234 244 255 / 0.5) 45%, transparent);
+  animation-name: ambient-drift-1;
+  animation-duration: 71s;
+}
+
+/* Very light cyan, top right */
+.ambient-blob--2 {
+  width: 62vmax;
+  height: 62vmax;
+  right: -22vmax;
+  top: -20vmax;
+  background: radial-gradient(closest-side, rgb(64 197 237 / 0.11), rgb(64 197 237 / 0.04) 50%, transparent);
+  animation-name: ambient-drift-2;
+  animation-duration: 89s;
+  animation-delay: -23s;
+}
+
+/* Faint brand-blue haze, low centre */
+.ambient-blob--3 {
+  width: 75vmax;
+  height: 75vmax;
+  left: 12vmax;
+  bottom: -46vmax;
+  background: radial-gradient(closest-side, rgb(53 109 243 / 0.055), rgb(53 109 243 / 0.02) 50%, transparent);
+  animation-name: ambient-drift-3;
+  animation-duration: 97s;
+  animation-delay: -41s;
+}
+
+/* Soft white light, middle — keeps the centre airy behind content */
+.ambient-blob--4 {
+  width: 55vmax;
+  height: 55vmax;
+  left: 28vw;
+  top: 8vh;
+  background: radial-gradient(closest-side, rgb(255 255 255 / 0.55), rgb(234 244 255 / 0.25) 55%, transparent);
+  animation-name: ambient-drift-4;
+  animation-duration: 47s;
+  animation-delay: -12s;
+}
+
+@keyframes ambient-drift-1 {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  33%  { transform: translate3d(6vmax, 4vmax, 0) scale(1.06); }
+  66%  { transform: translate3d(2vmax, 9vmax, 0) scale(0.97); }
+  100% { transform: translate3d(9vmax, 3vmax, 0) scale(1.04); }
+}
+@keyframes ambient-drift-2 {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  40%  { transform: translate3d(-8vmax, 6vmax, 0) scale(1.08); }
+  75%  { transform: translate3d(-3vmax, 12vmax, 0) scale(0.95); }
+  100% { transform: translate3d(-10vmax, 4vmax, 0) scale(1.03); }
+}
+@keyframes ambient-drift-3 {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  30%  { transform: translate3d(-10vmax, -4vmax, 0) scale(1.05); }
+  70%  { transform: translate3d(8vmax, -8vmax, 0) scale(0.96); }
+  100% { transform: translate3d(3vmax, -2vmax, 0) scale(1.07); }
+}
+@keyframes ambient-drift-4 {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(-9vw, 7vh, 0) scale(1.1); }
+  100% { transform: translate3d(7vw, -4vh, 0) scale(0.94); }
+}
+
+/* Cursor glow — position comes from --ambient-glow-x/y, eased in JS */
+.ambient-glow {
+  --ambient-glow-x: 50vw;
+  --ambient-glow-y: 35vh;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 680px;
+  height: 680px;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgb(64 197 237 / 0.09),
+    rgb(234 244 255 / 0.55) 40%,
+    rgb(234 244 255 / 0.18) 70%,
+    transparent
+  );
+  transform: translate3d(calc(var(--ambient-glow-x) - 50%), calc(var(--ambient-glow-y) - 50%), 0);
+  opacity: 0;
+  transition: opacity 1.4s ease;
+  will-change: transform, opacity;
+}
+
+/* Click pulse — a soft ring of light, animated with the Web Animations API */
+.ambient-pulse {
+  position: absolute;
+  width: 560px;
+  height: 560px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.15);
+  background: radial-gradient(
+    closest-side,
+    transparent 45%,
+    rgb(64 197 237 / 0.10) 70%,
+    rgb(234 244 255 / 0.6) 82%,
+    transparent
+  );
+  will-change: transform, opacity;
+}
+
+@media (max-width: 767px) {
+  /* Smaller, calmer field on phones */
+  .ambient-blob--4 { left: 5vw; top: 20vh; }
+  .ambient-glow { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-blob { animation: none; }
+  .ambient-glow,
+  .ambient-pulse { display: none; }
+}
+
+@media print {
+  .ambient-bg { display: none; }
+}
+
 /* ── Mobile ─────────────────────────────────────────────────────────── */
 @media (max-width: 767px) {
   /* iOS Safari zooms into any focused field under 16px */

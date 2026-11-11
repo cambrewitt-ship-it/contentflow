@@ -6,6 +6,7 @@ import { UIThemeProvider } from "../contexts/UIThemeContext";
 import { AuthProvider } from "../contexts/AuthContext";
 import ConditionalCreditsProvider from "./ConditionalCreditsProvider";
 import { GoogleTagManager, GoogleTagManagerNoScript } from "../components/GoogleTagManager";
+import AmbientBackground from "../components/AmbientBackground";
 
 // Validate environment variables on server startup
 import "../lib/validateEnv";
@@ -72,6 +73,7 @@ export default function RootLayout({
       <body className={`${geist.className} ${poppins.variable} ${montserrat.variable} antialiased`}>
         <GoogleTagManager gtmId={gtmId} />
         <GoogleTagManagerNoScript gtmId={gtmId} />
+        <AmbientBackground />
         <AuthProvider>
           <ConditionalCreditsProvider>
             <UIThemeProvider>
