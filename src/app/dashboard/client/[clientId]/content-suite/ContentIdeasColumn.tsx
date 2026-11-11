@@ -176,7 +176,8 @@ export function ContentIdeasColumn() {
           <Button
             onClick={handleGenerateIdeas}
             disabled={generatingIdeas}
-            className="bg-purple-600 hover:bg-purple-700 text-white h-11 w-full md:w-[326px]"
+            variant="ai"
+            className="h-11 w-full rounded-xl md:w-[326px]"
           >
             {generatingIdeas ? (
               <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
@@ -210,7 +211,7 @@ export function ContentIdeasColumn() {
                   <Button
                     asChild
                     size="sm"
-                    className="mt-3 ml-3 bg-purple-600 hover:bg-purple-700 text-white"
+                    className="mt-3 ml-3 bg-blue-600 hover:bg-blue-700 text-white"
                   >
                     <a href="/pricing">Plans</a>
                   </Button>
@@ -237,7 +238,7 @@ export function ContentIdeasColumn() {
               </p>
               <Button
                 onClick={handleRefreshIdeas}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Try Again
@@ -265,7 +266,7 @@ export function ContentIdeasColumn() {
                 setShowCreditDialog(false)
                 window.location.href = '/pricing'
               }}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               Upgrade Plan
             </Button>
