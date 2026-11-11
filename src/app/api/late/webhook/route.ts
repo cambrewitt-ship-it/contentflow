@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import logger from '@/lib/logger';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { verifyWebhookSignature } from '@/lib/zernio/webhook';
-import { autoModerate, getFeedAgentSettings, ingestCommentEvent, triageComments } from '@/lib/comments/store';
+import { autoModerate, getFeedAgentSettings, ingestCommentEvent, syncAdThread, triageComments } from '@/lib/comments/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,10 +34,13 @@ export async function POST(request: NextRequest) {
 
   if (name === 'comment.received') {
     try {
-      const clientId = await ingestCommentEvent(admin, event);
-      if (clientId) {
+      const ingested = await ingestCommentEvent(admin, event);
+      if (ingested) {
+        const { clientId, adPost } = ingested;
         after(async () => {
           try {
+            // A comment on an ad: read the ad's whole thread too (older comments included)
+            if (adPost) await syncAdThread(admin, clientId, adPost).catch((err) => logger.warn('Ad thread backfill failed', { err: String(err) }));
             await triageComments(admin, clientId);
             await autoModerate(admin, clientId, await getFeedAgentSettings(admin, clientId));
           } catch (err) {

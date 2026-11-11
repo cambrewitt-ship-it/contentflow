@@ -116,6 +116,7 @@ export function CommentCard({
             {c.authorUsername && c.authorName && <span className="text-gray-400">@{c.authorUsername}</span>}
             <span className="capitalize text-gray-400">· {c.platform} · {timeAgo(c.commentedAt)}</span>
             {c.parentCommentId && <span className="text-gray-400">· reply</span>}
+            {c.isAd && <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">AD</span>}
             {c.category && c.category !== 'own' && (
               <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize ${CATEGORY_STYLE[c.category] ?? ''}`}>{c.category}</span>
             )}

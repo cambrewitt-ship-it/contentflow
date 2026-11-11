@@ -8,6 +8,7 @@ import { authedFetchJson } from '@/lib/authedFetch'
 import type { CommentRow } from '@/lib/comments/types'
 import { CommentCard } from './CommentCard'
 import { AutoDmCard } from './AutoDmCard'
+import { AdPostsCard } from './AdPostsCard'
 
 // A client's comments inbox: every comment on their posts across platforms, triaged by
 // the AI with a reply drafted in the brand's voice, grouped by post.
@@ -16,6 +17,7 @@ const VIEWS = [
   { key: 'needs_reply', label: 'Needs reply' },
   { key: 'questions', label: 'Questions' },
   { key: 'negative', label: 'Negative & spam' },
+  { key: 'ads', label: 'Ads' },
   { key: 'auto', label: 'Feed Checker actions' },
   { key: 'hidden', label: 'Hidden' },
   { key: 'all', label: 'All' },
@@ -77,10 +79,10 @@ export default function ClientComments({ clientId }: { clientId: string }) {
   }
 
   const groups = useMemo(() => {
-    const map = new Map<string, { key: string; postText: string | null; postUrl: string | null; thumb: string | null; platform: string; items: CommentRow[] }>()
+    const map = new Map<string, { key: string; postText: string | null; postUrl: string | null; thumb: string | null; platform: string; isAd: boolean; adTitle: string | null; items: CommentRow[] }>()
     for (const c of comments) {
       const key = `${c.platform}:${c.platformPostId}`
-      const g = map.get(key) ?? { key, postText: c.postText, postUrl: c.postUrl, thumb: c.postThumbnail, platform: c.platform, items: [] }
+      const g = map.get(key) ?? { key, postText: c.postText, postUrl: c.postUrl, thumb: c.postThumbnail, platform: c.platform, isAd: c.isAd, adTitle: c.adTitle, items: [] }
       g.items.push(c)
       map.set(key, g)
     }
@@ -156,7 +158,10 @@ export default function ClientComments({ clientId }: { clientId: string }) {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="line-clamp-1 text-sm text-gray-700">{g.postText || 'Post'}</p>
+                    <p className="line-clamp-1 text-sm text-gray-700">
+                      {g.isAd && <span className="mr-1.5 rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">AD</span>}
+                      {g.postText || g.adTitle || 'Post'}
+                    </p>
                     <p className="text-xs capitalize text-gray-400">
                       {g.platform} · {g.items.length} comment{g.items.length === 1 ? '' : 's'}
                       {g.postUrl && (
@@ -181,6 +186,7 @@ export default function ClientComments({ clientId }: { clientId: string }) {
         </div>
 
         <aside className="space-y-4">
+          <AdPostsCard clientId={clientId} onAdded={() => setView('ads')} />
           <AutoDmCard clientId={clientId} />
         </aside>
       </div>

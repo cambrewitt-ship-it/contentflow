@@ -18,6 +18,9 @@ export interface CommentRow {
   authorUsername: string | null
   authorPicture: string | null
   isOwn: boolean
+  /** Left on an ad (dark post or boosted post) */
+  isAd: boolean
+  adTitle: string | null
   message: string
   commentUrl: string | null
   commentedAt: string | null

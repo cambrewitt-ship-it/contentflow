@@ -50,3 +50,21 @@ export async function ensureZernioWebhook(): Promise<'exists' | 'created' | 'ski
     return 'skipped'
   }
 }
+
+let statusCache: { at: number; value: 'on' | 'off' | 'unknown' } | null = null
+
+/** Whether Zernio is set to send the app new comments (cached for 10 minutes). */
+export async function webhookStatus(): Promise<'on' | 'off' | 'unknown'> {
+  if (statusCache && Date.now() - statusCache.at < 10 * 60_000) return statusCache.value
+  let value: 'on' | 'off' | 'unknown' = 'unknown'
+  try {
+    const hooks = await listWebhooks()
+    value = hooks.some((h) => h.url.endsWith(WEBHOOK_PATH) && h.isActive !== false && (h.events ?? WEBHOOK_EVENTS).includes('comment.received'))
+      ? 'on'
+      : 'off'
+  } catch {
+    value = 'unknown'
+  }
+  statusCache = { at: Date.now(), value }
+  return value
+}

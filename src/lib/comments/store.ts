@@ -53,6 +53,8 @@ export function toCommentRow(r: DbRow): CommentRow {
     authorUsername: (r.author_username as string) ?? null,
     authorPicture: (r.author_picture as string) ?? null,
     isOwn: !!r.is_own,
+    isAd: !!r.is_ad,
+    adTitle: (r.ad_title as string) ?? null,
     message: (r.message as string) ?? '',
     commentUrl: (r.comment_url as string) ?? null,
     commentedAt: (r.commented_at as string) ?? null,
@@ -83,6 +85,8 @@ interface PostContext {
   postText: string | null
   postUrl: string | null
   postThumbnail: string | null
+  /** Comments on an ad's dark post (or a boosted post) */
+  ad?: { id: string | null; title: string | null } | null
 }
 
 /** Flatten a thread (comments + replies) into table rows. Triage/handling columns are left alone on upsert. */
@@ -115,15 +119,24 @@ function threadToRows(ctx: PostContext, comments: ZernioComment[], parentId: str
       is_hidden: c.isHidden === true,
       is_liked: c.isLiked === true,
       updated_at: new Date().toISOString(),
+      // Only set on ad threads, so organic syncs work before migration 037 is run
+      ...(ctx.ad ? { is_ad: true, ad_id: ctx.ad.id, ad_title: ctx.ad.title } : {}),
     })
     if (Array.isArray(c.replies) && c.replies.length) rows.push(...threadToRows(ctx, c.replies, c.id))
   }
   return rows
 }
 
+const AD_COLUMNS = ['is_ad', 'ad_id', 'ad_title']
+
 async function upsertRows(admin: SupabaseClient, rows: DbRow[]): Promise<number> {
   if (!rows.length) return 0
-  const { error } = await admin.from(TABLE).upsert(rows, { onConflict: 'client_id,platform,platform_comment_id' })
+  let { error } = await admin.from(TABLE).upsert(rows, { onConflict: 'client_id,platform,platform_comment_id' })
+  if (error?.code === '42703' && rows.some((r) => 'is_ad' in r)) {
+    // Migration 037 not run yet: store the comments without the ad columns
+    const plain = rows.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !AD_COLUMNS.includes(k))))
+    ;({ error } = await admin.from(TABLE).upsert(plain, { onConflict: 'client_id,platform,platform_comment_id' }))
+  }
   if (error) {
     if (isMissingTable(error)) throw error
     logger.error('Upsert comments failed:', error)
@@ -174,7 +187,129 @@ export async function syncClientComments(
       logger.warn('Comment thread sync failed', { clientId, postId: p.id, error: err instanceof Error ? err.message : String(err) })
     }
   }
+  synced += await syncAdPosts(admin, clientId)
   return { synced, posts: targets.length }
+}
+
+// ── Ads (dark posts) ────────────────────────────────────────────────────────
+// Without an ad account connection Zernio can't list a Page's ads, but comments on
+// them arrive through the webhook (flagged as ads) and an ad post's whole thread can be
+// read with the Page/Instagram connection. client_ad_posts (migration 037) remembers
+// the ad posts seen — or added by hand — so they keep syncing.
+
+const AD_POSTS = 'client_ad_posts'
+const MAX_AD_POSTS_PER_SYNC = 15
+
+export interface AdPostRef {
+  platform: string
+  accountId: string
+  postId: string
+  adId?: string | null
+  adTitle?: string | null
+  postText?: string | null
+  postUrl?: string | null
+  postThumbnail?: string | null
+}
+
+export async function trackAdPost(admin: SupabaseClient, clientId: string, ref: AdPostRef, source: 'webhook' | 'manual') {
+  const { error } = await admin.from(AD_POSTS).upsert(
+    {
+      client_id: clientId,
+      platform: ref.platform,
+      account_id: ref.accountId,
+      post_id: ref.postId,
+      ad_id: ref.adId ?? null,
+      ad_title: ref.adTitle ?? null,
+      post_text: ref.postText?.slice(0, 2000) ?? null,
+      post_url: ref.postUrl ?? null,
+      post_thumbnail: ref.postThumbnail ?? null,
+      source,
+      last_comment_at: new Date().toISOString(),
+    },
+    { onConflict: 'client_id,platform,post_id' }
+  )
+  if (error && !isMissingTable(error)) logger.error('Track ad post failed:', error)
+}
+
+/** Read an ad post's whole comment thread with the Page/Instagram connection. */
+export async function syncAdThread(admin: SupabaseClient, clientId: string, ref: AdPostRef): Promise<number> {
+  const n = await syncPostThread(admin, {
+    clientId,
+    platform: ref.platform,
+    accountId: ref.accountId,
+    postId: ref.postId,
+    postText: ref.postText ?? null,
+    postUrl: ref.postUrl ?? null,
+    postThumbnail: ref.postThumbnail ?? null,
+    ad: { id: ref.adId ?? null, title: ref.adTitle ?? null },
+  })
+  await admin.from(AD_POSTS).update({ last_synced_at: new Date().toISOString() }).eq('client_id', clientId).eq('platform', ref.platform).eq('post_id', ref.postId)
+  return n
+}
+
+async function syncAdPosts(admin: SupabaseClient, clientId: string): Promise<number> {
+  const since = new Date(Date.now() - 60 * 86_400_000).toISOString()
+  const { data, error } = await admin
+    .from(AD_POSTS)
+    .select('platform, account_id, post_id, ad_id, ad_title, post_text, post_url, post_thumbnail')
+    .eq('client_id', clientId)
+    .gte('last_comment_at', since)
+    .order('last_comment_at', { ascending: false })
+    .limit(MAX_AD_POSTS_PER_SYNC)
+  if (error || !data?.length) return 0
+  let synced = 0
+  for (const r of data) {
+    try {
+      synced += await syncAdThread(admin, clientId, {
+        platform: r.platform,
+        accountId: r.account_id,
+        postId: r.post_id,
+        adId: r.ad_id,
+        adTitle: r.ad_title,
+        postText: r.post_text,
+        postUrl: r.post_url,
+        postThumbnail: r.post_thumbnail,
+      })
+    } catch (err) {
+      logger.warn('Ad thread sync failed', { clientId, postId: r.post_id, error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+  return synced
+}
+
+/**
+ * Turn what someone pasted (a Facebook post link or id, an Instagram media id) into
+ * candidate post ids. Facebook post ids are "{pageId}_{postId}"; a bare post id is tried
+ * with the Page ids seen on this client's other Facebook comments.
+ */
+export function adPostIdCandidates(input: string, knownPageIds: string[]): string[] {
+  const text = input.trim()
+  const out: string[] = []
+  const add = (id: string) => !out.includes(id) && out.push(id)
+  const pair = text.match(/\b(\d{5,})_(\d{5,})\b/)
+  if (pair) add(`${pair[1]}_${pair[2]}`)
+  try {
+    const url = new URL(text)
+    const story = url.searchParams.get('story_fbid')
+    const owner = url.searchParams.get('id')
+    if (story && /^\d+$/.test(story) && owner && /^\d+$/.test(owner)) add(`${owner}_${story}`)
+    const fbid = url.searchParams.get('fbid')
+    if (fbid && /^\d+$/.test(fbid)) knownPageIds.forEach((p) => add(`${p}_${fbid}`))
+    const path = url.pathname.match(/\/(\d{5,})\/posts\/(\d{5,})/)
+    if (path) add(`${path[1]}_${path[2]}`)
+    const postOnly = url.pathname.match(/\/posts\/(\d{5,})/)
+    if (postOnly) {
+      knownPageIds.forEach((p) => add(`${p}_${postOnly[1]}`))
+      add(postOnly[1])
+    }
+  } catch {
+    // Not a URL
+  }
+  if (/^\d{5,}$/.test(text)) {
+    add(text)
+    knownPageIds.forEach((p) => add(`${p}_${text}`))
+  }
+  return out
 }
 
 // ── AI triage ───────────────────────────────────────────────────────────────
@@ -450,8 +585,14 @@ export async function performCommentAction(
 
 // ── Webhook ingest ──────────────────────────────────────────────────────────
 
-/** A comment.received event: store it and triage it straight away. Returns the client id when stored. */
-export async function ingestCommentEvent(admin: SupabaseClient, event: Record<string, unknown>): Promise<string | null> {
+/**
+ * A comment.received event: store it (flagged when it's on an ad) and return the client,
+ * plus the ad post when the comment was on one, so its whole thread can be backfilled.
+ */
+export async function ingestCommentEvent(
+  admin: SupabaseClient,
+  event: Record<string, unknown>
+): Promise<{ clientId: string; adPost: AdPostRef | null } | null> {
   const comment = event.comment as Record<string, unknown> | undefined
   const account = event.account as Record<string, unknown> | undefined
   const post = event.post as Record<string, unknown> | undefined
@@ -488,8 +629,26 @@ export async function ingestCommentEvent(admin: SupabaseClient, event: Record<st
     can_delete: ['instagram', 'facebook', 'youtube', 'linkedin'].includes(platform),
     updated_at: new Date().toISOString(),
   }
+  const ad = comment.ad as Record<string, unknown> | undefined
+  let adPost: AdPostRef | null = null
+  if (ad) {
+    row.is_ad = true
+    row.ad_id = (ad.id as string) ?? null
+    row.ad_title = (ad.title as string) ?? null
+    adPost = {
+      platform,
+      accountId: row.account_id as string,
+      postId: row.platform_post_id as string,
+      adId: (ad.id as string) ?? null,
+      adTitle: (ad.title as string) ?? null,
+      postText: row.post_text as string | null,
+      postUrl: row.post_url as string | null,
+      postThumbnail: row.post_thumbnail as string | null,
+    }
+    await trackAdPost(admin, client.id as string, adPost, 'webhook')
+  }
   await upsertRows(admin, [row])
-  return client.id as string
+  return { clientId: client.id as string, adPost }
 }
 
 // ── Summaries for the AI, dashboard and reports ─────────────────────────────
@@ -562,7 +721,7 @@ export function formatAudiencePrompt(s: AudienceSummary | null): string {
 export async function listComments(
   admin: SupabaseClient,
   clientId: string,
-  filter: { view?: 'needs_reply' | 'all' | 'questions' | 'negative' | 'hidden' | 'auto'; postId?: string; limit?: number }
+  filter: { view?: 'needs_reply' | 'all' | 'questions' | 'negative' | 'hidden' | 'auto' | 'ads'; postId?: string; limit?: number }
 ): Promise<CommentRow[] | 'missing_table'> {
   let q = admin.from(TABLE).select('*').eq('client_id', clientId)
   switch (filter.view) {
@@ -580,6 +739,9 @@ export async function listComments(
       break
     case 'auto':
       q = q.not('auto_action', 'is', null)
+      break
+    case 'ads':
+      q = q.eq('is_ad', true).neq('status', 'deleted')
       break
     default:
       q = q.neq('status', 'deleted')

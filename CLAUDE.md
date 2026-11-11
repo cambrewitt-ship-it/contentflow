@@ -125,5 +125,11 @@ the whole codebase (and Vercel env vars).
   aren't allowed — Meta's API has no "love" reaction and Instagram comment likes are restricted). Facebook captions
   the app published can be fixed in place (`POST /v1/posts/{id}/edit`); Instagram captions can't be edited.
   `/api/cron/feed-checker` runs 3×/day.
+- Ad comments (dark posts, boosted posts) without an ad account connection: `comment.received` carries `comment.ad`,
+  so the webhook flags them (`client_comments.is_ad`), records the ad post in `client_ad_posts`
+  (migrations/037-ad-comments.sql) and backfills its whole thread with the Page/Instagram connection
+  (`syncAdThread`); tracked ad posts re-sync with every comments refresh. Ads can also be added by pasting a
+  Facebook post link/ID (`/api/clients/[clientId]/comments/ad-posts`). Zernio's own ad listing (`platform=metaads`,
+  `/v1/ads/...`) needs a Meta Ads connection, which the app doesn't have.
 - Cron routes are public at the middleware (`/api/cron/`) and guarded by `rejectUnauthorizedCron`
   (`src/lib/cronAuth.ts`): production requires `CRON_SECRET`.

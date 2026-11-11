@@ -13,7 +13,7 @@ export const maxDuration = 120;
 // background when stale); POST { action: "sync" } refreshes now.
 
 type Params = { params: Promise<{ clientId: string }> };
-const VIEWS = new Set(['needs_reply', 'all', 'questions', 'negative', 'hidden', 'auto']);
+const VIEWS = new Set(['needs_reply', 'all', 'questions', 'negative', 'ads', 'hidden', 'auto']);
 
 export async function GET(request: NextRequest, { params }: Params) {
   const { clientId } = await params;
