@@ -2,9 +2,8 @@
 
 import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ArrowRight, Check, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { ArrowRight, Check, CheckCircle, AlertCircle, Link2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { currentReturnPath } from '@/lib/returnPath'
 import {
@@ -176,122 +175,136 @@ export default function ConnectPlatformsPage({ params }: { params: Promise<{ cli
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-green-200 p-6">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen px-4 py-6 md:px-6 md:py-8">
+      <div className="mx-auto max-w-3xl">
         {/* Step indicator */}
-        <div className="mb-8 flex items-center gap-3">
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold">
-              <Check className="w-3.5 h-3.5" />
+        <ol className="mb-6 flex flex-wrap items-center gap-2 text-[13px]">
+          <li className="flex items-center gap-2 rounded-full border border-gray-200/80 bg-white/70 py-1 pl-1 pr-3 text-gray-500 backdrop-blur-sm">
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white">
+              <Check className="h-3 w-3" />
             </span>
-            <span className="line-through">Step 1: Create Profile</span>
-          </div>
-          <div className="w-8 h-px bg-gray-300" />
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold">
-              2
-            </span>
+            <span className="line-through decoration-gray-300">Step 1: Create Profile</span>
+          </li>
+          <li aria-hidden="true" className="h-px w-6 bg-gray-300" />
+          <li className="flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 py-1 pl-1 pr-3 font-medium text-blue-800">
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[11px] font-semibold text-white">2</span>
             Connect Social Media
-          </div>
-        </div>
+          </li>
+        </ol>
 
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Connect Social Platforms</h1>
-        <p className="text-gray-600 mb-8">
-          Connect at least one social media platform to start scheduling and publishing posts.
-        </p>
+        <header className="mb-6 flex gap-3.5">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 text-blue-600 ring-1 ring-blue-100">
+            <Link2 className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.022em] text-gray-900">Connect Social Platforms</h1>
+            <p className="mt-1 text-[13px] leading-5 text-gray-500">
+              Connect at least one social media platform to start scheduling and publishing posts.
+            </p>
+          </div>
+        </header>
 
         {/* OAuth message */}
         {oauthMessage && (
           <div
-            className={`mb-6 p-4 rounded-md flex items-center gap-2 ${
+            role="status"
+            className={`mb-5 flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-[13px] ${
               oauthMessage.type === 'success'
-                ? 'bg-green-50 border border-green-200 text-green-800'
-                : 'bg-red-50 border border-red-200 text-red-800'
+                ? 'border-emerald-200/80 bg-emerald-50/80 text-emerald-800'
+                : 'border-red-200/80 bg-red-50/80 text-red-800'
             }`}
           >
-            {oauthMessage.type === 'success' ? (
-              <CheckCircle className="w-5 h-5 shrink-0" />
-            ) : (
-              <AlertCircle className="w-5 h-5 shrink-0" />
-            )}
+            {oauthMessage.type === 'success' ? <CheckCircle className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
             {oauthMessage.text}
           </div>
         )}
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Social Media Platforms</CardTitle>
-              <div className="flex items-center gap-2 text-gray-500">
-                <span className="text-sm">Powered by</span>
-                <img
-                  src="/lateapi-logo.png"
-                  alt="LATE"
-                  className="h-5 w-auto rounded border border-black"
-                />
-              </div>
+        <section className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-card">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
+            <div>
+              <h2 className="text-[15px] font-semibold text-gray-900">Social Media Platforms</h2>
+              {!loading && (
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {connectedAccounts.length > 0
+                    ? `${connectedAccounts.length} platform${connectedAccounts.length !== 1 ? 's' : ''} connected`
+                    : 'Nothing connected yet'}
+                </p>
+              )}
             </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-                {platforms.map(({ id, label, icon: Icon, bgClass }) => {
-                  const styles = getPlatformButtonStyles(id)
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => handlePlatformConnect(id)}
-                      disabled={connectingPlatform === id}
-                      className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${styles.buttonClasses}`}
-                    >
+            <div className="flex items-center gap-2 text-gray-500">
+              <span className="text-xs">Powered by</span>
+              <img src="/lateapi-logo.png" alt="LATE" className="h-5 w-auto rounded border border-black" />
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="grid gap-3 p-5 sm:grid-cols-2" aria-busy="true">
+              {platforms.map(({ id }) => (
+                <div key={id} className="h-[68px] animate-pulse rounded-xl bg-gray-50" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-3 p-5 sm:grid-cols-2">
+              {platforms.map(({ id, label, icon: Icon, bgClass }) => {
+                const styles = getPlatformButtonStyles(id)
+                const accounts = connectedAccounts.filter((a) => a.platform === id)
+                const connecting = connectingPlatform === id
+                return (
+                  <button
+                    key={id}
+                    onClick={() => handlePlatformConnect(id)}
+                    disabled={connecting}
+                    className={`group relative flex items-center gap-3 rounded-xl border p-3 text-left transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 ${
+                      styles.connected
+                        ? 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300'
+                        : 'border-gray-200/80 bg-white hover:-translate-y-px hover:border-blue-200 hover:shadow-card'
+                    }`}
+                  >
+                    <span className={`relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${bgClass} shadow-sm`}>
+                      {connecting ? (
+                        <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      ) : (
+                        <Icon className="text-white" size={20} />
+                      )}
                       {styles.connected && (
-                        <span className="absolute top-1 right-1 bg-emerald-500 text-white rounded-full p-0.5 shadow-sm">
-                          <Check className="w-3 h-3" />
+                        <span className="absolute -bottom-1 -right-1 rounded-full bg-emerald-500 p-0.5 text-white ring-2 ring-white">
+                          <Check className="h-2.5 w-2.5" />
                         </span>
                       )}
-                      <div
-                        className={`w-10 h-10 ${bgClass} rounded-full flex items-center justify-center transition-all ${styles.iconWrapperClasses}`}
-                      >
-                        {connectingPlatform === id ? (
-                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
-                        ) : (
-                          <Icon className="text-white" size={20} />
-                        )}
-                      </div>
-                      <span className={`text-xs font-medium ${styles.labelClasses}`}>
-                        {getPlatformLabel(id, label)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-semibold text-gray-900">{label}</span>
+                      <span className={`block truncate text-xs ${styles.connected ? 'text-emerald-700' : 'text-gray-500'}`}>
+                        {styles.connected ? accounts.map((a) => a.name).filter(Boolean).join(', ') || 'Connected' : 'Not connected'}
                       </span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Connected count indicator */}
-            {!loading && connectedAccounts.length > 0 && (
-              <p className="mt-4 text-sm text-emerald-700 font-medium">
-                {connectedAccounts.length} platform{connectedAccounts.length !== 1 ? 's' : ''} connected
-              </p>
-            )}
-          </CardContent>
-        </Card>
+                    </span>
+                    <span
+                      className={`flex-shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                        styles.connected
+                          ? 'text-emerald-700 group-hover:bg-emerald-100/70'
+                          : 'bg-blue-600 text-white shadow-button group-hover:bg-blue-700'
+                      }`}
+                    >
+                      {connecting ? getPlatformLabel(id, label) : styles.connected ? 'Connected' : 'Connect'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </section>
 
         {/* Continue button */}
-        <div className="mt-6 flex flex-col items-end gap-2">
-          {!canContinue && !loading && (
-            <p className="text-sm text-gray-500">Connect at least one platform to continue.</p>
-          )}
+        <div className="mt-6 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+          {!canContinue && !loading && <p className="text-[13px] text-gray-500 sm:mr-auto">Connect at least one platform to continue.</p>}
           <Button
             onClick={() => router.push(`/dashboard/client/${clientId}`)}
             disabled={!canContinue}
-            className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            size="lg"
+            className="h-10 rounded-xl"
           >
             Continue to Dashboard
-            <ArrowRight className="w-4 h-4 ml-2" />
+            <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       </div>

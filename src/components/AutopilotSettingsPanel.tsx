@@ -25,6 +25,13 @@ import {
   Trash2,
   ThumbsUp,
   ThumbsDown,
+  Power,
+  CalendarDays,
+  Building2,
+  Megaphone,
+  Images,
+  Palette,
+  type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import AgentPhotoGrid, { useAgentPhotos } from '@/components/AgentPhotoGrid';
@@ -174,27 +181,46 @@ function SectionHeader({
   title,
   open,
   onToggle,
+  icon: Icon,
+  description,
 }: {
   title: string;
   open: boolean;
   onToggle: () => void;
+  icon?: LucideIcon;
+  description?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onToggle}
-      className="w-full flex items-center justify-between py-3 px-0 text-left font-semibold text-gray-900 hover:text-gray-700 transition-colors"
+      aria-expanded={open}
+      className="group w-full flex items-center gap-3 py-3.5 text-left outline-none"
     >
-      {title}
-      {open ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+      {Icon && (
+        <span
+          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ring-1 transition-colors ${
+            open ? 'bg-blue-600 text-white ring-blue-600' : 'bg-blue-50 text-blue-600 ring-blue-100 group-hover:bg-blue-100/70'
+          }`}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] font-semibold tracking-[-0.01em] text-gray-900">{title}</span>
+        {description && <span className="block truncate text-xs text-gray-500">{description}</span>}
+      </span>
+      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors group-hover:bg-gray-100 group-hover:text-gray-700">
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </span>
     </button>
   );
 }
 
 function SaveButton({ state, onClick }: { state: SaveState; onClick: () => void }) {
   return (
-    <div className="flex items-center gap-3 mt-4">
-      <Button size="sm" onClick={onClick} disabled={state.loading}>
+    <div className="flex items-center gap-3 mt-5 border-t border-gray-100 pt-4">
+      <Button size="sm" className="rounded-lg px-4" onClick={onClick} disabled={state.loading}>
         {state.loading ? (
           <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Saving...</>
         ) : (
@@ -258,10 +284,10 @@ function OperatingHoursSection({
             <button
               type="button"
               onClick={() => toggleDay(day)}
-              className={`flex items-center gap-2 w-28 px-2 py-1.5 rounded text-xs font-medium border transition-colors ${
+              className={`flex items-center gap-2 w-28 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                 isOpen
-                  ? 'bg-green-50 border-green-200 text-green-700'
-                  : 'bg-gray-50 border-gray-200 text-gray-400'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100/70'
+                  : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100'
               }`}
             >
               <span
@@ -275,14 +301,14 @@ function OperatingHoursSection({
                   type="time"
                   value={hours[day]?.open || '09:00'}
                   onChange={e => updateTime(day, 'open', e.target.value)}
-                  className="h-7 px-2 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="h-8 px-2.5 text-xs bg-white border border-input rounded-lg shadow-xs outline-none transition-[border-color,box-shadow] hover:border-gray-300 focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15"
                 />
                 <span className="text-xs text-gray-400">to</span>
                 <input
                   type="time"
                   value={hours[day]?.close || '17:00'}
                   onChange={e => updateTime(day, 'close', e.target.value)}
-                  className="h-7 px-2 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="h-8 px-2.5 text-xs bg-white border border-input rounded-lg shadow-xs outline-none transition-[border-color,box-shadow] hover:border-gray-300 focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15"
                 />
               </div>
             ) : (
@@ -363,7 +389,7 @@ function PostingPreferencesSection({
     <div className="space-y-5">
       {/* Posts per week */}
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1.5">Posts per week</label>
+        <label className="text-[13px] font-medium text-gray-900 block mb-2">Posts per week</label>
         <div className="flex items-center gap-3">
           <input
             type="range"
@@ -371,7 +397,7 @@ function PostingPreferencesSection({
             max={7}
             value={prefs.posts_per_week}
             onChange={e => setPrefs(prev => ({ ...prev, posts_per_week: parseInt(e.target.value) }))}
-            className="flex-1 accent-blue-600"
+            className="flex-1 h-1.5 cursor-pointer accent-blue-600"
           />
           <span className="text-sm font-semibold text-gray-900 w-6 text-center">{prefs.posts_per_week}</span>
         </div>
@@ -379,17 +405,17 @@ function PostingPreferencesSection({
 
       {/* Preferred days */}
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1.5">Preferred posting days</label>
+        <label className="text-[13px] font-medium text-gray-900 block mb-2">Preferred posting days</label>
         <div className="flex gap-1.5 flex-wrap">
           {DAYS.map(day => (
             <button
               key={day}
               type="button"
               onClick={() => toggleDay('preferred_days', day)}
-              className={`px-2.5 py-1 text-xs rounded border font-medium transition-colors ${
+              className={`min-w-[44px] px-2.5 py-1.5 text-xs rounded-lg border font-medium transition-colors ${
                 prefs.preferred_days.includes(day)
-                  ? 'bg-blue-600 border-blue-600 text-white'
-                  : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                  : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50/50'
               }`}
             >
               {DAY_LABELS[day]}
@@ -400,10 +426,10 @@ function PostingPreferencesSection({
 
       {/* Preferred times */}
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1.5">Preferred posting times</label>
+        <label className="text-[13px] font-medium text-gray-900 block mb-2">Preferred posting times</label>
         <div className="flex flex-wrap gap-1.5 mb-2">
           {prefs.preferred_times.map(t => (
-            <span key={t} className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded border border-blue-200">
+            <span key={t} className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full ring-1 ring-blue-100">
               <Clock className="h-2.5 w-2.5" />
               {t}
               <button type="button" onClick={() => removeTime(t)} className="hover:text-blue-900">
@@ -417,9 +443,9 @@ function PostingPreferencesSection({
             type="time"
             value={newTime}
             onChange={e => setNewTime(e.target.value)}
-            className="h-7 px-2 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="h-8 px-2.5 text-xs bg-white border border-input rounded-lg shadow-xs outline-none transition-[border-color,box-shadow] hover:border-gray-300 focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15"
           />
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={addTime}>
+          <Button size="sm" variant="outline" className="h-8 text-xs rounded-lg" onClick={addTime}>
             <Plus className="h-3 w-3 mr-1" />Add
           </Button>
         </div>
@@ -427,17 +453,17 @@ function PostingPreferencesSection({
 
       {/* Avoid days */}
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1.5">Days to avoid</label>
+        <label className="text-[13px] font-medium text-gray-900 block mb-2">Days to avoid</label>
         <div className="flex gap-1.5 flex-wrap">
           {DAYS.map(day => (
             <button
               key={day}
               type="button"
               onClick={() => toggleDay('avoid_days', day)}
-              className={`px-2.5 py-1 text-xs rounded border font-medium transition-colors ${
+              className={`min-w-[44px] px-2.5 py-1.5 text-xs rounded-lg border font-medium transition-colors ${
                 prefs.avoid_days.includes(day)
-                  ? 'bg-red-100 border-red-300 text-red-700'
-                  : 'bg-white border-gray-200 text-gray-600 hover:border-red-200'
+                  ? 'bg-red-50 border-red-200 text-red-700'
+                  : 'bg-white border-gray-200 text-gray-600 hover:border-red-200 hover:bg-red-50/40'
               }`}
             >
               {DAY_LABELS[day]}
@@ -448,7 +474,7 @@ function PostingPreferencesSection({
 
       {/* Content mix */}
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-2">
+        <label className="text-[13px] font-medium text-gray-900 block mb-2">
           Content mix{' '}
           <span className={`ml-1 font-semibold ${mixTotal === 100 ? 'text-green-600' : 'text-red-600'}`}>
             ({mixTotal}%)
@@ -464,7 +490,7 @@ function PostingPreferencesSection({
                 max={100}
                 value={prefs.content_mix[key]}
                 onChange={e => updateMix(key, parseInt(e.target.value))}
-                className="flex-1 accent-blue-600"
+                className="flex-1 h-1.5 cursor-pointer accent-blue-600"
               />
               <span className="text-xs font-semibold text-gray-900 w-8 text-right">{prefs.content_mix[key]}%</span>
             </div>
@@ -502,7 +528,7 @@ function TagInput({
     <div>
       <div className="flex flex-wrap gap-1.5 mb-2">
         {values.map(v => (
-          <span key={v} className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded border border-gray-200">
+          <span key={v} className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full ring-1 ring-gray-200">
             {v}
             <button type="button" onClick={() => onChange(values.filter(x => x !== v))}>
               <X className="h-2.5 w-2.5" />
@@ -516,9 +542,9 @@ function TagInput({
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(); } }}
           placeholder={placeholder}
-          className="h-7 text-xs flex-1"
+          className="h-8 text-xs flex-1 rounded-lg"
         />
-        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={add}>
+        <Button size="sm" variant="outline" className="h-8 text-xs rounded-lg" onClick={add}>
           <Plus className="h-3 w-3 mr-1" />Add
         </Button>
       </div>
@@ -557,9 +583,9 @@ function BusinessContextSection({
     <div className="space-y-5">
       {/* Business type */}
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1.5">Business type</label>
+        <label className="text-[13px] font-medium text-gray-900 block mb-2">Business type</label>
         <Select value={ctx.business_type} onValueChange={v => setCtx(prev => ({ ...prev, business_type: v }))}>
-          <SelectTrigger className="h-8 text-xs">
+          <SelectTrigger className="h-9 text-[13px] rounded-lg">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -572,9 +598,9 @@ function BusinessContextSection({
 
       {/* Hemisphere */}
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1.5">Hemisphere</label>
+        <label className="text-[13px] font-medium text-gray-900 block mb-2">Hemisphere</label>
         <Select value={ctx.hemisphere} onValueChange={v => setCtx(prev => ({ ...prev, hemisphere: v }))}>
-          <SelectTrigger className="h-8 text-xs">
+          <SelectTrigger className="h-9 text-[13px] rounded-lg">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -586,7 +612,7 @@ function BusinessContextSection({
 
       {/* Key attributes */}
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-2">Key attributes</label>
+        <label className="text-[13px] font-medium text-gray-900 block mb-2">Key attributes</label>
         <div className="grid grid-cols-2 gap-1.5">
           {BUSINESS_ATTRIBUTES.map(attr => (
             <button
@@ -612,7 +638,7 @@ function BusinessContextSection({
 
       {/* Key offerings */}
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1.5">Key offerings</label>
+        <label className="text-[13px] font-medium text-gray-900 block mb-2">Key offerings</label>
         <TagInput
           values={ctx.key_offerings}
           onChange={v => setCtx(prev => ({ ...prev, key_offerings: v }))}
@@ -622,7 +648,7 @@ function BusinessContextSection({
 
       {/* Local sports teams */}
       <div>
-        <label className="text-xs font-medium text-gray-700 block mb-1.5">Local sports teams to follow</label>
+        <label className="text-[13px] font-medium text-gray-900 block mb-2">Local sports teams to follow</label>
         <TagInput
           values={ctx.local_sports_teams}
           onChange={v => setCtx(prev => ({ ...prev, local_sports_teams: v }))}
@@ -692,12 +718,12 @@ function AutopilotControlSection({
         <div className="space-y-4 pl-1">
           {/* Generation day */}
           <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1.5">Generation day</label>
+            <label className="text-[13px] font-medium text-gray-900 block mb-2">Generation day</label>
             <Select
               value={settings.generation_day}
               onValueChange={v => setSettings(prev => ({ ...prev, generation_day: v }))}
             >
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 text-[13px] rounded-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -710,12 +736,12 @@ function AutopilotControlSection({
 
           {/* Planning horizon */}
           <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1.5">Planning horizon</label>
+            <label className="text-[13px] font-medium text-gray-900 block mb-2">Planning horizon</label>
             <Select
               value={String(settings.planning_horizon_days)}
               onValueChange={v => setSettings(prev => ({ ...prev, planning_horizon_days: parseInt(v) }))}
             >
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 text-[13px] rounded-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -748,12 +774,12 @@ function AutopilotControlSection({
 
           {/* Notification method */}
           <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1.5">Notification method</label>
+            <label className="text-[13px] font-medium text-gray-900 block mb-2">Notification method</label>
             <Select
               value={settings.notification_method}
               onValueChange={v => setSettings(prev => ({ ...prev, notification_method: v }))}
             >
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 text-[13px] rounded-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -886,12 +912,12 @@ function AdCopySection({
       {settings.enabled && (
         <div className="space-y-4 pl-1">
           <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1.5">Ad platform</label>
+            <label className="text-[13px] font-medium text-gray-900 block mb-2">Ad platform</label>
             <Select
               value={settings.platform}
               onValueChange={v => setSettings(prev => ({ ...prev, platform: v as 'meta' | 'google' }))}
             >
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 text-[13px] rounded-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -902,7 +928,7 @@ function AdCopySection({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1.5">Variants per run</label>
+            <label className="text-[13px] font-medium text-gray-900 block mb-2">Variants per run</label>
             <div className="flex items-center gap-3">
               <input
                 type="range"
@@ -1168,27 +1194,29 @@ export default function AutopilotSettingsPanel({ clientId, client, onUpdate }: A
   return (
     <div className="space-y-0">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-6">
-        <div className="p-2 bg-blue-100 rounded-lg">
-          <Bot className="h-5 w-5 text-blue-600" />
-        </div>
+      <div className="flex items-start gap-3.5 mb-6">
+        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-ai text-white shadow-button">
+          <Bot className="h-5 w-5" />
+        </span>
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Content Agent Settings</h2>
-          <p className="text-xs text-gray-500">Configure automated content generation for {localClient.name}</p>
+          <h2 className="text-[26px] font-semibold leading-8 tracking-[-0.022em] text-gray-900">Content Agent Settings</h2>
+          <p className="mt-1 text-[13px] text-gray-500">Configure automated content generation for {localClient.name}</p>
         </div>
       </div>
 
       {/* Sections */}
-      <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden bg-white">
+      <div className="space-y-3">
         {/* Section D — Autopilot Control */}
-        <div className="px-4">
+        <div className="rounded-2xl border border-gray-200/80 bg-white px-4 shadow-card transition-shadow hover:shadow-card-hover">
           <SectionHeader
             title="Content Agent Control"
+            icon={Power}
+            description="On/off, schedule, approval and auto-publish"
             open={openSection === 'autopilot-control'}
             onToggle={() => toggle('autopilot-control')}
           />
           {openSection === 'autopilot-control' && (
-            <div className="pb-4">
+            <div className="border-t border-gray-100 pb-5 pt-4">
               <AutopilotControlSection
                 clientId={clientId}
                 initialEnabled={localClient.autopilot_enabled}
@@ -1200,14 +1228,16 @@ export default function AutopilotSettingsPanel({ clientId, client, onUpdate }: A
         </div>
 
         {/* Section A — Operating Hours */}
-        <div className="px-4">
+        <div className="rounded-2xl border border-gray-200/80 bg-white px-4 shadow-card transition-shadow hover:shadow-card-hover">
           <SectionHeader
             title="Operating Hours"
+            icon={Clock}
+            description="When the business is open"
             open={openSection === 'operating-hours'}
             onToggle={() => toggle('operating-hours')}
           />
           {openSection === 'operating-hours' && (
-            <div className="pb-4">
+            <div className="border-t border-gray-100 pb-5 pt-4">
               <OperatingHoursSection
                 clientId={clientId}
                 initial={localClient.operating_hours}
@@ -1218,14 +1248,16 @@ export default function AutopilotSettingsPanel({ clientId, client, onUpdate }: A
         </div>
 
         {/* Section B — Posting Preferences */}
-        <div className="px-4">
+        <div className="rounded-2xl border border-gray-200/80 bg-white px-4 shadow-card transition-shadow hover:shadow-card-hover">
           <SectionHeader
             title="Posting Preferences"
+            icon={CalendarDays}
+            description="How often, which days and times, content mix"
             open={openSection === 'posting-preferences'}
             onToggle={() => toggle('posting-preferences')}
           />
           {openSection === 'posting-preferences' && (
-            <div className="pb-4">
+            <div className="border-t border-gray-100 pb-5 pt-4">
               <PostingPreferencesSection
                 clientId={clientId}
                 initial={localClient.posting_preferences}
@@ -1236,14 +1268,16 @@ export default function AutopilotSettingsPanel({ clientId, client, onUpdate }: A
         </div>
 
         {/* Section C — Business Context */}
-        <div className="px-4">
+        <div className="rounded-2xl border border-gray-200/80 bg-white px-4 shadow-card transition-shadow hover:shadow-card-hover">
           <SectionHeader
             title="Business Context"
+            icon={Building2}
+            description="Business type, hemisphere, attributes and offerings"
             open={openSection === 'business-context'}
             onToggle={() => toggle('business-context')}
           />
           {openSection === 'business-context' && (
-            <div className="pb-4">
+            <div className="border-t border-gray-100 pb-5 pt-4">
               <BusinessContextSection
                 clientId={clientId}
                 initial={localClient.business_context}
@@ -1254,14 +1288,16 @@ export default function AutopilotSettingsPanel({ clientId, client, onUpdate }: A
         </div>
 
         {/* Section E — Paid Ad Copy */}
-        <div className="px-4">
+        <div className="rounded-2xl border border-gray-200/80 bg-white px-4 shadow-card transition-shadow hover:shadow-card-hover">
           <SectionHeader
             title="Paid Ad Copy"
+            icon={Megaphone}
+            description="Ad copy variants alongside each plan"
             open={openSection === 'ad-copy'}
             onToggle={() => toggle('ad-copy')}
           />
           {openSection === 'ad-copy' && (
-            <div className="pb-4">
+            <div className="border-t border-gray-100 pb-5 pt-4">
               <AdCopySection
                 clientId={clientId}
                 initial={localClient.ad_copy_settings}
@@ -1272,14 +1308,16 @@ export default function AutopilotSettingsPanel({ clientId, client, onUpdate }: A
         </div>
 
         {/* Section F — Photos */}
-        <div className="px-4">
+        <div className="rounded-2xl border border-gray-200/80 bg-white px-4 shadow-card transition-shadow hover:shadow-card-hover">
           <SectionHeader
             title="Photos"
+            icon={Images}
+            description="Which photos the agent can use"
             open={openSection === 'photos'}
             onToggle={() => toggle('photos')}
           />
           {openSection === 'photos' && (
-            <div className="pb-4">
+            <div className="border-t border-gray-100 pb-5 pt-4">
               <PhotoSelectionSection
                 clientId={clientId}
                 initial={localClient.agent_media_ids}
@@ -1290,9 +1328,11 @@ export default function AutopilotSettingsPanel({ clientId, client, onUpdate }: A
         </div>
 
         {/* Section G — Style Preferences */}
-        <div className="px-4">
+        <div className="rounded-2xl border border-gray-200/80 bg-white px-4 shadow-card transition-shadow hover:shadow-card-hover">
           <SectionHeader
             title="Style Preferences"
+            icon={Palette}
+            description="What the agent has learned from your swipes"
             open={openSection === 'style-preferences'}
             onToggle={() => toggle('style-preferences')}
           />

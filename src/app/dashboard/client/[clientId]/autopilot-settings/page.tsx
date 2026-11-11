@@ -71,7 +71,7 @@ export default function AutopilotSettingsPage({
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
+    <div className="max-w-3xl mx-auto px-4 py-5 md:px-6 md:py-7">
       <AutopilotSettingsPanel
         clientId={clientId}
         client={client}
