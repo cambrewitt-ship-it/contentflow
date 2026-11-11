@@ -69,8 +69,8 @@ export function AdPostsCard({ clientId, onAdded }: { clientId: string; onAdded: 
   }
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h3 className="mb-1 flex items-center gap-2 font-semibold text-gray-900">
+    <section className="rounded-2xl border border-gray-200/80 bg-white p-4 shadow-card">
+      <h3 className="mb-1 flex items-center gap-2 text-[15px] font-semibold text-gray-900">
         <Megaphone className="h-4 w-4 text-orange-500" /> Ad comments
       </h3>
       <p className="mb-3 text-xs text-gray-500">
@@ -98,7 +98,7 @@ export function AdPostsCard({ clientId, onAdded }: { clientId: string; onAdded: 
           {adPosts.length > 0 && (
             <ul className="mb-3 space-y-1.5">
               {adPosts.slice(0, 8).map((a) => (
-                <li key={a.id} className="rounded-lg border border-gray-100 px-2.5 py-1.5 text-xs">
+                <li key={a.id} className="rounded-xl border border-gray-200/70 bg-gray-50/50 px-2.5 py-1.5 text-xs">
                   <p className="line-clamp-1 text-gray-800">{a.ad_title || a.post_text || a.post_id}</p>
                   <p className="text-gray-400">
                     <span className="capitalize">{a.platform}</span>

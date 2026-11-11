@@ -101,8 +101,8 @@ export function AutoDmCard({ clientId }: { clientId: string }) {
   }
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h3 className="mb-1 flex items-center gap-2 font-semibold text-gray-900">
+    <section className="rounded-2xl border border-gray-200/80 bg-white p-4 shadow-card">
+      <h3 className="mb-1 flex items-center gap-2 text-[15px] font-semibold text-gray-900">
         <MessageSquareText className="h-4 w-4 text-fuchsia-500" /> Keyword auto-DMs
       </h3>
       <p className="mb-3 text-xs text-gray-500">
@@ -116,7 +116,7 @@ export function AutoDmCard({ clientId }: { clientId: string }) {
           {automations.length > 0 && (
             <ul className="mb-3 space-y-2">
               {automations.map((a) => (
-                <li key={a.id} className="rounded-lg border border-gray-100 p-2.5 text-sm">
+                <li key={a.id} className="rounded-xl border border-gray-200/70 bg-gray-50/50 p-2.5 text-[13px]">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium text-gray-900">{(a.keywords ?? []).join(', ') || a.name}</span>
                     <div className="flex items-center gap-1">
@@ -147,7 +147,7 @@ export function AutoDmCard({ clientId }: { clientId: string }) {
               <select
                 value={form.accountId}
                 onChange={(e) => setForm({ ...form, accountId: e.target.value })}
-                className="h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                className="h-9 w-full rounded-lg border border-input bg-white px-2 text-[13px] shadow-xs outline-none focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15"
                 aria-label="Account"
               >
                 {accounts.map((a) => (
@@ -162,7 +162,7 @@ export function AutoDmCard({ clientId }: { clientId: string }) {
                 onChange={(e) => setForm({ ...form, dmMessage: e.target.value })}
                 rows={3}
                 placeholder="The DM they get, e.g. Here's our menu 👉 https://…"
-                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-input bg-white px-3 py-2 text-[13px] shadow-xs outline-none focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15"
               />
               <Input
                 value={form.commentReply}
