@@ -105,7 +105,7 @@ export default function RunBriefComposer({
   return (
     <div className="space-y-4">
       <div className="flex items-end justify-between flex-wrap gap-3">
-        <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight">{heading}</h2>
+        <h2 className="text-2xl sm:text-[28px] font-semibold text-gray-900 tracking-[-0.022em]">{heading}</h2>
         <Segmented
           options={FORMAT_OPTIONS}
           value={brief.format}
@@ -116,12 +116,12 @@ export default function RunBriefComposer({
 
       {/* ── Prompt box ── */}
       <div
-        className="prompt-glow rounded-[28px] shadow-[0_8px_30px_rgba(15,23,42,0.06)]"
+        className="prompt-glow rounded-[28px] shadow-[0_1px_2px_rgb(23_43_77/0.04),0_12px_32px_-8px_rgb(53_109_243/0.14)]"
         data-glow={glow}
       >
         <div
           className={`rounded-[28px] bg-white border px-5 pt-5 pb-4 transition-colors ${
-            focused ? 'border-indigo-200' : 'border-gray-200'
+            focused ? 'border-blue-300 ring-[3px] ring-blue-500/10' : 'border-gray-200/90'
           }`}
         >
           <textarea
@@ -153,8 +153,8 @@ export default function RunBriefComposer({
                 title="Run settings"
                 className={`h-10 w-10 shrink-0 rounded-full border-2 flex items-center justify-center transition-all ${
                   showSettings
-                    ? 'border-indigo-300 bg-indigo-50 text-indigo-600'
-                    : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                    ? 'border-blue-300 bg-blue-50 text-blue-600'
+                    : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700'
                 }`}
               >
                 <Settings className={`h-5 w-5 transition-transform duration-300 ${showSettings ? 'rotate-90' : ''}`} />
@@ -170,7 +170,7 @@ export default function RunBriefComposer({
               className={`h-11 shrink-0 rounded-full flex items-center gap-2 pl-5 pr-4 text-sm font-semibold text-white transition-all ${
                 blockedReason
                   ? 'bg-gray-300 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-500 to-blue-950 hover:shadow-[0_6px_20px_rgba(30,58,138,0.4)] hover:brightness-110'
+                  : 'bg-gradient-ai shadow-button hover:shadow-[0_8px_22px_-6px_rgb(99_102_241/0.6)] hover:brightness-105 active:scale-[0.98]'
               }`}
             >
               Run Agent
@@ -214,7 +214,7 @@ export default function RunBriefComposer({
 
       {/* ── More settings (the settings wheel) ── */}
       {showSettings && (
-        <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 space-y-3">
+        <div className="rounded-2xl border border-gray-200/80 bg-white/75 p-4 space-y-3 shadow-card backdrop-blur-sm">
           {organic && (
             <Field label="Platforms" hint="none = client's defaults">
               {TARGET_PLATFORM_IDS.map(p => (
@@ -265,7 +265,7 @@ export default function RunBriefComposer({
       {footer}
 
       {(error || blockedReason) && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+        <div className="rounded-xl bg-red-50/80 border border-red-200/80 px-3.5 py-2.5 text-[13px] text-red-700">
           {error || blockedReason}
         </div>
       )}
@@ -345,7 +345,7 @@ function RunPhotosField({
 
       {pickerOpen && (
         <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
+          className="fixed inset-0 bg-[rgb(23_43_77/0.28)] backdrop-blur-[6px] flex items-center justify-center z-[60] p-4"
           onClick={() => setPickerOpen(false)}
         >
           <div
@@ -396,7 +396,7 @@ function RunPhotosField({
                 type="button"
                 onClick={confirm}
                 disabled={gallery.loading || pendingCount === 0}
-                className="px-5 py-2 rounded-full text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-950 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2 rounded-full text-sm font-semibold text-white bg-blue-600 shadow-button hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {pendingCount === 0 ? 'Pick at least one photo' : `Use ${pendingCount} ${pendingCount === 1 ? 'photo' : 'photos'}`}
               </button>
@@ -422,7 +422,7 @@ function Segmented<T extends string>({
   ariaLabel: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className="inline-flex rounded-full bg-gray-100 p-1">
+    <div role="radiogroup" aria-label={ariaLabel} className="inline-flex rounded-full border border-gray-200/80 bg-white/70 p-1 shadow-xs backdrop-blur-sm">
       {options.map(o => (
         <button
           key={o.value}
@@ -431,7 +431,7 @@ function Segmented<T extends string>({
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
           className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-all ${
-            value === o.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            value === o.value ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
           }`}
         >
           {o.label}
@@ -461,8 +461,8 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       onClick={onClick}
       className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
         active
-          ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
-          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+          ? 'bg-blue-50 border-blue-300 text-blue-700'
+          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
       }`}
     >
       {children}
@@ -478,7 +478,7 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative h-5 w-9 rounded-full transition-colors ${checked ? 'bg-indigo-500' : 'bg-gray-300'}`}
+        className={`relative h-5 w-9 rounded-full transition-colors ${checked ? 'bg-blue-600' : 'bg-gray-300'}`}
       >
         <span
           className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${

@@ -77,7 +77,7 @@ function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] ?? { label: status, color: 'bg-gray-100 text-gray-700', icon: null };
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.color}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ring-1 ring-inset ring-black/5 ${cfg.color}`}
     >
       {cfg.icon}
       {cfg.label}
@@ -530,7 +530,7 @@ export default function ContentAgentPanel({
   const showRunButton = !loadingPlans && pageView !== 'generating' && pageView !== 'idle';
 
   return (
-    <div className={compact ? 'space-y-6' : 'max-w-5xl mx-auto p-4 sm:p-6 space-y-6'}>
+    <div className={compact ? 'space-y-6' : 'max-w-5xl mx-auto px-4 py-5 md:px-6 md:py-7 space-y-6'}>
       {/* ── Header ── (compact: the host card already names the panel) */}
       <div className={`flex items-center justify-between flex-wrap gap-3 ${compact && !showRunButton ? 'hidden' : ''}`}>
         {compact ? (
@@ -538,14 +538,16 @@ export default function ContentAgentPanel({
             Swipe to keep, then save to drafts or add to your calendar
           </p>
         ) : (
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Bot className="h-6 w-6 text-blue-600" />
-              Content Agent
-            </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              AI-generated content — swipe to keep, then save to drafts or add to your calendar
-            </p>
+          <div className="flex min-w-0 gap-3.5">
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-ai text-white shadow-button">
+              <Bot className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.022em] text-gray-900">Content Agent</h1>
+              <p className="mt-1 text-[13px] leading-5 text-gray-500">
+                AI-generated content — swipe to keep, then save to drafts or add to your calendar
+              </p>
+            </div>
           </div>
         )}
 
@@ -555,7 +557,8 @@ export default function ContentAgentPanel({
               setShowGenerateModal(true);
               setGenerateError(null);
             }}
-            className="rounded-full pl-5 pr-4 font-semibold bg-gradient-to-r from-blue-500 to-blue-950 text-white hover:shadow-[0_6px_20px_rgba(30,58,138,0.4)] hover:brightness-110 transition-all"
+            variant="ai"
+            className="h-10 rounded-full pl-5 pr-4 font-semibold"
           >
             Run Agent
             <Play className="h-4 w-4 ml-1.5 fill-current" />
@@ -566,11 +569,11 @@ export default function ContentAgentPanel({
       {/* ── Run modal (from swipe/review — idle shows the composer inline) ── */}
       {showGenerateModal && (
         <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-[rgb(23_43_77/0.28)] backdrop-blur-[6px] flex items-center justify-center z-50 p-4"
           onClick={() => setShowGenerateModal(false)}
         >
           <div
-            className="relative bg-[#fbfaf8] rounded-3xl shadow-2xl max-w-2xl w-full p-6 sm:p-8 max-h-[90vh] overflow-y-auto"
+            className="relative bg-gradient-to-b from-white to-blue-50/60 border border-white/70 rounded-3xl shadow-2xl max-w-2xl w-full p-6 sm:p-8 max-h-[90vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             <button
@@ -588,8 +591,8 @@ export default function ContentAgentPanel({
 
       {/* ── Loading plans on mount ── */}
       {loadingPlans && (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-gray-500">
+          <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
         </div>
       )}
 
@@ -610,8 +613,8 @@ export default function ContentAgentPanel({
           {pageView === 'swipe' && candidates.length > 0 && (
             <div className="space-y-3">
               {activePlan && (
-                <div className="flex items-center justify-between text-sm text-gray-500">
-                  <span className="flex items-center gap-1.5">
+                <div className="flex items-center justify-between rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2 text-[13px] text-gray-600 shadow-xs backdrop-blur-sm">
+                  <span className="flex items-center gap-1.5 font-medium">
                     <CalendarDays className="h-4 w-4" />
                     {formatDateRange(activePlan.plan_week_start, activePlan.plan_week_end)}
                   </span>
