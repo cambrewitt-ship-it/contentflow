@@ -45,6 +45,8 @@ export async function GET(request: NextRequest, { params }: Params) {
         recommendationsAt: null,
         syncedAt: null,
         recentPosts: [],
+        posts: [],
+        bestTimes: [],
       };
       return NextResponse.json({ success: true, ...body });
     }
@@ -83,6 +85,9 @@ export async function GET(request: NextRequest, { params }: Params) {
       recommendationsAt: snapshot.recommendationsAt,
       syncedAt: snapshot.syncedAt,
       recentPosts: snapshot.posts.slice(0, 40),
+      // The charts need every post, not just the latest; captions are trimmed to keep the payload small
+      posts: snapshot.posts.slice(0, 1000).map((p) => (p.content.length > 160 ? { ...p, content: `${p.content.slice(0, 157)}…` } : p)),
+      bestTimes: snapshot.bestTimes,
     };
     return NextResponse.json({ success: true, ...body });
   } catch (error) {

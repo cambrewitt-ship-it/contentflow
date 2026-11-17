@@ -88,6 +88,12 @@ the whole codebase (and Vercel env vars).
   results in the calendar post modal (`PostResults`, by `late_post_id`), and the agency overview on
   `/dashboard` (`/api/analytics/portfolio`: status strip per client + "Needs attention").
   Recommendation buttons open the Content Agent with `?brief=`.
+- Visuals: the Analytics page has tabs (Overview / When to post / What to post / Posts; deep-link with `?view=`).
+  Charts are hand-built SVG in `src/components/analytics/charts.tsx` (day × hour heatmap, activity calendar,
+  donut, weekday columns, post timeline, sparkline); data shaping in `src/lib/analytics/visuals.ts` (platform/format
+  colours are fixed per entity). The analytics GET also returns `posts` (the snapshot's year, captions trimmed) and
+  `bestTimes` for these. The client overview shows `AnalyticsOverview` (30-day KPIs + sparklines, best-time heatmap,
+  platform split, top post).
 - `/api/cron/weekly-insights` (GitHub Actions, Monday NZ morning) refreshes every connected client,
   writes recommendations and sends an `analytics_insights` notification.
 

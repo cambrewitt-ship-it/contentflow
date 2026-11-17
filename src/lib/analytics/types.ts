@@ -132,6 +132,10 @@ export interface ClientAnalyticsResponse {
   syncedAt: string | null
   /** Recently published posts with their results, newest first */
   recentPosts: AnalyticsPost[]
+  /** Every published post from the last 12 months (captions trimmed), newest first — feeds the charts and heatmaps */
+  posts?: AnalyticsPost[]
+  /** Zernio's full weekly best-time grid in the client's timezone (not just the top slots) */
+  bestTimes?: BestTimeSlot[]
 }
 
 /** One client's row in the agency overview (GET /api/analytics/portfolio) */

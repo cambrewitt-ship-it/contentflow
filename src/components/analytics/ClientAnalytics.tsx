@@ -11,13 +11,13 @@ import {
   Bot,
   CalendarClock,
   CheckCircle2,
-  ExternalLink,
   Eye,
   Heart,
   Layers,
   Lightbulb,
   Loader2,
   RefreshCw,
+  ScatterChart,
   Sparkles,
   TrendingUp,
   Users,
@@ -26,7 +26,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { authedFetchJson } from '@/lib/authedFetch'
 import { slotLabel } from '@/lib/analytics/insights'
-import type { AnalyticsPost, ClientAnalyticsResponse, GroupStat, Recommendation } from '@/lib/analytics/types'
+import type { ClientAnalyticsResponse, Recommendation } from '@/lib/analytics/types'
+import { postsSince } from '@/lib/analytics/visuals'
+import { Card, ContentView, PostsView, Segmented, TimingView } from './AnalyticsViews'
+import { PostTimeline } from './charts'
 import { MetricChart } from './MetricChart'
 import { ReportsCard } from './ReportsCard'
 
@@ -47,6 +50,14 @@ const CHART_METRICS: Array<{ key: ChartMetric; label: string }> = [
   { key: 'engagement', label: 'Engagement' },
   { key: 'impressions', label: 'Impressions' },
   { key: 'followersGained', label: 'Followers gained' },
+]
+
+type View = 'overview' | 'timing' | 'content' | 'posts'
+const VIEWS: Array<{ key: View; label: string }> = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'timing', label: 'When to post' },
+  { key: 'content', label: 'What to post' },
+  { key: 'posts', label: 'Posts' },
 ]
 
 const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 })
@@ -109,98 +120,6 @@ function StatTile({
   )
 }
 
-function Card({ title, icon, children, action }: { title: string; icon?: React.ReactNode; children: React.ReactNode; action?: React.ReactNode }) {
-  return (
-    <section className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-card">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.01em] text-gray-900">
-          {icon && (
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-50 ring-1 ring-gray-200/80 [&>svg]:h-3.5 [&>svg]:w-3.5">
-              {icon}
-            </span>
-          )}
-          {title}
-        </h3>
-        {action}
-      </div>
-      {children}
-    </section>
-  )
-}
-
-function GroupBars({ groups, empty }: { groups: GroupStat[]; empty: string }) {
-  const solid = groups.filter((g) => g.count > 0)
-  if (!solid.length) return <p className="text-sm text-gray-500">{empty}</p>
-  const max = Math.max(...solid.map((g) => g.medianEngagementRate), 0.01)
-  return (
-    <div className="space-y-2.5">
-      {solid.map((g) => (
-        <div key={g.key} title={`${g.count} posts · median ${g.medianEngagementRate}% engagement · median reach ${fmt(g.medianReach)}`}>
-          <div className="mb-1 flex items-baseline justify-between gap-2 text-[13px]">
-            <span className="text-gray-700">{g.label}</span>
-            <span className="font-medium tabular-nums text-gray-900">
-              {g.medianEngagementRate.toFixed(1)}% <span className="text-xs text-gray-400">· {g.count} posts</span>
-            </span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-gray-100">
-            <div
-              className={`h-2 rounded-full transition-[width] duration-700 ease-out ${g.count < 3 ? 'bg-blue-200' : 'bg-gradient-to-r from-blue-600 to-cyan-400'}`}
-              style={{ width: `${Math.max(2, (g.medianEngagementRate / max) * 100)}%` }}
-            />
-          </div>
-        </div>
-      ))}
-      <p className="pt-1 text-[11px] text-gray-400">Median engagement rate. Lighter bars have fewer than 3 posts.</p>
-    </div>
-  )
-}
-
-function PostRow({ post, median }: { post: AnalyticsPost; median: number }) {
-  const m = post.metrics
-  const vs = median ? m.engagementRate / median : null
-  return (
-    <div className="-mx-2 flex items-start gap-3 rounded-xl border-b border-gray-100 px-2 py-3 transition-colors last:border-0 hover:bg-gray-50/70">
-      <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl bg-gray-100 ring-1 ring-gray-200/70">
-        {post.thumbnailUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={post.thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
-          <span className="font-medium capitalize text-gray-700">{post.platform}</span>
-          <span>·</span>
-          <span className="capitalize">{post.format}</span>
-          <span>·</span>
-          <span>{new Date(post.publishedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-          {post.isExternal && <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-gray-200">posted directly</span>}
-          {post.url && (
-            <a href={post.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-blue-600 hover:underline">
-              View <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-        </div>
-        <p className="mt-0.5 line-clamp-2 text-[13px] leading-5 text-gray-800">{post.content || <span className="text-gray-400">No caption</span>}</p>
-        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums text-gray-500">
-          <span>{compact.format(m.reach || m.views)} {m.reach ? 'reach' : 'views'}</span>
-          <span>{fmt(m.likes)} likes</span>
-          <span>{fmt(m.comments)} comments</span>
-          {m.shares > 0 && <span>{fmt(m.shares)} shares</span>}
-          {m.saves > 0 && <span>{fmt(m.saves)} saves</span>}
-          <span className="font-semibold text-gray-900">{m.engagementRate.toFixed(1)}% engagement</span>
-          {vs !== null && (
-            <span
-              className={`rounded-full px-1.5 font-medium ${vs >= 1.2 ? 'bg-emerald-50 text-emerald-700' : vs <= 0.8 ? 'bg-red-50 text-red-700' : 'text-gray-500'}`}
-            >
-              {vs >= 1 ? `${vs.toFixed(1)}x usual` : `${Math.round((1 - vs) * 100)}% below usual`}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function RecommendationCard({ rec, clientId }: { rec: Recommendation; clientId: string }) {
   const href =
     rec.action === 'create_post' || rec.action === 'run_agent'
@@ -234,6 +153,12 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState<'data' | 'ideas' | null>(null)
   const [metric, setMetric] = useState<ChartMetric>('reach')
+  const [view, setView] = useState<View>('overview')
+  // Deep links from the client overview (?view=timing / ?view=posts); read after mount to keep hydration stable
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('view')
+    if (v && VIEWS.some((o) => o.key === v)) setView(v as View)
+  }, [])
 
   const load = useCallback(
     async (r: number) => {
@@ -276,10 +201,9 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
   const engagement = (t: NonNullable<typeof d>['totals']) => t.likes + t.comments + t.shares + t.saves
 
   const points = useMemo(() => (d?.daily ?? []).map((p) => ({ date: p.date, value: p[metric] })), [d, metric])
-  const rangePosts = useMemo(() => {
-    const since = Date.now() - range * 86_400_000
-    return (data?.recentPosts ?? []).filter((p) => Date.parse(p.publishedAt) >= since)
-  }, [data?.recentPosts, range])
+  const allPosts = useMemo(() => data?.posts ?? data?.recentPosts ?? [], [data?.posts, data?.recentPosts])
+  const rangePosts = useMemo(() => postsSince(allPosts, range), [allPosts, range])
+  const rangeLabel = RANGES.find((r) => r.days === range)!.label
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-5 md:px-6 md:py-7">
@@ -396,159 +320,138 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
           )}
           {d && <p className="-mt-3 text-[11px] text-gray-500">Engagement is likes, comments, shares and saves. Changes compare with the period before.</p>}
 
-          {d && (
-            <Card
-              title="Daily results"
-              icon={<TrendingUp className="h-4 w-4 text-blue-600" />}
-              action={
-                <div className="inline-flex flex-wrap rounded-xl border border-gray-200/80 bg-gray-50/80 p-1" role="tablist" aria-label="Metric">
-                  {CHART_METRICS.map((m) => (
-                    <button
-                      key={m.key}
-                      role="tab"
-                      aria-selected={metric === m.key}
-                      onClick={() => setMetric(m.key)}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${metric === m.key ? 'bg-white text-blue-700 shadow-sm ring-1 ring-gray-200/80' : 'text-gray-500 hover:text-gray-800'}`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-              }
-            >
-              <MetricChart points={points} label={CHART_METRICS.find((m) => m.key === metric)!.label} />
-            </Card>
-          )}
+          <div className="border-b border-gray-200/70 pb-3">
+            <Segmented label="Analytics view" options={VIEWS} value={view} onChange={setView} />
+          </div>
 
-          <div className="grid gap-6 lg:grid-cols-5">
-            <div className="space-y-6 lg:col-span-3">
-              <Card
-                title="Recommended next"
-                icon={<Lightbulb className="h-4 w-4 text-amber-500" />}
-                action={
-                  i && i.postCount >= 5 ? (
-                    <Button variant="ghost" size="sm" onClick={() => refresh('ideas')} disabled={!!refreshing}>
-                      {refreshing === 'ideas' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-violet-600" />}
-                      New ideas
-                    </Button>
-                  ) : null
-                }
-              >
-                {data?.recommendations.length ? (
-                  <div className="space-y-3">
-                    {data.recommendations.map((r) => (
-                      <RecommendationCard key={r.id} rec={r} clientId={clientId} />
-                    ))}
-                    {data.recommendationsAt && (
-                      <p className="text-[11px] text-gray-400">
-                        Written from this client&apos;s results on{' '}
-                        {new Date(data.recommendationsAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}. New ones arrive
-                        weekly.
+          {view === 'overview' && (
+            <>
+              {d && (
+                <Card
+                  title="Daily results"
+                  icon={<TrendingUp className="h-4 w-4 text-blue-600" />}
+                  action={<Segmented label="Metric" options={CHART_METRICS} value={metric} onChange={setMetric} />}
+                >
+                  <MetricChart points={points} label={CHART_METRICS.find((m) => m.key === metric)!.label} />
+                </Card>
+              )}
+
+              <div className="grid gap-6 lg:grid-cols-5">
+                <div className="min-w-0 space-y-6 lg:col-span-3">
+                  <Card
+                    title="Recommended next"
+                    icon={<Lightbulb className="h-4 w-4 text-amber-500" />}
+                    action={
+                      i && i.postCount >= 5 ? (
+                        <Button variant="ghost" size="sm" onClick={() => refresh('ideas')} disabled={!!refreshing}>
+                          {refreshing === 'ideas' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-violet-600" />}
+                          New ideas
+                        </Button>
+                      ) : null
+                    }
+                  >
+                    {data?.recommendations.length ? (
+                      <div className="space-y-3">
+                        {data.recommendations.map((r) => (
+                          <RecommendationCard key={r.id} rec={r} clientId={clientId} />
+                        ))}
+                        {data.recommendationsAt && (
+                          <p className="text-[11px] text-gray-400">
+                            Written from this client&apos;s results on{' '}
+                            {new Date(data.recommendationsAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}. New ones
+                            arrive weekly.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        {i && i.postCount >= 5
+                          ? 'Recommendations are being written from the latest results — check back in a minute.'
+                          : 'Recommendations start once there are at least 5 published posts with results.'}
                       </p>
                     )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    {i && i.postCount >= 5
-                      ? 'Recommendations are being written from the latest results — check back in a minute.'
-                      : 'Recommendations start once there are at least 5 published posts with results.'}
-                  </p>
-                )}
-              </Card>
+                  </Card>
 
-              <Card title="Posts in this period" icon={<BarChart3 className="h-4 w-4 text-gray-500" />}>
-                {rangePosts.length ? (
-                  <div>
-                    {rangePosts.map((p) => (
-                      <PostRow key={p.id} post={p} median={median} />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No posts published in this period.</p>
-                )}
-              </Card>
-            </div>
+                  <Card
+                    title="Post performance"
+                    icon={<ScatterChart className="h-4 w-4 text-blue-600" />}
+                    subtitle={`Each dot is a post in the last ${rangeLabel}: higher = better engagement rate.`}
+                    action={
+                      <button onClick={() => setView('posts')} className="text-xs font-medium text-blue-600 hover:underline">
+                        All posts →
+                      </button>
+                    }
+                  >
+                    <PostTimeline posts={rangePosts} median={median} />
+                  </Card>
+                </div>
 
-            <div className="space-y-6 lg:col-span-2">
-              <ReportsCard clientId={clientId} />
+                <div className="min-w-0 space-y-6 lg:col-span-2">
+                  <Card title="What's working" icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}>
+                    {i?.findings.length ? (
+                      <ul className="space-y-2 text-[13px] leading-5 text-gray-700">
+                        {i.findings.map((f) => (
+                          <li key={f} className="flex gap-2.5 rounded-xl bg-emerald-50/50 px-3 py-2 ring-1 ring-emerald-100/70">
+                            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-emerald-600" />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        {i && i.postCount >= 5
+                          ? 'No clear patterns yet — results are fairly even across formats and times.'
+                          : 'Patterns appear once there are a few more posts with results.'}
+                      </p>
+                    )}
+                    {i && i.postCount >= 5 && (
+                      <p className="mt-3 border-t border-gray-100 pt-3 text-xs text-gray-500">
+                        The Content Agent and caption writer use these learnings automatically. Based on {i.postCount} posts from the last
+                        12 months · {i.postsPerWeek} posts a week · median engagement {median}%.
+                      </p>
+                    )}
+                  </Card>
 
-              <Card title="What's working" icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}>
-                {i?.findings.length ? (
-                  <ul className="space-y-2 text-[13px] leading-5 text-gray-700">
-                    {i.findings.map((f) => (
-                      <li key={f} className="flex gap-2.5 rounded-xl bg-emerald-50/50 px-3 py-2 ring-1 ring-emerald-100/70">
-                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-emerald-600" />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    {i && i.postCount >= 5
-                      ? 'No clear patterns yet — results are fairly even across formats and times.'
-                      : 'Patterns appear once there are a few more posts with results.'}
-                  </p>
-                )}
-                {i && i.postCount >= 5 && (
-                  <p className="mt-3 border-t border-gray-100 pt-3 text-xs text-gray-500">
-                    The Content Agent and caption writer use these learnings automatically. Based on {i.postCount} posts from the last 12
-                    months · {i.postsPerWeek} posts a week · median engagement {median}%.
-                  </p>
-                )}
-              </Card>
+                  {i && i.bestSlots.length > 0 && (
+                    <Card
+                      title="Best times to post"
+                      icon={<CalendarClock className="h-4 w-4 text-blue-600" />}
+                      action={
+                        <button onClick={() => setView('timing')} className="text-xs font-medium text-blue-600 hover:underline">
+                          Heatmap →
+                        </button>
+                      }
+                    >
+                      <ol className="space-y-1.5 text-[13px]">
+                        {i.bestSlots.slice(0, 3).map((s, n) => (
+                          <li key={`${s.day}-${s.hour}`} className="flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 hover:bg-gray-50">
+                            <span className="flex items-center gap-2.5 text-gray-800">
+                              <span
+                                className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold ${
+                                  n === 0 ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                                }`}
+                              >
+                                {n + 1}
+                              </span>
+                              <span className="font-medium">{slotLabel(s)}</span>
+                            </span>
+                            <span className="text-right text-xs tabular-nums text-gray-500">avg {s.avgEngagement} engagements</span>
+                          </li>
+                        ))}
+                      </ol>
+                      <p className="mt-2 text-[11px] text-gray-400">In {i.timezone} time. The Content Agent schedules into these slots.</p>
+                    </Card>
+                  )}
 
-              {i && i.bestSlots.length > 0 && (
-                <Card title="Best times to post" icon={<CalendarClock className="h-4 w-4 text-blue-600" />}>
-                  <ol className="space-y-1.5 text-[13px]">
-                    {i.bestSlots.map((s, n) => (
-                      <li key={`${s.day}-${s.hour}`} className="flex items-center justify-between gap-3 rounded-xl px-2 py-1.5 transition-colors hover:bg-gray-50">
-                        <span className="flex items-center gap-2.5 text-gray-800">
-                          <span
-                            className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold ${
-                              n === 0 ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
-                            }`}
-                          >
-                            {n + 1}
-                          </span>
-                          <span className="font-medium">{slotLabel(s)}</span>
-                        </span>
-                        <span className="text-right text-xs tabular-nums text-gray-500">
-                          avg {s.avgEngagement} engagements · {s.postCount} posts
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-                  <p className="mt-2 text-[11px] text-gray-400">In {i.timezone} time. The Content Agent schedules into these slots.</p>
-                </Card>
-              )}
+                  <ReportsCard clientId={clientId} />
+                </div>
+              </div>
+            </>
+          )}
 
-              {i && (
-                <Card title="By format" icon={<BarChart3 className="h-4 w-4 text-gray-500" />}>
-                  <GroupBars groups={i.byFormat} empty="No posts yet." />
-                </Card>
-              )}
-              {i && (
-                <Card title="By caption length" icon={<BarChart3 className="h-4 w-4 text-gray-500" />}>
-                  <GroupBars groups={i.byCaptionLength} empty="No posts yet." />
-                </Card>
-              )}
-              {i && i.hashtags.length > 0 && (
-                <Card title="Hashtags by results" icon={<BarChart3 className="h-4 w-4 text-gray-500" />}>
-                  <div className="space-y-0.5 text-[13px]">
-                    {i.hashtags.slice(0, 12).map((h) => (
-                      <div key={h.tag} className="flex justify-between rounded-lg px-2 py-1 transition-colors hover:bg-gray-50">
-                        <span className="font-medium text-blue-700">#{h.tag}</span>
-                        <span className="tabular-nums text-gray-500">
-                          {h.medianEngagementRate.toFixed(1)}% · {h.count} posts
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-[11px] text-gray-400">Hashtags used on 3+ posts. The # menu in captions ranks by these.</p>
-                </Card>
-              )}
-            </div>
-          </div>
+          {view === 'timing' && <TimingView posts={allPosts} bestTimes={data?.bestTimes ?? []} insights={i ?? null} />}
+          {view === 'content' && <ContentView posts={rangePosts} insights={i ?? null} rangeLabel={rangeLabel} />}
+          {view === 'posts' && <PostsView posts={rangePosts} median={median} rangeLabel={rangeLabel} />}
         </>
       )}
     </div>

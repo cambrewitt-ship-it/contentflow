@@ -9,6 +9,7 @@ import Link from 'next/link'
 import BrandInformationPanel from '@/components/BrandInformationPanel'
 import BrandKitSection from '@/components/brand-kit/BrandKitSection'
 import CaptionLibrarySection from '@/components/caption-library/CaptionLibrarySection'
+import AnalyticsOverview from '@/components/analytics/AnalyticsOverview'
 import { CompactMonthCalendar } from '@/components/CompactMonthCalendar'
 import { useAuth } from '@/contexts/AuthContext'
 import OnboardingChecklist from '@/components/OnboardingChecklist'
@@ -1130,6 +1131,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             </div>
           </div>
         )}
+
+        {/* Analytics: last 30 days' results, best-time heatmap, platform split, top post */}
+        <AnalyticsOverview clientId={clientId} />
 
         {/* Activity Hub & Month Calendar - Two Column Layout (40/60) */}
         <div className="mb-8 grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-6">
