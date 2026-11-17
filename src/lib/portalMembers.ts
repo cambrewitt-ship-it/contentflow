@@ -22,8 +22,8 @@ const SESSION_TTL_DAYS = 90;
 
 // Palette for member avatars — assigned round-robin per client.
 const MEMBER_COLORS = [
-  '#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6',
-  '#8b5cf6', '#ef4444', '#14b8a6', '#f97316', '#84cc16',
+  '#1e40af', '#0ea5e9', '#f59e0b', '#10b981', '#3b82f6',
+  '#0369a1', '#ef4444', '#14b8a6', '#f97316', '#84cc16',
 ];
 
 export interface PortalMember {

@@ -177,7 +177,7 @@ export const MentionTextarea = forwardRef<MentionTextareaHandle, Props>(function
             >
               <span
                 className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-                style={{ backgroundColor: m.color ?? "#6366f1" }}
+                style={{ backgroundColor: m.color ?? "#356df3" }}
               >
                 {m.name.charAt(0).toUpperCase()}
               </span>

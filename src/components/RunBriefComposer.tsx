@@ -170,7 +170,7 @@ export default function RunBriefComposer({
               className={`h-11 shrink-0 rounded-full flex items-center gap-2 pl-5 pr-4 text-sm font-semibold text-white transition-all ${
                 blockedReason
                   ? 'bg-gray-300 cursor-not-allowed'
-                  : 'bg-gradient-ai shadow-button hover:shadow-[0_8px_22px_-6px_rgb(99_102_241/0.6)] hover:brightness-105 active:scale-[0.98]'
+                  : 'bg-gradient-ai shadow-button hover:shadow-[0_8px_22px_-6px_rgb(53_109_243/0.6)] hover:brightness-105 active:scale-[0.98]'
               }`}
             >
               Run Agent

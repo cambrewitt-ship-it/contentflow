@@ -83,6 +83,91 @@ export interface PerformanceInsights {
   findings: string[]
   /** Follower count now and net change over the last 30 days, when Zernio reports it */
   followers?: { current: number; gained30d: number } | null
+  /** Audience demographics + the engaged-audience persona (refreshed daily; see ./audience.ts) */
+  audience?: AudienceData | null
+}
+
+// ---------------------------------------------------------------------------
+// Audience: demographics from Zernio + the "most engaged audience" persona
+// ---------------------------------------------------------------------------
+
+export interface AudienceSlice {
+  key: string
+  label: string
+  value: number
+  /** 0..1 share of this breakdown's total */
+  share: number
+}
+
+export type AudienceDimension =
+  | 'age'
+  | 'gender'
+  | 'country'
+  | 'city'
+  | 'function'
+  | 'seniority'
+  | 'industry'
+  | 'company_size'
+  | 'region'
+
+export type AudienceBreakdowns = Partial<Record<AudienceDimension, AudienceSlice[]>>
+
+export type AccountAudienceStatus = 'ok' | 'too_small' | 'unavailable' | 'needs_reconnect' | 'failed'
+
+export interface AccountAudience {
+  accountId: string
+  platform: string
+  username: string | null
+  status: AccountAudienceStatus
+  /** Why there's nothing to show, in plain words */
+  message?: string
+  /** Everyone who follows the account */
+  followers: AudienceBreakdowns | null
+  /** People who engaged with posts (Instagram) — the basis of the persona */
+  engaged: AudienceBreakdowns | null
+  /** Platform caveat worth showing, e.g. Facebook has no age/gender */
+  note?: string
+}
+
+export interface AudiencePersona {
+  /** A first name for the avatar, e.g. "Sarah" */
+  name: string
+  /** One line: "28–34 · mostly women · Auckland" */
+  headline: string
+  ageRange: string | null
+  gender: string | null
+  location: string | null
+  summary: string
+  /** What they care about / who they are */
+  traits: string[]
+  /** Content they engage with most, from real results */
+  loves: string[]
+  /** When they're most active, from best times */
+  whenOnline: string | null
+  /** Tone and approach that lands with them */
+  howToTalk: string[]
+  /** 3 post ideas made for them */
+  contentIdeas: string[]
+  /** What the persona is built from, e.g. "Instagram engaged audience + 142 posts + 310 comments" */
+  basedOn: string
+  generatedAt: string
+}
+
+export interface AudienceData {
+  accounts: AccountAudience[]
+  persona: AudiencePersona | null
+  fetchedAt: string
+}
+
+/** A person who comments most (from the comments inbox) */
+export interface AudienceFan {
+  name: string
+  username: string | null
+  picture: string | null
+  platform: string
+  comments: number
+  positive: number
+  lastAt: string | null
 }
 
 export interface Recommendation {
@@ -132,6 +217,14 @@ export interface ClientAnalyticsResponse {
   syncedAt: string | null
   /** Recently published posts with their results, newest first */
   recentPosts: AnalyticsPost[]
+  /** Every published post from the last 12 months (captions trimmed), newest first — feeds the charts and heatmaps */
+  posts?: AnalyticsPost[]
+  /** Zernio's full weekly best-time grid in the client's timezone (not just the top slots) */
+  bestTimes?: BestTimeSlot[]
+  /** Most engaged commenters in the last 90 days, from the comments inbox */
+  fans?: AudienceFan[]
+  /** The last 90 days of comments the audience persona is built from */
+  commentSummary?: { total: number; positive: number; negative: number; questions: string[]; complaints: string[] } | null
 }
 
 /** One client's row in the agency overview (GET /api/analytics/portfolio) */

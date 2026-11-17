@@ -95,7 +95,7 @@ export function ApprovalPipeline({ steps, activePartyId }: ApprovalPipelineProps
                   {step.party && (
                     <span
                       className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full text-white"
-                      style={{ backgroundColor: step.party.color ?? "#6366f1" }}
+                      style={{ backgroundColor: step.party.color ?? "#356df3" }}
                     >
                       {step.party.name}
                       {isCurrentParty && isActive && (

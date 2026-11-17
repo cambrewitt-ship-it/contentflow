@@ -17,6 +17,15 @@ env vars or database columns as a side effect of other work; if the API base URL
 or env var is ever switched to Zernio's, do it as one deliberate change across
 the whole codebase (and Vercel env vars).
 
+## Colour palette
+
+- The app is blue-spectrum only (navy → blue → sky → cyan, tokens in `src/app/globals.css`) with **subtle**
+  orange accents (`--color-brand-orange`, e.g. AI sparkle icons). No purple, violet, indigo, fuchsia or pink
+  in the UI — the AI gradient (`bg-gradient-ai`) is blue → cyan. Green/red/amber stay for status only.
+- Exceptions: Instagram's own brand gradient on its logo badges/story ring, and the Design Studio colour
+  presets (they're for clients' designs, not the app's look).
+- Stored colour keys stay for compatibility: calendar event colour `'purple'` now renders as "Sky".
+
 ## Social account connections (OAuth)
 
 - The connect routes (`connect-platform`, `connect-facebook`) ask Zernio for an
@@ -88,6 +97,24 @@ the whole codebase (and Vercel env vars).
   results in the calendar post modal (`PostResults`, by `late_post_id`), and the agency overview on
   `/dashboard` (`/api/analytics/portfolio`: status strip per client + "Needs attention").
   Recommendation buttons open the Content Agent with `?brief=`.
+- Visuals: the Analytics page has tabs (Overview / When to post / What to post / Posts; deep-link with `?view=`).
+  Charts are hand-built SVG in `src/components/analytics/charts.tsx` (day × hour heatmap, activity calendar,
+  donut, weekday columns, post timeline, sparkline); data shaping in `src/lib/analytics/visuals.ts` (platform/format
+  colours are fixed per entity). The analytics GET also returns `posts` (the snapshot's year, captions trimmed) and
+  `bestTimes` for these. The client overview shows `AnalyticsOverview` (30-day KPIs + sparklines, best-time heatmap,
+  platform split, top post).
+- Audience (Analytics "Audience" tab, `src/components/analytics/AudienceView.tsx`; logic in `src/lib/analytics/audience.ts`):
+  Zernio's `GET /v1/analytics/{instagram|facebook|linkedin|tiktok|youtube}/demographics` (entries are `{dimension, value}`;
+  Instagram needs 100+ followers and is read twice — `follower_demographics` and `engaged_audience_demographics`; Facebook
+  has country/city only since Meta dropped Page age/gender; LinkedIn is company pages only). Stored on the snapshot as
+  `insights.audience` (no extra table), re-read at most daily inside `refreshSnapshot`. The **most engaged audience
+  persona** ("Meet Sarah") is AI-written by `generatePersona` from engaged demographics + results + best times + comments,
+  after the response and weekly (`refreshPersona`); `formatAudiencePersonaPrompt` adds it to `getPerformancePrompt`, so
+  captions and the Content Agent write for that person. Top fans come live from `client_comments` (`getTopFans`).
+  "Why {name}?" (`AudienceEvidence.tsx`) charts the data behind each claim — engaged vs all-followers shares with an
+  engagement index, Zernio best times, format results, comment sentiment/questions — with takeaways computed from the
+  numbers. The rules that pick the facts live in `audienceFacts.ts` (browser-safe), shared by the AI brief and the UI.
+  The client overview shows a persona strip linking to `?view=audience`.
 - `/api/cron/weekly-insights` (GitHub Actions, Monday NZ morning) refreshes every connected client,
   writes recommendations and sends an `analytics_insights` notification.
 

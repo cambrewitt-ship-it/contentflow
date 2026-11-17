@@ -353,7 +353,7 @@ function CreatePostModalContent({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <Sparkles className="w-4 h-4 text-purple-500" />
+            <Sparkles className="w-4 h-4 text-orange-500" />
             <span className="text-sm font-semibold text-gray-900">New post</span>
           </div>
           <button
@@ -597,7 +597,7 @@ function CreatePostModalContent({
                     else setBlankDesignOpen(true);
                   }}
                   title="Add text, logos and brand colours — or start from a blank canvas"
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg text-white bg-gradient-to-r from-fuchsia-600 to-blue-600 hover:opacity-90 transition-opacity"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-sky-500 hover:opacity-90 transition-opacity"
                 >
                   <Wand2 className="w-3.5 h-3.5" />
                   Design

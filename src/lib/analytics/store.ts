@@ -7,7 +7,8 @@ import { completionParams } from '@/lib/openaiParams'
 import { computeInsights, formatPerformancePrompt, localiseSlots, slotLabel } from './insights'
 import { fetchBestTimes, fetchDashboard, fetchPublishedPosts, ZernioAnalyticsError } from './zernio'
 import { formatAudiencePrompt, getAudienceSummary } from '@/lib/comments/store'
-import type { AnalyticsPost, AnalyticsStatus, BestTimeSlot, PerformanceInsights, Recommendation } from './types'
+import { fetchAudience, formatAudiencePersonaPrompt, generatePersona, isAudienceStale, PERSONA_STALE_MS } from './audience'
+import type { AnalyticsPost, AnalyticsStatus, AudienceData, BestTimeSlot, PerformanceInsights, Recommendation } from './types'
 
 // Per-client analytics snapshot (table client_analytics, migration 034): the posts'
 // results from Zernio, best times, computed insights and weekly AI recommendations.
@@ -103,6 +104,17 @@ export async function refreshSnapshot(admin: SupabaseClient, clientId: string): 
       const bestTimes = localiseSlots(rawSlots, timeZone)
       const insights = computeInsights(posts, bestTimes, timeZone)
       insights.followers = dashboard ? { current: dashboard.followers.current, gained30d: dashboard.followers.gained } : null
+      // Demographics change slowly (platforms update them every day or two): re-read at most daily
+      const previousAudience = existing?.insights?.audience ?? null
+      insights.audience = previousAudience
+      if (isAudienceStale(previousAudience)) {
+        try {
+          const accounts = await fetchAudience(profileId)
+          insights.audience = { accounts, persona: previousAudience?.persona ?? null, fetchedAt: now }
+        } catch (err) {
+          logger.warn('Audience demographics refresh failed', { clientId, error: err instanceof Error ? err.message : String(err) })
+        }
+      }
       snapshot = { ...snapshot, posts, bestTimes, insights }
     } catch (err) {
       const unavailable = err instanceof ZernioAnalyticsError && err.unavailable
@@ -132,7 +144,54 @@ export async function refreshSnapshot(admin: SupabaseClient, clientId: string): 
     if (isMissingTable(error)) return 'missing_table'
     logger.error('Save analytics snapshot failed:', error)
   }
+  // The audience persona is AI-written: never inline, and only when missing or a week old
+  if (!error && snapshot.status === 'ok' && personaDue(snapshot.insights?.audience, snapshot.insights)) {
+    runAfterResponse(() => refreshPersona(createSupabaseAdmin(), clientId))
+  }
   return snapshot
+}
+
+function personaDue(audience: AudienceData | null | undefined, insights: PerformanceInsights | null): boolean {
+  if (!audience || !insights) return false
+  const hasDemographics = audience.accounts.some((a) => a.status === 'ok')
+  if (!hasDemographics && insights.postCount < 5) return false
+  const at = audience.persona?.generatedAt
+  return !at || Date.now() - Date.parse(at) > PERSONA_STALE_MS
+}
+
+/** Write (or rewrite) the "most engaged audience" persona onto the stored snapshot. */
+export async function refreshPersona(admin: SupabaseClient, clientId: string): Promise<AudienceData | null> {
+  const snapshot = await readSnapshot(admin, clientId)
+  if (!snapshot || snapshot === 'missing_table' || !snapshot.insights?.audience) return null
+  const audience = snapshot.insights.audience
+  const persona = await generatePersona(admin, clientId, snapshot.insights, audience.accounts)
+  if (!persona) return null
+  // Re-read just before writing so a refresh that ran meanwhile isn't overwritten
+  const latest = await readSnapshot(admin, clientId)
+  if (!latest || latest === 'missing_table' || !latest.insights) return null
+  const updated: AudienceData = { ...(latest.insights.audience ?? audience), persona }
+  const { error } = await admin
+    .from(TABLE)
+    .update({ insights: { ...latest.insights, audience: updated } })
+    .eq('client_id', clientId)
+  if (error) {
+    logger.error('Save audience persona failed:', error)
+    return null
+  }
+  return updated
+}
+
+/** Re-read demographics from Zernio now (the Audience tab's refresh), keeping the persona. */
+export async function refreshAudienceNow(admin: SupabaseClient, clientId: string): Promise<AudienceData | null> {
+  const snapshot = await readSnapshot(admin, clientId)
+  if (!snapshot || snapshot === 'missing_table' || !snapshot.insights) return null
+  const { data: client } = await admin.from('clients').select('late_profile_id').eq('id', clientId).maybeSingle()
+  if (!client?.late_profile_id) return null
+  const accounts = await fetchAudience(client.late_profile_id)
+  const audience: AudienceData = { accounts, persona: snapshot.insights.audience?.persona ?? null, fetchedAt: new Date().toISOString() }
+  const { error } = await admin.from(TABLE).update({ insights: { ...snapshot.insights, audience } }).eq('client_id', clientId)
+  if (error) logger.error('Save audience failed:', error)
+  return audience
 }
 
 /** The stored snapshot, refreshed first only when there is none yet. Stale ones refresh after the response. */
@@ -175,7 +234,9 @@ export async function getPerformancePrompt(clientId: string): Promise<string> {
     if (isStale(snapshot.syncedAt)) runAfterResponse(() => refreshSnapshot(createSupabaseAdmin(), clientId))
     // What the audience asks and says in comments: questions make good post ideas
     const audience = formatAudiencePrompt(await getAudienceSummary(admin, clientId).catch(() => null))
-    return [formatPerformancePrompt(snapshot.insights), audience].filter(Boolean).join('\n\n')
+    // Who the most engaged audience is, so every caption is written for them
+    const persona = formatAudiencePersonaPrompt(snapshot.insights?.audience)
+    return [formatPerformancePrompt(snapshot.insights), persona, audience].filter(Boolean).join('\n\n')
   } catch (err) {
     logger.error('Performance prompt failed:', err)
     return ''

@@ -103,7 +103,7 @@ export function AutoDmCard({ clientId }: { clientId: string }) {
   return (
     <section className="rounded-2xl border border-gray-200/80 bg-white p-4 shadow-card">
       <h3 className="mb-1 flex items-center gap-2 text-[15px] font-semibold text-gray-900">
-        <MessageSquareText className="h-4 w-4 text-fuchsia-500" /> Keyword auto-DMs
+        <MessageSquareText className="h-4 w-4 text-orange-500" /> Keyword auto-DMs
       </h3>
       <p className="mb-3 text-xs text-gray-500">
         When someone comments a keyword (e.g. &ldquo;MENU&rdquo;) on any post, they get a DM straight away. Instagram and Facebook.

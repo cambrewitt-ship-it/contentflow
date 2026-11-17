@@ -6,14 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, Edit3, Calendar, Trash2, Upload, X, Image, File, RefreshCw, Loader2, Check, AlertTriangle, Minus, Globe, Sparkles, ArrowRight, CalendarCheck, Clock, MessagesSquare, Activity } from 'lucide-react'
 import { usePortfolio } from '@/components/analytics/Portfolio'
-import { MetricChart } from '@/components/analytics/MetricChart'
-import { attentionItems, AttentionBanner, ContentSuitePromo, KpiColumn, SectionCard, StatCard } from '@/components/home/DashboardOverview'
-import { authedFetchJson } from '@/lib/authedFetch'
-import type { ClientAnalyticsResponse } from '@/lib/analytics/types'
+import { attentionItems, AttentionBanner, StatCard } from '@/components/home/DashboardOverview'
 import Link from 'next/link'
 import BrandInformationPanel from '@/components/BrandInformationPanel'
 import BrandKitSection from '@/components/brand-kit/BrandKitSection'
 import CaptionLibrarySection from '@/components/caption-library/CaptionLibrarySection'
+import AnalyticsOverview from '@/components/analytics/AnalyticsOverview'
 import { CompactMonthCalendar } from '@/components/CompactMonthCalendar'
 import { useAuth } from '@/contexts/AuthContext'
 import OnboardingChecklist from '@/components/OnboardingChecklist'
@@ -34,20 +32,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const searchParams = useSearchParams()
   const router = useRouter()
   const { getAccessToken, user } = useAuth()
-  // Overview for the top of the dashboard: status, attention items and 30-day results
+  // Overview for the top of the dashboard: status and attention items
   const portfolio = usePortfolio(true)
   const pulse = portfolio.clients[clientId]
-  const [analytics, setAnalytics] = useState<ClientAnalyticsResponse | null>(null)
-  const [analyticsLoading, setAnalyticsLoading] = useState(true)
-  useEffect(() => {
-    let cancelled = false
-    setAnalyticsLoading(true)
-    authedFetchJson<ClientAnalyticsResponse>(`/api/clients/${clientId}/analytics?range=30`, { timeoutMs: 120_000 })
-      .then((res) => { if (!cancelled) setAnalytics(res) })
-      .catch(() => { /* the overview works without results */ })
-      .finally(() => { if (!cancelled) setAnalyticsLoading(false) })
-    return () => { cancelled = true }
-  }, [clientId])
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -1102,7 +1089,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             </Button>
             <Button
               onClick={() => router.push(`/dashboard/client/${clientId}/content-suite`)}
-              className="group h-12 rounded-2xl bg-gradient-ai px-6 text-[15px] font-semibold text-white shadow-[0_10px_30px_-8px_rgb(99_102_241/0.55)] hover:brightness-105"
+              className="group h-12 rounded-2xl bg-gradient-ai px-6 text-[15px] font-semibold text-white shadow-[0_10px_30px_-8px_rgb(53_109_243/0.5)] hover:brightness-105"
             >
               <Sparkles className="h-5 w-5" />
               Create Content
@@ -1157,7 +1144,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               value={pulse ? pulse.awaitingApproval : '—'}
               label="Awaiting Approval"
               note={pulse && pulse.awaitingApproval > 0 ? 'Posts in the next 7 days' : 'Nothing waiting'}
-              tone="violet"
+              tone="sky"
               href={`/dashboard/client/${clientId}/calendar`}
               loading={!portfolio.loaded}
             />
@@ -1185,6 +1172,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
             />
           </div>
         </div>
+        {/* Analytics: last 30 days' results, best-time heatmap, platform split, top post */}
+        <AnalyticsOverview clientId={clientId} />
 
         {/* Activity Hub & Month Calendar - Two Column Layout (40/60) */}
         <div className="mb-8 grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-6">
@@ -1370,59 +1359,6 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           </div>
         </div>
 
-
-        {/* Performance overview + Content Suite */}
-        {(() => {
-          const d = analytics?.dashboard
-          const pct = (cur: number, prev: number | undefined | null) =>
-            prev ? (cur - prev) / prev : null
-          const eng = (t: { likes: number; comments: number; shares: number; saves: number }) => t.likes + t.comments + t.shares + t.saves
-          const kpis = d
-            ? [
-                { label: 'Total Reach', change: pct(d.totals.reach, d.previousTotals?.reach) },
-                { label: 'Engagement', change: pct(eng(d.totals), d.previousTotals ? eng(d.previousTotals) : null) },
-                { label: 'Clicks', change: pct(d.totals.clicks, d.previousTotals?.clicks) },
-              ]
-            : []
-          return (
-            <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-              <SectionCard
-                title="Performance Overview"
-                action={<span className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-[13px] font-medium text-gray-700">Last 30 days</span>}
-              >
-                {analyticsLoading ? (
-                  <div className="h-[220px] animate-pulse rounded-2xl bg-gray-50" />
-                ) : !d ? (
-                  <div className="rounded-2xl bg-gray-50/80 px-4 py-8 text-center text-[13px] text-gray-500">
-                    {analytics?.message || 'Results appear here once your accounts are connected and posts are published.'}{' '}
-                    <Link href={`/dashboard/client/${clientId}/connect-platforms`} className="font-medium text-blue-700 hover:underline">
-                      Social Accounts
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="grid gap-6 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] md:items-center">
-                    <div>
-                      <p className="mb-1 text-xs font-medium text-gray-500">Daily reach</p>
-                      <MetricChart points={d.daily.map((p) => ({ date: p.date, value: p.reach }))} label="Reach" />
-                    </div>
-                    <div className="grid grid-cols-3 divide-x divide-gray-100">
-                      {kpis.map((k) => (
-                        <KpiColumn
-                          key={k.label}
-                          value={k.change === null || !Number.isFinite(k.change) ? '—' : `${k.change >= 0 ? '+' : '−'}${Math.abs(Math.round(k.change * 100))}%`}
-                          label={k.label}
-                          positive={k.change === null || !Number.isFinite(k.change) ? null : k.change >= 0}
-                        />
-                      ))}
-                      <p className="col-span-3 mt-3 border-0 pl-0 text-[11px] text-gray-400">Compared with the previous 30 days.</p>
-                    </div>
-                  </div>
-                )}
-              </SectionCard>
-              <ContentSuitePromo brands={client ? [{ id: clientId, name: client.name, logo_url: client.logo_url }] : []} />
-            </div>
-          )
-        })()}
 
         {/* Unified Card - Social Media Platforms, Brand Information, and Delete Client */}
         {/* This card spans full width to match the combined Activity Hub + Calendar above */}

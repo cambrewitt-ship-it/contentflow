@@ -465,8 +465,8 @@ function SortablePostCard({
               onClick={(e) => { e.stopPropagation(); onToggleCalendarPostSelection(post.id); }}
               className={`text-[10px] px-2 py-1 rounded font-semibold border transition-colors ${
                 calendarSelectedPostIds?.has(post.id)
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400 hover:text-blue-600'
               }`}
             >
               {calendarSelectedPostIds?.has(post.id) ? '✓ Selected' : 'Select'}
@@ -577,8 +577,8 @@ function SortablePostCard({
       {...nativeDropHandlers}
       onClick={() => onPostClick?.(post)}
       className={`rounded-lg border-2 p-3 mb-2 transition-all duration-200 cursor-pointer hover:shadow-md ${
-        isNativeDragOver ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : isCalendarSelected ? 'border-indigo-500 bg-indigo-50 shadow-lg shadow-indigo-200/50' : getCardStyling()
-      } ${isDragging ? 'opacity-50 scale-105 cursor-grabbing' : ''} ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''}`}
+        isNativeDragOver ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : isCalendarSelected ? 'border-blue-500 bg-blue-50 shadow-lg shadow-blue-200/50' : getCardStyling()
+      } ${isDragging ? 'opacity-50 scale-105 cursor-grabbing' : ''} ${isEditingTime ? 'opacity-50 bg-blue-50 border-blue-300' : ''}`}
     >
       {/* Scheduled/posted-to platforms + when */}
       {getPublishStatus(post) && (
@@ -608,8 +608,8 @@ function SortablePostCard({
               onClick={(e) => { e.stopPropagation(); onToggleCalendarPostSelection(post.id); }}
               className={`text-[10px] px-2 py-1 rounded font-semibold border transition-colors ${
                 isCalendarSelected
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400 hover:text-blue-600'
               }`}
             >
               {isCalendarSelected ? '✓ Selected' : 'Select'}

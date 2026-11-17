@@ -11,6 +11,8 @@ import {
   isStale,
   runAfterResponse,
 } from '@/lib/analytics/store';
+import { getTopFans } from '@/lib/analytics/audience';
+import { getAudienceSummary } from '@/lib/comments/store';
 import type { AnalyticsDashboard, ClientAnalyticsResponse } from '@/lib/analytics/types';
 
 export const dynamic = 'force-dynamic';
@@ -45,6 +47,9 @@ export async function GET(request: NextRequest, { params }: Params) {
         recommendationsAt: null,
         syncedAt: null,
         recentPosts: [],
+        posts: [],
+        bestTimes: [],
+        fans: [],
       };
       return NextResponse.json({ success: true, ...body });
     }
@@ -83,6 +88,15 @@ export async function GET(request: NextRequest, { params }: Params) {
       recommendationsAt: snapshot.recommendationsAt,
       syncedAt: snapshot.syncedAt,
       recentPosts: snapshot.posts.slice(0, 40),
+      // The charts need every post, not just the latest; captions are trimmed to keep the payload small
+      posts: snapshot.posts.slice(0, 1000).map((p) => (p.content.length > 160 ? { ...p, content: `${p.content.slice(0, 157)}…` } : p)),
+      bestTimes: snapshot.bestTimes,
+      // The people who comment most (comments inbox; empty when that isn't set up)
+      fans: await getTopFans(admin, clientId).catch(() => []),
+      // Same 90-day window the persona is written from, for the "why" evidence
+      commentSummary: await getAudienceSummary(admin, clientId, 90)
+        .then((c) => (c ? { total: c.total, positive: c.positive, negative: c.negative, questions: c.questions, complaints: c.complaints } : null))
+        .catch(() => null),
     };
     return NextResponse.json({ success: true, ...body });
   } catch (error) {

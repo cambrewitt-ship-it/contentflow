@@ -148,7 +148,7 @@ export function CaptionLibraryManager({ clientId, onSaved }: { clientId: string;
       {/* Accounts */}
       <section>
         <div className="mb-2 flex items-center gap-2">
-          <AtSign className="h-4 w-4 text-fuchsia-500" />
+          <AtSign className="h-4 w-4 text-orange-500" />
           <h4 className="font-semibold text-gray-900">Accounts to tag</h4>
         </div>
         <p className="mb-3 text-xs text-gray-500">

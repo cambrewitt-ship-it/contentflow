@@ -462,7 +462,7 @@ export default function Dashboard() {
       case 'starter':
         return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'professional':
-        return 'bg-purple-100 text-purple-800 border-purple-300';
+        return 'bg-sky-100 text-sky-800 border-sky-300';
       case 'agency':
         return 'bg-green-100 text-green-800 border-green-300';
       case 'enterprise':
@@ -588,7 +588,7 @@ export default function Dashboard() {
                 value={totalAwaiting}
                 label="Awaiting Approval"
                 note={totalAwaiting > 0 ? 'Posts in the next 7 days' : 'Nothing waiting'}
-                tone="violet"
+                tone="sky"
                 bars={perBrand((p) => p.awaitingApproval)}
                 loading={metricsLoading}
               />

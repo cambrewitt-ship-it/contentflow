@@ -174,7 +174,7 @@ function CheckCard({ clientId, check, onChange }: { clientId: string; check: Fee
               </span>
               {when && <span className="text-xs text-gray-500">{when}</span>}
               {check.tovScore !== null && (
-                <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-violet-100">
+                <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 ring-1 ring-sky-100">
                   Tone of voice {check.tovScore}/10
                 </span>
               )}
@@ -406,7 +406,7 @@ export default function FeedChecker({ clientId }: { clientId: string }) {
           tone: lastRun.issuesFound ? 'text-red-600 bg-red-50 ring-red-100' : 'text-gray-500 bg-gray-100 ring-gray-200',
         },
         { label: 'Comments hidden', value: lastRun.autoHidden, icon: EyeOff, tone: 'text-gray-600 bg-gray-100 ring-gray-200' },
-        { label: 'Liked', value: lastRun.autoLiked + lastRun.autoHearted, icon: Heart, tone: 'text-pink-600 bg-pink-50 ring-pink-100' },
+        { label: 'Liked', value: lastRun.autoLiked + lastRun.autoHearted, icon: Heart, tone: 'text-orange-600 bg-orange-50 ring-orange-100' },
         {
           label: 'Waiting for a reply',
           value: lastRun.needsReply,

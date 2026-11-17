@@ -430,7 +430,7 @@ export default function ProfileSettingsPage() {
                 <label className="text-sm font-medium">
                   Company Logo
                 </label>
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-lg p-4">
+                <div className="bg-gradient-to-r from-blue-50 to-sky-50 border-2 border-blue-200 rounded-lg p-4">
                   <div className="flex items-start gap-3">
                     <div className="bg-blue-600 rounded-full p-2 mt-0.5">
                       <Crown className="w-5 h-5 text-white" />

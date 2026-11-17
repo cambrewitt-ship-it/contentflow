@@ -677,7 +677,7 @@ export default function HomeContent() {
           {/* Hero Image/Illustration */}
           <div className="mt-12 mx-auto max-w-5xl">
             <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-sky-400/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
               <div className="relative bg-card border border-border rounded-3xl p-4 sm:p-6 shadow-2xl">
                 <div className="flex flex-col lg:flex-row items-center lg:items-center gap-6 sm:gap-10">
                   <div className="w-full lg:max-w-md">
@@ -708,7 +708,7 @@ export default function HomeContent() {
               </p>
             </div>
             <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-3xl"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-sky-400/20 rounded-2xl blur-3xl"></div>
               <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-2 sm:py-3 shadow-2xl">
                 <img
                   src="/content-suite-sc.png"
@@ -777,7 +777,7 @@ export default function HomeContent() {
               </p>
             </div>
             <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-sky-400/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
               <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
                 <img
                   src="/ideas-generator.png"
@@ -795,7 +795,7 @@ export default function HomeContent() {
               </p>
             </div>
             <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-3xl"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-sky-400/20 rounded-2xl blur-3xl"></div>
               <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
                 <img
                   src="/client-portal-screenshot.png"
@@ -813,7 +813,7 @@ export default function HomeContent() {
               </p>
             </div>
             <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-sky-400/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
               <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
                 <img
                   src="/client-dashboard.png"

@@ -665,7 +665,7 @@ export default function MediaGalleryPage({
               {selectedItem.ai_analysis_status === 'complete' && (
                 <div className="space-y-3">
                   {selectedItem.ai_description && (
-                    <div className="rounded-xl bg-gradient-to-br from-violet-50/70 to-blue-50/60 p-3 ring-1 ring-violet-100/70">
+                    <div className="rounded-xl bg-gradient-to-br from-sky-50/70 to-blue-50/60 p-3 ring-1 ring-sky-100/70">
                       <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-gray-400">
                         AI Description
                       </p>

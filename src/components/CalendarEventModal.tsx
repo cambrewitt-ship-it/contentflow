@@ -18,7 +18,7 @@ export interface CalendarEvent {
 }
 
 const COLOR_OPTIONS = [
-  { value: 'purple', label: 'Purple', bg: 'bg-purple-500' },
+  { value: 'purple', label: 'Sky', bg: 'bg-sky-500' },
   { value: 'blue',   label: 'Blue',   bg: 'bg-blue-500' },
   { value: 'green',  label: 'Green',  bg: 'bg-green-500' },
   { value: 'red',    label: 'Red',    bg: 'bg-red-500' },
@@ -27,7 +27,7 @@ const COLOR_OPTIONS = [
 ];
 
 export const EVENT_COLOR_CLASSES: Record<string, { bg: string; text: string; border: string }> = {
-  purple: { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-300' },
+  purple: { bg: 'bg-sky-100', text: 'text-sky-800', border: 'border-sky-300' },
   blue:   { bg: 'bg-blue-100',   text: 'text-blue-800',   border: 'border-blue-300' },
   green:  { bg: 'bg-green-100',  text: 'text-green-800',  border: 'border-green-300' },
   red:    { bg: 'bg-red-100',    text: 'text-red-800',    border: 'border-red-300' },

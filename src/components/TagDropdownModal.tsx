@@ -26,12 +26,12 @@ const TAG_COLORS = [
   '#10B981', // Green
   '#F59E0B', // Amber
   '#EF4444', // Red
-  '#8B5CF6', // Purple
-  '#EC4899', // Pink
+  '#1E3A8A', // Navy
+  '#0EA5E9', // Sky
   '#06B6D4', // Cyan
   '#84CC16', // Lime
   '#F97316', // Orange
-  '#6366F1', // Indigo
+  '#60A5FA', // Light blue
 ];
 
 export function TagDropdownModal({

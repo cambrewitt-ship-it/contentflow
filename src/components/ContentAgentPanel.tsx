@@ -63,7 +63,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   },
   published: {
     label: 'Published',
-    color: 'bg-purple-100 text-purple-700',
+    color: 'bg-sky-100 text-sky-700',
     icon: <Zap className="h-3 w-3" />,
   },
   failed: {

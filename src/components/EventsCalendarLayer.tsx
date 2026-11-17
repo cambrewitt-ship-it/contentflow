@@ -29,7 +29,7 @@ export interface ContentEvent {
 
 export const EVENT_TYPE_COLORS: Record<ContentEvent['event_type'], string> = {
   public_holiday: 'bg-red-500',
-  cultural: 'bg-purple-500',
+  cultural: 'bg-sky-500',
   sports: 'bg-green-500',
   industry: 'bg-blue-500',
   custom: 'bg-orange-500',

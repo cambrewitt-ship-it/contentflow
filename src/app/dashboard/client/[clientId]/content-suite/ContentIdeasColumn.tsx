@@ -129,17 +129,17 @@ export function ContentIdeasColumn() {
 
   // Skeleton loading component
   const SkeletonCard = () => (
-    <div className="border rounded-lg p-4 bg-gradient-to-r from-purple-50 to-blue-50 animate-pulse">
+    <div className="border rounded-lg p-4 bg-gradient-to-r from-sky-50 to-blue-50 animate-pulse">
       <div className="space-y-3">
         <div className="flex items-start space-x-3">
-          <div className="flex-shrink-0 w-8 h-8 bg-purple-200 rounded-full"></div>
+          <div className="flex-shrink-0 w-8 h-8 bg-blue-200 rounded-full"></div>
           <div className="flex-1">
             <div className="h-6 bg-gray-300 rounded w-3/4 mb-2"></div>
           </div>
         </div>
         <div className="space-y-3 ml-11">
           <div className="flex items-start space-x-2">
-            <div className="flex-shrink-0 w-5 h-5 bg-purple-200 rounded mt-0.5"></div>
+            <div className="flex-shrink-0 w-5 h-5 bg-blue-200 rounded mt-0.5"></div>
             <div className="flex-1">
               <div className="h-4 bg-gray-300 rounded w-1/4 mb-1"></div>
               <div className="h-4 bg-gray-300 rounded w-full"></div>

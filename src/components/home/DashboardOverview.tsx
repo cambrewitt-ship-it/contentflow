@@ -98,7 +98,7 @@ export function WelcomeHeader({
 }
 
 const createBtn =
-  'group inline-flex h-12 items-center gap-2.5 rounded-2xl bg-gradient-ai px-6 text-[15px] font-semibold text-white shadow-[0_10px_30px_-8px_rgb(99_102_241/0.55)] transition-all hover:-translate-y-px hover:brightness-105 hover:shadow-[0_14px_34px_-8px_rgb(99_102_241/0.65)] active:translate-y-0'
+  'group inline-flex h-12 items-center gap-2.5 rounded-2xl bg-gradient-ai px-6 text-[15px] font-semibold text-white shadow-[0_10px_30px_-8px_rgb(53_109_243/0.5)] transition-all hover:-translate-y-px hover:brightness-105 hover:shadow-[0_14px_34px_-8px_rgb(53_109_243/0.6)] active:translate-y-0'
 
 /** Create Content: straight to the brand's Content Suite, or pick a brand when there are several. */
 export function CreateContentAction({ brands }: { brands: OverviewBrand[] }) {
@@ -246,7 +246,7 @@ export function AttentionBanner({
 
 const TONE = {
   blue: { ring: 'bg-blue-50 text-blue-600 ring-blue-100', bar: 'from-blue-500 to-cyan-400' },
-  violet: { ring: 'bg-violet-50 text-violet-600 ring-violet-100', bar: 'from-violet-500 to-fuchsia-400' },
+  sky: { ring: 'bg-sky-50 text-sky-600 ring-sky-100', bar: 'from-sky-500 to-cyan-300' },
   emerald: { ring: 'bg-emerald-50 text-emerald-600 ring-emerald-100', bar: 'from-emerald-500 to-teal-300' },
   amber: { ring: 'bg-amber-50 text-amber-600 ring-amber-100', bar: 'from-amber-500 to-orange-300' },
   red: { ring: 'bg-red-50 text-red-600 ring-red-100', bar: 'from-red-500 to-rose-300' },
@@ -398,7 +398,7 @@ export function ClientCard({ brand, pulse, unread }: { brand: OverviewBrand; pul
         <Link
           href={`/dashboard/client/${brand.id}/content-suite`}
           title="Create content"
-          className="hidden h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-violet-50 hover:text-violet-600 group-hover:flex"
+          className="hidden h-8 w-8 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-sky-50 hover:text-sky-600 group-hover:flex"
         >
           <Sparkles className="h-4 w-4" />
         </Link>
@@ -524,9 +524,9 @@ export function ContentSuitePromo({ brands }: { brands: OverviewBrand[] }) {
   const button =
     'inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13px] font-semibold text-gray-900 shadow-md transition-transform hover:-translate-y-px'
   return (
-    <section className="relative isolate flex min-h-[200px] overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-blue-500 to-violet-500 p-6 text-white shadow-[0_18px_40px_-16px_rgb(53_109_243/0.6)]">
+    <section className="relative isolate flex min-h-[200px] overflow-hidden rounded-3xl bg-gradient-to-br from-blue-700 via-blue-600 to-cyan-500 p-6 text-white shadow-[0_18px_40px_-16px_rgb(53_109_243/0.6)]">
       <span aria-hidden="true" className="absolute -right-10 -top-16 h-56 w-56 rounded-full bg-cyan-300/30 blur-3xl" />
-      <span aria-hidden="true" className="absolute -bottom-20 left-10 h-48 w-48 rounded-full bg-violet-300/30 blur-3xl" />
+      <span aria-hidden="true" className="absolute -bottom-20 left-10 h-48 w-48 rounded-full bg-sky-300/30 blur-3xl" />
       <div aria-hidden="true" className="pointer-events-none absolute -right-6 bottom-[-18px] hidden w-[46%] sm:block">
         <div className="relative h-44">
           <img

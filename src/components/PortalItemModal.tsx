@@ -209,7 +209,7 @@ function PipelineSteps({
               : step.status === "changes_requested"
               ? "bg-amber-50 border-amber-200 text-amber-700"
               : step.party?.id === myPartyId
-              ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+              ? "bg-blue-50 border-blue-300 text-blue-700"
               : "bg-gray-50 border-gray-200 text-gray-500"
           }`}
         >
@@ -222,7 +222,7 @@ function PipelineSteps({
             : "·"}{" "}
           {step.party?.name ?? `Step ${step.step_order}`}
           {step.party?.id === myPartyId && step.status === "pending" && (
-            <span className="ml-0.5 font-semibold text-indigo-600">← you</span>
+            <span className="ml-0.5 font-semibold text-blue-600">← you</span>
           )}
         </span>
       ))}

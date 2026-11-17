@@ -70,7 +70,7 @@ export default function CaptionPlaybook({ clientId }: { clientId: string }) {
         className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
       >
         <span className="flex items-center gap-2">
-          <BookOpen className="h-4 w-4 text-indigo-500" />
+          <BookOpen className="h-4 w-4 text-blue-500" />
           <span className="text-sm font-medium text-gray-800">Caption playbook</span>
           <span className="text-xs text-gray-400">
             {rules === null ? '' : count === 0 ? 'No rules yet' : `${count} rule${count === 1 ? '' : 's'}`}
@@ -118,7 +118,7 @@ export default function CaptionPlaybook({ clientId }: { clientId: string }) {
               }}
               maxLength={500}
               placeholder="e.g. Never use the word “delicious”"
-              className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-indigo-300"
+              className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-blue-300"
             />
             <button
               type="button"
