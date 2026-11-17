@@ -239,6 +239,21 @@ export default function CalendarPage() {
   // Month and Board share the board shell (background, top bar, posts tray); only the grid differs.
   const isBoardShell = viewMode === 'board' || viewMode === 'month';
 
+  // Tell the dashboard layout when the Board view is showing, so the app sidebar
+  // collapses for it (and expands again for other views or when leaving the calendar).
+  // (Waits until the saved view is restored, so a non-Board choice doesn't flash the sidebar shut.)
+  const [viewRestored, setViewRestored] = useState(false);
+  useEffect(() => {
+    if (!viewRestored) return;
+    window.dispatchEvent(new CustomEvent('calendar-board-view', { detail: { active: viewMode === 'board' } }));
+  }, [viewMode, viewRestored]);
+  useEffect(
+    () => () => {
+      window.dispatchEvent(new CustomEvent('calendar-board-view', { detail: { active: false } }));
+    },
+    []
+  );
+
   // Restore the last calendar view the user picked.
   useEffect(() => {
     try {
@@ -249,6 +264,7 @@ export default function CalendarPage() {
     } catch {
       // Storage unavailable — keep the default view.
     }
+    setViewRestored(true);
   }, []);
 
   // Calendar events / notes

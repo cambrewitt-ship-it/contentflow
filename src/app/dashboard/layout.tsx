@@ -17,7 +17,8 @@ let profileCheckCache: boolean | null = null;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  // Expanded by default everywhere; the calendar's Board view asks for it collapsed (see below)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, getAccessToken } = useAuth();
@@ -37,6 +38,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     update();
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
+  }, []);
+
+  // The calendar's Board view is wide, so the sidebar starts collapsed there and
+  // expands again when the user switches view or leaves the calendar.
+  useEffect(() => {
+    const onBoardView = (e: Event) => {
+      const active = (e as CustomEvent<{ active: boolean }>).detail?.active;
+      setSidebarCollapsed(!!active);
+    };
+    window.addEventListener('calendar-board-view', onBoardView);
+    return () => window.removeEventListener('calendar-board-view', onBoardView);
   }, []);
 
   // Close the mobile drawer whenever the route changes
