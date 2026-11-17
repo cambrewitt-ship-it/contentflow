@@ -77,14 +77,14 @@ export default function PostFeedbackPanel({
           aria-expanded={open}
           className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900"
         >
-          <MessageSquare className="h-4 w-4 text-indigo-500" />
+          <MessageSquare className="h-4 w-4 text-blue-500" />
           Not quite right? Tell the agent
         </button>
         <button
           type="button"
           onClick={() => send('explain')}
           disabled={busy !== null}
-          className="flex items-center gap-1 text-xs text-gray-500 hover:text-indigo-600 disabled:opacity-50"
+          className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-50"
         >
           {busy === 'explain' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <HelpCircle className="h-3.5 w-3.5" />}
           Why this?
@@ -120,7 +120,7 @@ export default function PostFeedbackPanel({
             rows={2}
             maxLength={1000}
             placeholder="What should change? e.g. stop ending every post with a question, mention the courtyard seating…"
-            className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-indigo-300"
+            className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-300"
           />
 
           <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
@@ -138,7 +138,7 @@ export default function PostFeedbackPanel({
               type="button"
               onClick={() => send('rewrite')}
               disabled={!hasFeedback || busy !== null}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-40"
             >
               {busy === 'rewrite' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
               Rewrite this post

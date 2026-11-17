@@ -69,8 +69,8 @@ export default function CreditBadge({ className }: CreditBadgeProps) {
   const isUnlimited = credits >= 999999; // Unlimited credits are represented as 999999
   const statusClasses = isLow
     ? 'border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-200'
-    : 'border-purple-300 bg-purple-100 text-purple-700 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-200';
-  const iconColor = isLow ? 'text-orange-500 dark:text-orange-300' : 'text-purple-500 dark:text-purple-200';
+    : 'border-blue-300 bg-blue-100 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200';
+  const iconColor = isLow ? 'text-orange-500 dark:text-orange-300' : 'text-blue-500 dark:text-blue-200';
 
   const displayText = isLoading 
     ? 'Loading…' 
@@ -128,7 +128,7 @@ export default function CreditBadge({ className }: CreditBadgeProps) {
               'border-2 shadow-sm',
               isLow
                 ? 'border-orange-300 bg-orange-50 text-orange-600 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-300'
-                : 'border-purple-300 bg-purple-50 text-purple-600 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-300'
+                : 'border-blue-300 bg-blue-50 text-blue-600 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300'
             )}
             aria-label="Buy more credits"
             tabIndex={0}
@@ -146,7 +146,7 @@ export default function CreditBadge({ className }: CreditBadgeProps) {
               'border-2 bg-white dark:bg-gray-800',
               isLow
                 ? 'border-orange-200 dark:border-orange-500/40'
-                : 'border-purple-200 dark:border-purple-500/40'
+                : 'border-blue-200 dark:border-blue-500/40'
             )}
             onMouseEnter={() => setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
@@ -169,7 +169,7 @@ export default function CreditBadge({ className }: CreditBadgeProps) {
                 {breakdown.purchased > 0 && (
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600 dark:text-gray-400">Purchased:</span>
-                    <span className="font-medium text-purple-600 dark:text-purple-400">
+                    <span className="font-medium text-blue-600 dark:text-blue-400">
                       {numberFormatter.format(breakdown.purchased)}
                     </span>
                   </div>
@@ -193,7 +193,7 @@ export default function CreditBadge({ className }: CreditBadgeProps) {
                 'border-t-2 border-l-2',
                 isLow
                   ? 'bg-white border-orange-200 dark:bg-gray-800 dark:border-orange-500/40'
-                  : 'bg-white border-purple-200 dark:bg-gray-800 dark:border-purple-500/40'
+                  : 'bg-white border-blue-200 dark:bg-gray-800 dark:border-blue-500/40'
               )}
             />
           </div>

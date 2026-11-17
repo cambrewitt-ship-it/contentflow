@@ -709,7 +709,7 @@ function SortablePostCard({
       onClick={() => onPostClick?.(post)}
       className={`rounded-xl border bg-white overflow-hidden mb-2.5 shadow-card hover:shadow-card-hover hover:-translate-y-px transition-all duration-200 ${
         isNativeDragOver ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-300' : 'border-gray-200/90'
-      } ${isDragging ? 'opacity-50 scale-105' : ''} ${isEditingTime ? 'opacity-50 bg-purple-50 border-purple-300' : ''} ${
+      } ${isDragging ? 'opacity-50 scale-105' : ''} ${isEditingTime ? 'opacity-50 bg-blue-50 border-blue-300' : ''} ${
         isDeleting ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer active:cursor-grabbing'
       } ${isSelected ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200' : ''}`}
     >
@@ -934,7 +934,7 @@ function SortablePostCard({
                 autoFocus
               />
             ) : isEditingTime ? (
-              <span className="text-purple-600">Updating time...</span>
+              <span className="text-blue-600">Updating time...</span>
             ) : (
               <span
                 onClick={(e) => {
@@ -951,7 +951,7 @@ function SortablePostCard({
             )}
           </div>
           {post.project_id && projects && projects.find(p => p.id === post.project_id) && (
-            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
+            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
               {projects.find(p => p.id === post.project_id)?.name}
             </span>
           )}
@@ -1115,8 +1115,8 @@ export function DateDivider({
             onClick={() => onEventAdd(dateKey)}
             className={
               isBoard
-                ? 'px-1.5 py-0.5 text-[11px] font-medium text-[#44546f] rounded hover:bg-[#091e4224] hover:text-purple-700 opacity-0 group-hover/divider:opacity-100 focus:opacity-100 transition'
-                : 'px-2 py-0.5 text-[11px] font-medium text-gray-500 border border-gray-200 bg-white rounded-md hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 transition-colors'
+                ? 'px-1.5 py-0.5 text-[11px] font-medium text-[#44546f] rounded hover:bg-[#091e4224] hover:text-blue-700 opacity-0 group-hover/divider:opacity-100 focus:opacity-100 transition'
+                : 'px-2 py-0.5 text-[11px] font-medium text-gray-500 border border-gray-200 bg-white rounded-md hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 transition-colors'
             }
             title="Mark event or note"
           >
@@ -1167,12 +1167,12 @@ export function AddNoteAffordance({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group w-full flex items-center gap-1.5 py-1 mb-1 text-gray-300 hover:text-purple-600 transition-colors"
+      className="group w-full flex items-center gap-1.5 py-1 mb-1 text-gray-300 hover:text-blue-600 transition-colors"
       title="Add a note or event to a day in this week"
     >
-      <span className="flex-1 border-t border-dashed border-transparent group-hover:border-purple-200 transition-colors" />
+      <span className="flex-1 border-t border-dashed border-transparent group-hover:border-blue-200 transition-colors" />
       <span className="text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity">+ Note</span>
-      <span className="flex-1 border-t border-dashed border-transparent group-hover:border-purple-200 transition-colors" />
+      <span className="flex-1 border-t border-dashed border-transparent group-hover:border-blue-200 transition-colors" />
     </button>
   );
 }

@@ -542,7 +542,7 @@ export function PortalCreatePostModal({ open, onClose, token, clientId, weekStar
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <Sparkles className="w-4 h-4 text-purple-500" />
+            <Sparkles className="w-4 h-4 text-orange-500" />
             <span className="text-sm font-semibold text-gray-900">{isQueue ? 'Upload content' : 'New post'}</span>
           </div>
           <button

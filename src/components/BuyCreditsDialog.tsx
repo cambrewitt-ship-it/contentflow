@@ -64,7 +64,7 @@ export function BuyCreditsDialog({ open, onOpenChange }: BuyCreditsDialogProps) 
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-purple-600" />
+            <Sparkles className="h-5 w-5 text-orange-500" />
             Buy AI Credits
           </DialogTitle>
           <DialogDescription>
@@ -87,11 +87,11 @@ export function BuyCreditsDialog({ open, onOpenChange }: BuyCreditsDialogProps) 
                 key={pkg.id}
                 className={cn(
                   'p-6 relative cursor-pointer transition-all hover:shadow-lg',
-                  pkg.popular && 'ring-2 ring-purple-500'
+                  pkg.popular && 'ring-2 ring-blue-500'
                 )}
               >
                 {pkg.popular && (
-                  <Badge className="absolute top-2 right-2 bg-purple-600">
+                  <Badge className="absolute top-2 right-2 bg-blue-600">
                     Popular
                   </Badge>
                 )}

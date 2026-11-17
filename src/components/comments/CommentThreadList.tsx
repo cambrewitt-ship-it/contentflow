@@ -13,7 +13,7 @@ interface Props {
 
 function avatarColor(c: ThreadComment): string {
   if (c.author_type === "agency") return "#1e293b";
-  return c.member?.color ?? c.party?.color ?? "#6366f1";
+  return c.member?.color ?? c.party?.color ?? "#356df3";
 }
 
 function CommentBody({ content }: { content: string }) {
@@ -23,7 +23,7 @@ function CommentBody({ content }: { content: string }) {
         seg.type === "text" ? (
           <span key={i}>{seg.text}</span>
         ) : (
-          <span key={i} className="rounded bg-indigo-50 px-1 font-medium text-indigo-700">
+          <span key={i} className="rounded bg-blue-50 px-1 font-medium text-blue-700">
             @{seg.name}
           </span>
         )
@@ -50,7 +50,7 @@ function CommentRow({ c, onReply, small }: { c: ThreadComment; onReply?: Props["
           {c.party && (
             <span
               className="text-[10px] px-1.5 py-0.5 rounded-full text-white font-medium"
-              style={{ backgroundColor: c.party.color ?? "#6366f1" }}
+              style={{ backgroundColor: c.party.color ?? "#356df3" }}
             >
               {c.party.name}
             </span>

@@ -398,7 +398,7 @@ function MenuRow({
       const { account } = item
       return (
         <button {...props} className={base}>
-          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 to-orange-400 text-[11px] font-semibold text-white">
+          <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-sky-400 text-[11px] font-semibold text-white">
             {account.name.charAt(0).toUpperCase()}
           </span>
           <span className="min-w-0 flex-1">
@@ -443,7 +443,7 @@ function MenuRow({
       )
     case 'ai':
       return (
-        <button {...props} className={cn(base, 'border-t border-gray-100 text-violet-700')} disabled={aiState.loading}>
+        <button {...props} className={cn(base, 'border-t border-gray-100 text-sky-700')} disabled={aiState.loading}>
           {aiState.loading ? (
             <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin" />
           ) : (
@@ -452,7 +452,7 @@ function MenuRow({
           <span className="min-w-0 flex-1 truncate">
             {aiState.loading ? 'Finding hashtags…' : 'Suggest hashtags for this caption'}
           </span>
-          {!aiState.loading && <span className="text-[10px] text-violet-400">1 credit</span>}
+          {!aiState.loading && <span className="text-[10px] text-sky-400">1 credit</span>}
         </button>
       )
     case 'manage':

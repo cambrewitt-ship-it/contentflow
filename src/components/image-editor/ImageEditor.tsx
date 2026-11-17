@@ -416,7 +416,7 @@ export default function ImageEditor({
       const z = canvas.getZoom()
       const { width, height } = sizeRef.current
       ctx.save()
-      ctx.strokeStyle = '#ec4899'
+      ctx.strokeStyle = '#f08c3c'
       ctx.lineWidth = 1
       ctx.setLineDash([4, 4])
       ctx.beginPath()
@@ -1498,7 +1498,7 @@ function SubLabel({ children }: { children: React.ReactNode }) {
 function ToolTile({ onClick, label, children }: { onClick: () => void; label: string; children: React.ReactNode }) {
   return (
     <button onClick={onClick} className="group flex flex-col gap-1 text-left">
-      <div className="flex h-20 w-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-[linear-gradient(135deg,#93c5fd,#c4b5fd)] p-1.5 group-hover:border-blue-400">{children}</div>
+      <div className="flex h-20 w-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-[linear-gradient(135deg,#93c5fd,#bae6fd)] p-1.5 group-hover:border-blue-400">{children}</div>
       <span className="text-xs text-gray-600">{label}</span>
     </button>
   )

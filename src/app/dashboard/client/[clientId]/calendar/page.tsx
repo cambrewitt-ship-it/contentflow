@@ -3193,7 +3193,7 @@ export default function CalendarPage() {
               Close
             </Button>
             <Button
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
               onClick={() => {
                 window.location.href = '/pricing';
               }}
@@ -3375,7 +3375,7 @@ export default function CalendarPage() {
         <DialogContent className="sm:max-w-md bg-white opacity-100">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <LinkIcon className="w-5 h-5 text-purple-600" />
+              <LinkIcon className="w-5 h-5 text-blue-600" />
               Approval Link Generated
             </DialogTitle>
             <DialogDescription>
@@ -3405,7 +3405,7 @@ export default function CalendarPage() {
             </Button>
             <Button
               onClick={handleCopyApprovalLink}
-              className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
             >
               {approvalLinkCopied ? (
                 <>

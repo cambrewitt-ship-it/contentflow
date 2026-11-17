@@ -136,7 +136,7 @@ export function CommentCard({
               </span>
             )}
             {c.autoAction && (
-              <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 ring-1 ring-violet-100">
+              <span className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 ring-1 ring-sky-100">
                 Feed Checker {c.autoAction === 'hearted' ? 'replied ❤️' : c.autoAction}
               </span>
             )}
@@ -151,7 +151,7 @@ export function CommentCard({
           </p>
           {c.triageNote && !compact && (
             <p className="mt-1 flex items-center gap-1 text-[11px] text-gray-500">
-              <Sparkles className="h-3 w-3 text-violet-500" /> {c.triageNote}
+              <Sparkles className="h-3 w-3 text-orange-500" /> {c.triageNote}
             </p>
           )}
           {c.replyText && (
@@ -179,7 +179,7 @@ export function CommentCard({
                     </button>
                   ))}
                 </div>
-                <span className="hidden items-center gap-1 text-[10px] font-medium text-violet-600 sm:inline-flex">
+                <span className="hidden items-center gap-1 text-[10px] font-medium text-sky-600 sm:inline-flex">
                   <Sparkles className="h-3 w-3" /> Drafted in your brand voice
                 </span>
                 </div>
@@ -201,7 +201,7 @@ export function CommentCard({
                   {busy === 'reply' || busy === 'private_reply' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                   {mode === 'public' ? 'Send reply' : 'Send DM'}
                 </button>
-                <button type="button" className={`${btn} hover:text-violet-700`} disabled={!!busy} onClick={redraft} title="Write a different reply (1 AI credit)">
+                <button type="button" className={`${btn} hover:text-sky-700`} disabled={!!busy} onClick={redraft} title="Write a different reply (1 AI credit)">
                   {icon('redraft', Sparkles)} Redraft
                 </button>
                 <button type="button" className={btn} disabled={!!busy} onClick={() => act('done')} title="No reply needed">

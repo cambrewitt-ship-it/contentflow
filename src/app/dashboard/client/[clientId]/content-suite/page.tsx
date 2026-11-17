@@ -2063,7 +2063,7 @@ function ContentSuiteContent({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {contentIdeas.map((idea, index) => (
-                <div key={index} className="h-full rounded-2xl border border-gray-200/80 bg-white p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-card-hover">
+                <div key={index} className="h-full rounded-2xl border border-gray-200/80 bg-white p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-card-hover">
                   <div className="space-y-2">
                     <div className="flex items-start space-x-3">
                       <div className="flex-shrink-0 w-8 h-8 bg-gradient-ai rounded-xl flex items-center justify-center shadow-sm">
@@ -2075,7 +2075,7 @@ function ContentSuiteContent({
                     </div>
                     <div className="space-y-3 ml-2">
                       <div className="flex items-start space-x-2">
-                        <div className="flex-shrink-0 w-5 h-5 text-purple-500 mt-0.5">
+                        <div className="flex-shrink-0 w-5 h-5 text-orange-500 mt-0.5">
                           <Lightbulb className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2428,7 +2428,7 @@ function ContentSuiteContent({
                                   setActiveImageId(media.id)
                                   setEditorImageId(media.id)
                                 }}
-                                className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-1 rounded-b-md bg-gradient-to-r from-blue-600/95 to-cyan-500/95 py-1 text-[11px] font-semibold text-white hover:from-fuchsia-600 hover:to-blue-600"
+                                className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-1 rounded-b-md bg-gradient-to-r from-blue-600/95 to-cyan-500/95 py-1 text-[11px] font-semibold text-white hover:from-orange-600 hover:to-blue-600"
                                 title="Open in Design Studio — add text, logos, brand colours, filters"
                               >
                                 <Wand2 className="w-3 h-3" />
@@ -2713,7 +2713,7 @@ function ContentSuiteContent({
                           <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {/* AI avatar */}
                             {msg.role === 'assistant' && (
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-sky-400 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
                                 <Brain className="w-4 h-4 text-white" />
                               </div>
                             )}
@@ -3037,7 +3037,7 @@ function ContentSuiteContent({
             ) : (
               <>
                 {/* Brand Tone of Voice guide */}
-                <div className={`rounded-lg border p-4 ${rulesForm.useBrandTov ? 'border-purple-300' : 'border-gray-200 opacity-60'}`}>
+                <div className={`rounded-lg border p-4 ${rulesForm.useBrandTov ? 'border-blue-300' : 'border-gray-200 opacity-60'}`}>
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <label className="text-sm font-medium text-gray-700">
                       📘 Brand Tone of Voice
@@ -3047,7 +3047,7 @@ function ContentSuiteContent({
                       onChange={(checked) => updateRulesField('useBrandTov', checked)}
                     />
                   </div>
-                  <p className="mb-3 text-xs text-purple-600">
+                  <p className="mb-3 text-xs text-blue-600">
                     Upload the brand&apos;s TOV guide (PDF, Word, text or markdown). AI transcribes it to markdown and treats it as the copy rules for every caption.
                   </p>
                   <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -3089,7 +3089,7 @@ function ContentSuiteContent({
                     onChange={(e) => updateRulesField('brandTov', e.target.value)}
                     placeholder="Upload a TOV document above, or write/paste the brand's tone of voice rules here in markdown."
                     rows={10}
-                    className="font-mono text-xs border-purple-300 focus-visible:border-purple-500 focus-visible:ring-purple-500"
+                    className="font-mono text-xs border-blue-300 focus-visible:border-blue-500 focus-visible:ring-blue-500"
                   />
                 </div>
 

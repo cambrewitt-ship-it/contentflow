@@ -154,7 +154,7 @@ export interface Metric {
   hint?: ReactNode
   icon: LucideIcon
   href?: string
-  tone?: 'blue' | 'cyan' | 'amber' | 'red' | 'emerald' | 'violet'
+  tone?: 'blue' | 'cyan' | 'amber' | 'red' | 'emerald' | 'sky'
 }
 
 const TONES: Record<NonNullable<Metric['tone']>, string> = {
@@ -163,7 +163,7 @@ const TONES: Record<NonNullable<Metric['tone']>, string> = {
   amber: 'bg-amber-50 text-amber-600 ring-amber-100',
   red: 'bg-red-50 text-red-600 ring-red-100',
   emerald: 'bg-emerald-50 text-emerald-600 ring-emerald-100',
-  violet: 'bg-violet-50 text-violet-600 ring-violet-100',
+  sky: 'bg-sky-50 text-sky-600 ring-sky-100',
 }
 
 export function MetricGrid({ metrics, loading }: { metrics: Metric[]; loading?: boolean }) {

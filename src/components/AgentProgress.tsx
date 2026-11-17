@@ -86,15 +86,15 @@ export default function AgentProgress({ startedAt }: { startedAt: number }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-4">
       <div className="relative">
-        <div className="w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center">
-          <Sparkles className="h-8 w-8 text-purple-400" />
+        <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+          <Sparkles className="h-8 w-8 text-orange-400" />
         </div>
-        <Loader2 className="absolute inset-0 m-auto h-16 w-16 animate-spin text-purple-300" />
+        <Loader2 className="absolute inset-0 m-auto h-16 w-16 animate-spin text-blue-300" />
       </div>
 
       <div className="text-center">
         <p className="font-medium text-gray-700">Your AI agent is researching and drafting…</p>
-        <p key={step} className="text-sm text-purple-500 mt-1 animate-agent-step">
+        <p key={step} className="text-sm text-blue-500 mt-1 animate-agent-step">
           {step}…
         </p>
       </div>
@@ -102,7 +102,7 @@ export default function AgentProgress({ startedAt }: { startedAt: number }) {
       <div className="w-64 space-y-1.5">
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div
-            className="relative h-full rounded-full bg-gradient-to-r from-purple-400 to-indigo-500 transition-[width] duration-300 ease-linear overflow-hidden"
+            className="relative h-full rounded-full bg-gradient-to-r from-blue-500 to-sky-400 transition-[width] duration-300 ease-linear overflow-hidden"
             style={{ width: `${progress}%` }}
           >
             <div className="absolute inset-0 animate-agent-shimmer bg-gradient-to-r from-transparent via-white/50 to-transparent" />

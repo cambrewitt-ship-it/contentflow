@@ -44,7 +44,7 @@
   /* Named brand colours */
   --color-brand: #356df3;
   --color-brand-cyan: #40c5ed;
-  --color-brand-violet: #7c5cfa;
+  --color-brand-orange: #f08c3c;
   --color-navy: #172b4d;
   --color-light-blue: #eaf4ff;
   --color-surface: #ffffff;
@@ -157,7 +157,7 @@
   --ring: #356df3;
   --chart-1: #356df3;
   --chart-2: #40c5ed;
-  --chart-3: #7c5cfa;
+  --chart-3: #f08c3c;
   --chart-4: #172b4d;
   --chart-5: #97a3b6;
   --sidebar: #ffffff;
@@ -178,8 +178,8 @@
 
   /* Brand gradients — AI gradient is for important AI actions only */
   --gradient-brand: linear-gradient(135deg, #356df3 0%, #40c5ed 100%);
-  --gradient-ai: linear-gradient(135deg, #356df3 0%, #6366f1 55%, #7c5cfa 100%);
-  --gradient-ai-hover: linear-gradient(135deg, #2c62e6 0%, #575ae8 55%, #6f4ff0 100%);
+  --gradient-ai: linear-gradient(135deg, #2858d8 0%, #356df3 50%, #40c5ed 100%);
+  --gradient-ai-hover: linear-gradient(135deg, #2347ad 0%, #2c62e6 50%, #2fb3dc 100%);
 
   /* Glass (floating elements only) */
   --glass-bg: rgb(255 255 255 / 0.78);
@@ -221,7 +221,7 @@
   --ring: #4c80f5;
   --chart-1: #4c80f5;
   --chart-2: #40c5ed;
-  --chart-3: #7c5cfa;
+  --chart-3: #f39a52;
   --chart-4: #f1f5fa;
   --chart-5: #97a3b6;
   --sidebar: #172b4d;
@@ -408,7 +408,7 @@
 
 
 /* ── Prompt box glow (Content Agent composer) ──────────────────────────────
-   A blue→violet arc that sweeps once around the box's border, then rests.
+   A cyan→blue arc with an orange tip that sweeps once around the box's border, then rests.
    RunBriefComposer toggles data-glow="on" at random intervals so the sweeps
    feel sporadic rather than a metronome. */
 @property --prompt-glow-angle {
@@ -436,7 +436,7 @@
     transparent 220deg,
     #40c5ed 265deg,
     #356df3 300deg,
-    #7c5cfa 340deg,
+    #f08c3c 340deg,
     transparent 360deg
   );
 }

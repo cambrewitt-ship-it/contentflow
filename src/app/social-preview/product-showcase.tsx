@@ -127,7 +127,7 @@ export function ProductShowcase() {
         {/* Demo video */}
         <figure className="mt-12">
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl" aria-hidden="true" />
+            <div className="absolute inset-0 bg-gradient-to-r from-sky-400/20 to-blue-500/20 rounded-2xl blur-3xl" aria-hidden="true" />
             <div className="relative">
               <DemoVideo title={DEMO_VIDEO.name} />
             </div>
@@ -147,7 +147,7 @@ export function ProductShowcase() {
               </div>
               {f.image ? (
                 <div className={`relative lg:col-span-3 ${i % 2 ? 'lg:order-1' : ''}`}>
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-3xl" aria-hidden="true" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-sky-400/20 rounded-2xl blur-3xl" aria-hidden="true" />
                   <div className="relative bg-card border border-border rounded-2xl p-2 sm:p-3 shadow-xl">
                     <Image
                       src={f.image.src}
@@ -168,7 +168,7 @@ export function ProductShowcase() {
         </div>
 
         {/* CTA */}
-        <div className="mt-16 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 px-6 py-10 sm:px-12 text-center text-white shadow-xl">
+        <div className="mt-16 rounded-2xl bg-gradient-to-br from-blue-700 to-sky-500 px-6 py-10 sm:px-12 text-center text-white shadow-xl">
           <h3 className="text-2xl sm:text-3xl font-bold">Spend less time on social media admin</h3>
           <p className="mt-3 text-base sm:text-lg text-white/85 max-w-2xl mx-auto">
             Generate on-brand content for every client, schedule across every platform and get approvals done, all in one place.

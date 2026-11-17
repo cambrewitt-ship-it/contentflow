@@ -36,11 +36,11 @@ const photo = (id: string, label: string, unsplashId: string, fallback: string):
 
 export const BOARD_BACKGROUNDS: BoardBackground[] = [
   // Classic two-stop gradients.
-  { id: 'ocean', label: 'Ocean', group: 'classic', style: { background: 'linear-gradient(135deg, #0079bf 0%, #5067c5 100%)' } },
-  { id: 'grape', label: 'Grape', group: 'classic', style: { background: 'linear-gradient(135deg, #89609e 0%, #cd5a91 100%)' } },
+  { id: 'ocean', label: 'Ocean', group: 'classic', style: { background: 'linear-gradient(135deg, #0079bf 0%, #356df3 100%)' } },
+  { id: 'grape', label: 'Harbour', group: 'classic', style: { background: 'linear-gradient(135deg, #1e3a8a 0%, #0ea5e9 100%)' } },
   { id: 'forest', label: 'Forest', group: 'classic', style: { background: 'linear-gradient(135deg, #1f845a 0%, #4bbf6b 100%)' } },
-  { id: 'sunset', label: 'Sunset', group: 'classic', style: { background: 'linear-gradient(135deg, #f97316 0%, #db2777 100%)' } },
-  { id: 'night', label: 'Night', group: 'classic', style: { background: 'linear-gradient(135deg, #0c1a3a 0%, #3b2a6b 100%)' } },
+  { id: 'sunset', label: 'Sunset', group: 'classic', style: { background: 'linear-gradient(135deg, #f97316 0%, #1e40af 100%)' } },
+  { id: 'night', label: 'Night', group: 'classic', style: { background: 'linear-gradient(135deg, #0c1a3a 0%, #1e3a8a 100%)' } },
   { id: 'slate', label: 'Slate', group: 'classic', style: { background: 'linear-gradient(135deg, #475569 0%, #1e293b 100%)' } },
 
   // Studio — layered mesh / aurora gradients in a modern SaaS style.
@@ -48,25 +48,25 @@ export const BOARD_BACKGROUNDS: BoardBackground[] = [
     id: 'aurora',
     label: 'Aurora',
     group: 'studio',
-    style: mesh('#0b1023', glow('#2dd4bf', '10% 0%'), glow('#6366f1', '80% 10%'), glow('#a855f7', '60% 100%', '50%'), glow('#0ea5e9', '0% 90%', '45%')),
+    style: mesh('#0b1023', glow('#2dd4bf', '10% 0%'), glow('#356df3', '80% 10%'), glow('#1e40af', '60% 100%', '50%'), glow('#0ea5e9', '0% 90%', '45%')),
   },
   {
     id: 'nebula',
     label: 'Nebula',
     group: 'studio',
-    style: mesh('#1a0b2e', glow('#ec4899', '15% 10%'), glow('#8b5cf6', '85% 20%'), glow('#3b82f6', '40% 100%', '50%')),
+    style: mesh('#0b1530', glow('#f97316', '15% 10%', '35%'), glow('#0ea5e9', '85% 20%'), glow('#3b82f6', '40% 100%', '50%')),
   },
   {
     id: 'midnight-mesh',
     label: 'Midnight',
     group: 'studio',
-    style: mesh('#070a14', glow('rgba(79,70,229,0.75)', '0% 0%', '50%'), glow('rgba(14,165,233,0.55)', '100% 100%', '50%'), glow('rgba(168,85,247,0.35)', '100% 0%', '40%')),
+    style: mesh('#070a14', glow('rgba(53,109,243,0.75)', '0% 0%', '50%'), glow('rgba(14,165,233,0.55)', '100% 100%', '50%'), glow('rgba(64,197,237,0.3)', '100% 0%', '40%')),
   },
   {
     id: 'peach',
     label: 'Peach',
     group: 'studio',
-    style: mesh('#ff9a8b', glow('#ffd29d', '0% 0%'), glow('#ff6a88', '100% 0%'), glow('#a18cd1', '100% 100%'), glow('#fbc2eb', '0% 100%')),
+    style: mesh('#ff9a8b', glow('#ffd29d', '0% 0%'), glow('#fb923c', '100% 0%'), glow('#93c5fd', '100% 100%'), glow('#fed7aa', '0% 100%')),
   },
   {
     id: 'lagoon',
@@ -76,9 +76,9 @@ export const BOARD_BACKGROUNDS: BoardBackground[] = [
   },
   {
     id: 'lavender',
-    label: 'Lavender',
+    label: 'Mist',
     group: 'studio',
-    style: mesh('#c4b5fd', glow('#e0e7ff', '0% 0%'), glow('#f0abfc', '100% 0%'), glow('#818cf8', '100% 100%'), glow('#a5f3fc', '0% 100%')),
+    style: mesh('#bfdbfe', glow('#e0f2fe', '0% 0%'), glow('#bae6fd', '100% 0%'), glow('#93c5fd', '100% 100%'), glow('#a5f3fc', '0% 100%')),
   },
   {
     id: 'ember',
@@ -96,13 +96,13 @@ export const BOARD_BACKGROUNDS: BoardBackground[] = [
     id: 'dusk',
     label: 'Dusk',
     group: 'studio',
-    style: { background: 'linear-gradient(135deg, #312e81 0%, #7e22ce 45%, #db2777 75%, #f59e0b 100%)' },
+    style: { background: 'linear-gradient(135deg, #172554 0%, #1e40af 45%, #0ea5e9 75%, #fb923c 100%)' },
   },
   {
     id: 'holo',
     label: 'Holo',
     group: 'studio',
-    style: mesh('#c7d2fe', glow('#f0abfc', '0% 0%'), glow('#fde68a', '100% 0%', '50%'), glow('#99f6e4', '100% 100%'), glow('#fda4af', '0% 100%'), glow('#a5b4fc', '50% 50%', '40%')),
+    style: mesh('#dbeafe', glow('#bae6fd', '0% 0%'), glow('#fed7aa', '100% 0%', '50%'), glow('#99f6e4', '100% 100%'), glow('#93c5fd', '0% 100%'), glow('#bfdbfe', '50% 50%', '40%')),
   },
   {
     id: 'graphite',
@@ -122,9 +122,7 @@ export const BOARD_BACKGROUNDS: BoardBackground[] = [
   photo('forest-mist', 'Misty forest', '1418065460487-3e41a6c84dc5', '#3f4b4a'),
   photo('night-sky', 'Night sky', '1519681393784-d120267933ba', '#1c2540'),
   photo('snow-peaks', 'Snow peaks', '1464822759023-fed622ff2c3b', '#5d6f86'),
-  photo('haze', 'Haze', '1579546929518-9e396f3cc809', '#8a7fb8'),
   photo('deep-blue', 'Deep blue', '1557683316-973673baf926', '#1f3a68'),
-  photo('lilac', 'Lilac', '1557682250-33bd709cbe85', '#6b4fa0'),
   photo('mountains', 'Mountains', '1506905925346-21bda4d32df4', '#3b4a6b'),
   photo('beach', 'Beach', '1507525428034-b723cf961d3e', '#5a8fb0'),
   photo('leaves', 'Leaves', '1470058869958-2a77ade41c02', '#2f5d3a'),

@@ -1088,7 +1088,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
               {/* Create Content Button */}
               <Button
                 onClick={() => router.push(`/dashboard/client/${clientId}/content-suite`)}
-                className="bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white flex-1 h-full font-bold shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
+                className="bg-gradient-to-r from-sky-500 via-blue-600 to-blue-700 hover:from-sky-600 hover:via-blue-700 hover:to-blue-800 text-white flex-1 h-full font-bold shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
                 style={{ borderRadius: '16px' }}
               >
                 <Plus className="w-96 h-96 mb-3 stroke-[2.5]" />

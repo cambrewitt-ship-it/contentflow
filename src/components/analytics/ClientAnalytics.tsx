@@ -344,7 +344,7 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
                     action={
                       i && i.postCount >= 5 ? (
                         <Button variant="ghost" size="sm" onClick={() => refresh('ideas')} disabled={!!refreshing}>
-                          {refreshing === 'ideas' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-violet-600" />}
+                          {refreshing === 'ideas' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-orange-500" />}
                           New ideas
                         </Button>
                       ) : null

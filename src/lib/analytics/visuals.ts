@@ -31,7 +31,8 @@ export const FORMAT_LABELS: Record<string, string> = {
 
 // Categorical colours follow the entity, never its rank: each platform / format
 // always gets the same slot, so filtering never repaints the survivors.
-const CATEGORICAL = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948']
+// Blue-led, with orange as the second hue; no purple/magenta
+const CATEGORICAL = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#172b4d', '#008300', '#0e8fb8', '#e34948']
 const PLATFORM_SLOTS = ['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter', 'threads', 'youtube', 'pinterest']
 const FORMAT_SLOTS = ['image', 'carousel', 'reel', 'video', 'text', 'story']
 export const OTHER_COLOR = '#a3a29c'

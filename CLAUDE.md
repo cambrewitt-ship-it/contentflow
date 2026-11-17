@@ -17,6 +17,15 @@ env vars or database columns as a side effect of other work; if the API base URL
 or env var is ever switched to Zernio's, do it as one deliberate change across
 the whole codebase (and Vercel env vars).
 
+## Colour palette
+
+- The app is blue-spectrum only (navy → blue → sky → cyan, tokens in `src/app/globals.css`) with **subtle**
+  orange accents (`--color-brand-orange`, e.g. AI sparkle icons). No purple, violet, indigo, fuchsia or pink
+  in the UI — the AI gradient (`bg-gradient-ai`) is blue → cyan. Green/red/amber stay for status only.
+- Exceptions: Instagram's own brand gradient on its logo badges/story ring, and the Design Studio colour
+  presets (they're for clients' designs, not the app's look).
+- Stored colour keys stay for compatibility: calendar event colour `'purple'` now renders as "Sky".
+
 ## Social account connections (OAuth)
 
 - The connect routes (`connect-platform`, `connect-facebook`) ask Zernio for an

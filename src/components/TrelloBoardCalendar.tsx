@@ -564,14 +564,14 @@ function BoardCard({
             )}
             {publish && (
               <span
-                className={`px-1.5 py-0.5 rounded font-semibold text-[10px] text-white ${publish.isPosted ? 'bg-green-500' : 'bg-indigo-500'}`}
+                className={`px-1.5 py-0.5 rounded font-semibold text-[10px] text-white ${publish.isPosted ? 'bg-green-500' : 'bg-blue-500'}`}
                 title={`${publish.isPosted ? 'Posted' : 'Scheduled'} to ${publish.platforms.join(', ')}`}
               >
                 {publish.isPosted ? 'Posted' : 'Scheduled'}
               </span>
             )}
             {post.source === 'autopilot' && (
-              <span className="inline-flex items-center gap-0.5 text-purple-600" title="AI-generated post">
+              <span className="inline-flex items-center gap-0.5 text-orange-500" title="AI-generated post">
                 <Sparkles className="w-3 h-3" />
                 AI
               </span>
@@ -588,7 +588,7 @@ function BoardCard({
               </span>
             )}
             {projectName && (
-              <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] truncate max-w-[100px]">
+              <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] truncate max-w-[100px]">
                 {projectName}
               </span>
             )}
@@ -917,7 +917,7 @@ function MonthPostCard({
           {time && <span>{time}</span>}
           {approval && <span className={`px-1 rounded font-medium ${approval.className}`}>{approval.label}</span>}
           {publish && (
-            <span className={`px-1 rounded font-semibold text-white ${publish.isPosted ? 'bg-green-500' : 'bg-indigo-500'}`}>
+            <span className={`px-1 rounded font-semibold text-white ${publish.isPosted ? 'bg-green-500' : 'bg-blue-500'}`}>
               {publish.isPosted ? 'Posted' : 'Scheduled'}
             </span>
           )}
@@ -997,7 +997,7 @@ function MonthDayCell({
             <button
               type="button"
               onClick={() => props.onEventAdd?.(dateKey)}
-              className="px-1 py-0.5 text-[10px] font-medium text-[#44546f] rounded hover:bg-[#091e4224] hover:text-purple-700"
+              className="px-1 py-0.5 text-[10px] font-medium text-[#44546f] rounded hover:bg-[#091e4224] hover:text-blue-700"
               title="Mark event or note"
             >
               + Note

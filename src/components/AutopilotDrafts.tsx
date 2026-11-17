@@ -425,7 +425,7 @@ function DraftPreview({
               autoFocus
               rows={8}
               maxLength={5000}
-              className="w-full text-sm text-gray-700 border border-purple-300 rounded-lg p-2 resize-y focus:outline-none focus:ring-1 focus:ring-purple-400"
+              className="w-full text-sm text-gray-700 border border-blue-300 rounded-lg p-2 resize-y focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={saveCaption} disabled={savingCaption}>

@@ -42,7 +42,7 @@ export function PortalProfileMenu({ token }: { token: string }) {
       <DropdownMenuTrigger asChild>
         <button
           className="flex h-8 w-8 md:h-9 md:w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white ring-2 ring-white shadow-sm"
-          style={{ backgroundColor: member.color ?? "#6366f1" }}
+          style={{ backgroundColor: member.color ?? "#356df3" }}
           title={`Signed in as ${member.name}`}
         >
           {member.name.charAt(0).toUpperCase()}
