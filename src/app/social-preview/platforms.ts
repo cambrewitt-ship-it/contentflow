@@ -146,7 +146,7 @@ export const PLATFORM_PAGES: PlatformPage[] = [
       { label: 'Landscape image', value: '1080 × 566 px (1.91:1)' },
       { label: 'Caption truncation', value: 'Around 125 characters before "more"' },
       { label: 'Maximum caption length', value: '2,200 characters' },
-      { label: 'Hashtag limit', value: '30 per post' },
+      { label: 'Hashtag limit', value: '5 per post' },
     ],
     sections: [
       {
@@ -177,7 +177,7 @@ export const PLATFORM_PAGES: PlatformPage[] = [
       },
       {
         q: 'How many characters of an Instagram caption are visible?',
-        a: 'Around 125 characters show in the feed before the caption is truncated with a "more" link. The full caption can be up to 2,200 characters, and you can use up to 30 hashtags.',
+        a: 'Around 125 characters show in the feed before the caption is truncated with a "more" link. The full caption can be up to 2,200 characters, and Instagram caps hashtags at 5 per post.',
       },
       {
         q: 'Can I preview an Instagram post without logging in to Instagram?',

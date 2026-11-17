@@ -27,6 +27,7 @@ import ContentAgentPanel from '@/components/ContentAgentPanel'
 import { publishedCaption } from '@/lib/candidateCaption'
 import type { AutopilotCandidate } from '@/types/autopilot'
 import { LazyImageEditor as ImageEditor } from '@/components/image-editor'
+import { CaptionToolsPanel } from '@/components/caption-tools/CaptionToolsPanel'
 
 interface Project {
   id: string
@@ -2628,6 +2629,15 @@ function ContentSuiteContent({
                         <p className="text-xs text-gray-400">No AI — this caption is used exactly as written</p>
                         <p className="text-xs text-gray-400">{(customModeCaption?.text ?? '').length} characters</p>
                       </div>
+                      {copyType === 'social-media' && (
+                        <div className="mt-3">
+                          <CaptionToolsPanel
+                            caption={customModeCaption?.text ?? ''}
+                            onInsert={handleCustomModeCaptionChange}
+                            clientId={clientId}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 

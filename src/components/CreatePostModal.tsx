@@ -17,6 +17,7 @@ import { normalizeTargetPlatforms, type TargetPlatform } from '@/lib/targetPlatf
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea';
+import { CaptionToolsPanel } from '@/components/caption-tools/CaptionToolsPanel';
 
 interface Project {
   id: string;
@@ -700,6 +701,7 @@ function CreatePostModalContent({
                     className="text-sm resize-y"
                   />
                   <p className="text-[11px] text-gray-400 text-right">{customCaption.length} characters</p>
+                  <CaptionToolsPanel caption={customCaption} onInsert={setCustomCaption} clientId={clientId} />
                 </div>
               ) : !chatMode ? (
                 <div className="space-y-2">
