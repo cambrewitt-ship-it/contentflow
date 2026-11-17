@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, ExternalLink, Grid3x3, PieChart, Trophy } from 'lucide-react'
+import { ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Clock, ExternalLink, Grid3x3, MapPin, PieChart, Trophy, Users } from 'lucide-react'
 import { authedFetchJson } from '@/lib/authedFetch'
 import { slotLabel } from '@/lib/analytics/insights'
 import type { AnalyticsPost, ClientAnalyticsResponse, DashboardTotals } from '@/lib/analytics/types'
 import { bestCell, platformColor, platformLabel, postHeatmap, postsSince, split } from '@/lib/analytics/visuals'
 import { Donut, SequentialLegend, Sparkline, WeekHeatmap } from './charts'
+import { PersonaAvatar } from './AudienceView'
 
 // Compact analytics for the client overview: last 30 days' headline numbers with
 // sparklines, a best-time heatmap, the platform split and the month's top post.
@@ -112,6 +113,7 @@ export default function AnalyticsOverview({ clientId }: { clientId: string }) {
   )
   const median = i?.baseline.medianEngagementRate ?? 0
   const analyticsHref = `/dashboard/client/${clientId}/analytics`
+  const persona = i?.audience?.persona ?? null
 
   const header = (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
@@ -203,6 +205,47 @@ export default function AnalyticsOverview({ clientId }: { clientId: string }) {
             spark={daily.map((p) => (p.impressions || p.reach ? (p.engagement / (p.impressions || p.reach)) * 100 : 0))}
           />
         </div>
+      )}
+
+      {persona && (
+        <Link
+          href={`${analyticsHref}?view=audience`}
+          className="group mt-3 flex flex-col gap-3 rounded-2xl border border-blue-200/70 bg-gradient-to-br from-white via-white to-blue-50/80 p-4 transition-shadow hover:shadow-card-hover sm:flex-row sm:items-center"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-3.5">
+            <PersonaAvatar name={persona.name} size={52} />
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-blue-600">Most engaged audience</p>
+              <p className="text-[16px] font-semibold text-gray-900">
+                {persona.name}
+                <span className="ml-2 text-[13px] font-normal text-gray-500">
+                  {[persona.ageRange && `${persona.ageRange}`, persona.gender].filter(Boolean).join(' · ')}
+                </span>
+              </p>
+              <p className="mt-0.5 line-clamp-2 text-[13px] leading-5 text-gray-600">{persona.summary}</p>
+            </div>
+          </div>
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-1.5 sm:max-w-[45%] sm:justify-end">
+            {persona.location && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs text-gray-700 ring-1 ring-gray-200/80">
+                <MapPin className="h-3.5 w-3.5 text-blue-600" /> {persona.location}
+              </span>
+            )}
+            {persona.whenOnline && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs text-gray-700 ring-1 ring-gray-200/80">
+                <Clock className="h-3.5 w-3.5 text-blue-600" /> {persona.whenOnline.split(' and ')[0]}
+              </span>
+            )}
+            {persona.loves[0] && (
+              <span className="inline-flex max-w-full items-center gap-1 truncate rounded-full bg-white px-2.5 py-1 text-xs text-gray-700 ring-1 ring-gray-200/80">
+                <Users className="h-3.5 w-3.5 flex-shrink-0 text-blue-600" /> <span className="truncate">{persona.loves[0]}</span>
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 group-hover:underline">
+              Audience <ArrowRight className="h-3.5 w-3.5" />
+            </span>
+          </div>
+        </Link>
       )}
 
       <div className="mt-3 grid gap-3 lg:grid-cols-3">

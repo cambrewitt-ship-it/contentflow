@@ -103,6 +103,15 @@ the whole codebase (and Vercel env vars).
   colours are fixed per entity). The analytics GET also returns `posts` (the snapshot's year, captions trimmed) and
   `bestTimes` for these. The client overview shows `AnalyticsOverview` (30-day KPIs + sparklines, best-time heatmap,
   platform split, top post).
+- Audience (Analytics "Audience" tab, `src/components/analytics/AudienceView.tsx`; logic in `src/lib/analytics/audience.ts`):
+  Zernio's `GET /v1/analytics/{instagram|facebook|linkedin|tiktok|youtube}/demographics` (entries are `{dimension, value}`;
+  Instagram needs 100+ followers and is read twice — `follower_demographics` and `engaged_audience_demographics`; Facebook
+  has country/city only since Meta dropped Page age/gender; LinkedIn is company pages only). Stored on the snapshot as
+  `insights.audience` (no extra table), re-read at most daily inside `refreshSnapshot`. The **most engaged audience
+  persona** ("Meet Sarah") is AI-written by `generatePersona` from engaged demographics + results + best times + comments,
+  after the response and weekly (`refreshPersona`); `formatAudiencePersonaPrompt` adds it to `getPerformancePrompt`, so
+  captions and the Content Agent write for that person. Top fans come live from `client_comments` (`getTopFans`).
+  The client overview shows a persona strip linking to `?view=audience`.
 - `/api/cron/weekly-insights` (GitHub Actions, Monday NZ morning) refreshes every connected client,
   writes recommendations and sends an `analytics_insights` notification.
 

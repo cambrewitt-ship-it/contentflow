@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
-import { generateRecommendations, readSnapshot, refreshSnapshot } from '@/lib/analytics/store';
+import { generateRecommendations, readSnapshot, refreshAudienceNow, refreshPersona, refreshSnapshot } from '@/lib/analytics/store';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -13,6 +13,8 @@ export const maxDuration = 120;
 type Params = { params: Promise<{ clientId: string }> };
 const MIN_SYNC_GAP_MS = 10 * 60 * 1000;
 const MIN_RECOMMENDATION_GAP_MS = 6 * 60 * 60 * 1000;
+const MIN_AUDIENCE_GAP_MS = 10 * 60 * 1000;
+const MIN_PERSONA_GAP_MS = 60 * 60 * 1000;
 
 export async function POST(request: NextRequest, { params }: Params) {
   const { clientId } = await params;
@@ -39,7 +41,20 @@ export async function POST(request: NextRequest, { params }: Params) {
         recommendationsRefreshed = !!(await generateRecommendations(admin, clientId));
       }
     }
-    return NextResponse.json({ success: true, recommendationsRefreshed });
+    // Audience tab: { audience: true } re-reads demographics, { persona: true } rewrites the avatar
+    let personaRefreshed = false;
+    if (body?.audience || body?.persona) {
+      const latest = await readSnapshot(admin, clientId);
+      const audience = latest && latest !== 'missing_table' ? latest.insights?.audience : null;
+      if (body.audience && (!audience?.fetchedAt || Date.now() - Date.parse(audience.fetchedAt) > MIN_AUDIENCE_GAP_MS)) {
+        await refreshAudienceNow(admin, clientId);
+      }
+      const personaAt = audience?.persona?.generatedAt;
+      if (body.persona && (!personaAt || Date.now() - Date.parse(personaAt) > MIN_PERSONA_GAP_MS)) {
+        personaRefreshed = !!(await refreshPersona(admin, clientId));
+      }
+    }
+    return NextResponse.json({ success: true, recommendationsRefreshed, personaRefreshed });
   } catch (error) {
     logger.error('POST analytics refresh error:', error);
     return NextResponse.json({ success: false, error: 'Failed to refresh analytics' }, { status: 500 });

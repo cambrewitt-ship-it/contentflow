@@ -29,6 +29,7 @@ import { slotLabel } from '@/lib/analytics/insights'
 import type { ClientAnalyticsResponse, Recommendation } from '@/lib/analytics/types'
 import { postsSince } from '@/lib/analytics/visuals'
 import { Card, ContentView, PostsView, Segmented, TimingView } from './AnalyticsViews'
+import { AudienceView } from './AudienceView'
 import { PostTimeline } from './charts'
 import { MetricChart } from './MetricChart'
 import { ReportsCard } from './ReportsCard'
@@ -52,9 +53,10 @@ const CHART_METRICS: Array<{ key: ChartMetric; label: string }> = [
   { key: 'followersGained', label: 'Followers gained' },
 ]
 
-type View = 'overview' | 'timing' | 'content' | 'posts'
+type View = 'overview' | 'audience' | 'timing' | 'content' | 'posts'
 const VIEWS: Array<{ key: View; label: string }> = [
   { key: 'overview', label: 'Overview' },
+  { key: 'audience', label: 'Audience' },
   { key: 'timing', label: 'When to post' },
   { key: 'content', label: 'What to post' },
   { key: 'posts', label: 'Posts' },
@@ -449,6 +451,9 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
             </>
           )}
 
+          {view === 'audience' && (
+            <AudienceView clientId={clientId} audience={i?.audience} fans={data?.fans ?? []} onChanged={() => load(range)} />
+          )}
           {view === 'timing' && <TimingView posts={allPosts} bestTimes={data?.bestTimes ?? []} insights={i ?? null} />}
           {view === 'content' && <ContentView posts={rangePosts} insights={i ?? null} rangeLabel={rangeLabel} />}
           {view === 'posts' && <PostsView posts={rangePosts} median={median} rangeLabel={rangeLabel} />}
