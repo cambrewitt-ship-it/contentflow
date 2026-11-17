@@ -1,6 +1,6 @@
 'use client';
 
-// Trello-style "Board (beta)" view of the calendar. Same data + handlers as ColumnViewCalendar,
+// Trello-style "Board" view of the calendar. Same data + handlers as ColumnViewCalendar,
 // but rendered as compact cards in fixed-width week lists on a coloured/photo background.
 // Self-contained so it can be removed by deleting this file and the 'board' branch in the
 // calendar page.

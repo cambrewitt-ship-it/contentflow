@@ -258,7 +258,8 @@ export default function CalendarPage() {
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem('calendarViewMode');
-      if (saved === 'month' || saved === 'column' || saved === 'board') {
+      // Only Board and Month are offered now; anyone who last used Column lands on Board.
+      if (saved === 'month' || saved === 'board') {
         setViewModeState(saved);
       }
     } catch {
@@ -2551,7 +2552,7 @@ export default function CalendarPage() {
     [showFeedPreview, scheduledPosts, clientUploads]
   );
 
-  // Props shared by the Column view and the Board (beta) view.
+  // Props shared by the Column view and the Board view.
   const sharedCalendarProps = {
     weeks: getWeeksToDisplay(),
     scheduledPosts: scheduledPosts as any,
@@ -2924,7 +2925,7 @@ export default function CalendarPage() {
 
   return (
     <div className={`${isBoardShell ? 'h-full' : 'min-h-screen'} bg-background`}>
-      {/* Board (beta) — Trello-style view. It fills the page's content area so the app sidebar and
+      {/* Board — Trello-style view. It fills the page's content area so the app sidebar and
           top bar stay visible; the posts tray and action bar are always shown. Remove this block + TrelloBoardCalendar.tsx to drop it. */}
       {isBoardShell && (
         <div className="h-full flex flex-col">
@@ -2937,9 +2938,8 @@ export default function CalendarPage() {
                 <>
                   <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-black/20">
                     {([
-                      ['month', 'Month', Calendar],
-                      ['column', 'Column', Columns],
                       ['board', 'Board', KanbanSquare],
+                      ['month', 'Month', Calendar],
                     ] as const).map(([mode, label, Icon]) => (
                       <button
                         key={mode}
@@ -3076,11 +3076,10 @@ export default function CalendarPage() {
                       <button
                         onClick={() => setViewMode('board')}
                         className="px-3 py-1.5 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5 text-gray-600 hover:text-gray-900"
-                        title="Trello-style board (beta)"
+                        title="Board view"
                       >
                         <KanbanSquare className="w-4 h-4" />
                         Board
-                        <span className="px-1 py-px rounded bg-gradient-ai text-white text-[9px] font-semibold uppercase leading-none">Beta</span>
                       </button>
                     </div>
                     <button
