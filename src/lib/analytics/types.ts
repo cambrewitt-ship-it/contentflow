@@ -223,6 +223,8 @@ export interface ClientAnalyticsResponse {
   bestTimes?: BestTimeSlot[]
   /** Most engaged commenters in the last 90 days, from the comments inbox */
   fans?: AudienceFan[]
+  /** The last 90 days of comments the audience persona is built from */
+  commentSummary?: { total: number; positive: number; negative: number; questions: string[]; complaints: string[] } | null
 }
 
 /** One client's row in the agency overview (GET /api/analytics/portfolio) */

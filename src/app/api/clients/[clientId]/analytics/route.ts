@@ -12,6 +12,7 @@ import {
   runAfterResponse,
 } from '@/lib/analytics/store';
 import { getTopFans } from '@/lib/analytics/audience';
+import { getAudienceSummary } from '@/lib/comments/store';
 import type { AnalyticsDashboard, ClientAnalyticsResponse } from '@/lib/analytics/types';
 
 export const dynamic = 'force-dynamic';
@@ -92,6 +93,10 @@ export async function GET(request: NextRequest, { params }: Params) {
       bestTimes: snapshot.bestTimes,
       // The people who comment most (comments inbox; empty when that isn't set up)
       fans: await getTopFans(admin, clientId).catch(() => []),
+      // Same 90-day window the persona is written from, for the "why" evidence
+      commentSummary: await getAudienceSummary(admin, clientId, 90)
+        .then((c) => (c ? { total: c.total, positive: c.positive, negative: c.negative, questions: c.questions, complaints: c.complaints } : null))
+        .catch(() => null),
     };
     return NextResponse.json({ success: true, ...body });
   } catch (error) {

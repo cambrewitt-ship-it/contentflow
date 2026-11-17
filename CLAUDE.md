@@ -111,6 +111,9 @@ the whole codebase (and Vercel env vars).
   persona** ("Meet Sarah") is AI-written by `generatePersona` from engaged demographics + results + best times + comments,
   after the response and weekly (`refreshPersona`); `formatAudiencePersonaPrompt` adds it to `getPerformancePrompt`, so
   captions and the Content Agent write for that person. Top fans come live from `client_comments` (`getTopFans`).
+  "Why {name}?" (`AudienceEvidence.tsx`) charts the data behind each claim — engaged vs all-followers shares with an
+  engagement index, Zernio best times, format results, comment sentiment/questions — with takeaways computed from the
+  numbers. The rules that pick the facts live in `audienceFacts.ts` (browser-safe), shared by the AI brief and the UI.
   The client overview shows a persona strip linking to `?view=audience`.
 - `/api/cron/weekly-insights` (GitHub Actions, Monday NZ morning) refreshes every connected client,
   writes recommendations and sends an `analytics_insights` notification.

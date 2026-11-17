@@ -4,9 +4,20 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, Bot, Clock, Globe2, Heart, Loader2, MapPin, MessageCircle, RefreshCw, Sparkles, Users } from 'lucide-react'
 import { authedFetchJson } from '@/lib/authedFetch'
-import type { AccountAudience, AudienceData, AudienceFan, AudiencePersona, AudienceSlice } from '@/lib/analytics/types'
+import type {
+  AccountAudience,
+  AnalyticsPost,
+  AudienceData,
+  AudienceFan,
+  AudiencePersona,
+  AudienceSlice,
+  BestTimeSlot,
+  ClientAnalyticsResponse,
+  PerformanceInsights,
+} from '@/lib/analytics/types'
 import { platformColor, platformLabel } from '@/lib/analytics/visuals'
 import { Card, Segmented } from './AnalyticsViews'
+import { AudienceEvidence } from './AudienceEvidence'
 
 // The Audience tab: the "most engaged audience" avatar (AI-written from who engages,
 // what they engage with, when they're online and what they say), the demographics
@@ -377,11 +388,19 @@ export function AudienceView({
   clientId,
   audience,
   fans,
+  insights,
+  posts,
+  bestTimes,
+  commentSummary,
   onChanged,
 }: {
   clientId: string
   audience: AudienceData | null | undefined
   fans: AudienceFan[]
+  insights: PerformanceInsights | null | undefined
+  posts: AnalyticsPost[]
+  bestTimes: BestTimeSlot[]
+  commentSummary: ClientAnalyticsResponse['commentSummary']
   onChanged: () => Promise<void> | void
 }) {
   const [busy, setBusy] = useState<'audience' | 'persona' | null>(null)
@@ -410,7 +429,17 @@ export function AudienceView({
       {error && <p className="rounded-xl border border-red-200/80 bg-red-50/80 px-3.5 py-2.5 text-[13px] text-red-700">{error}</p>}
 
       {audience?.persona ? (
-        <PersonaCard persona={audience.persona} clientId={clientId} busy={busy === 'persona'} onRewrite={() => run('persona')} />
+        <>
+          <PersonaCard persona={audience.persona} clientId={clientId} busy={busy === 'persona'} onRewrite={() => run('persona')} />
+          <AudienceEvidence
+            persona={audience.persona}
+            accounts={accounts}
+            insights={insights}
+            posts={posts}
+            bestTimes={bestTimes}
+            commentSummary={commentSummary}
+          />
+        </>
       ) : (
         <section className="flex flex-col items-start gap-3 rounded-2xl border border-dashed border-blue-200 bg-white/70 p-5 sm:flex-row sm:items-center">
           <PersonaAvatar name="?" size={56} />
@@ -438,7 +467,7 @@ export function AudienceView({
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="min-w-0 space-y-4 lg:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-[15px] font-semibold text-gray-900">Demographics</h3>
+            <h3 className="text-[15px] font-semibold text-gray-900">All demographics</h3>
             <div className="flex items-center gap-2">
               {ready.length > 1 && (
                 <Segmented

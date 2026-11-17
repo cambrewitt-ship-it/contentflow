@@ -452,7 +452,16 @@ export default function ClientAnalytics({ clientId }: { clientId: string }) {
           )}
 
           {view === 'audience' && (
-            <AudienceView clientId={clientId} audience={i?.audience} fans={data?.fans ?? []} onChanged={() => load(range)} />
+            <AudienceView
+              clientId={clientId}
+              audience={i?.audience}
+              fans={data?.fans ?? []}
+              insights={i}
+              posts={allPosts}
+              bestTimes={data?.bestTimes ?? []}
+              commentSummary={data?.commentSummary ?? null}
+              onChanged={() => load(range)}
+            />
           )}
           {view === 'timing' && <TimingView posts={allPosts} bestTimes={data?.bestTimes ?? []} insights={i ?? null} />}
           {view === 'content' && <ContentView posts={rangePosts} insights={i ?? null} rangeLabel={rangeLabel} />}

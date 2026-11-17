@@ -5,6 +5,7 @@ import { completionParams } from '@/lib/openaiParams'
 import { listAccounts, zernio, ZernioError, type ZernioAccount } from '@/lib/zernio/api'
 import { getAudienceSummary } from '@/lib/comments/store'
 import { slotLabel } from './insights'
+import { audienceFacts, hasAudienceData as hasData } from './audienceFacts'
 import type {
   AccountAudience,
   AudienceBreakdowns,
@@ -115,7 +116,6 @@ export function parseDemographics(raw: unknown): AudienceBreakdowns {
   return out
 }
 
-const hasData = (b: AudienceBreakdowns | null | undefined) => !!b && Object.values(b).some((s) => s && s.length)
 
 // ── Fetching ────────────────────────────────────────────────────────────────
 
@@ -227,86 +227,7 @@ export async function fetchAudience(profileId: string): Promise<AccountAudience[
   return results.filter((r): r is AccountAudience => !!r)
 }
 
-// ── Engaged-audience profile (deterministic facts behind the persona) ───────
-
-/** The account whose audience best represents the most engaged people: Instagram engaged first. */
-export function primaryAudience(accounts: AccountAudience[]): { account: AccountAudience; breakdowns: AudienceBreakdowns; engaged: boolean } | null {
-  const ok = accounts.filter((a) => a.status === 'ok')
-  const engaged = ok.find((a) => hasData(a.engaged))
-  if (engaged) return { account: engaged, breakdowns: engaged.engaged!, engaged: true }
-  const withAge = ok.find((a) => a.followers?.age?.length)
-  const any = withAge ?? ok.find((a) => hasData(a.followers))
-  return any ? { account: any, breakdowns: any.followers!, engaged: false } : null
-}
-
-/** Top age band(s) covering a meaningful share, e.g. "25–34" or "25–44". */
-function ageRange(age: AudienceSlice[] | undefined): string | null {
-  if (!age?.length) return null
-  const sorted = [...age].sort((a, b) => b.share - a.share)
-  const top = sorted[0]
-  const next = sorted[1]
-  const parse = (k: string) => k.split(/[-–+]/).map((n) => Number(n)).filter((n) => Number.isFinite(n))
-  // Two adjacent bands that together dominate read better as one range
-  if (next && next.share > top.share * 0.7) {
-    const [a1, a2] = parse(top.key)
-    const [b1, b2] = parse(next.key)
-    if (a1 !== undefined && b1 !== undefined) {
-      const lo = Math.min(a1, b1)
-      const hi = Math.max(a2 ?? a1, b2 ?? b1)
-      return hi > lo ? `${lo}–${hi}` : `${lo}+`
-    }
-  }
-  return top.label
-}
-
-function genderLean(gender: AudienceSlice[] | undefined): string | null {
-  const known = (gender ?? []).filter((g) => g.label === 'Women' || g.label === 'Men')
-  if (!known.length) return null
-  const total = known.reduce((s, g) => s + g.value, 0)
-  const top = [...known].sort((a, b) => b.value - a.value)[0]
-  const share = top.value / total
-  if (share >= 0.7) return `mostly ${top.label.toLowerCase()}`
-  if (share >= 0.57) return `more ${top.label.toLowerCase()}`
-  return 'women and men equally'
-}
-
-export interface AudienceFacts {
-  source: string
-  ageRange: string | null
-  gender: string | null
-  location: string | null
-  ages: string[]
-  genders: string[]
-  cities: string[]
-  countries: string[]
-  professional: string[]
-}
-
-export function audienceFacts(accounts: AccountAudience[]): AudienceFacts | null {
-  const primary = primaryAudience(accounts)
-  if (!primary) return null
-  const b = primary.breakdowns
-  const fmt = (s: AudienceSlice[] | undefined, n: number) => (s ?? []).slice(0, n).map((x) => `${x.label} ${Math.round(x.share * 100)}%`)
-  const ages = [...(b.age ?? [])].sort((x, y) => y.share - x.share)
-  const linkedin = accounts.find((a) => a.platform === 'linkedin' && a.status === 'ok')?.followers
-  return {
-    source: `${primary.engaged ? 'engaged audience' : 'followers'} on ${titleCase(primary.account.platform)}`,
-    ageRange: ageRange(b.age),
-    gender: genderLean(b.gender),
-    location: b.city?.[0]?.label.split(',')[0] ?? b.country?.[0]?.label ?? null,
-    ages: fmt(ages, 4),
-    genders: fmt(b.gender, 3),
-    cities: fmt(b.city, 5),
-    countries: fmt(b.country, 4),
-    professional: linkedin
-      ? [
-          ...fmt(linkedin.function, 3).map((s) => `job: ${s}`),
-          ...fmt(linkedin.seniority, 2).map((s) => `seniority: ${s}`),
-          ...fmt(linkedin.industry, 3).map((s) => `industry: ${s}`),
-        ]
-      : [],
-  }
-}
+// ── Engaged-audience profile: see ./audienceFacts (browser-safe, shared with the UI) ──
 
 // ── Persona (AI) ────────────────────────────────────────────────────────────
 
