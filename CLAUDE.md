@@ -161,3 +161,17 @@ the whole codebase (and Vercel env vars).
   `/v1/ads/...`) needs a Meta Ads connection, which the app doesn't have.
 - Cron routes are public at the middleware (`/api/cron/`) and guarded by `rejectUnauthorizedCron`
   (`src/lib/cronAuth.ts`): production requires `CRON_SECRET`.
+
+## Approval update emails ("Notify by email")
+
+- Calendar action bar → "Notify by email" (`src/components/ApprovalNotifyButton.tsx`): per-client list of
+  addresses (typed, or picked from portal members / the agency owner) in `approval_watchers`
+  (migrations/038-approval-watchers.sql, run by hand). API `/api/clients/[clientId]/approval-watchers`.
+- `notifyApprovalWatchersAfterResponse` (`src/lib/approvalWatchers.ts`) emails them (Resend,
+  `sendApprovalUpdateEmail`) after the response on: portal approve/improve/reject/clear (`/api/portal/approvals`),
+  approval links (`/api/approval-sessions/submit-approval`), pipeline steps (`/api/portal/approve-step`), agency
+  status changes (`/api/posts/[postId]/approval-status`), comments (`/api/posts/[postId]/comments`) and portal
+  date/time moves (`PATCH /api/portal/calendar`). Agency drag-moves in the calendar don't email. The person who made
+  the change is never emailed; the portal "Improve" comment that echoes the status feedback is skipped (one email).
+  Any new route that changes approval status should call it too.
+- Footer "Stop these emails" → public `/api/approval-watchers/unsubscribe` (token; in the middleware's public list).

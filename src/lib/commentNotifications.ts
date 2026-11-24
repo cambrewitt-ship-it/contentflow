@@ -122,7 +122,7 @@ interface Recipient {
   reason: 'mention' | 'reply';
 }
 
-async function getPostPreview(postId: string, postType: CommentPostType) {
+export async function getPostPreview(postId: string, postType: CommentPostType) {
   if (postType === 'portal_upload') {
     const { data } = await supabase
       .from('client_uploads')

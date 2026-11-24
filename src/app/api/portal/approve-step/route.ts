@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import logger from '@/lib/logger';
 import { resolvePortalToken } from '@/lib/portalAuth';
+import { getPortalMember } from '@/lib/portalMembers';
+import { getRequestAppUrl } from '@/lib/requestAppUrl';
+import { approvalKindFromStatus, notifyApprovalWatchersAfterResponse } from '@/lib/approvalWatchers';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -189,6 +192,25 @@ export async function POST(request: NextRequest) {
           }),
         }).catch(err => logger.error('Failed to fire notification:', err));
       }
+    }
+
+    // Email the calendar's "Notify by email" list (after the response)
+    const kind = approvalKindFromStatus(action);
+    if (kind) {
+      const member = await getPortalMember(request, clientId).catch(() => null);
+      notifyApprovalWatchersAfterResponse({
+        clientId,
+        postId: post_id,
+        postType: post_type,
+        kind,
+        actor: {
+          name: member?.name ?? (actioned_by || party.name),
+          email: member?.email,
+          memberId: member?.id,
+        },
+        message: comments ?? null,
+        appUrl: getRequestAppUrl(request),
+      });
     }
 
     return NextResponse.json({

@@ -72,6 +72,7 @@ export async function middleware(req: NextRequest) {
     '/api/late/webhook', // Zernio (LATE) webhooks (HMAC signature, checked in the route)
     '/api/cron/', // Scheduled jobs from GitHub Actions (CRON_SECRET, checked in each route)
     '/api/ingest/', // Agent ingest (bearer token, checked in the route)
+    '/api/approval-watchers/unsubscribe', // "Stop these emails" link in approval update emails (token checked in the route)
   ];
 
   // Define public dynamic routes

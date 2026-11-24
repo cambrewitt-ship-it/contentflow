@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import logger from '@/lib/logger';
 import { requireAuth } from '@/lib/authHelpers';
+import { getRequestAppUrl } from '@/lib/requestAppUrl';
+import { approvalKindFromStatus, notifyApprovalWatchersAfterResponse } from '@/lib/approvalWatchers';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -105,6 +107,19 @@ export async function PATCH(
       .then(({ error }) => {
         if (error) logger.warn('Failed to write approval history', error);
       });
+
+    // Email the calendar's "Notify by email" list — everyone except the agency user who changed it
+    const kind = approvalKindFromStatus(approval_status);
+    if (kind && post.approval_status !== approval_status) {
+      notifyApprovalWatchersAfterResponse({
+        clientId: post.client_id,
+        postId,
+        postType: post_type,
+        kind,
+        actor: { userId: user.id, email: user.email },
+        appUrl: getRequestAppUrl(request),
+      });
+    }
 
     return NextResponse.json({ success: true, approval_status });
   } catch (error) {

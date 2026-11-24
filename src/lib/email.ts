@@ -490,6 +490,120 @@ export async function sendCommentNotificationEmail(
   }
 }
 
+// ── Approval update emails (calendar "Notify by email") ──────────────────────
+
+export type ApprovalUpdateKind =
+  | 'approved'
+  | 'needs_attention'
+  | 'rejected'
+  | 'pending'
+  | 'comment'
+  | 'date';
+
+const APPROVAL_UPDATE_COPY: Record<ApprovalUpdateKind, { verb: string; badge: string; color: string; bg: string }> = {
+  approved: { verb: 'approved a post', badge: '✓ Approved', color: '#166534', bg: '#dcfce7' },
+  needs_attention: { verb: 'asked for changes', badge: '⚠ Improve requested', color: '#92400e', bg: '#fef3c7' },
+  rejected: { verb: 'rejected a post', badge: '✕ Rejected', color: '#991b1b', bg: '#fee2e2' },
+  pending: { verb: 'cleared a post’s approval', badge: 'Back to pending', color: '#334155', bg: '#f1f5f9' },
+  comment: { verb: 'commented on a post', badge: '💬 New comment', color: '#1e40af', bg: '#dbeafe' },
+  date: { verb: 'moved a post', badge: '📅 Date changed', color: '#075985', bg: '#e0f2fe' },
+};
+
+export interface ApprovalUpdateEmailParams {
+  to: string;
+  clientName: string;
+  kind: ApprovalUpdateKind;
+  actorName: string;
+  /** Feedback with a status change, or the comment text */
+  message: string | null;
+  /** e.g. "Mon 12 Jan → Wed 14 Jan" for a move, or the post's scheduled day */
+  dateLine: string | null;
+  postCaption: string | null;
+  postImageUrl: string | null;
+  postIsVideo?: boolean;
+  link: string;
+  linkLabel: string;
+  unsubscribeUrl: string | null;
+}
+
+export async function sendApprovalUpdateEmail(
+  params: ApprovalUpdateEmailParams
+): Promise<{ success: boolean; error?: string }> {
+  const resend = getResend();
+  if (!resend) return { success: false, error: 'Email not configured' };
+
+  const { to, clientName, kind, actorName, message, dateLine, postCaption, postImageUrl, postIsVideo, link, linkLabel, unsubscribeUrl } = params;
+  const copy = APPROVAL_UPDATE_COPY[kind];
+  const caption = postCaption
+    ? postCaption.length > 220 ? postCaption.substring(0, 220) + '…' : postCaption
+    : null;
+  const safeLink = escapeHtml(link);
+  const title = `${actorName} ${copy.verb}`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)}</title>
+  <style>${PORTAL_EMAIL_STYLES}
+    .status { display: inline-block; border-radius: 20px; padding: 5px 14px; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+    .when { font-size: 13px; color: #475569; margin: 0 0 16px; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="header">
+        <h1>${escapeHtml(title)}</h1>
+        <p>${escapeHtml(clientName)}</p>
+      </div>
+      <div class="body">
+        <div class="status" style="background:${copy.bg};color:${copy.color};">${copy.badge}</div>
+        ${dateLine ? `<p class="when">${escapeHtml(dateLine)}</p>` : ''}
+        ${message ? `<div class="quote">${escapeHtml(message)}</div>` : ''}
+        ${postImageUrl || postIsVideo || caption ? `
+        <div class="post">
+          ${postImageUrl
+            ? `<a href="${safeLink}"><img src="${escapeHtml(postImageUrl)}" alt="${postIsVideo ? 'Video' : 'Post'}" /></a>`
+            : postIsVideo
+              ? `<a href="${safeLink}" class="video-placeholder">&#9654;&nbsp; Watch the video</a>`
+              : ''}
+          ${caption ? `<div>${escapeHtml(caption)}</div>` : ''}
+        </div>` : ''}
+        <a href="${safeLink}" class="cta">${escapeHtml(linkLabel)} →</a>
+      </div>
+      <div class="footer">
+        <p>You're getting this because you're on the approval update list for ${escapeHtml(clientName)}.${unsubscribeUrl ? ` <a href="${escapeHtml(unsubscribeUrl)}" style="color:#356df3;">Stop these emails</a>` : ''}</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  const subjectBadge = kind === 'comment' ? 'New comment' : kind === 'date' ? 'Date changed' : copy.badge.replace(/^[^A-Za-z]+/, '');
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to,
+      subject: `${subjectBadge}: ${clientName} — ${actorName}`,
+      html,
+      ...(unsubscribeUrl ? { headers: { 'List-Unsubscribe': `<${unsubscribeUrl}>` } } : {}),
+    });
+    if (error) {
+      logger.error('Resend approval update error:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    logger.error('Approval update email send error:', err);
+    return { success: false, error: 'Failed to send email' };
+  }
+}
+
 export function isEmailConfigured(): boolean {
   return !!process.env.RESEND_API_KEY;
 }

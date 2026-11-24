@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PDFExportModal } from '@/components/PDFExportModal';
+import { ApprovalNotifyButton } from '@/components/ApprovalNotifyButton';
 import { FacebookIcon, InstagramIcon, TwitterIcon, LinkedInIcon } from '@/components/social-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useContentEvents } from '@/components/EventsCalendarLayer';
@@ -2689,6 +2690,8 @@ export default function CalendarPage() {
           <User className="w-4 h-4" />
           Content Portal
         </button>
+
+        <ApprovalNotifyButton clientId={clientId} />
       </div>
 
             {/* Right side - schedule + project filter + nav buttons */}

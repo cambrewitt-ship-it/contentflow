@@ -8,6 +8,7 @@ import { getPortalMember } from '@/lib/portalMembers';
 import { parseMentions } from '@/lib/mentions';
 import { filterValidMentions, getAgencyUserById, notifyCommentRecipients } from '@/lib/commentNotifications';
 import { getRequestAppUrl } from '@/lib/requestAppUrl';
+import { notifyApprovalWatchersAfterResponse } from '@/lib/approvalWatchers';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -341,6 +342,17 @@ export async function POST(
     } catch (notifyError) {
       logger.error('Error sending comment notifications:', notifyError);
     }
+
+    // Email the calendar's "Notify by email" list (after the response; skips the author)
+    notifyApprovalWatchersAfterResponse({
+      clientId,
+      postId,
+      postType: post_type,
+      kind: 'comment',
+      actor: { name: authorName, memberId, userId },
+      message: content,
+      appUrl: getRequestAppUrl(request),
+    });
 
     return NextResponse.json({ comment }, { status: 201 });
   } catch (error) {

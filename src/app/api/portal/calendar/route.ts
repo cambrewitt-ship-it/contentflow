@@ -4,6 +4,9 @@ import { z } from 'zod';
 import logger from '@/lib/logger';
 import { resolvePortalToken } from '@/lib/portalAuth';
 import { normalizeTimeOfDay, syncLateSchedule } from '@/lib/lateReschedule';
+import { getPortalMember } from '@/lib/portalMembers';
+import { getRequestAppUrl } from '@/lib/requestAppUrl';
+import { notifyApprovalWatchersAfterResponse } from '@/lib/approvalWatchers';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -319,7 +322,7 @@ export async function PATCH(request: NextRequest) {
     // Verify the post belongs to this client
     const { data: existing, error: fetchError } = await supabase
       .from('calendar_scheduled_posts')
-      .select('id')
+      .select('id, scheduled_date, scheduled_time')
       .eq('id', postId)
       .eq('client_id', clientId)
       .single();
@@ -353,6 +356,28 @@ export async function PATCH(request: NextRequest) {
         { error: 'Failed to update post' },
         { status: 500 }
       );
+    }
+
+    // Moved to another day or time: email the calendar's "Notify by email" list
+    const newDate = scheduled_date !== undefined ? scheduled_date : existing.scheduled_date;
+    const newTime = normalizedTime !== undefined ? normalizedTime : existing.scheduled_time;
+    const sameTime = (a: string | null, b: string | null) => (a ?? '').slice(0, 5) === (b ?? '').slice(0, 5);
+    if (newDate !== existing.scheduled_date || !sameTime(newTime, existing.scheduled_time)) {
+      const member = await getPortalMember(request, clientId).catch(() => null);
+      notifyApprovalWatchersAfterResponse({
+        clientId,
+        postId,
+        postType: 'calendar_scheduled',
+        kind: 'date',
+        actor: { name: member?.name ?? resolved.party?.name, email: member?.email, memberId: member?.id },
+        move: {
+          fromDate: existing.scheduled_date,
+          fromTime: existing.scheduled_time,
+          toDate: newDate,
+          toTime: newTime,
+        },
+        appUrl: getRequestAppUrl(request),
+      });
     }
 
     return NextResponse.json({ success: true });
