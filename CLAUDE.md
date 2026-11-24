@@ -182,3 +182,12 @@ the whole codebase (and Vercel env vars).
   post's platforms when set, else all connected). The portal "Improve" comment that echoes the status feedback is skipped (one email).
   Any new route that changes approval status should call it too.
 - Footer "Stop these emails" → public `/api/approval-watchers/unsubscribe` (token; in the middleware's public list).
+
+## Marketing pages (home, /features, /social-preview)
+
+- Cold traffic lands on `/social-preview/*`; the home page and `/features` pitch the product. All three render
+  `PlatformFeatures` (`src/components/marketing/PlatformFeatures.tsx`): the "One tool instead of five" strip
+  (Canva / ChatGPT / Meta Business Suite / email chains / reporting tools) and seven feature pillars with
+  hand-built mockup visuals. `PLATFORM_FEATURE_LIST` feeds the schema.org `featureList`.
+- When a feature ships, add it to the right pillar there so every landing page advertises it. Keep claims true to
+  what the app does (e.g. the "Needs attention" chips match `/api/analytics/portfolio`).

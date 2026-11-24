@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import HomeContent from './HomeContent'
+import { PLATFORM_FEATURE_LIST } from '@/components/marketing/PlatformFeatures'
 
 export const metadata: Metadata = {
   title: 'AI Social Media Management for Marketing Agencies | Content Manager',
-  description: 'Content Manager helps marketing agencies manage social media 3x faster. Generate on-brand AI content, schedule across every platform, and streamline client approvals — all in one place. Start free.',
+  description: 'The all-in-one social media platform for agencies: brand-trained AI captions, Design Studio graphics, scheduling to every platform, client approvals, a comments inbox with AI replies, analytics and monthly reports. Start free.',
   keywords: 'social media management software, AI social media tool, marketing agency software, content scheduling, social media scheduler, AI content generation, brand voice AI, social media management for agencies',
   alternates: {
     canonical: 'https://content-manager.io',
@@ -73,7 +74,8 @@ const softwareSchema = {
       description: 'For larger agencies — unlimited client profiles, unlimited scheduled posts, white-label branding.',
     },
   ],
-  description: 'AI-powered social media management platform. Train the AI on your brand voice, generate on-brand content, schedule across Facebook, Instagram, TikTok, LinkedIn, Twitter, YouTube and Threads, and manage client approvals in one shared workspace.',
+  description: 'All-in-one AI social media management platform. Train the AI on your brand voice, plan and write on-brand content, design graphics with Brand Kits, schedule across Facebook, Instagram, TikTok, LinkedIn, X, YouTube and Threads, manage client approvals, answer comments with AI replies, and report on results with analytics and monthly client reports.',
+  featureList: PLATFORM_FEATURE_LIST,
   url: 'https://content-manager.io',
   author: {
     '@type': 'Organization',
