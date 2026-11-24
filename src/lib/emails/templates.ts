@@ -170,7 +170,7 @@ export function accountDeletedEmail(p: { name?: string | null }): RenderedEmail 
     heading: 'Your account has been deleted',
     paragraphs: [
       greet(p.name),
-      'This confirms that your Content Manager account and its data have been permanently deleted.',
+      'This confirms that your Content Manager account and its data have been permanently deleted, and your subscription has been cancelled — you won’t be charged again.',
       "We're sorry to see you go. If you have a moment, reply and let us know what we could have done better.",
     ],
     note: "If you didn't request this, reply to this email immediately.",
