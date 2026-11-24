@@ -146,7 +146,7 @@ export async function runAutopilotAgentLoop(ctx: RunContext): Promise<AgentRunRe
 
     const nearCap = iterations >= MAX_ITERATIONS - 1;
     const completion = await createCompletionWithBackoff({
-      ...completionParams(MODEL, { temperature: 0.7 }),
+      ...completionParams(MODEL, { temperature: 0.7, tools: true }),
       messages,
       tools: AGENT_TOOL_DEFS,
       tool_choice: nearCap && ctx.scratchpad.posts.length > 0
