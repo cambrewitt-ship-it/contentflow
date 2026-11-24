@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import type { Response } from 'openai/resources/responses/responses';
 import logger from '@/lib/logger';
+import { AI_MODEL } from '@/lib/aiModel';
 import { describeProfile, normalizeHandle } from './profile';
 import type { ResearchPlatform, ResearchProfile, TrendFindings, TrendItem } from './types';
 
@@ -8,7 +9,7 @@ import type { ResearchPlatform, ResearchProfile, TrendFindings, TrendItem } from
 // trends for the niche, and candidate accounts to track.
 
 const openai = new OpenAI();
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+const MODEL = AI_MODEL;
 
 function monthYear(): string {
   return new Date().toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });

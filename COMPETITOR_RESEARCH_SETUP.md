@@ -63,7 +63,7 @@ How the app protects the shared limit:
 
 ## 3. Trend search (OpenAI)
 
-Uses the existing `OPENAI_API_KEY` and `OPENAI_MODEL` (default `gpt-4o`) with the Responses API
+Uses the existing `OPENAI_API_KEY` and the app-wide writing model (`AI_MODEL` in `src/lib/aiModel.ts`) with the Responses API
 web search tool. Nothing else to set up.
 
 ## 4. TikTok (Apify, optional)

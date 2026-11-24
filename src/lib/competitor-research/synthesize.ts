@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import type { ChatCompletionContentPart } from 'openai/resources/chat/completions';
 import logger from '@/lib/logger';
+import { AI_MODEL } from '@/lib/aiModel';
 import { completionParams } from '@/lib/openaiParams';
 import type { BrandContext } from '@/lib/autopilot-agent/context';
 import { describeProfile } from './profile';
@@ -14,7 +15,7 @@ import type {
 } from './types';
 
 const openai = new OpenAI();
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+const MODEL = AI_MODEL;
 
 // Images sent to the vision model; detail "low" keeps each at a flat ~85 tokens.
 const MAX_IMAGES = 12;
