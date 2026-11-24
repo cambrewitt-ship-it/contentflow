@@ -518,6 +518,10 @@ export interface ApprovalUpdateEmailParams {
   message: string | null;
   /** e.g. "Mon 12 Jan → Wed 14 Jan" for a move, or the post's scheduled day */
   dateLine: string | null;
+  /** The client's connected social accounts this post is for (empty = none connected, null = unknown) */
+  accounts?: { platform: string; name: string }[] | null;
+  /** "Posting to" (the post's platforms) or "Connected accounts" (everything connected) */
+  accountsLabel?: string;
   postCaption: string | null;
   postImageUrl: string | null;
   postIsVideo?: boolean;
@@ -532,7 +536,7 @@ export async function sendApprovalUpdateEmail(
   const resend = getResend();
   if (!resend) return { success: false, error: 'Email not configured' };
 
-  const { to, clientName, kind, actorName, message, dateLine, postCaption, postImageUrl, postIsVideo, link, linkLabel, unsubscribeUrl } = params;
+  const { to, clientName, kind, actorName, message, dateLine, accounts, accountsLabel, postCaption, postImageUrl, postIsVideo, link, linkLabel, unsubscribeUrl } = params;
   const copy = APPROVAL_UPDATE_COPY[kind];
   const caption = postCaption
     ? postCaption.length > 220 ? postCaption.substring(0, 220) + '…' : postCaption
@@ -550,6 +554,10 @@ export async function sendApprovalUpdateEmail(
   <style>${PORTAL_EMAIL_STYLES}
     .status { display: inline-block; border-radius: 20px; padding: 5px 14px; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
     .when { font-size: 13px; color: #475569; margin: 0 0 16px; }
+    .accounts { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin: 0 0 16px; }
+    .accounts-label { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
+    .account { font-size: 14px; color: #0f172a; line-height: 1.7; }
+    .platform { display: inline-block; min-width: 76px; font-size: 12px; font-weight: 600; color: #2858d8; }
   </style>
 </head>
 <body>
@@ -562,6 +570,13 @@ export async function sendApprovalUpdateEmail(
       <div class="body">
         <div class="status" style="background:${copy.bg};color:${copy.color};">${copy.badge}</div>
         ${dateLine ? `<p class="when">${escapeHtml(dateLine)}</p>` : ''}
+        ${accounts ? `
+        <div class="accounts">
+          <div class="accounts-label">${escapeHtml(accountsLabel ?? 'Connected accounts')}</div>
+          ${accounts.length > 0
+            ? accounts.map(a => `<div class="account"><span class="platform">${escapeHtml(a.platform)}</span> ${escapeHtml(a.name)}</div>`).join('')
+            : '<div class="account" style="color:#92400e;">No social accounts connected yet</div>'}
+        </div>` : ''}
         ${message ? `<div class="quote">${escapeHtml(message)}</div>` : ''}
         ${postImageUrl || postIsVideo || caption ? `
         <div class="post">

@@ -172,6 +172,7 @@ the whole codebase (and Vercel env vars).
   approval links (`/api/approval-sessions/submit-approval`), pipeline steps (`/api/portal/approve-step`), agency
   status changes (`/api/posts/[postId]/approval-status`), comments (`/api/posts/[postId]/comments`) and portal
   date/time moves (`PATCH /api/portal/calendar`). Agency drag-moves in the calendar don't email. The person who made
-  the change is never emailed; the portal "Improve" comment that echoes the status feedback is skipped (one email).
+  the change is never emailed. Emails list the connected account names (live from Zernio `listAccounts`; the
+  post's platforms when set, else all connected). The portal "Improve" comment that echoes the status feedback is skipped (one email).
   Any new route that changes approval status should call it too.
 - Footer "Stop these emails" → public `/api/approval-watchers/unsubscribe` (token; in the middleware's public list).

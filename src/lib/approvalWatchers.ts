@@ -17,6 +17,7 @@ import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { sendApprovalUpdateEmail, type ApprovalUpdateKind } from '@/lib/email';
 import { getAgencyUser, getAgencyUserById, getPostPreview, type CommentPostType } from '@/lib/commentNotifications';
 import { mentionsToPlainText } from '@/lib/mentions';
+import { listAccounts } from '@/lib/zernio/api';
 
 const TABLE = 'approval_watchers';
 
@@ -222,22 +223,88 @@ function formatTime(time: string): string | null {
   return `${h12}:${m[2]}${suffix}`;
 }
 
-async function getPostSchedule(postId: string, postType: CommentPostType) {
+async function getPostDetails(
+  postId: string,
+  postType: CommentPostType
+): Promise<{ scheduled: string | null; platforms: string[] }> {
   const admin = createSupabaseAdmin();
   if (postType === 'calendar_scheduled') {
     const { data } = await admin
       .from('calendar_scheduled_posts')
-      .select('scheduled_date, scheduled_time')
+      .select('scheduled_date, scheduled_time, target_platforms, platforms_scheduled')
       .eq('id', postId)
       .maybeSingle();
-    return formatDay(data?.scheduled_date, data?.scheduled_time);
+    // Where it's been scheduled in Zernio wins; otherwise the platforms ticked in the post modal
+    const scheduledTo = (data?.platforms_scheduled as string[] | null) ?? [];
+    const targets = (data?.target_platforms as string[] | null) ?? [];
+    return {
+      scheduled: formatDay(data?.scheduled_date, data?.scheduled_time),
+      platforms: scheduledTo.length > 0 ? scheduledTo : targets,
+    };
   }
   if (postType === 'scheduled') {
     const { data } = await admin.from('scheduled_posts').select('scheduled_time').eq('id', postId).maybeSingle();
-    return formatDay(data?.scheduled_time);
+    return { scheduled: formatDay(data?.scheduled_time), platforms: [] };
   }
   const { data } = await admin.from('client_uploads').select('target_date').eq('id', postId).maybeSingle();
-  return formatDay(data?.target_date);
+  return { scheduled: formatDay(data?.target_date), platforms: [] };
+}
+
+const PLATFORM_LABELS: Record<string, string> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  linkedin: 'LinkedIn',
+  tiktok: 'TikTok',
+  twitter: 'X',
+  x: 'X',
+  youtube: 'YouTube',
+  threads: 'Threads',
+  pinterest: 'Pinterest',
+  bluesky: 'Bluesky',
+  googlebusiness: 'Google Business',
+  reddit: 'Reddit',
+  telegram: 'Telegram',
+};
+
+export function platformLabel(platform: string): string {
+  const key = platform.toLowerCase();
+  return PLATFORM_LABELS[key] ?? key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+export interface EmailAccount {
+  platform: string;
+  name: string;
+}
+
+/**
+ * The client's connected social accounts by name (live from Zernio), limited to the
+ * post's platforms when it has any. null = couldn't read them (no profile, API error).
+ */
+async function getConnectedAccounts(
+  lateProfileId: string | null | undefined,
+  postPlatforms: string[]
+): Promise<{ label: string; accounts: EmailAccount[] } | null> {
+  if (!lateProfileId) return { label: 'Connected accounts', accounts: [] };
+  try {
+    const accounts = await listAccounts(lateProfileId);
+    const wanted = new Set(postPlatforms.map(p => (p.toLowerCase() === 'x' ? 'twitter' : p.toLowerCase())));
+    const forPost = accounts.filter(a => wanted.has(a.platform.toLowerCase()));
+    // The post's own platforms when it has connected ones, otherwise everything connected
+    const relevant = forPost.length > 0 ? forPost : accounts;
+    const label = forPost.length > 0 ? 'Posting to' : 'Connected accounts';
+    return { label, accounts: relevant.map(a => {
+      const handle = a.username ? (a.platform === 'linkedin' || a.platform === 'facebook' ? a.username : `@${a.username.replace(/^@/, '')}`) : null;
+      const display = a.displayName?.trim();
+      const name =
+        display && handle && display.toLowerCase() !== handle.replace(/^@/, '').toLowerCase()
+          ? `${display} (${handle})`
+          : display || handle || 'Connected account';
+      return { platform: platformLabel(a.platform), name };
+    }) };
+  } catch (err) {
+    logger.warn('Could not load connected accounts for approval email', err);
+    return null;
+  }
 }
 
 /**
@@ -293,7 +360,7 @@ export async function notifyApprovalWatchers(event: ApprovalUpdateEvent): Promis
 
     const { data: client } = await admin
       .from('clients')
-      .select('name, portal_token')
+      .select('name, portal_token, late_profile_id')
       .eq('id', clientId)
       .maybeSingle();
     const clientName = (client?.name as string | undefined) ?? 'Your client';
@@ -313,10 +380,12 @@ export async function notifyApprovalWatchers(event: ApprovalUpdateEvent): Promis
       memberByEmail.set(email, party?.portal_token ?? (client?.portal_token as string | undefined) ?? null);
     }
 
-    const [preview, scheduledLine] = await Promise.all([
+    const [preview, details] = await Promise.all([
       getPostPreview(postId, postType),
-      kind === 'date' ? Promise.resolve(null) : getPostSchedule(postId, postType),
+      getPostDetails(postId, postType),
     ]);
+    const scheduledLine = kind === 'date' ? null : details.scheduled;
+    const accounts = await getConnectedAccounts(client?.late_profile_id as string | null | undefined, details.platforms);
 
     let dateLine: string | null = scheduledLine ? `Scheduled for ${scheduledLine}` : null;
     if (kind === 'date' && event.move) {
@@ -339,6 +408,8 @@ export async function notifyApprovalWatchers(event: ApprovalUpdateEvent): Promis
           actorName,
           message,
           dateLine,
+          accounts: accounts?.accounts ?? null,
+          accountsLabel: accounts?.label,
           postCaption: preview.caption,
           postImageUrl: preview.imageUrl,
           postIsVideo: preview.isVideo,
