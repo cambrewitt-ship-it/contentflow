@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateContentPlan } from '@/lib/autopilot-engine';
 import logger from '@/lib/logger';
+import { rejectUnauthorizedCron } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes — allow time for multiple clients
@@ -41,16 +42,9 @@ function formatDate(d: Date): string {
  * Processes clients where autopilot_enabled = true and auto_generate = true.
  */
 export async function GET(req: NextRequest) {
-  // Verify cron secret (matches pattern in check-trial-expiry route)
-  const authHeader = req.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (process.env.NODE_ENV === 'production' && cronSecret) {
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      logger.warn('Unauthorized autopilot cron attempt');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  }
+  // Requires CRON_SECRET in production (see src/lib/cronAuth.ts)
+  const rejected = rejectUnauthorizedCron(req, 'generate-autopilot-plans');
+  if (rejected) return rejected;
 
   const weekStart = nextMondayUTC();
   const weekEnd = addDays(weekStart, 6);

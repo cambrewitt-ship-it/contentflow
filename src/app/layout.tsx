@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { poppins, montserrat } from "./fonts";
+import { geist, poppins, montserrat } from "./fonts";
 import "./globals.css";
 import "../styles/glassmorphism.css";
 import { UIThemeProvider } from "../contexts/UIThemeContext";
 import { AuthProvider } from "../contexts/AuthContext";
 import ConditionalCreditsProvider from "./ConditionalCreditsProvider";
 import { GoogleTagManager, GoogleTagManagerNoScript } from "../components/GoogleTagManager";
+import AmbientBackground from "../components/AmbientBackground";
 
 // Validate environment variables on server startup
 import "../lib/validateEnv";
@@ -14,7 +15,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#ffffff",
+  themeColor: "#f6f9fd",
 };
 
 export const metadata: Metadata = {
@@ -68,10 +69,11 @@ export default function RootLayout({
   const gtmId = process.env.NEXT_PUBLIC_GTM_ID || 'GTM-KL3PR53B';
   
   return (
-    <html lang="en">
-      <body className={`${poppins.className} ${montserrat.variable} antialiased`}>
+    <html lang="en" className={geist.variable}>
+      <body className={`${geist.className} ${poppins.variable} ${montserrat.variable} antialiased`}>
         <GoogleTagManager gtmId={gtmId} />
         <GoogleTagManagerNoScript gtmId={gtmId} />
+        <AmbientBackground />
         <AuthProvider>
           <ConditionalCreditsProvider>
             <UIThemeProvider>

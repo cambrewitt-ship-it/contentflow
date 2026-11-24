@@ -1,10 +1,11 @@
 'use client'
 
 import React from 'react'
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { uploadMediaToBlob, getMediaType } from './blobUpload'
 import { extractVideoThumbnail } from './videoUtils'
-import { compressImageIfNeeded, prepareImageDataForAI } from './imageCompression'
+import { compressImageIfNeeded, dataUrlByteSize, fitImageForVision, prepareImageDataForAI } from './imageCompression'
+import { readCaptionStream } from './captionStream'
 import logger from './logger'
 
 export interface Caption {
@@ -45,6 +46,15 @@ export interface UploadedImage {
   mimeType?: string
   videoThumbnail?: string // Thumbnail image for videos (first frame)
   uploadFailed?: boolean
+  // Layered design from the in-app image editor, so reopening the editor keeps text,
+  // overlays and filters editable instead of working on the flattened export.
+  design?: ImageDesign
+}
+
+export interface ImageDesign {
+  json: Record<string, unknown>
+  width: number
+  height: number
 }
 
 // Serializable version for localStorage
@@ -88,8 +98,9 @@ export interface ContentStore {
   setCopyTone: (tone: CopyTone) => void
   setCopyType: (copyType: 'social-media' | 'email-marketing') => void
   setContentIdeas: (ideas: ContentIdea[]) => void
-  addImage: (file: File, options?: { activate?: boolean }) => Promise<void>
+  addImage: (file: File, options?: { activate?: boolean; design?: ImageDesign }) => Promise<void>
   removeImage: (id: string) => void
+  replaceImage: (id: string, file: File, design?: ImageDesign) => Promise<void>
   updateImageNotes: (id: string, notes: string) => void
   updateCaption: (id: string, text: string) => void
   selectCaption: (id: string) => void
@@ -344,7 +355,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Empty dependency array - only run on mount/unmount
 
-  const addImage = async (file: File, options?: { activate?: boolean }) => {
+  const addImage = async (file: File, options?: { activate?: boolean; design?: ImageDesign }) => {
     const id = `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const detectedType = getMediaType(file)
     const mediaType = detectedType === 'unknown' ? undefined : detectedType
@@ -377,7 +388,8 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
       preview: previewUrl, 
       mediaType,
       mimeType: file.type,
-      videoThumbnail: videoThumbnail
+      videoThumbnail: videoThumbnail,
+      design: options?.design,
     }
     setUploadedImages(prev => [...prev, newImage])
     if (options?.activate !== false) {
@@ -432,6 +444,46 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     if (activeImageId === id) {
       const next = remaining[Math.min(Math.max(removedIndex, 0), remaining.length - 1)]
       setActiveImageId(next ? next.id : null)
+    }
+  }
+
+  // Swap an image for an edited version (from the image editor): show it straight away,
+  // then upload it and point the post at the new blob URL.
+  const replaceImage = async (id: string, file: File, design?: ImageDesign) => {
+    const previewUrl = URL.createObjectURL(file)
+    setUploadedImages(prev =>
+      prev.map(img =>
+        img.id === id
+          ? {
+              ...img,
+              file,
+              preview: previewUrl,
+              blobUrl: undefined,
+              uploadFailed: false,
+              mediaType: 'image',
+              mimeType: file.type,
+              videoThumbnail: undefined,
+              design,
+            }
+          : img
+      )
+    )
+    try {
+      const uploadResult = await uploadMediaToBlob(file, `content-${Date.now()}-${file.name}`)
+      setUploadedImages(prev =>
+        prev.map(img =>
+          // Only apply if this edit is still the current version of the image
+          img.id === id && img.preview === previewUrl
+            ? { ...img, blobUrl: uploadResult.url, preview: uploadResult.url, mimeType: uploadResult.mimeType }
+            : img
+        )
+      )
+      URL.revokeObjectURL(previewUrl)
+    } catch (error) {
+      logger.error('❌ Failed to upload edited image:', error)
+      setUploadedImages(prev =>
+        prev.map(img => (img.id === id && img.preview === previewUrl ? { ...img, uploadFailed: true } : img))
+      )
     }
   }
 
@@ -536,7 +588,8 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
             reader.onerror = reject
           })
           reader.readAsDataURL(blob)
-          imageData = await base64Promise
+          imageData = await fitImageForVision(await base64Promise)
+          actualImageSize = dataUrlByteSize(imageData)
           
           // Compress if needed (HTTPS URLs might point to large images)
           // Use 3MB limit to account for base64 overhead + other request fields (Vercel 4.5MB limit)
@@ -567,7 +620,8 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
             reader.onerror = reject
           })
           reader.readAsDataURL(blob)
-          imageData = await base64Promise
+          imageData = await fitImageForVision(await base64Promise)
+          actualImageSize = dataUrlByteSize(imageData)
           
           // Compress if needed (browser blob URLs might be large)
           // Use 3MB limit to account for base64 overhead + other request fields (Vercel 4.5MB limit)
@@ -583,10 +637,9 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
             actualImageSize = Math.floor((compressedBase64.length * 3) / 4) - compressedPadding
           }
         } else if (isBase64) {
-          // Already base64: Calculate size and compress if needed
-          const base64Data = imageData.split(',')[1] || imageData
-          const padding = (base64Data.match(/=/g) || []).length
-          actualImageSize = Math.floor((base64Data.length * 3) / 4) - padding
+          // Already base64: fit to the vision resolution, then compress if still needed
+          imageData = await fitImageForVision(imageData)
+          actualImageSize = dataUrlByteSize(imageData)
           
           // Compress if needed
           // Use 3MB limit to account for base64 overhead + other request fields (Vercel 4.5MB limit)
@@ -623,7 +676,8 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         copyTone: copyTone,
         postNotesStyle: notesInterpretation,
         imageFocus: contentFocus,
-        contentType: !image ? 'text' : isVideo ? 'video' : 'image'
+        contentType: !image ? 'text' : isVideo ? 'video' : 'image',
+        stream: true,
       }
 
       // Convert request body to string (always needed for fetch)
@@ -718,79 +772,83 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         }
       }
 
-      // Parse response as JSON even if response.ok is false (to check for insufficient credits)
-      let data
-      try {
-        const responseText = await response.text()
-        try {
-          data = JSON.parse(responseText)
-        } catch (parseError) {
-          // If parsing fails, log and throw generic error
-          logger.error('API response error - failed to parse JSON:', response.status, responseText)
-          throw new Error(`Failed to generate captions: ${response.status}`)
-        }
-      } catch (readError) {
-        // If reading fails entirely
-        logger.error('API response error - failed to read response:', response.status)
-        throw readError instanceof Error ? readError : new Error(`Failed to generate captions: ${response.status}`)
-      }
-
-      // Check for insufficient credits error. Note: a 403 alone is NOT sufficient evidence -
-      // requireClientOwnership also returns 403 ("Forbidden") for unrelated auth/ownership
-      // failures, so we only classify as a credit error when the response actually says so.
-      const hasInsufficientCreditsError = data &&
-        typeof data.error === 'object' &&
-        data.error !== null &&
-        'code' in data.error &&
-        (data.error as { code: string }).code === 'INSUFFICIENT_CREDITS'
-      const hasCreditErrorMessage = data &&
-        typeof data.error === 'string' &&
-        (data.error.includes('credit') || data.error.includes('Credit') || data.error.includes('AI credit'))
-
-      const insufficientCredits = hasInsufficientCreditsError || hasCreditErrorMessage
-
-      if (insufficientCredits) {
-        const serverMessage = hasInsufficientCreditsError
-          ? (data.error as { message?: string }).message
-          : (typeof data.error === 'string' ? data.error : undefined)
-        const error = new Error('INSUFFICIENT_CREDITS')
-        error.name = 'InsufficientCreditsError'
-        ;(error as Error & { details?: string }).details = serverMessage
-        throw error
-      }
-
+      // Errors (auth, credits, validation) come back as plain JSON before any streaming starts
       if (!response.ok) {
+        // Parse the JSON error body (to check for insufficient credits)
+        let data
+        try {
+          const responseText = await response.text()
+          try {
+            data = JSON.parse(responseText)
+          } catch (parseError) {
+            // If parsing fails, log and throw generic error
+            logger.error('API response error - failed to parse JSON:', response.status, responseText)
+            throw new Error(`Failed to generate captions: ${response.status}`)
+          }
+        } catch (readError) {
+          // If reading fails entirely
+          logger.error('API response error - failed to read response:', response.status)
+          throw readError instanceof Error ? readError : new Error(`Failed to generate captions: ${response.status}`)
+        }
+
+        // Check for insufficient credits error. Note: a 403 alone is NOT sufficient evidence -
+        // requireClientOwnership also returns 403 ("Forbidden") for unrelated auth/ownership
+        // failures, so we only classify as a credit error when the response actually says so.
+        const hasInsufficientCreditsError = data &&
+          typeof data.error === 'object' &&
+          data.error !== null &&
+          'code' in data.error &&
+          (data.error as { code: string }).code === 'INSUFFICIENT_CREDITS'
+        const hasCreditErrorMessage = data &&
+          typeof data.error === 'string' &&
+          (data.error.includes('credit') || data.error.includes('Credit') || data.error.includes('AI credit'))
+
+        const insufficientCredits = hasInsufficientCreditsError || hasCreditErrorMessage
+
+        if (insufficientCredits) {
+          const serverMessage = hasInsufficientCreditsError
+            ? (data.error as { message?: string }).message
+            : (typeof data.error === 'string' ? data.error : undefined)
+          const error = new Error('INSUFFICIENT_CREDITS')
+          error.name = 'InsufficientCreditsError'
+          ;(error as Error & { details?: string }).details = serverMessage
+          throw error
+        }
+
         logger.error('API response error:', response.status, data)
         const serverMessage = typeof data?.error === 'string' ? data.error : undefined
         throw new Error(serverMessage || `Failed to generate captions: ${response.status}`)
       }
 
-      if (data.captions && Array.isArray(data.captions) && data.captions.length > 0) {
-        // Convert the captions array to the expected format with IDs
-        const newCaptions = data.captions.map((text: string, index: number) => ({
-          id: `caption-${Date.now()}-${index}`,
-          text: text,
-          isSelected: false
-        }))
-
-        setCaptions(newCaptions)
-        
-        // Trigger refresh of credits after successful generation
-        // CreditsContext will listen for this event and refresh
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('credits-used'));
-        }
-      } else {
-        logger.error('No captions in response or empty array:', {
-          hasCaptions: !!data.captions,
-          isArray: Array.isArray(data.captions),
-          captionsLength: Array.isArray(data.captions) ? data.captions.length : 0,
-          responseData: data
+      // Show the captions as they're written; the final event carries the cleaned-up versions
+      const ts = Date.now()
+      const toCaptions = (texts: string[]) => texts.map((text, index) => ({
+        id: `caption-${ts}-${index}`,
+        text,
+        isSelected: false
+      }))
+      const previousCaptions = captions
+      let captionTexts: string[]
+      try {
+        captionTexts = await readCaptionStream(response, (partial) => {
+          if (partial.length > 0) setCaptions(toCaptions(partial))
         })
-        throw new Error(
-          data.error || 
-          'No captions were generated. Please try again with different content or notes.'
-        )
+      } catch (streamError) {
+        // Don't leave half-written captions behind if generation fails part-way
+        setCaptions(previousCaptions)
+        throw streamError
+      }
+
+      if (captionTexts.length === 0) {
+        setCaptions(previousCaptions)
+        throw new Error('No captions were generated. Please try again with different content or notes.')
+      }
+      setCaptions(toCaptions(captionTexts))
+
+      // Trigger refresh of credits after successful generation
+      // CreditsContext will listen for this event and refresh
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('credits-used'));
       }
     } catch (error) {
       logger.error('Error generating AI captions:', error)
@@ -877,10 +935,19 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
   }
 
   // Get image data for chat API calls — converts URLs to base64 and compresses (shares compressImageIfNeeded with generateAICaptions)
+  // Downloading + compressing the image is slow, so reuse the result for every
+  // message about the same image instead of redoing it per request.
+  const preparedImageCache = useRef(new Map<string, string>())
+
   const getImageDataForChat = async (): Promise<string | undefined> => {
     const activeImage = uploadedImages.find(img => img.id === activeImageId)
     if (!activeImage) return undefined
-    return prepareImageDataForAI(activeImage)
+    const cacheKey = `${activeImage.id}:${activeImage.blobUrl || activeImage.preview || ''}`
+    const cached = preparedImageCache.current.get(cacheKey)
+    if (cached) return cached
+    const prepared = await prepareImageDataForAI(activeImage)
+    if (prepared) preparedImageCache.current.set(cacheKey, prepared)
+    return prepared
   }
 
   // A 403 alone is not sufficient evidence of an insufficient-credits error (auth/ownership
@@ -904,12 +971,18 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     if ((!activeImage && !postNotes.trim()) || !accessToken) return
 
     const isVideo = activeImage?.mediaType === 'video'
-    const imageData = activeImage ? await getImageDataForChat() : undefined
-    if (activeImage && !imageData) return
 
+    // Show the thinking state straight away — image prep can take a moment.
     const loadingId = `msg-${Date.now()}`
     setChatMessages([{ id: loadingId, role: 'assistant', content: '', isLoading: true }])
     setChatLoading(true)
+
+    const imageData = activeImage ? await getImageDataForChat() : undefined
+    if (activeImage && !imageData) {
+      setChatMessages([])
+      setChatLoading(false)
+      return
+    }
 
     try {
       const aiContext = isVideo || !activeImage
@@ -922,12 +995,11 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ action: 'generate_captions', imageData, aiContext, clientId, copyType }),
+        body: JSON.stringify({ action: 'generate_captions', imageData, aiContext, clientId, copyType, stream: true }),
       })
 
-      const data = await response.json().catch(() => ({}))
-
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
         const creditError = classifyCreditError(data)
         if (creditError) {
           setChatMessages([])
@@ -939,9 +1011,14 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
         throw new Error((data.error as string) || `Error ${response.status}`)
       }
 
-      const captionTexts: string[] = data.captions || []
+      // Show the captions in the chat as they're written
       const ts = Date.now()
-      const newCaptions: ChatCaption[] = captionTexts.map((text, i) => ({ id: `chat-init-${ts}-${i}`, text }))
+      const toChatCaptions = (texts: string[]): ChatCaption[] => texts.map((text, i) => ({ id: `chat-init-${ts}-${i}`, text }))
+      const captionTexts = await readCaptionStream(response, (partial) => {
+        if (partial.length === 0) return
+        setChatMessages([{ id: loadingId, role: 'assistant', content: '', captions: toChatCaptions(partial), isLoading: false }])
+      })
+      const newCaptions = toChatCaptions(captionTexts)
 
       setCaptions(newCaptions)
       setChatMessages([{ id: loadingId, role: 'assistant', content: '', captions: newCaptions, isLoading: false }])
@@ -1004,29 +1081,47 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
           aiContext: postNotes?.trim() || undefined,
           clientId,
           copyType,
+          stream: true,
         }),
       })
 
-      const data = await response.json().catch(() => ({}))
-
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
         const creditError = classifyCreditError(data)
         throw new Error(creditError || (data.error as string) || `Error ${response.status}`)
       }
 
-      const captionTexts: string[] = data.captions || []
+      // Show the captions in the chat as they're written
       const ts = Date.now()
-      const newCaptions: ChatCaption[] = captionTexts.map((text, i) => ({ id: `chat-${aiMsgId}-${i}-${ts}`, text }))
-
-      setChatMessages(prev => prev.map(m =>
-        m.id === aiMsgId
-          ? { ...m, captions: newCaptions, suggestedRule: data.suggestedRule || undefined, isLoading: false }
-          : m
+      const toChatCaptions = (texts: string[]): ChatCaption[] => texts.map((text, i) => ({ id: `chat-${aiMsgId}-${i}-${ts}`, text }))
+      const showCaptions = (texts: string[]) => setChatMessages(prev => prev.map(m =>
+        m.id === aiMsgId ? { ...m, captions: toChatCaptions(texts), isLoading: false } : m
       ))
+      let suggestedRule: string | undefined
+      const captionTexts = await readCaptionStream(
+        response,
+        (partial) => {
+          if (partial.length > 0) showCaptions(partial)
+        },
+        (data) => {
+          if (typeof data.suggestedRule === 'string' && data.suggestedRule) suggestedRule = data.suggestedRule
+        }
+      )
+      const newCaptions = toChatCaptions(captionTexts)
+      showCaptions(captionTexts)
+      if (suggestedRule) {
+        setChatMessages(prev => prev.map(m => (m.id === aiMsgId ? { ...m, suggestedRule } : m)))
+      }
+      // A caption picked while it was still being written was copied into the store early —
+      // give it its finished text
+      setCaptions(prev => prev.map(c => {
+        const finished = newCaptions.find(n => n.id === c.id)
+        return finished ? { ...c, text: finished.text } : c
+      }))
     } catch (error) {
       setChatMessages(prev => prev.map(m =>
         m.id === aiMsgId
-          ? { ...m, content: error instanceof Error ? error.message : 'Failed to generate. Please try again.', isLoading: false }
+          ? { ...m, captions: undefined, content: error instanceof Error ? error.message : 'Failed to generate. Please try again.', isLoading: false }
           : m
       ))
     } finally {
@@ -1161,6 +1256,7 @@ export function ContentStoreProvider({ children, clientId }: { children: React.R
     setContentIdeas,
     addImage,
     removeImage,
+    replaceImage,
     updateImageNotes,
     updateCaption,
     selectCaption,

@@ -233,6 +233,8 @@ export interface AutopilotSettings {
   notification_method: 'email' | 'none';
   auto_publish: boolean;
   auto_publish_hours: number;
+  /** Draft posts automatically when the next 7 days fall short of posts_per_week */
+  fill_gaps?: boolean;
 }
 
 // ── Cron result ───────────────────────────────────────────────────────────────

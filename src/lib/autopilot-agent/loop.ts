@@ -6,6 +6,7 @@ import { AGENT_TOOL_DEFS, dispatchTool, buildContextBriefing, poolIsFull } from 
 import type { RunContext, ScratchpadPost } from './tools';
 import { MAX_ITERATIONS } from './constants';
 import { formatRunBriefPrompt } from './runBrief';
+import { completionParams } from '@/lib/openaiParams';
 
 const openai = new OpenAI();
 
@@ -94,6 +95,8 @@ RULES:
 - approved_calendar_captions are real captions this brand approved, published or rewrote by hand — match their voice closely (length, rhythm, vocabulary, emoji and hashtag habits), but don't copy their lines or repeat their topics.
 - If the brand context has a caption_playbook, those are rules the account manager wrote from feedback on past posts. Follow every one, on every caption and ad — they override the content defaults, the run brief and learned style preferences.
 - The style preferences may include account_manager_feedback (why posts were skipped or changed) and account_manager_edits (the agent's caption vs the human rewrite). Learn from both: write the way the edits go, and avoid what the feedback complains about.
+- If the context has "What has worked for this account", those are learnings from this client's real post results. Lean into them — the formats, topics, caption lengths and styles that performed — while keeping the brand voice. Never copy a past caption.
+- If best posting times are given, set suggested_time to one of them (the best one for that day where possible), unless the brief or operating hours say otherwise.
 - If the brand context has a tone_of_voice_guide, it is the brand's official copy rulebook: every caption and ad copy MUST follow it (vocabulary, grammar, punctuation, emoji use, banned words). Specific caption_dos/caption_donts take precedence where they conflict.
 - Use a DIFFERENT photo for every post, and a different photo for every ad variant — never build several posts around one image. (search_media_gallery shows used_in_this_pool if you need to check.) Only reuse a photo once every photo in the gallery has been used.
 - Don't repeat topics or photos used in recent posts.
@@ -144,13 +147,12 @@ export async function runAutopilotAgentLoop(ctx: RunContext): Promise<AgentRunRe
 
     const nearCap = iterations >= MAX_ITERATIONS - 1;
     const completion = await createCompletionWithBackoff({
-      model: MODEL,
+      ...completionParams(MODEL, { temperature: 0.7, tools: true }),
       messages,
       tools: AGENT_TOOL_DEFS,
       tool_choice: nearCap && ctx.scratchpad.posts.length > 0
         ? { type: 'function', function: { name: 'finalize_candidate_pool' } }
         : 'auto',
-      temperature: 0.7,
     });
 
     promptTokens += completion.usage?.prompt_tokens ?? 0;

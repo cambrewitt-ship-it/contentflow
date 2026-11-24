@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { AI_MODEL, completionParams } from '@/lib/aiModel';
+import { AI_MODEL } from '@/lib/aiModel';
 import mammoth from 'mammoth';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { withAICreditCheck, trackAICreditUsage } from '@/lib/subscriptionMiddleware';
+import { completionParams } from '@/lib/openaiParams';
 
 export const maxDuration = 120;
 export const dynamic = 'force-dynamic';
@@ -122,7 +123,6 @@ export async function POST(
       }
 
       const completion = await openai.chat.completions.create({
-        model: AI_MODEL,
         ...completionParams(AI_MODEL, { maxTokens: 12000, temperature: 0 }),
         messages: [
           { role: 'system', content: TRANSCRIBE_PROMPT },

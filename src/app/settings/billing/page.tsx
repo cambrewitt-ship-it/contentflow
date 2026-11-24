@@ -670,7 +670,7 @@ export default function BillingSettingsPage() {
 
       {/* Upgrade Options */}
       {subscription.subscription_tier !== 'agency' && (
-        <Card className="p-6 bg-gradient-to-r from-blue-50 to-purple-50">
+        <Card className="p-6 bg-gradient-to-r from-blue-50 to-sky-50">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-xl font-bold mb-2">Need more resources?</h3>

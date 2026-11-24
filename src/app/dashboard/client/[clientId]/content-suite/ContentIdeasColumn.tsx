@@ -129,17 +129,17 @@ export function ContentIdeasColumn() {
 
   // Skeleton loading component
   const SkeletonCard = () => (
-    <div className="border rounded-lg p-4 bg-gradient-to-r from-purple-50 to-blue-50 animate-pulse">
+    <div className="border rounded-lg p-4 bg-gradient-to-r from-sky-50 to-blue-50 animate-pulse">
       <div className="space-y-3">
         <div className="flex items-start space-x-3">
-          <div className="flex-shrink-0 w-8 h-8 bg-purple-200 rounded-full"></div>
+          <div className="flex-shrink-0 w-8 h-8 bg-blue-200 rounded-full"></div>
           <div className="flex-1">
             <div className="h-6 bg-gray-300 rounded w-3/4 mb-2"></div>
           </div>
         </div>
         <div className="space-y-3 ml-11">
           <div className="flex items-start space-x-2">
-            <div className="flex-shrink-0 w-5 h-5 bg-purple-200 rounded mt-0.5"></div>
+            <div className="flex-shrink-0 w-5 h-5 bg-blue-200 rounded mt-0.5"></div>
             <div className="flex-1">
               <div className="h-4 bg-gray-300 rounded w-1/4 mb-1"></div>
               <div className="h-4 bg-gray-300 rounded w-full"></div>
@@ -176,7 +176,8 @@ export function ContentIdeasColumn() {
           <Button
             onClick={handleGenerateIdeas}
             disabled={generatingIdeas}
-            className="bg-purple-600 hover:bg-purple-700 text-white h-11 w-full md:w-[326px]"
+            variant="ai"
+            className="h-11 w-full rounded-xl md:w-[326px]"
           >
             {generatingIdeas ? (
               <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
@@ -210,7 +211,7 @@ export function ContentIdeasColumn() {
                   <Button
                     asChild
                     size="sm"
-                    className="mt-3 ml-3 bg-purple-600 hover:bg-purple-700 text-white"
+                    className="mt-3 ml-3 bg-blue-600 hover:bg-blue-700 text-white"
                   >
                     <a href="/pricing">Plans</a>
                   </Button>
@@ -237,7 +238,7 @@ export function ContentIdeasColumn() {
               </p>
               <Button
                 onClick={handleRefreshIdeas}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Try Again
@@ -265,7 +266,7 @@ export function ContentIdeasColumn() {
                 setShowCreditDialog(false)
                 window.location.href = '/pricing'
               }}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               Upgrade Plan
             </Button>

@@ -20,8 +20,8 @@ interface PortalTagDropdownProps {
 }
 
 const TAG_COLORS = [
-  '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-  '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
+  '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#1E3A8A',
+  '#0EA5E9', '#06B6D4', '#84CC16', '#F97316', '#60A5FA',
 ];
 
 export function PortalTagDropdown({

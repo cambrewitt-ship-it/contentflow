@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   X,
   Loader2,
+  Check,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -23,11 +24,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { PortalTagDropdown } from "@/components/PortalTagDropdown";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
+import { PostTimeChip } from "@/components/PostTimeChip";
 import { PlatformBadges } from "@/components/PlatformBadges";
 import { PublishStatusBadge } from "@/components/PublishStatusBadge";
 import { ApprovalStatusEditor, type EditableApprovalStatus } from "@/components/ApprovalStatusEditor";
 import { normalizeTargetPlatforms } from "@/lib/targetPlatforms";
-import { PortalParty } from "@/contexts/PortalContext";
+import { PortalParty, usePortal } from "@/contexts/PortalContext";
+import {
+  CommentThreadList,
+  MentionTextarea,
+  ReplyingTo,
+  useCommentComposer,
+  useMentionables,
+  type ThreadComment,
+} from "@/components/comments";
 import logger from "@/lib/logger";
 
 function weekStartForDateKey(dateKey: string): Date {
@@ -116,15 +126,6 @@ interface ApprovalStep {
   comments?: string | null;
 }
 
-interface Comment {
-  id: string;
-  author_name: string;
-  author_type: "agency" | "portal_party";
-  content: string;
-  created_at: string;
-  party: { id: string; name: string; role: string; color: string | null } | null;
-}
-
 interface Props {
   item: ModalItem;
   portalToken: string;
@@ -208,7 +209,7 @@ function PipelineSteps({
               : step.status === "changes_requested"
               ? "bg-amber-50 border-amber-200 text-amber-700"
               : step.party?.id === myPartyId
-              ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+              ? "bg-blue-50 border-blue-300 text-blue-700"
               : "bg-gray-50 border-gray-200 text-gray-500"
           }`}
         >
@@ -221,7 +222,7 @@ function PipelineSteps({
             : "·"}{" "}
           {step.party?.name ?? `Step ${step.step_order}`}
           {step.party?.id === myPartyId && step.status === "pending" && (
-            <span className="ml-0.5 font-semibold text-indigo-600">← you</span>
+            <span className="ml-0.5 font-semibold text-blue-600">← you</span>
           )}
         </span>
       ))}
@@ -272,7 +273,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     isPost ? (item.data as ModalPost).approval_steps ?? [] : []
   );
   const [isLoadingPipeline, setIsLoadingPipeline] = useState(isPost);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<ThreadComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
 
   // Download state
@@ -288,7 +289,9 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   const [actionComment, setActionComment] = useState("");
 
   // Comment composer
-  const [newComment, setNewComment] = useState("");
+  const { setMember } = usePortal();
+  const mentionables = useMentionables({ portalToken });
+  const composer = useCommentComposer(mentionables);
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
@@ -348,6 +351,9 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   const [editDateValue, setEditDateValue] = useState(initialDateKey);
   const [isSavingDate, setIsSavingDate] = useState(false);
   const [dateSaveError, setDateSaveError] = useState<string | null>(null);
+  // The day shown in the header once changed here; item.data keeps the day the modal opened with
+  const [currentDateKey, setCurrentDateKey] = useState<string | null>(null);
+  const [dateSaved, setDateSaved] = useState(false);
 
   // Scroll comments into view on load
   const scrollToBottom = () => {
@@ -683,16 +689,54 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
     setCaptionSaveError(null);
   };
 
+  // ── Save posting time ────────────────────────────────────────────────────
+
+  const [postTime, setPostTime] = useState(isPost ? (item.data as ModalPost).scheduled_time ?? null : null);
+
+  const handleSaveTime = async (newTime: string): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/portal/calendar", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: portalToken,
+          postId: (item.data as ModalPost).id,
+          scheduled_time: newTime,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return data.error ?? "Failed to update time";
+      }
+      setPostTime(`${newTime}:00`);
+      onActioned();
+      return null;
+    } catch {
+      return "Failed to update time";
+    }
+  };
+
   // ── Save scheduled date ──────────────────────────────────────────────────
 
   const handleSaveDate = async (dateKeyOverride?: string) => {
     const nextDateKey = dateKeyOverride ?? editDateValue;
-    if (!nextDateKey || nextDateKey === initialDateKey) {
+    const previousDateKey = currentDateKey;
+    if (!nextDateKey || nextDateKey === (currentDateKey ?? initialDateKey)) {
       setIsEditingDate(false);
       return;
     }
+    // Show the new day straight away; put the old one back if the save fails
+    setCurrentDateKey(nextDateKey);
+    setEditDateValue(nextDateKey);
+    setIsEditingDate(false);
+    setDateSaved(false);
     setIsSavingDate(true);
     setDateSaveError(null);
+    const revert = (message: string) => {
+      setCurrentDateKey(previousDateKey);
+      setEditDateValue(previousDateKey ?? initialDateKey);
+      setDateSaveError(message);
+    };
     try {
       if (isPost) {
         const res = await fetch("/api/portal/calendar", {
@@ -706,7 +750,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          setDateSaveError(data.error ?? "Failed to update date");
+          revert(data.error ?? "Failed to update date");
           return;
         }
       } else {
@@ -722,15 +766,15 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
           })
         ));
         if (results.some(r => !r.ok)) {
-          setDateSaveError("Failed to update date");
+          revert("Failed to update date");
           return;
         }
       }
-      setEditDateValue(nextDateKey);
-      setIsEditingDate(false);
+      setDateSaved(true);
+      setTimeout(() => setDateSaved(false), 2000);
       onActioned();
     } catch {
-      setDateSaveError("Failed to update date");
+      revert("Failed to update date");
     } finally {
       setIsSavingDate(false);
     }
@@ -739,7 +783,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
   // ── Post comment ─────────────────────────────────────────────────────────
 
   const handlePostComment = async () => {
-    if (!newComment.trim()) return;
+    if (!composer.draft.text.trim()) return;
     setIsPostingComment(true);
     setCommentError(null);
     try {
@@ -748,18 +792,19 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           portal_token: portalToken,
-          author_name: party?.name ?? "Portal User",
-          content: newComment.trim(),
+          ...composer.payload(),
           post_type: commentPostType,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
+        // Signed out on this device (e.g. session expired) — back to the sign-in screen
+        if (data.code === "not_signed_in") setMember(null);
         setCommentError(data.error ?? "Failed to post");
         return;
       }
       setComments((prev) => [...prev, data.comment]);
-      setNewComment("");
+      composer.reset();
       setTimeout(scrollToBottom, 100);
     } catch {
       setCommentError("Failed to post comment");
@@ -772,7 +817,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
 
   const handleImprove = async () => {
     if (!isPost) return;
-    const feedback = newComment.trim();
+    const feedback = composer.draft.text.trim();
     if (!feedback) {
       setActionError("Write what needs improving in the comment box first.");
       return;
@@ -936,8 +981,8 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                   title={hasAssignedDate ? "Change the day within this week" : "Set date"}
                 >
                   <Calendar className="w-3 h-3" />
-                  {dateStr
-                    ? new Date(dateStr).toLocaleDateString("en-GB", {
+                  {currentDateKey || dateStr
+                    ? new Date(currentDateKey ? `${currentDateKey}T12:00:00` : dateStr!).toLocaleDateString("en-GB", {
                         weekday: "short",
                         day: "numeric",
                         month: "short",
@@ -945,10 +990,15 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                     : "Set date"}
                   {isSavingDate ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : dateSaved ? (
+                    <Check className="w-3 h-3 text-emerald-600" />
                   ) : (
                     <Pencil className="w-2.5 h-2.5 opacity-60" />
                   )}
                 </button>
+              )}
+              {isPost && hasAssignedDate && (
+                <PostTimeChip time={postTime} onSave={handleSaveTime} />
               )}
               {dateSaveError && (
                 <span className="text-xs text-red-600">{dateSaveError}</span>
@@ -1071,7 +1121,7 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                     }
                     scheduledTime={
                       isPost
-                        ? (item.data as ModalPost).scheduled_time ?? undefined
+                        ? postTime ?? undefined
                         : undefined
                     }
                   />
@@ -1456,79 +1506,39 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                     </div>
                   ) : (
                     <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-                      {comments.length === 0 && (
-                        <p className="text-sm text-gray-400">No comments yet — be the first!</p>
-                      )}
-                      {comments.map((c) => (
-                        <div key={c.id} className="flex gap-2.5">
-                          <div
-                            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-                            style={{
-                              backgroundColor:
-                                c.author_type === "agency"
-                                  ? "#1e293b"
-                                  : (c.party?.color ?? "#6366f1"),
-                            }}
-                          >
-                            {c.author_name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-semibold text-gray-800">
-                                {c.author_name}
-                              </span>
-                              {c.party && (
-                                <span
-                                  className="text-[10px] px-1.5 py-0.5 rounded-full text-white font-medium"
-                                  style={{ backgroundColor: c.party.color ?? "#6366f1" }}
-                                >
-                                  {c.party.name}
-                                </span>
-                              )}
-                              {c.author_type === "agency" && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-white font-medium">
-                                  Agency
-                                </span>
-                              )}
-                              <span className="text-[10px] text-gray-400 ml-auto">
-                                {new Date(c.created_at).toLocaleString(undefined, {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
-                            </div>
-                            <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap break-words">
-                              {c.content}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
+                      <CommentThreadList
+                        comments={comments}
+                        emptyText="No comments yet — be the first!"
+                        onReply={composer.startReply}
+                      />
                       <div ref={commentsEndRef} />
                     </div>
                   )}
 
                   {/* Comment composer */}
                   <div className="space-y-1.5">
+                    {composer.replyTo && (
+                      <ReplyingTo name={composer.replyTo.authorName} onCancel={composer.cancelReply} />
+                    )}
                     <div className="relative">
-                      <Textarea
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
+                      <MentionTextarea
+                        ref={composer.composerRef}
+                        draft={composer.draft}
+                        mentionables={mentionables}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                             e.preventDefault();
                             handlePostComment();
                           }
                         }}
-                        placeholder="Add a comment... (⌘↵ to send)"
+                        placeholder="Add a comment... type @ to tag someone (⌘↵ to send)"
                         className="resize-none text-sm pr-12 min-h-[96px] pb-12"
                         disabled={isPostingComment}
                       />
                       {/* Send button — top right */}
                       <button
                         onClick={handlePostComment}
-                        disabled={isPostingComment || !newComment.trim()}
+                        disabled={isPostingComment || !composer.draft.text.trim()}
                         className="absolute top-2 right-2 w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         {isPostingComment ? (
@@ -1551,8 +1561,8 @@ export function PortalItemModal({ item, portalToken, party, onClose, onActioned,
                           {isPost && (
                             <button
                               onClick={handleImprove}
-                              disabled={isActioning || isPostingComment || !newComment.trim()}
-                              title={newComment.trim() ? "Request changes with this comment" : "Write what needs improving first"}
+                              disabled={isActioning || isPostingComment || !composer.draft.text.trim()}
+                              title={composer.draft.text.trim() ? "Request changes with this comment" : "Write what needs improving first"}
                               className="h-8 rounded-full bg-amber-500 text-white flex items-center justify-center gap-1.5 px-3 hover:bg-amber-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-xs font-medium"
                             >
                               {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <AlertTriangle className="w-3.5 h-3.5" />}

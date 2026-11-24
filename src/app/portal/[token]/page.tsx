@@ -121,7 +121,7 @@ interface Upload {
 }
 
 const COLOR_OPTIONS = [
-  { value: 'purple', label: 'Purple', bg: 'bg-purple-500' },
+  { value: 'purple', label: 'Sky', bg: 'bg-sky-500' },
   { value: 'blue',   label: 'Blue',   bg: 'bg-blue-500' },
   { value: 'green',  label: 'Green',  bg: 'bg-green-500' },
   { value: 'red',    label: 'Red',    bg: 'bg-red-500' },
@@ -307,6 +307,20 @@ export default function PortalCalendarPage() {
   const [uploads, setUploads] = useState<{[key: string]: Upload[]}>({});
   const [allUploads, setAllUploads] = useState<Upload[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<{[key: string]: CalendarEvent[]}>({});
+
+  // Deep link from comment notification emails: /portal/<token>?post=<id> opens that item
+  const deepLinkItemIdRef = useRef<string | null>(
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('post') : null
+  );
+  const openItemByIdRef = useRef<((id: string) => boolean) | null>(null);
+  useEffect(() => {
+    const id = deepLinkItemIdRef.current;
+    if (!id || !openItemByIdRef.current?.(id)) return;
+    deepLinkItemIdRef.current = null;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('post');
+    window.history.replaceState(null, '', url.toString());
+  }, [scheduledPosts, allUploads]);
   // useRef instead of useState so the cache check inside fetchScheduledPosts
   // (a useCallback) always reads the current value without a stale closure.
   const lastFetchTimeRef = useRef<number>(0);
@@ -1775,9 +1789,9 @@ export default function PortalCalendarPage() {
         onClick={handleCalendarGenerateApprovalLink}
         disabled={generatingApprovalLink || calendarSelectedPostIds.size === 0}
         className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded text-white transition-all ${
-          generatingApprovalLink ? 'bg-purple-400 cursor-not-allowed opacity-70'
-          : calendarSelectedPostIds.size === 0 ? 'bg-purple-600 opacity-40 cursor-not-allowed'
-          : 'bg-purple-600 hover:bg-purple-700'
+          generatingApprovalLink ? 'bg-blue-400 cursor-not-allowed opacity-70'
+          : calendarSelectedPostIds.size === 0 ? 'bg-blue-600 opacity-40 cursor-not-allowed'
+          : 'bg-blue-600 hover:bg-blue-700'
         }`}
       >
         {generatingApprovalLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LinkIcon className="w-3.5 h-3.5" />}
@@ -2014,6 +2028,21 @@ export default function PortalCalendarPage() {
         setMovingToDate(null);
       }
     },
+  };
+
+  // Lets the notification-email deep link open an item once it has loaded (see effect above)
+  openItemByIdRef.current = (id: string) => {
+    const post = Object.values(scheduledPosts).flat().find(p => p.id === id);
+    if (post) {
+      portalCalendarProps.onPostClick?.(post as any);
+      return true;
+    }
+    const upload = allUploads.find(u => u.id === id);
+    if (upload) {
+      setModalItem({ type: 'upload', data: upload as any });
+      return true;
+    }
+    return false;
   };
 
   return (
@@ -2713,7 +2742,7 @@ export default function PortalCalendarPage() {
                   value={tempBrandName}
                   onChange={e => setTempBrandName(e.target.value)}
                   placeholder="e.g. Acme Co."
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
                 />
               </div>
 
@@ -2781,7 +2810,7 @@ export default function PortalCalendarPage() {
                   value={tempBrandLogoUrl}
                   onChange={e => setTempBrandLogoUrl(e.target.value)}
                   placeholder="https://example.com/logo.png"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
                 />
               </div>
             </div>
@@ -2810,7 +2839,7 @@ export default function PortalCalendarPage() {
               )}
               <button
                 onClick={saveBrandSettings}
-                className="flex-1 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                className="flex-1 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
               >
                 Save
               </button>
@@ -2849,7 +2878,7 @@ export default function PortalCalendarPage() {
                   setApprovalLinkCopied(true);
                   setTimeout(() => setApprovalLinkCopied(false), 2000);
                 }}
-                className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium rounded transition-colors"
+                className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
               >
                 {approvalLinkCopied ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 {approvalLinkCopied ? 'Copied!' : 'Copy'}

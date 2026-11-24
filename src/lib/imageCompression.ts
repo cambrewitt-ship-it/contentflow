@@ -118,6 +118,54 @@ export async function compressImageIfNeeded(
   }
 }
 
+// The vision API's 'high' detail mode scales every image down to fit within 2048x2048
+// before the model sees it, so pixels beyond that never reach the model. Downscaling to
+// that size here (re-encoding at high quality) gives the model exactly the same input
+// while uploading a fraction of the bytes. Images already within the box are untouched.
+const VISION_MAX_DIMENSION = 2048
+
+export async function fitImageForVision(imageData: string): Promise<string> {
+  if (!imageData.startsWith('data:image/')) return imageData
+
+  try {
+    const img = new Image()
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = reject
+      img.src = imageData
+    })
+
+    const longestSide = Math.max(img.width, img.height)
+    if (longestSide <= VISION_MAX_DIMENSION) return imageData
+
+    const scale = VISION_MAX_DIMENSION / longestSide
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(img.width * scale)
+    canvas.height = Math.round(img.height * scale)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return imageData
+
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+    // Keep PNGs lossless (and their transparency); everything else as high-quality JPEG
+    const mimeType = imageData.startsWith('data:image/png') ? 'image/png' : 'image/jpeg'
+    const resized = canvas.toDataURL(mimeType, 0.92)
+    return resized.length < imageData.length ? resized : imageData
+  } catch (error) {
+    logger.warn('Could not resize image for vision, sending original', error)
+    return imageData
+  }
+}
+
+// Decoded byte size of a base64 data URL
+export function dataUrlByteSize(dataUrl: string): number {
+  const base64Data = dataUrl.split(',')[1] || dataUrl
+  const padding = (base64Data.match(/=/g) || []).length
+  return Math.floor((base64Data.length * 3) / 4) - padding
+}
+
 // Resolve a blob/HTTPS/data URL for an uploaded image or video into a data URL suitable
 // for the AI vision API, compressing it if needed. Videos get a placeholder since the API
 // can't analyze video content.
@@ -130,7 +178,7 @@ export async function prepareImageDataForAI(image: {
   const url = image.blobUrl || image.preview
   if (!url) return undefined
 
-  if (url.startsWith('data:')) return compressImageIfNeeded(url)
+  if (url.startsWith('data:')) return compressImageIfNeeded(await fitImageForVision(url))
 
   try {
     const response = await fetch(url)
@@ -141,7 +189,7 @@ export async function prepareImageDataForAI(image: {
       reader.onerror = reject
       reader.readAsDataURL(blob)
     })
-    return compressImageIfNeeded(dataUrl)
+    return compressImageIfNeeded(await fitImageForVision(dataUrl))
   } catch {
     return url // fallback — server handles HTTPS URLs natively
   }

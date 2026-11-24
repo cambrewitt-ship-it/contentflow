@@ -2,15 +2,11 @@
 
 import {
   FacebookIcon,
-  InstagramIcon,
-  TwitterIcon,
   LinkedInIcon,
-  TikTokIcon,
-  YouTubeIcon,
-  ThreadsIcon,
 } from "@/components/social-icons";
 import { Menu, X } from "lucide-react";
 import { PlugIcon } from "@/components/PlugIcon";
+import { PlatformFeatures } from "@/components/marketing/PlatformFeatures";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -265,7 +261,7 @@ export default function FeaturesPage() {
                 Features
               </h1>
               <h2 className="mt-4 text-4xl sm:text-5xl font-extrabold">
-                Create, Approve & Schedule Content - Faster.
+                Everything your social media needs, in one place.
               </h2>
               <p className="mt-4 text-xl sm:text-2xl text-muted-foreground">
                 Explore Content Manager&apos;s features
@@ -273,7 +269,7 @@ export default function FeaturesPage() {
             </div>
 
             <div className="relative mt-10">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl" />
+              <div className="absolute inset-0 bg-gradient-to-r from-sky-400/20 to-blue-500/20 rounded-2xl blur-3xl" />
               <div className="relative bg-card border border-border rounded-3xl p-4 sm:p-6 shadow-2xl">
                 <div className="flex flex-col lg:flex-row items-center lg:items-center gap-6 sm:gap-10">
                   <div className="w-full lg:max-w-md">
@@ -313,7 +309,7 @@ export default function FeaturesPage() {
             </div>
 
             <div className="relative mt-10">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-3xl" />
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-sky-400/20 rounded-2xl blur-3xl" />
               <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-2 sm:py-3 shadow-2xl">
                 <img
                   src="/content-suite-screenshot.png"
@@ -323,125 +319,9 @@ export default function FeaturesPage() {
               </div>
             </div>
 
-            <div className="mt-12 text-center text-foreground">
-              <h2 className="text-4xl sm:text-5xl font-extrabold">
-                Branded Content Ideas Generator
-              </h2>
-              <p className="mt-4 text-xl leading-8 text-muted-foreground max-w-3xl mx-auto">
-                Stuck on “What to post?” Generate post ideas instantly, aligned to your context and seasonality. Writer’s block becomes a thing of the past.
-              </p>
-            </div>
-
-            <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl" />
-              <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
-                <img
-                  src="/ideas-generator.png"
-                  alt="Content Ideas Screenshot"
-                  className="w-full h-auto rounded-lg max-w-4xl mx-auto"
-                />
-              </div>
-            </div>
-
-            <div className="mt-12">
-              <div className="mx-auto max-w-4xl text-center">
-                <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl mb-4">
-                  One Click, Multi-Channel Scheduling
-                </h2>
-                <p className="text-lg sm:text-xl text-muted-foreground mb-8">
-                  With one click, publish your social posts across Facebook, Instagram, Twitter/X, LinkedIn, TikTok, YouTube — all from one calendar. Spend less time posting, more time creating.
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-8 items-center justify-items-center">
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center transition-transform hover:scale-110">
-                      <FacebookIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">Facebook</span>
-                  </div>
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center transition-transform hover:scale-110">
-                      <InstagramIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">Instagram</span>
-                  </div>
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
-                      <TwitterIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">Twitter</span>
-                  </div>
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-blue-700 flex items-center justify-center transition-transform hover:scale-110">
-                      <LinkedInIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">LinkedIn</span>
-                  </div>
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
-                      <TikTokIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">TikTok</span>
-                  </div>
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center transition-transform hover:scale-110">
-                      <YouTubeIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">YouTube</span>
-                  </div>
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
-                      <ThreadsIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">Threads</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-12 text-center text-foreground">
-              <h2 className="text-4xl sm:text-5xl font-bold">
-                Shared Client Workspace
-              </h2>
-              <p className="mt-4 text-xl text-muted-foreground max-w-3xl mx-auto">
-                Introducing our Client Portal - this provides a two-way workspace between you and your client, updated in real time.
-              </p>
-              <p className="mt-3 text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto">
-                Build content calendars, get feedback and approval, and see fresh client content uploads - nothing gets lost in the email chain.
-              </p>
-            </div>
-
-            <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-3xl" />
-              <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
-                <img
-                  src="/client-portal-screenshot.png"
-                  alt="Client Portal Screenshot"
-                  className="w-full h-auto rounded-lg max-w-5xl mx-auto"
-                />
-              </div>
-            </div>
-
-            <div className="mt-12 text-center text-foreground">
-              <h2 className="text-3xl sm:text-5xl font-bold">
-                Client Dashboard
-              </h2>
-              <p className="mt-4 text-xl text-muted-foreground max-w-3xl mx-auto">
-                Keep on top of every client with their own dedicated dashboard.
-              </p>
-              <p className="mt-3 text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto">
-                See real time updates from your client, review upcoming posts and store client specific information.
-              </p>
-            </div>
-
-            <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl" />
-              <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
-                <img
-                  src="/client-dashboard.png"
-                  alt="Client Dashboard Screenshot"
-                  className="w-full h-auto rounded-lg max-w-5xl mx-auto"
-                />
-              </div>
+            {/* Everything the platform does: all-in-one strip + feature pillars with visuals */}
+            <div className="mt-20">
+              <PlatformFeatures showCta={false} />
             </div>
 
             <div className="mt-20">
@@ -516,6 +396,12 @@ export default function FeaturesPage() {
                 </a>
                 <a href="https://www.oneonethree.co.nz/our-services" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Services
+                </a>
+                <a href="https://www.planpulse.nz/" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  PlanPulse
+                </a>
+                <a href="https://webedit.oneonethree.co.nz/" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  WebEdit
                 </a>
                 <a href="https://www.oneonethree.co.nz/products" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Other Products

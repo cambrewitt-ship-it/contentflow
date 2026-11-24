@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
+import { getPortalMember } from '@/lib/portalMembers';
+import { getRequestAppUrl } from '@/lib/requestAppUrl';
+import { approvalKindFromStatus, notifyApprovalWatchersAfterResponse } from '@/lib/approvalWatchers';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -271,8 +274,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Write history row (fire-and-forget — don't fail the request if this errors)
-    supabase
+    // Write history row (don't fail the request if this errors). Awaited so the
+    // approval-update email can recognise the "Improve" comment that follows it.
+    const { error: historyError } = await supabase
       .from('post_approval_history')
       .insert({
         post_id,
@@ -282,10 +286,26 @@ export async function POST(request: NextRequest) {
         previous_client_feedback: currentPost?.client_feedback ?? null,
         new_client_feedback: statusUpdate.client_feedback ?? null,
         metadata: { token_prefix: token?.substring(0, 8), post_type },
-      })
-      .then(({ error }) => {
-        if (error) logger.warn('Failed to write approval history', error);
       });
+    if (historyError) logger.warn('Failed to write approval history', historyError);
+
+    // Email the calendar's "Notify by email" list (after the response)
+    const kind = approvalKindFromStatus(approval_status);
+    const feedback = typeof client_comments === 'string' ? client_comments.trim() : '';
+    const statusChanged = currentPost?.approval_status !== approval_status;
+    const feedbackChanged = !!feedback && feedback !== (currentPost?.client_feedback ?? '').trim();
+    if (kind && (statusChanged || feedbackChanged)) {
+      const member = await getPortalMember(request, client.id).catch(() => null);
+      notifyApprovalWatchersAfterResponse({
+        clientId: client.id,
+        postId: post_id,
+        postType: post_type === 'planner_scheduled' ? 'calendar_scheduled' : 'scheduled',
+        kind,
+        actor: { name: member?.name, email: member?.email, memberId: member?.id },
+        message: feedback || null,
+        appUrl: getRequestAppUrl(request),
+      });
+    }
 
     return NextResponse.json({
       success: true,

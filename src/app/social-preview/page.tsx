@@ -10,6 +10,7 @@ import {
   SeoContent,
 } from './seo-blocks'
 import { DEMO_VIDEO, ProductShowcase } from './product-showcase'
+import { PLATFORM_FEATURE_LIST } from '@/components/marketing/PlatformFeatures'
 
 const BASE_URL = 'https://content-manager.io'
 const PAGE_URL = `${BASE_URL}/social-preview`
@@ -144,15 +145,8 @@ const schema = {
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
       description:
-        'AI social media management platform for marketing agencies, freelancers and in-house teams: brand-trained AI captions, content ideas, a content calendar, client approval portal and scheduling to Facebook, Instagram, LinkedIn, Twitter/X, TikTok, YouTube and Threads.',
-      featureList: [
-        'Brand voice AI copywriter for social media captions',
-        'AI content ideas generator',
-        'Content calendar',
-        'Client approval portal',
-        'Client dashboards',
-        'One-click scheduling to Facebook, Instagram, LinkedIn, Twitter/X, TikTok, YouTube and Threads',
-      ],
+        'All-in-one social media management platform for marketing agencies, freelancers and in-house teams: brand-trained AI captions and content planning, Design Studio graphics with Brand Kits, a content calendar, client approvals, scheduling to Facebook, Instagram, LinkedIn, X, TikTok, YouTube and Threads, a comments inbox with AI replies, analytics and monthly client reports.',
+      featureList: PLATFORM_FEATURE_LIST,
       // Monthly USD plans, matching the pricing page (In-House, Freelancer, Agency)
       offers: {
         '@type': 'AggregateOffer',

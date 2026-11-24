@@ -1,23 +1,16 @@
 "use client";
 
-import { Button } from "../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/legacy/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/legacy/card";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabaseClient";
 import { useState, useEffect, Fragment, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, X, Check, Plug } from "lucide-react";
-import {
-  FacebookIcon,
-  InstagramIcon,
-  TwitterIcon,
-  LinkedInIcon,
-  TikTokIcon,
-  YouTubeIcon,
-  ThreadsIcon
-} from "@/components/social-icons";
+import { FacebookIcon, LinkedInIcon } from "@/components/social-icons";
 import { isSingleClientTier } from "../lib/tierUtils";
+import { PlatformFeatures } from "@/components/marketing/PlatformFeatures";
 
 interface UserProfile {
   id: string;
@@ -315,7 +308,7 @@ export default function HomeContent() {
   }, [videoError, videoSrc]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="legacy-theme min-h-screen bg-background">
       {/* Navigation */}
       <nav className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -665,11 +658,11 @@ export default function HomeContent() {
               </div>
               <div className="flex justify-center mt-8">
                 <p className="font-['Poppins'] font-medium text-gray-600 text-center text-lg sm:text-4xl lg:whitespace-nowrap">
-                  Brand Voice AI + Content Calendar + Social Media Scheduler
+                  AI + Design + Scheduling + Approvals + Analytics
                 </p>
               </div>
               <p className="mt-4 text-xl leading-8 text-muted-foreground max-w-2xl mx-auto text-center">
-                Generate on-brand content for all your clients, schedule across every platform, and get approvals done — all in one place.
+                The all-in-one social media platform: write and design on-brand posts, get client approvals, publish everywhere, answer every comment and report on results — for every client, in one place.
               </p>
             </div>
           </div>
@@ -677,7 +670,7 @@ export default function HomeContent() {
           {/* Hero Image/Illustration */}
           <div className="mt-12 mx-auto max-w-5xl">
             <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-sky-400/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
               <div className="relative bg-card border border-border rounded-3xl p-4 sm:p-6 shadow-2xl">
                 <div className="flex flex-col lg:flex-row items-center lg:items-center gap-6 sm:gap-10">
                   <div className="w-full lg:max-w-md">
@@ -708,7 +701,7 @@ export default function HomeContent() {
               </p>
             </div>
             <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-3xl"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-sky-400/20 rounded-2xl blur-3xl"></div>
               <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-2 sm:py-3 shadow-2xl">
                 <img
                   src="/content-suite-sc.png"
@@ -717,111 +710,11 @@ export default function HomeContent() {
                 />
               </div>
             </div>
-            <div className="mt-12">
-              <div className="mx-auto max-w-4xl text-center">
-                <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl mb-12">
-                  Schedule to social media
-                </h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-8 items-center justify-items-center">
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center transition-transform hover:scale-110">
-                      <FacebookIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">Facebook</span>
-                  </div>
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center transition-transform hover:scale-110">
-                      <InstagramIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">Instagram</span>
-                  </div>
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
-                      <TwitterIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">Twitter</span>
-                  </div>
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-blue-700 flex items-center justify-center transition-transform hover:scale-110">
-                      <LinkedInIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">LinkedIn</span>
-                  </div>
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
-                      <TikTokIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">TikTok</span>
-                  </div>
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center transition-transform hover:scale-110">
-                      <YouTubeIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">YouTube</span>
-                  </div>
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="w-16 h-16 rounded-full bg-black dark:bg-gray-800 flex items-center justify-center transition-transform hover:scale-110">
-                      <ThreadsIcon size={32} className="text-white" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">Threads</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-8 text-center text-foreground">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                Never Stare at a Blank Content Calendar Again
-              </h2>
-              <p className="mt-4 text-xl leading-8 text-muted-foreground">
-                Kill writers block
-              </p>
-            </div>
-            <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
-              <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
-                <img
-                  src="/ideas-generator.png"
-                  alt="Content Ideas Screenshot"
-                  className="w-full h-auto rounded-lg max-w-4xl mx-auto"
-                />
-              </div>
-            </div>
-            <div className="mt-12 text-center text-foreground">
-              <h2 className="text-4xl sm:text-5xl font-bold">
-                Live & Shared Content Workspace
-              </h2>
-              <p className="mt-4 text-xl text-muted-foreground">
-                Streamline content calendars and approvals with our client portal
-              </p>
-            </div>
-            <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur-3xl"></div>
-              <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
-                <img
-                  src="/client-portal-screenshot.png"
-                  alt="Client Portal Screenshot"
-                  className="w-full h-auto rounded-lg max-w-5xl mx-auto"
-                />
-              </div>
-            </div>
-            <div className="mt-12 text-center text-foreground">
-              <h2 className="text-3xl sm:text-5xl font-bold">
-                Handle More Clients Without Hiring More Staff
-              </h2>
-              <p className="mt-4 text-xl text-muted-foreground">
-                Automated with AI.
-              </p>
-            </div>
-            <div className="relative mt-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl blur-3xl"></div>
-              <div className="relative bg-card border border-border rounded-2xl px-3 sm:px-4 py-3 sm:py-4 shadow-2xl">
-                <img
-                  src="/client-dashboard.png"
-                  alt="Client Dashboard Screenshot"
-                  className="w-full h-auto rounded-lg max-w-5xl mx-auto"
-                />
-              </div>
-            </div>
+          </div>
+
+          {/* Everything the platform does: all-in-one strip + feature pillars with visuals */}
+          <div className="mt-20 sm:mt-28">
+            <PlatformFeatures />
           </div>
         </div>
       </section>
@@ -1109,6 +1002,12 @@ export default function HomeContent() {
                 </a>
                 <a href="https://www.oneonethree.co.nz/our-services" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Services
+                </a>
+                <a href="https://www.planpulse.nz/" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  PlanPulse
+                </a>
+                <a href="https://webedit.oneonethree.co.nz/" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  WebEdit
                 </a>
                 <a href="https://www.oneonethree.co.nz/products" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Other Products

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   X,
   Loader2,
+  Check,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -11,15 +12,34 @@ import {
   Calendar,
   ArrowUp,
   RotateCcw,
+  Tag,
+  Wand2,
 } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
+import { LazyImageEditor } from "@/components/image-editor";
+import { uploadMediaToBlob } from "@/lib/blobUpload";
+import { isVideoUrl } from "@/lib/videoUtils";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
 import { WeekDayChooser } from "@/components/WeekDayChooser";
+import { PostTimeChip } from "@/components/PostTimeChip";
 import { PlatformBadges, PlatformPicker } from "@/components/PlatformBadges";
 import { PublishStatusBadge } from "@/components/PublishStatusBadge";
+import { PostTagPicker, type PostTag } from "@/components/PostTagPicker";
 import { ApprovalStatusEditor, type EditableApprovalStatus } from "@/components/ApprovalStatusEditor";
 import { normalizeTargetPlatforms, type TargetPlatform } from "@/lib/targetPlatforms";
 import logger from "@/lib/logger";
+import {
+  CommentThreadList,
+  MentionTextarea,
+  ReplyingTo,
+  useCommentComposer,
+  useMentionables,
+  type ThreadComment,
+} from "@/components/comments";
+import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea';
+import { PostResults } from "@/components/analytics/PostResults";
+import { PostComments } from "@/components/social-comments/PostComments";
+import { FirstCommentField } from "@/components/social-comments/FirstCommentField";
+import { accountFullName, platformName } from "@/lib/socialAccounts";
 
 interface ApprovalStep {
   id: string;
@@ -29,15 +49,6 @@ interface ApprovalStep {
   actioned_by?: string | null;
   actioned_at?: string | null;
   comments?: string | null;
-}
-
-interface Comment {
-  id: string;
-  author_name: string;
-  author_type: "agency" | "portal_party";
-  content: string;
-  created_at: string;
-  party: { id: string; name: string; role: string; color: string | null } | null;
 }
 
 export interface ClientPostDetailItem {
@@ -50,6 +61,8 @@ export interface ClientPostDetailItem {
   approval_status?: string;
   platforms_scheduled?: string[];
   late_status?: string | null;
+  /** Zernio post id once scheduled — used to show the post's results */
+  late_post_id?: string | null;
   target_platforms?: string[] | null;
   tags?: Array<{ id: string; name: string; color: string }>;
 }
@@ -58,7 +71,6 @@ interface Props {
   post: ClientPostDetailItem;
   onClose: () => void;
   getAccessToken: () => string | null;
-  authorName: string;
   accountName?: string;
   accountAvatarUrl?: string;
   onSaveCaption?: (newCaption: string) => Promise<boolean>;
@@ -67,14 +79,21 @@ interface Props {
   isResubmitting?: boolean;
   onChangeDate?: (newDateKey: string) => Promise<boolean>;
   isChangingDate?: boolean;
+  /** Save a new posting time ("HH:MM"); resolves to an error message, or null on success. */
+  onChangeTime?: (newTime: string) => Promise<string | null>;
   onChangeTargetPlatforms?: (platforms: TargetPlatform[]) => Promise<boolean>;
   /** Set or clear ("pending") the approval status. */
   onChangeApprovalStatus?: (status: EditableApprovalStatus) => Promise<boolean>;
   /** Connected social accounts this post can be scheduled to from the modal. */
-  scheduleAccounts?: Array<{ _id: string; platform: string; name?: string }>;
+  scheduleAccounts?: Array<{ _id: string; platform: string; name?: string; username?: string; displayName?: string }>;
   onSchedule?: (account: { _id: string; platform: string; name?: string }) => Promise<void>;
   /** Platform currently being scheduled to (shows a spinner on that button). */
   schedulingPlatform?: string | null;
+  /** With onTagsChange, lets the agency add/remove the post's tags from the modal. */
+  clientId?: string;
+  onTagsChange?: (postId: string, tags: PostTag[]) => void;
+  /** Save the post's photos after one was changed in the image editor. */
+  onSaveMedia?: (mediaUrls: string[]) => Promise<boolean>;
 }
 
 function weekStartForDateKey(dateKey: string): Date {
@@ -173,11 +192,50 @@ function PipelineSteps({ steps }: { steps: ApprovalStep[] }) {
   );
 }
 
-export function ClientPostDetailModal({ post, onClose, getAccessToken, authorName, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate, onChangeTargetPlatforms, onChangeApprovalStatus, scheduleAccounts = [], onSchedule, schedulingPlatform }: Props) {
+/** True once the post's scheduled time has passed. */
+function isPastPost(post: ClientPostDetailItem): boolean {
+  if (!post.scheduled_date) return false;
+  const at = Date.parse(`${post.scheduled_date}T${post.scheduled_time || "00:00"}`);
+  return !Number.isNaN(at) && at <= Date.now();
+}
+
+export function ClientPostDetailModal({ post, onClose, getAccessToken, accountName, accountAvatarUrl, onSaveCaption, isSavingCaption, onResubmit, isResubmitting, onChangeDate, isChangingDate, onChangeTime, onChangeTargetPlatforms, onChangeApprovalStatus, scheduleAccounts = [], onSchedule, schedulingPlatform, clientId, onTagsChange, onSaveMedia }: Props) {
+  const [tagAnchor, setTagAnchor] = useState<HTMLButtonElement | null>(null);
+  const canEditTags = !!clientId && !!onTagsChange;
   const [targetPlatforms, setTargetPlatforms] = useState<TargetPlatform[]>(() =>
     normalizeTargetPlatforms(post.target_platforms)
   );
   const [platformsError, setPlatformsError] = useState<string | null>(null);
+
+  // Image editor: the post's photos, which one is open, and the save in flight
+  const postMedia = (post.media_urls?.length ? post.media_urls : [post.image_url]).filter(
+    (u): u is string => !!u
+  );
+  const [editorIndex, setEditorIndex] = useState<number | null>(null);
+  const [savingMediaIndex, setSavingMediaIndex] = useState<number | null>(null);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  // Once a post is with Zernio (LATE), it publishes the image it was sent — changing
+  // ours wouldn't change theirs, so editing waits until it's unscheduled.
+  const sentToZernio = post.late_status === "scheduled" || post.late_status === "published";
+  const canEditImages = !!onSaveMedia && !sentToZernio;
+
+  const handleSaveEditedImage = async (index: number, file: File) => {
+    if (!onSaveMedia) return;
+    setEditorIndex(null);
+    setSavingMediaIndex(index);
+    setMediaError(null);
+    try {
+      const { url } = await uploadMediaToBlob(file, `content-${Date.now()}-${file.name}`);
+      const next = postMedia.map((u, i) => (i === index ? url : u));
+      const ok = await onSaveMedia(next);
+      if (!ok) setMediaError("Couldn't save the edited image. Please try again.");
+    } catch (err) {
+      logger.error("Failed to save edited image:", err);
+      setMediaError("Couldn't upload the edited image. Please try again.");
+    } finally {
+      setSavingMediaIndex(null);
+    }
+  };
   const [isSavingPlatforms, setIsSavingPlatforms] = useState(false);
 
   const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform>(() => {
@@ -234,27 +292,34 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
 
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [dateChangeError, setDateChangeError] = useState<string | null>(null);
+  const [isSavingDate, setIsSavingDate] = useState(false);
+  const [dateSaved, setDateSaved] = useState(false);
+  const isDateBusy = isChangingDate || isSavingDate;
 
+  // The parent shows the new day straight away and puts the old one back if the save fails
   const handleSelectDate = async (newDateKey: string) => {
-    if (!onChangeDate || newDateKey === post.scheduled_date) {
-      setIsDatePickerOpen(false);
-      return;
-    }
-    setDateChangeError(null);
-    const ok = await onChangeDate(newDateKey);
-    if (!ok) {
-      setDateChangeError("Failed to update date");
-      return;
-    }
     setIsDatePickerOpen(false);
+    if (!onChangeDate || newDateKey === post.scheduled_date) return;
+    setDateChangeError(null);
+    setDateSaved(false);
+    setIsSavingDate(true);
+    const ok = await onChangeDate(newDateKey);
+    setIsSavingDate(false);
+    if (!ok) {
+      setDateChangeError("Couldn't move this post. It's back on its original day.");
+      return;
+    }
+    setDateSaved(true);
+    setTimeout(() => setDateSaved(false), 2000);
   };
 
   const [steps, setSteps] = useState<ApprovalStep[]>([]);
   const [isLoadingPipeline, setIsLoadingPipeline] = useState(true);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<ThreadComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
 
-  const [newComment, setNewComment] = useState("");
+  const mentionables = useMentionables({ clientId, getAccessToken });
+  const composer = useCommentComposer(mentionables);
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
@@ -322,7 +387,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
   }, [isLoadingComments, comments.length]);
 
   const handlePostComment = async () => {
-    if (!newComment.trim()) return;
+    if (!composer.draft.text.trim()) return;
     const token = getAccessToken();
     if (!token) return;
     setIsPostingComment(true);
@@ -335,8 +400,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          author_name: authorName,
-          content: newComment.trim(),
+          ...composer.payload(),
           post_type: "calendar_scheduled",
         }),
       });
@@ -346,7 +410,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
         return;
       }
       setComments((prev) => [...prev, data.comment]);
-      setNewComment("");
+      composer.reset();
       setTimeout(scrollToBottom, 100);
     } catch {
       setCommentError("Failed to post comment");
@@ -356,10 +420,12 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
   };
 
   useEffect(() => {
+    // While the image editor is open, Escape belongs to it
+    if (editorIndex !== null) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, editorIndex]);
 
   return (
     <div
@@ -380,7 +446,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                 <button
                   type="button"
                   onClick={() => onChangeDate && setIsDatePickerOpen((open) => !open)}
-                  disabled={!onChangeDate || isChangingDate}
+                  disabled={!onChangeDate || isDateBusy}
                   className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-full px-2 py-0.5 transition-colors disabled:hover:bg-gray-100"
                   title={onChangeDate ? "Change the day within this week" : undefined}
                 >
@@ -390,8 +456,15 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                     day: "numeric",
                     month: "short",
                   })}
-                  {isChangingDate && <Loader2 className="w-3 h-3 animate-spin" />}
+                  {isDateBusy ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : dateSaved ? (
+                    <Check className="w-3 h-3 text-emerald-600" />
+                  ) : null}
                 </button>
+              )}
+              {post.scheduled_date && (
+                <PostTimeChip time={post.scheduled_time} onSave={onChangeTime} />
               )}
             </div>
             {isDatePickerOpen && post.scheduled_date && (
@@ -400,12 +473,12 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                   weekStart={weekStartForDateKey(post.scheduled_date)}
                   selectedDateKey={post.scheduled_date}
                   onSelect={handleSelectDate}
-                  disabled={isChangingDate}
+                  disabled={isDateBusy}
                 />
-                {dateChangeError && (
-                  <p className="text-xs text-red-600 mt-1">{dateChangeError}</p>
-                )}
               </div>
+            )}
+            {dateChangeError && (
+              <p className="text-xs text-red-600">{dateChangeError}</p>
             )}
           </div>
           <button
@@ -448,6 +521,56 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                 scheduledDate={post.scheduled_date ?? undefined}
                 scheduledTime={post.scheduled_time ?? undefined}
               />
+
+              {onSaveMedia && postMedia.some((u) => !isVideoUrl(u)) && (
+                <div className="mt-3">
+                  <div className="flex gap-2 flex-wrap">
+                    {postMedia.map((url, i) =>
+                      isVideoUrl(url) ? null : (
+                        <div key={`${i}-${url}`} className="relative w-14 h-14 rounded-lg overflow-hidden border border-gray-200">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                          {savingMediaIndex === i ? (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <Loader2 className="w-4 h-4 text-white animate-spin" />
+                            </div>
+                          ) : (
+                            canEditImages && (
+                              <button
+                                type="button"
+                                onClick={() => setEditorIndex(i)}
+                                disabled={savingMediaIndex !== null}
+                                className="absolute inset-x-1 bottom-1 flex items-center justify-center gap-0.5 rounded-full bg-white/95 hover:bg-white text-[10px] font-semibold text-blue-700 shadow py-0.5"
+                                title="Edit image — add text, logos, filters"
+                              >
+                                <Wand2 className="w-2.5 h-2.5" /> Edit
+                              </button>
+                            )
+                          )}
+                        </div>
+                      )
+                    )}
+                  </div>
+                  {sentToZernio && (
+                    <p className="mt-1.5 text-[11px] text-gray-500">
+                      This post has already been sent for publishing, so its image can&apos;t be edited here.
+                    </p>
+                  )}
+                  {mediaError && <p className="mt-1.5 text-[11px] text-red-600">{mediaError}</p>}
+                </div>
+              )}
+
+              {editorIndex !== null && postMedia[editorIndex] && (
+                <LazyImageEditor
+                  imageUrl={postMedia[editorIndex]}
+                  otherImages={postMedia.filter((u, i) => i !== editorIndex && !isVideoUrl(u))}
+                  brandLogoUrl={accountAvatarUrl}
+                  brandName={accountName}
+                  clientId={clientId}
+                  onCancel={() => setEditorIndex(null)}
+                  onSave={(file) => handleSaveEditedImage(editorIndex, file)}
+                />
+              )}
             </div>
           </div>
 
@@ -471,7 +594,9 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {scheduleAccounts.map((account) => {
-                        const isScheduling = schedulingPlatform === account.platform;
+                        // schedulingPlatform holds the _id of the account being scheduled to
+                        const isScheduling = schedulingPlatform === account._id;
+                        const accountLabel = accountFullName(account) ?? platformName(account.platform);
                         const alreadyScheduled = (post.platforms_scheduled ?? []).includes(account.platform);
                         return (
                           <button
@@ -484,16 +609,16 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                                 ? `Already scheduled to ${account.platform}`
                                 : !editedCaption.trim()
                                 ? "Add a caption before scheduling"
-                                : `Schedule to ${account.name || account.platform}`
+                                : `Schedule to ${platformName(account.platform)} — ${accountLabel}`
                             }
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex max-w-full items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {isScheduling ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                               <PlatformBadges platforms={[account.platform]} size={14} />
                             )}
-                            {alreadyScheduled ? "Scheduled" : "Schedule"} to {account.name || account.platform}
+                            <span className="truncate">{alreadyScheduled ? "Scheduled" : "Schedule"} to {accountLabel}</span>
                           </button>
                         );
                       })}
@@ -503,8 +628,8 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
               )}
 
               {/* Tags */}
-              {(post.tags ?? []).length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
+              {((post.tags ?? []).length > 0 || canEditTags) && (
+                <div className="flex flex-wrap items-center gap-1.5">
                   {(post.tags ?? []).map(tag => (
                     <span
                       key={tag.id}
@@ -514,6 +639,29 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                       {tag.name}
                     </span>
                   ))}
+                  {canEditTags && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const button = e.currentTarget;
+                        setTagAnchor(prev => (prev ? null : button));
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-gray-400 border border-dashed border-gray-300 hover:border-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <Tag className="w-3 h-3" />
+                      Tags
+                    </button>
+                  )}
+                  {canEditTags && tagAnchor && (
+                    <PostTagPicker
+                      postId={post.id}
+                      tags={post.tags ?? []}
+                      clientId={clientId}
+                      anchor={tagAnchor}
+                      onClose={() => setTagAnchor(null)}
+                      onTagsChange={onTagsChange!}
+                    />
+                  )}
                 </div>
               )}
 
@@ -535,6 +683,17 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                 )}
               </div>
 
+              {/* Results once it's been published */}
+              {clientId && post.late_post_id && isPastPost(post) && (
+                <>
+                  <PostResults clientId={clientId} latePostId={post.late_post_id} />
+                  <PostComments clientId={clientId} latePostId={post.late_post_id} />
+                </>
+              )}
+
+              {/* First comment (e.g. the link for "link in comments" posts) */}
+              {clientId && <FirstCommentField clientId={clientId} postId={post.id} />}
+
               {/* Caption */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -549,7 +708,7 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                 </div>
                 {isEditingCaption ? (
                   <div>
-                    <Textarea
+                    <CaptionTextarea clientId={clientId}
                       autoFocus
                       value={editedCaption}
                       onChange={(e) => setEditedCaption(e.target.value)}
@@ -672,78 +831,34 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, authorNam
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-                    {comments.length === 0 && (
-                      <p className="text-sm text-gray-400">No comments yet.</p>
-                    )}
-                    {comments.map((c) => (
-                      <div key={c.id} className="flex gap-2.5">
-                        <div
-                          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-                          style={{
-                            backgroundColor:
-                              c.author_type === "agency"
-                                ? "#1e293b"
-                                : (c.party?.color ?? "#6366f1"),
-                          }}
-                        >
-                          {c.author_name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-semibold text-gray-800">
-                              {c.author_name}
-                            </span>
-                            {c.party && (
-                              <span
-                                className="text-[10px] px-1.5 py-0.5 rounded-full text-white font-medium"
-                                style={{ backgroundColor: c.party.color ?? "#6366f1" }}
-                              >
-                                {c.party.name}
-                              </span>
-                            )}
-                            {c.author_type === "agency" && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-white font-medium">
-                                Agency
-                              </span>
-                            )}
-                            <span className="text-[10px] text-gray-400 ml-auto">
-                              {new Date(c.created_at).toLocaleString(undefined, {
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap break-words">
-                            {c.content}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                    <CommentThreadList comments={comments} onReply={composer.startReply} />
                     <div ref={commentsEndRef} />
                   </div>
                 )}
 
                 {/* Comment composer */}
                 <div className="space-y-1.5">
+                  {composer.replyTo && (
+                    <ReplyingTo name={composer.replyTo.authorName} onCancel={composer.cancelReply} />
+                  )}
                   <div className="relative">
-                    <Textarea
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
+                    <MentionTextarea
+                      ref={composer.composerRef}
+                      draft={composer.draft}
+                      mentionables={mentionables}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                           e.preventDefault();
                           handlePostComment();
                         }
                       }}
-                      placeholder="Add a comment... (⌘↵ to send)"
+                      placeholder="Add a comment... type @ to tag someone (⌘↵ to send)"
                       className="resize-none text-sm pr-12 min-h-[80px]"
                       disabled={isPostingComment}
                     />
                     <button
                       onClick={handlePostComment}
-                      disabled={isPostingComment || !newComment.trim()}
+                      disabled={isPostingComment || !composer.draft.text.trim()}
                       className="absolute top-2 right-2 w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       {isPostingComment ? (

@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { Loader2, Plus, Edit3, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Settings, Images, Upload, FileText, Bot } from 'lucide-react'
+import { Loader2, Plus, Edit3, Wand2, X, ChevronDown, Lightbulb, Clock, RefreshCw, AlertCircle, CheckCircle, Check, Image as ImageIcon, Video as VideoIcon, Brain, Settings, Images, Upload, FileText, Bot } from 'lucide-react'
 import PhotoSwapDialog from '@/components/PhotoSwapDialog'
 import { isVideoUrl } from '@/lib/videoUtils'
 import Link from 'next/link'
@@ -24,9 +24,12 @@ import { SchedulePostModal, Platform } from '@/components/SchedulePostModal'
 import { ChatCaptionOption } from '@/components/ChatCaptionOption'
 import { SuggestedRuleChip } from '@/components/SuggestedRuleChip'
 import CaptionPlaybook from '@/components/CaptionPlaybook'
+import { ThinkingIndicator } from '@/components/ThinkingIndicator'
 import ContentAgentPanel from '@/components/ContentAgentPanel'
 import { publishedCaption } from '@/lib/candidateCaption'
 import type { AutopilotCandidate } from '@/types/autopilot'
+import { LazyImageEditor as ImageEditor } from '@/components/image-editor'
+import { CaptionToolsPanel } from '@/components/caption-tools/CaptionToolsPanel'
 
 interface Project {
   id: string
@@ -70,6 +73,7 @@ interface PageProps {
 }
 
 import { useContentStore } from '@/lib/contentStore'
+import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea'
 
 export default function ContentSuitePage({ params }: PageProps) {
   const { clientId } = use(params)
@@ -870,6 +874,7 @@ function ContentSuiteContent({
     setActiveImageId,
     addImage,
     removeImage,
+    replaceImage,
     contentFocus,
     setContentFocus,
     copyTone,
@@ -895,6 +900,15 @@ function ContentSuiteContent({
   
   const { user } = useAuth()
   
+  // Image editor: which uploaded image is open in it
+  const [editorImageId, setEditorImageId] = useState<string | null>(null)
+  const editorImage = editorImageId ? uploadedImages.find(img => img.id === editorImageId) : undefined
+  // ...or a blank design at this size
+  const [blankDesignSize, setBlankDesignSize] = useState<'square' | 'portrait' | 'story' | 'landscape' | null>(null)
+  const designableImage = (img?: { mediaType?: string; blobUrl?: string; uploadFailed?: boolean }) =>
+    !!img && img.mediaType !== 'video' && !!img.blobUrl && !img.uploadFailed
+  const activeDesignable = uploadedImages.find(img => img.id === activeImageId && designableImage(img))
+
   // Gallery picker state (lives here so setUploadedImages / setActiveImageId are in scope)
   const [galleryPickerOpen, setGalleryPickerOpen] = useState(false)
 
@@ -1943,9 +1957,9 @@ function ContentSuiteContent({
     <div className="min-h-screen bg-background">
       {/* Action bar */}
       {isEditing && (
-        <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+        <div className="mx-3 mt-3 md:mx-6 md:mt-4 rounded-2xl border border-gray-200/80 bg-white/85 px-4 py-3 shadow-card backdrop-blur-xl flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-gray-700">Edit Post</h1>
+            <h1 className="text-[17px] font-semibold text-gray-900">Edit Post</h1>
             <p className="text-sm text-gray-500">Edit your scheduled post content</p>
           </div>
           <Button
@@ -1961,7 +1975,7 @@ function ContentSuiteContent({
 
       {/* Edit Banner */}
       {isEditing && (
-        <div className="bg-blue-50 border-b border-blue-200 px-6 py-3">
+        <div className="mx-3 mt-3 md:mx-6 rounded-xl bg-blue-50/80 border border-blue-200/80 px-4 py-2.5">
           <div className="flex items-center">
             <Edit3 className="w-5 h-5 text-blue-600 mr-2" />
             <p className="text-sm text-blue-800">
@@ -1973,7 +1987,7 @@ function ContentSuiteContent({
 
       {/* Edit Instructions */}
       {isEditing && (
-        <div className="bg-green-50 border-b border-green-200 px-6 py-3">
+        <div className="mx-3 mt-3 md:mx-6 rounded-xl bg-emerald-50/80 border border-emerald-200/80 px-4 py-2.5">
           <div className="flex items-center">
             <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
             <p className="text-sm text-green-800">
@@ -2029,7 +2043,7 @@ function ContentSuiteContent({
           <div className="px-3 py-3 md:px-6 md:py-4">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-2xl font-semibold text-gray-800">Generated Ideas</h2>
+                <h2 className="text-[17px] font-semibold tracking-[-0.012em] text-gray-900">Generated Ideas</h2>
               </div>
               <Button
                 onClick={handleRefreshIdeas}
@@ -2052,19 +2066,19 @@ function ContentSuiteContent({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {contentIdeas.map((idea, index) => (
-                <div key={index} className="border rounded-lg p-3 transition-all hover:border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 h-full">
+                <div key={index} className="h-full rounded-2xl border border-gray-200/80 bg-white p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-card-hover">
                   <div className="space-y-2">
                     <div className="flex items-start space-x-3">
-                      <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                        <span className="text-purple-600 font-semibold text-sm">{index + 1}</span>
+                      <div className="flex-shrink-0 w-8 h-8 bg-gradient-ai rounded-xl flex items-center justify-center shadow-sm">
+                        <span className="text-white font-semibold text-sm">{index + 1}</span>
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-2">{idea.idea}</h3>
+                        <h3 className="text-[15px] font-semibold leading-snug tracking-[-0.01em] text-gray-900 mb-2">{idea.idea}</h3>
                       </div>
                     </div>
                     <div className="space-y-3 ml-2">
                       <div className="flex items-start space-x-2">
-                        <div className="flex-shrink-0 w-5 h-5 text-purple-500 mt-0.5">
+                        <div className="flex-shrink-0 w-5 h-5 text-orange-500 mt-0.5">
                           <Lightbulb className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2103,7 +2117,7 @@ function ContentSuiteContent({
                   {isEditing ? (
                     <CardTitle className="card-title-26">Content Creation</CardTitle>
                   ) : (
-                    <div role="tablist" aria-label="Content creation mode" className="inline-flex rounded-full bg-gray-100 p-1">
+                    <div role="tablist" aria-label="Content creation mode" className="inline-flex rounded-full border border-gray-200/80 bg-white p-1 shadow-xs">
                       {([
                         { mode: 'single', label: 'Single Post', icon: <FileText className="w-4 h-4" /> },
                         { mode: 'agent', label: 'Content Agent', icon: <Bot className="w-4 h-4" /> },
@@ -2114,8 +2128,10 @@ function ContentSuiteContent({
                           role="tab"
                           aria-selected={leftMode === mode}
                           onClick={() => selectLeftMode(mode)}
-                          className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                            leftMode === mode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                          className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors ${
+                            leftMode === mode
+                              ? mode === 'agent' ? 'bg-gradient-ai text-white shadow-sm' : 'bg-blue-600 text-white shadow-sm'
+                              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                           }`}
                         >
                           {icon}
@@ -2179,18 +2195,24 @@ function ContentSuiteContent({
                   <div className="space-y-6">
                     {/* Upload Media Section */}
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-700 mb-4">Upload Media</h3>
+                      <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-gray-900 mb-3">Upload Media</h3>
                   {/* Top Row: Square Upload Box + Thumbnails + Dropdowns */}
                   <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr_320px] gap-4 mb-4 items-start">
                     {/* Square Upload Box on Left */}
                     <div className="flex flex-col gap-2 w-full lg:w-[200px]">
                       <div
-                        className="rounded-2xl p-4 text-center transition-colors cursor-pointer w-full lg:w-[200px] h-[140px] lg:h-[200px] flex flex-col items-center justify-center bg-gradient-to-br from-blue-700/90 to-blue-400/90"
+                        className="rounded-2xl p-4 text-center transition-colors cursor-pointer w-full lg:w-[200px] h-[140px] lg:h-[200px] flex flex-col items-center justify-center bg-gradient-to-br from-blue-600 to-cyan-400 shadow-button ring-1 ring-white/30 hover:brightness-105"
                         onDragOver={handleDragOver}
                         onDrop={handleDrop}
                         onClick={() => document.getElementById('media-upload-v2')?.click()}
                       >
-                        <div className="text-[100px] font-light text-white leading-none">+</div>
+                        <div className="flex flex-col items-center gap-1.5 text-white">
+                          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 ring-1 ring-white/40 backdrop-blur-sm">
+                            <Plus className="h-6 w-6" />
+                          </span>
+                          <span className="text-[13px] font-semibold">Add photos or video</span>
+                          <span className="text-[11px] text-white/80">Click or drop files</span>
+                        </div>
                         <input
                           id="media-upload-v2"
                           type="file"
@@ -2200,6 +2222,42 @@ function ContentSuiteContent({
                           className="hidden"
                         />
                       </div>
+                      {/* Design Studio — edit a photo or start from a blank canvas */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            data-testid="design-studio-button"
+                            className="relative flex items-center justify-center gap-1.5 w-full py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 hover:opacity-90 shadow-sm transition-opacity"
+                          >
+                            <Wand2 className="w-4 h-4" />
+                            Design Studio
+                            <span className="absolute -top-2 -right-2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-950 shadow">
+                              New
+                            </span>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-64">
+                          {activeDesignable && (
+                            <>
+                              <DropdownMenuItem onClick={() => setEditorImageId(activeDesignable.id)}>
+                                <Wand2 className="w-4 h-4 mr-2 text-blue-600" />
+                                Design the selected photo
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
+                          <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Start from blank</div>
+                          <DropdownMenuItem onClick={() => setBlankDesignSize('square')}>Square post · 1:1</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setBlankDesignSize('portrait')}>Portrait post · 4:5</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setBlankDesignSize('story')}>Story / Reel cover · 9:16</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setBlankDesignSize('landscape')}>Landscape · 1.91:1</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem asChild>
+                            <Link href={`/dashboard/client/${clientId}#brand-kit`}>Manage Brand Kit</Link>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       {/* Pick from Media Gallery */}
                       <button
                         type="button"
@@ -2210,6 +2268,46 @@ function ContentSuiteContent({
                         Pick from Gallery
                       </button>
                     </div>
+
+                    {/* Design Studio on a blank canvas */}
+                    {blankDesignSize && (
+                      <ImageEditor
+                        key={`blank-${blankDesignSize}`}
+                        blankSize={blankDesignSize}
+                        otherImages={uploadedImages
+                          .filter(img => designableImage(img))
+                          .map(img => img.blobUrl || img.preview)}
+                        brandLogoUrl={client?.logo_url}
+                        brandName={client?.name}
+                        clientId={clientId}
+                        onCancel={() => setBlankDesignSize(null)}
+                        onSave={async (file, design) => {
+                          setBlankDesignSize(null)
+                          await addImage(file, { design })
+                        }}
+                      />
+                    )}
+
+                    {/* Design Studio on an uploaded photo */}
+                    {editorImage && (
+                      <ImageEditor
+                        key={editorImage.id}
+                        imageUrl={editorImage.blobUrl || editorImage.preview}
+                        file={editorImage.file}
+                        design={editorImage.design}
+                        otherImages={uploadedImages
+                          .filter(img => img.id !== editorImage.id && img.mediaType !== 'video' && !img.uploadFailed)
+                          .map(img => img.blobUrl || img.preview)}
+                        brandLogoUrl={client?.logo_url}
+                        brandName={client?.name}
+                        clientId={clientId}
+                        onCancel={() => setEditorImageId(null)}
+                        onSave={async (file, design) => {
+                          setEditorImageId(null)
+                          await replaceImage(editorImage.id, file, design)
+                        }}
+                      />
+                    )}
 
                     {/* Gallery Picker Dialog */}
                     <PhotoSwapDialog
@@ -2222,6 +2320,38 @@ function ContentSuiteContent({
 
                     {/* Uploaded Media Thumbnails - To the right of upload box */}
                     <div className="flex gap-3 flex-wrap items-start min-w-0">
+                      {/* Until there's media, introduce the Design Studio here */}
+                      {uploadedImages.length === 0 && (
+                        <div className="w-full rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white">
+                              <Wand2 className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-800">Design Studio is built in</p>
+                              <p className="mt-0.5 text-xs leading-relaxed text-gray-600">
+                                Upload a photo, then click <span className="font-semibold text-blue-700">Design</span> to add text, logos and
+                                brand colours — or start a graphic from a blank canvas. No more jumping out to another design tool.
+                              </p>
+                              <div className="mt-2.5 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setBlankDesignSize('square')}
+                                  className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:opacity-90"
+                                >
+                                  <Wand2 className="h-3.5 w-3.5" /> Start a design
+                                </button>
+                                <Link
+                                  href={`/dashboard/client/${clientId}#brand-kit`}
+                                  className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                  Set up {client?.name ? `${client.name}'s` : 'the'} Brand Kit
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       {uploadedImages.map((media) => {
                         // Only show spinner while actively uploading — not if upload failed
                         const isUploading = !media.blobUrl && !media.uploadFailed && (media.preview?.startsWith('blob:') || media.preview?.startsWith('data:'))
@@ -2230,7 +2360,7 @@ function ContentSuiteContent({
                         return (
                           <div
                             key={media.id}
-                            className={`relative w-24 h-24 border-2 rounded-lg cursor-pointer transition-all flex-shrink-0 ${
+                            className={`relative w-24 h-24 border-2 rounded-xl overflow-hidden shadow-xs cursor-pointer transition-all flex-shrink-0 ${
                               hasUploadError
                                 ? 'border-red-400 bg-red-50'
                                 : activeImageId === media.id
@@ -2292,13 +2422,30 @@ function ContentSuiteContent({
                               </div>
                             )}
 
+                            {/* Edit (Canva-style editor) — images only, once they've loaded */}
+                            {media.mediaType !== 'video' && !isUploading && !hasUploadError && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setActiveImageId(media.id)
+                                  setEditorImageId(media.id)
+                                }}
+                                className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-center gap-1 rounded-b-md bg-gradient-to-r from-blue-600/95 to-cyan-500/95 py-1 text-[11px] font-semibold text-white hover:from-orange-600 hover:to-blue-600"
+                                title="Open in Design Studio — add text, logos, brand colours, filters"
+                              >
+                                <Wand2 className="w-3 h-3" />
+                                Design
+                              </button>
+                            )}
+
                             {/* Remove button */}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
                                 removeImage(media.id)
                               }}
-                              className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors z-10"
+                              className="absolute top-1 right-1 bg-white/90 hover:bg-red-50 text-red-600 rounded-full p-1 shadow-sm ring-1 ring-black/5 backdrop-blur-sm transition-colors z-10"
                             >
                               <X className="w-3 h-3" />
                             </button>
@@ -2311,12 +2458,12 @@ function ContentSuiteContent({
                     <div className="flex flex-col gap-4 w-full lg:w-[320px] lg:flex-shrink-0 min-w-0">
                       {/* Copy Type (moved to top) */}
                       <div className="flex items-center gap-4">
-                        <h4 className="text-lg font-semibold text-gray-700 whitespace-nowrap w-32 flex-shrink-0 text-right">Copy Type</h4>
+                        <h4 className="text-[13px] font-medium text-gray-600 whitespace-nowrap w-32 flex-shrink-0 text-right">Copy Type</h4>
                         <div className="flex-1 min-w-0">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="sm" className="h-8 w-full px-3 justify-between">
-                                <span className="text-lg font-semibold text-left flex-1 min-w-0 whitespace-nowrap">
+                              <Button variant="outline" size="sm" className="h-9 w-full rounded-lg px-3 justify-between">
+                                <span className="text-[13px] font-medium text-left flex-1 min-w-0 whitespace-nowrap">
                                   {copyType === 'social-media' ? 'Social Media' : 'Email Marketing'}
                                 </span>
                                 <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
@@ -2327,13 +2474,13 @@ function ContentSuiteContent({
                                 onClick={() => setCopyType('social-media')}
                                 className={copyType === 'social-media' ? 'bg-accent' : ''}
                               >
-                                <span className="text-lg font-semibold">Social Media</span>
+                                <span className="text-[13px] font-medium">Social Media</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setCopyType('email-marketing')}
                                 className={copyType === 'email-marketing' ? 'bg-accent' : ''}
                               >
-                                <span className="text-lg font-semibold">Email Marketing</span>
+                                <span className="text-[13px] font-medium">Email Marketing</span>
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -2342,12 +2489,12 @@ function ContentSuiteContent({
 
                       {/* Content Focus */}
                       <div className="flex items-center gap-4">
-                        <h4 className="text-lg font-semibold text-gray-700 whitespace-nowrap w-32 flex-shrink-0 text-right">Content Focus</h4>
+                        <h4 className="text-[13px] font-medium text-gray-600 whitespace-nowrap w-32 flex-shrink-0 text-right">Content Focus</h4>
                         <div className="flex-1 min-w-0">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="sm" className="h-8 w-full px-3 justify-between">
-                                <span className="text-lg font-semibold text-left flex-1 min-w-0 whitespace-nowrap">{getContentFocusDisplayText(contentFocus)}</span>
+                              <Button variant="outline" size="sm" className="h-9 w-full rounded-lg px-3 justify-between">
+                                <span className="text-[13px] font-medium text-left flex-1 min-w-0 whitespace-nowrap">{getContentFocusDisplayText(contentFocus)}</span>
                                 <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -2356,19 +2503,19 @@ function ContentSuiteContent({
                                 onClick={() => setContentFocus('main-focus')}
                                 className={contentFocus === 'main-focus' ? 'bg-accent' : ''}
                               >
-                                <span className="text-lg font-semibold">Main focus</span>
+                                <span className="text-[13px] font-medium">Main focus</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setContentFocus('supporting')}
                                 className={contentFocus === 'supporting' ? 'bg-accent' : ''}
                               >
-                                <span className="text-lg font-semibold">Supporting</span>
+                                <span className="text-[13px] font-medium">Supporting</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setContentFocus('background')}
                                 className={contentFocus === 'background' ? 'bg-accent' : ''}
                               >
-                                <span className="text-lg font-semibold">Background</span>
+                                <span className="text-[13px] font-medium">Background</span>
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -2377,12 +2524,12 @@ function ContentSuiteContent({
 
                       {/* Copy Tone */}
                       <div className="flex items-center gap-4">
-                        <h4 className="text-lg font-semibold text-gray-700 whitespace-nowrap w-32 flex-shrink-0 text-right">Copy Tone</h4>
+                        <h4 className="text-[13px] font-medium text-gray-600 whitespace-nowrap w-32 flex-shrink-0 text-right">Copy Tone</h4>
                         <div className="flex-1 min-w-0">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="sm" className="h-8 w-full px-3 justify-between">
-                                <span className="text-lg font-semibold text-left flex-1 min-w-0 whitespace-nowrap">{getCopyToneDisplayText(copyTone)}</span>
+                              <Button variant="outline" size="sm" className="h-9 w-full rounded-lg px-3 justify-between">
+                                <span className="text-[13px] font-medium text-left flex-1 min-w-0 whitespace-nowrap">{getCopyToneDisplayText(copyTone)}</span>
                                 <ChevronDown className="w-4 h-4 ml-2 flex-shrink-0" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -2391,31 +2538,31 @@ function ContentSuiteContent({
                                 onClick={() => setCopyTone('promotional')}
                                 className={copyTone === 'promotional' ? 'bg-accent' : ''}
                               >
-                                <span className="text-lg font-semibold">Promotional</span>
+                                <span className="text-[13px] font-medium">Promotional</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setCopyTone('educational')}
                                 className={copyTone === 'educational' ? 'bg-accent' : ''}
                               >
-                                <span className="text-lg font-semibold">Educational</span>
+                                <span className="text-[13px] font-medium">Educational</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setCopyTone('personal')}
                                 className={copyTone === 'personal' ? 'bg-accent' : ''}
                               >
-                                <span className="text-lg font-semibold">Personal</span>
+                                <span className="text-[13px] font-medium">Personal</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setCopyTone('testimonial')}
                                 className={copyTone === 'testimonial' ? 'bg-accent' : ''}
                               >
-                                <span className="text-lg font-semibold">Testimonial</span>
+                                <span className="text-[13px] font-medium">Testimonial</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 onClick={() => setCopyTone('engagement')}
                                 className={copyTone === 'engagement' ? 'bg-accent' : ''}
                               >
-                                <span className="text-lg font-semibold">Engagement</span>
+                                <span className="text-[13px] font-medium">Engagement</span>
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -2434,9 +2581,9 @@ function ContentSuiteContent({
                   )}
 
                   {/* ── Caption Mode Toggle ── */}
-                  <div ref={inputGlide.anchorRef} className="flex items-center justify-between border-t border-gray-200 pt-4 pb-1">
-                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Caption Mode</span>
-                    <div className="flex items-center bg-gray-100 rounded-full p-1 gap-0.5">
+                  <div ref={inputGlide.anchorRef} className="flex items-center justify-between border-t border-gray-100 pt-4 pb-1">
+                    <span className="text-[11px] font-medium text-gray-400 uppercase tracking-[0.06em]">Caption Mode</span>
+                    <div className="flex items-center rounded-full border border-gray-200/80 bg-white p-1 gap-0.5 shadow-xs">
                       <button
                         onClick={() => { setCustomMode(false); setChatMode(false) }}
                         className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
@@ -2451,7 +2598,7 @@ function ContentSuiteContent({
                         onClick={() => { setCustomMode(false); setChatMode(true) }}
                         className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
                           chatMode && !customMode
-                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-sm'
+                            ? 'bg-gradient-ai text-white shadow-sm'
                             : 'text-gray-500 hover:text-gray-700'
                         }`}
                       >
@@ -2473,7 +2620,7 @@ function ContentSuiteContent({
                   {/* ── Custom Mode: write your own caption ── */}
                   {customMode && (
                     <div className="pt-3">
-                      <Textarea
+                      <CaptionTextarea clientId={clientId}
                         value={customModeCaption?.text ?? ''}
                         onChange={(e) => handleCustomModeCaptionChange(e.target.value)}
                         placeholder={`Write your own ${copyType === 'social-media' ? 'caption' : 'email copy'}...`}
@@ -2484,6 +2631,15 @@ function ContentSuiteContent({
                         <p className="text-xs text-gray-400">No AI — this caption is used exactly as written</p>
                         <p className="text-xs text-gray-400">{(customModeCaption?.text ?? '').length} characters</p>
                       </div>
+                      {copyType === 'social-media' && (
+                        <div className="mt-3">
+                          <CaptionToolsPanel
+                            caption={customModeCaption?.text ?? ''}
+                            onInsert={handleCustomModeCaptionChange}
+                            clientId={clientId}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -2549,7 +2705,7 @@ function ContentSuiteContent({
                       {!chatMode && (
                         <div className="flex items-center my-6">
                           <div className="flex-1 border-t border-gray-300"></div>
-                          <span className="px-4 text-sm font-bold text-gray-700">OR</span>
+                          <span className="px-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-400">or</span>
                           <div className="flex-1 border-t border-gray-300"></div>
                         </div>
                       )}
@@ -2569,7 +2725,7 @@ function ContentSuiteContent({
                           <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {/* AI avatar */}
                             {msg.role === 'assistant' && (
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-sky-400 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
                                 <Brain className="w-4 h-4 text-white" />
                               </div>
                             )}
@@ -2582,12 +2738,10 @@ function ContentSuiteContent({
                                 </div>
                               )}
 
-                              {/* AI loading dots */}
+                              {/* AI thinking */}
                               {msg.role === 'assistant' && msg.isLoading && (
-                                <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm inline-flex items-center gap-1.5">
-                                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '160ms' }} />
-                                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '320ms' }} />
+                                <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm inline-flex">
+                                  <ThinkingIndicator />
                                 </div>
                               )}
 
@@ -2657,15 +2811,15 @@ function ContentSuiteContent({
                                 return (
                                   <div
                                     key={caption.id}
-                                    className={`border rounded-lg p-3 transition-all ${
+                                    className={`border rounded-xl p-3 shadow-xs transition-all duration-200 ${
                                       selectedCaptions.includes(caption.id)
-                                        ? 'border-blue-500 bg-blue-50'
-                                        : 'border-gray-200'
+                                        ? 'border-blue-400 bg-blue-50/70 ring-[3px] ring-blue-500/10'
+                                        : 'border-gray-200/90 bg-white hover:border-gray-300 hover:shadow-card'
                                     }`}
                                   >
                                     {isFirstEmpty || caption.id === 'custom-caption-1' ? (
                                       <div className="flex flex-col items-center justify-center py-8">
-                                        <Textarea
+                                        <CaptionTextarea clientId={clientId}
                                           value={caption.text}
                                           onChange={(e) => {
                                             const newText = e.target.value
@@ -2696,7 +2850,7 @@ function ContentSuiteContent({
                                       </div>
                                     ) : (
                                       <div className="space-y-2">
-                                        <Textarea
+                                        <CaptionTextarea clientId={clientId}
                                           value={caption.text}
                                           onChange={(e) => {
                                             const newText = e.target.value
@@ -2772,6 +2926,7 @@ function ContentSuiteContent({
                 getSelectedCaption={getSelectedCaption}
                 customCaptionFromPreview={customCaptionFromPreview}
                 onOpenScheduleModal={() => setIsScheduleModalOpen(true)}
+                onEditActiveImage={activeDesignable ? () => setEditorImageId(activeDesignable.id) : undefined}
               />
             </div>
 
@@ -2858,7 +3013,7 @@ function ContentSuiteContent({
                 setShowCreditDialog(false)
                 window.location.href = '/pricing'
               }}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               Upgrade Plan
             </Button>
@@ -2895,7 +3050,7 @@ function ContentSuiteContent({
             ) : (
               <>
                 {/* Brand Tone of Voice guide */}
-                <div className={`rounded-lg border p-4 ${rulesForm.useBrandTov ? 'border-purple-300' : 'border-gray-200 opacity-60'}`}>
+                <div className={`rounded-lg border p-4 ${rulesForm.useBrandTov ? 'border-blue-300' : 'border-gray-200 opacity-60'}`}>
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <label className="text-sm font-medium text-gray-700">
                       📘 Brand Tone of Voice
@@ -2905,7 +3060,7 @@ function ContentSuiteContent({
                       onChange={(checked) => updateRulesField('useBrandTov', checked)}
                     />
                   </div>
-                  <p className="mb-3 text-xs text-purple-600">
+                  <p className="mb-3 text-xs text-blue-600">
                     Upload the brand&apos;s TOV guide (PDF, Word, text or markdown). AI transcribes it to markdown and treats it as the copy rules for every caption.
                   </p>
                   <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -2947,7 +3102,7 @@ function ContentSuiteContent({
                     onChange={(e) => updateRulesField('brandTov', e.target.value)}
                     placeholder="Upload a TOV document above, or write/paste the brand's tone of voice rules here in markdown."
                     rows={10}
-                    className="font-mono text-xs border-purple-300 focus-visible:border-purple-500 focus-visible:ring-purple-500"
+                    className="font-mono text-xs border-blue-300 focus-visible:border-blue-500 focus-visible:ring-blue-500"
                   />
                 </div>
 

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import OpenAI from 'openai';
-import { AI_MODEL_FAST, completionParams } from '@/lib/aiModel';
+import { AI_MODEL_FAST } from '@/lib/aiModel';
+import { completionParams } from '@/lib/openaiParams';
 import logger from '@/lib/logger';
 import { requireAuth } from '@/lib/authHelpers';
 import { withAICreditCheck, trackAICreditUsage } from '@/lib/subscriptionMiddleware';
@@ -110,7 +111,6 @@ export async function POST(request: NextRequest) {
 
         // Vision analysis on the fast model — tagging is high volume, low stakes
         const completion = await client.chat.completions.create({
-          model: AI_MODEL_FAST,
           messages: [
             {
               role: 'system',

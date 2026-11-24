@@ -55,6 +55,8 @@ export interface AutopilotSettings {
   notification_method: string;
   auto_publish: boolean;
   auto_publish_hours: number;
+  /** Draft posts automatically when the next 7 days fall short of posts_per_week */
+  fill_gaps?: boolean;
 }
 
 export interface AdCopySettings {

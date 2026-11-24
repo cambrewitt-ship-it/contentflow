@@ -4,6 +4,8 @@ import { checkSocialMediaPostingPermission } from '@/lib/subscriptionMiddleware'
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
 import { toLateMediaItem, LateUploadError } from '@/lib/lateMedia';
+import { zonedLocalToUtcMs } from '@/lib/lateReschedule';
+import { withFacebookCaptions } from '@/lib/captionLibraryServer';
 
 // Carousel posts re-host each extra photo on LATE before scheduling
 export const maxDuration = 300;
@@ -11,27 +13,6 @@ export const maxDuration = 300;
 const PAST_DUE_BUFFER_MS = 60 * 1000;
 // Platforms that reject posts without a photo or video
 const MEDIA_REQUIRED_PLATFORMS = new Set(['instagram', 'tiktok', 'youtube', 'pinterest']);
-
-// Converts a wall-clock "YYYY-MM-DDTHH:mm[:ss]" in an IANA timezone to a UTC timestamp
-function zonedLocalToUtcMs(localDateTime: string, timeZone: string): number {
-  const asUtc = Date.parse(`${localDateTime}Z`);
-  if (Number.isNaN(asUtc)) return NaN;
-  const offsetAt = (ms: number) => {
-    const parts = Object.fromEntries(
-      new Intl.DateTimeFormat('en-US', {
-        timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-      }).formatToParts(ms).map((p) => [p.type, Number(p.value)])
-    );
-    return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) - ms;
-  };
-  try {
-    const guess = asUtc - offsetAt(asUtc);
-    return asUtc - offsetAt(guess); // second pass settles DST boundaries
-  } catch {
-    return NaN; // unknown timezone
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -206,9 +187,28 @@ export async function POST(request: NextRequest) {
       : { scheduledFor: localDateTime, timezone: clientTimezone }; // e.g. "2024-09-16T18:00:00"
 
     // Log what we're sending to LATE
+    // Facebook can't tag through the API, so saved @instagramhandles read as the
+    // account's Facebook name there (customContent is Zernio's per-platform caption).
+    const platformsWithFbCaptions = await withFacebookCaptions(supabase, clientId, finalContent, platforms);
+
+    // "First comment" (usually the link): Zernio posts it on Facebook right after
+    // publishing; on Instagram the Feed Checker posts it once the post is live.
+    // Missing column (migration 036 not run) just means no first comment.
+    const { data: firstCommentRow } = await supabase
+      .from('calendar_scheduled_posts')
+      .select('first_comment')
+      .eq('id', postId)
+      .maybeSingle();
+    const firstComment = typeof firstCommentRow?.first_comment === 'string' ? firstCommentRow.first_comment.trim() : '';
+    const platformsWithCaptions = firstComment
+      ? platformsWithFbCaptions.map((p) =>
+          String(p.platform).toLowerCase() === 'facebook' ? { ...p, platformSpecificData: { firstComment } } : p
+        )
+      : platformsWithFbCaptions;
+
     const requestBody = {
       content: finalContent,
-      platforms: platforms,
+      platforms: platformsWithCaptions,
       ...scheduleTiming,
       ...(lateMediaUrl
         ? {

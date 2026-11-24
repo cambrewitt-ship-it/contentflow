@@ -2,29 +2,24 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Send, Loader2 } from "lucide-react";
+import { usePortal } from "@/contexts/PortalContext";
+import {
+  CommentThreadList,
+  MentionTextarea,
+  ReplyingTo,
+  useCommentComposer,
+  useMentionables,
+  type ThreadComment,
+} from "@/components/comments";
 
-export interface PostComment {
-  id: string;
-  author_name: string;
-  author_type: "agency" | "portal_party";
-  content: string;
-  created_at: string;
-  party: {
-    id: string;
-    name: string;
-    role: string;
-    color: string | null;
-  } | null;
-}
+export type PostComment = ThreadComment;
 
 interface PostCommentThreadProps {
   postId: string;
   postType: "scheduled" | "calendar_scheduled";
   comments: PostComment[];
   portalToken: string;
-  authorName: string;
   onCommentAdded: (comment: PostComment) => void;
 }
 
@@ -33,15 +28,16 @@ export function PostCommentThread({
   postType,
   comments,
   portalToken,
-  authorName,
   onCommentAdded,
 }: PostCommentThreadProps) {
-  const [content, setContent] = useState("");
+  const { setMember } = usePortal();
+  const mentionables = useMentionables({ portalToken });
+  const composer = useCommentComposer(mentionables);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (!content.trim()) return;
+    if (!composer.draft.text.trim()) return;
     setIsSubmitting(true);
     setError(null);
 
@@ -51,20 +47,21 @@ export function PostCommentThread({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           portal_token: portalToken,
-          author_name: authorName,
-          content: content.trim(),
+          ...composer.payload(),
           post_type: postType,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
+        // Signed out on this device (e.g. session expired) — back to the sign-in screen
+        if (data.code === "not_signed_in") setMember(null);
         setError(data.error ?? "Failed to post comment");
         return;
       }
 
       onCommentAdded(data.comment);
-      setContent("");
+      composer.reset();
     } catch {
       setError("Failed to post comment");
     } finally {
@@ -80,76 +77,36 @@ export function PostCommentThread({
 
       {/* Comment list */}
       <div className="space-y-3 max-h-64 overflow-y-auto">
-        {comments.length === 0 && (
-          <p className="text-sm text-muted-foreground">No comments yet.</p>
-        )}
-        {comments.map((c) => (
-          <div key={c.id} className="flex gap-2.5">
-            <div
-              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-              style={{
-                backgroundColor:
-                  c.author_type === "agency"
-                    ? "#1e293b"
-                    : (c.party?.color ?? "#6366f1"),
-              }}
-            >
-              {c.author_name.charAt(0).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium">{c.author_name}</span>
-                {c.party && (
-                  <span
-                    className="text-[10px] px-1.5 py-0.5 rounded-full text-white"
-                    style={{ backgroundColor: c.party.color ?? "#6366f1" }}
-                  >
-                    {c.party.name}
-                  </span>
-                )}
-                {c.author_type === "agency" && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-white">
-                    Agency
-                  </span>
-                )}
-                <span className="text-[10px] text-muted-foreground ml-auto">
-                  {new Date(c.created_at).toLocaleString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
-              <p className="text-sm text-foreground mt-0.5 whitespace-pre-wrap break-words">
-                {c.content}
-              </p>
-            </div>
-          </div>
-        ))}
+        <CommentThreadList comments={comments} onReply={composer.startReply} />
       </div>
 
       {/* Composer */}
       <div className="space-y-2">
-        <Textarea
-          placeholder="Add a comment..."
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              handleSubmit();
-            }
-          }}
-          className="min-h-[80px] resize-none text-sm"
-          disabled={isSubmitting}
-        />
+        {composer.replyTo && (
+          <ReplyingTo name={composer.replyTo.authorName} onCancel={composer.cancelReply} />
+        )}
+        <div className="relative">
+          <MentionTextarea
+            ref={composer.composerRef}
+            draft={composer.draft}
+            mentionables={mentionables}
+            placeholder="Add a comment... type @ to tag someone"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+            className="min-h-[80px] resize-none text-sm"
+            disabled={isSubmitting}
+          />
+        </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
         <div className="flex justify-end">
           <Button
             size="sm"
             onClick={handleSubmit}
-            disabled={isSubmitting || !content.trim()}
+            disabled={isSubmitting || !composer.draft.text.trim()}
             className="gap-1.5"
           >
             {isSubmitting ? (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { AI_MODEL, completionParams } from '@/lib/aiModel';
+import { AI_MODEL } from '@/lib/aiModel';
+import { completionParams } from '@/lib/openaiParams';
 import { resolvePortalToken } from '@/lib/portalAuth';
 import logger from '@/lib/logger';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
@@ -103,7 +104,6 @@ Output ONLY the caption text — no explanations, no labels, no quotes around it
     }
 
     const response = await openai.chat.completions.create({
-      model: AI_MODEL,
       ...completionParams(AI_MODEL, { maxTokens: 600 }),
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
     });

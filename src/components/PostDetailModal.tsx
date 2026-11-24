@@ -171,7 +171,7 @@ export function PostDetailModal({
                 variant="outline"
                 className={`text-xs ${
                   post.post_type_tag === "pr_event"
-                    ? "border-purple-300 text-purple-700 bg-purple-50"
+                    ? "border-blue-300 text-blue-700 bg-blue-50"
                     : "border-sky-300 text-sky-700 bg-sky-50"
                 }`}
               >
@@ -268,7 +268,6 @@ export function PostDetailModal({
                     postType={postType}
                     comments={comments}
                     portalToken={portalToken}
-                    authorName={party?.name ?? "Portal User"}
                     onCommentAdded={comment => setComments(prev => [...prev, comment])}
                   />
                 )}

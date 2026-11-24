@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
-import { AI_MODEL, completionParams } from '@/lib/aiModel';
+import { AI_MODEL } from '@/lib/aiModel';
+import { completionParams } from '@/lib/openaiParams';
 
 // Reads a scraped website and fills in the business profile, plus a draft
 // Tone of Voice guide (markdown, stored on clients.brand_tov) written from the
@@ -62,7 +63,6 @@ export async function analyzeWebsite(content: string): Promise<WebsiteAnalysis> 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 90_000 });
 
   const completion = await openai.chat.completions.create({
-    model: AI_MODEL,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: `Analyze this website content:\n\n${content}` },

@@ -76,10 +76,13 @@ export function PublishStatusBadge({ post, variant = 'bar' }: { post: PublishSta
   if (variant === 'bar') {
     return (
       <div
-        className={`px-3 py-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-white ${isPosted ? 'bg-green-500' : 'bg-indigo-500'}`}
+        className={`px-2.5 py-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-white ${isPosted ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' : 'bg-gradient-to-r from-blue-600 to-blue-500'}`}
         title={`${isPosted ? 'Posted' : 'Scheduled'} to ${names}${when ? ` · ${formatWhen(when, true)}` : ''}`}
       >
-        <span className="text-xs font-bold tracking-wide">{isPosted ? 'POSTED' : 'SCHEDULED'}</span>
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.04em]">
+          {isPosted ? <CheckCircle2 className="h-3.5 w-3.5" /> : <CalendarClock className="h-3.5 w-3.5" />}
+          {isPosted ? 'Posted' : 'Scheduled'}
+        </span>
         <PlatformIcons platforms={platforms} size={16} />
         {when && <span className="text-[11px] font-medium opacity-95">{formatWhen(when)}</span>}
       </div>
@@ -89,17 +92,17 @@ export function PublishStatusBadge({ post, variant = 'bar' }: { post: PublishSta
   const Icon = isPosted ? CheckCircle2 : CalendarClock;
   return (
     <div
-      className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 ${
-        isPosted ? 'border-green-200 bg-green-50' : 'border-indigo-200 bg-indigo-50'
+      className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
+        isPosted ? 'border-emerald-200 bg-emerald-50/80' : 'border-blue-200 bg-blue-50/80'
       }`}
     >
-      <Icon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${isPosted ? 'text-green-600' : 'text-indigo-600'}`} />
+      <Icon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${isPosted ? 'text-emerald-600' : 'text-blue-600'}`} />
       <div className="min-w-0 flex-1">
-        <p className={`text-sm font-semibold ${isPosted ? 'text-green-800' : 'text-indigo-800'}`}>
+        <p className={`text-sm font-semibold ${isPosted ? 'text-emerald-800' : 'text-blue-800'}`}>
           {isPosted ? 'Posted to' : 'Scheduled to post to'} {names}
         </p>
         {when && (
-          <p className={`text-xs mt-0.5 ${isPosted ? 'text-green-700' : 'text-indigo-700'}`}>{formatWhen(when, true)}</p>
+          <p className={`text-xs mt-0.5 ${isPosted ? 'text-emerald-700' : 'text-blue-700'}`}>{formatWhen(when, true)}</p>
         )}
       </div>
       <PlatformIcons platforms={platforms} size={22} />

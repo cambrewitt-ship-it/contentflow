@@ -7,6 +7,7 @@ import { PostSocialPreview } from '@/components/PostSocialPreview';
 import PostFeedbackPanel from '@/components/PostFeedbackPanel';
 import { authedFetchJson } from '@/lib/authedFetch';
 import { normalizeHashtags, publishedCaption } from '@/lib/candidateCaption';
+import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea';
 
 interface Props {
   planId: string;
@@ -32,7 +33,7 @@ function formatSuggestedDate(date: string, time: string): string {
 }
 
 const PLATFORM_STYLES: Record<string, string> = {
-  instagram: 'bg-pink-100 text-pink-700',
+  instagram: 'bg-orange-50 text-orange-700',
   facebook: 'bg-blue-100 text-blue-700',
   twitter: 'bg-sky-100 text-sky-700',
   tiktok: 'bg-gray-900 text-white',
@@ -237,7 +238,7 @@ function CopyEditor({
   }
 
   const inputClass =
-    'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-indigo-300';
+    'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:border-blue-300';
 
   return (
     <div className="space-y-3">
@@ -262,7 +263,7 @@ function CopyEditor({
             <span className="flex justify-between text-xs font-semibold text-gray-400 uppercase tracking-wide">
               Caption <span className="font-normal normal-case tabular-nums">{caption.length} / 2200</span>
             </span>
-            <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={8} className={`${inputClass} resize-y text-[15px] leading-relaxed`} />
+            <CaptionTextarea unstyled clientId={candidate.client_id} value={caption} onChange={e => setCaption(e.target.value)} rows={8} className={`${inputClass} resize-y text-[15px] leading-relaxed`} />
           </label>
           <label className="block space-y-1">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Hashtags</span>
@@ -337,7 +338,7 @@ function CandidateSpecCard({
               <button
                 type="button"
                 onClick={() => setShowOriginal(v => !v)}
-                className="text-xs text-indigo-600 hover:text-indigo-800"
+                className="text-xs text-blue-600 hover:text-blue-800"
               >
                 Edited · {showOriginal ? 'hide' : 'show'} original
               </button>
@@ -733,23 +734,23 @@ export default function SwipeReview({ planId, clientId, candidates, onComplete, 
           {sessionRules.map(r => {
             const remaining = remainingAfterSource(r.sourceId);
             return (
-              <div key={r.rule} className="rounded-2xl bg-indigo-50 border border-indigo-100 px-4 py-3 text-xs text-indigo-900 space-y-2">
+              <div key={r.rule} className="rounded-2xl bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-900 space-y-2">
                 <p className="flex gap-1.5">
-                  <BookmarkPlus className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-indigo-500" />
+                  <BookmarkPlus className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-blue-500" />
                   <span>
                     <span className="font-medium">Added to the caption playbook: </span>
                     {r.rule}
                   </span>
                 </p>
                 {r.appliedCount != null ? (
-                  <p className="text-indigo-700">Applied to {r.appliedCount} post{r.appliedCount === 1 ? '' : 's'} in this review.</p>
+                  <p className="text-blue-700">Applied to {r.appliedCount} post{r.appliedCount === 1 ? '' : 's'} in this review.</p>
                 ) : (
                   remaining > 0 && (
                     <button
                       type="button"
                       onClick={() => applyRuleToRemaining(r.rule, r.sourceId)}
                       disabled={r.applying}
-                      className="flex items-center gap-1 font-medium text-indigo-700 hover:text-indigo-900 disabled:opacity-50"
+                      className="flex items-center gap-1 font-medium text-blue-700 hover:text-blue-900 disabled:opacity-50"
                     >
                       {r.applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
                       {r.applying

@@ -7,6 +7,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { useAuth } from '../../../contexts/AuthContext';
+import { safeReturnPath } from '../../../lib/returnPath';
 import { Eye, EyeOff } from 'lucide-react';
 
 function LoginForm() {
@@ -73,7 +74,7 @@ function LoginForm() {
       }
       
       // No priceId, redirect normally
-      const redirectTo = searchParams?.get('redirectTo') || searchParams?.get('redirect') || '/dashboard';
+      const redirectTo = safeReturnPath(searchParams?.get('redirectTo') || searchParams?.get('redirect')) || '/dashboard';
       router.push(redirectTo);
     }
   };

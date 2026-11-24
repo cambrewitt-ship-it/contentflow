@@ -2,6 +2,7 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { simpleRateLimitMiddleware } from './lib/simpleRateLimit';
+import { safeReturnPath } from './lib/returnPath';
 // NOTE: CSRF protection removed from middleware - causes Edge Runtime errors with crypto module
 // CSRF protection should be implemented at the API route level instead
 // import { enhancedCSRFProtection } from './lib/csrfProtection';
@@ -56,20 +57,27 @@ export async function middleware(req: NextRequest) {
     '/terms',
     '/blog',
     '/social-preview',
+    '/oauth/complete', // Social OAuth result page (forwards signed-in users on)
   ];
 
   // Define public API routes that don't require authentication
   const publicApiPrefixes = [
+    '/api/reports/', // Shared monthly client reports (share token, checked in the route)
     '/api/portal/', // Client portal (uses token auth)
     '/api/auth/',   // Auth endpoints
     '/api/stripe/webhook', // Stripe webhooks
     '/api/stripe/callback', // Stripe checkout callback (handles auth internally)
     '/api/late/oauth-callback', // Social OAuth return from LATE (handles auth internally)
     '/api/late/facebook-callback', // Facebook OAuth return from LATE
+    '/api/late/webhook', // Zernio (LATE) webhooks (HMAC signature, checked in the route)
+    '/api/cron/', // Scheduled jobs from GitHub Actions (CRON_SECRET, checked in each route)
+    '/api/ingest/', // Agent ingest (bearer token, checked in the route)
+    '/api/approval-watchers/unsubscribe', // "Stop these emails" link in approval update emails (token checked in the route)
   ];
 
   // Define public dynamic routes
   const publicDynamicPrefixes = [
+    '/report/', // Shared monthly client reports
     '/portal/',     // Client portal pages
     '/approval/',   // Approval pages with tokens
     '/blog/',       // Blog article pages
@@ -88,16 +96,17 @@ export async function middleware(req: NextRequest) {
     // Redirect authenticated users away from auth pages to dashboard
     // Only redirect if we have a valid session with a user
     if (session?.user && (pathname === '/auth/login' || pathname === '/auth/signup')) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
+      const redirectTo = safeReturnPath(req.nextUrl.searchParams.get('redirectTo')) || '/dashboard';
+      return NextResponse.redirect(new URL(redirectTo, req.url));
     }
     return res;
   }
 
   // For all other routes, require authentication
   if (!session) {
-    // Store the original URL to redirect back after login
+    // Store the original URL (including its query, e.g. an OAuth result) to redirect back after login
     const redirectUrl = new URL('/auth/login', req.url);
-    redirectUrl.searchParams.set('redirectTo', pathname);
+    redirectUrl.searchParams.set('redirectTo', pathname + req.nextUrl.search);
     return NextResponse.redirect(redirectUrl);
   }
 

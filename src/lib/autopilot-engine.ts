@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { AI_MODEL, AGENT_MODEL, completionParams } from '@/lib/aiModel';
+import { AI_MODEL, AGENT_MODEL } from '@/lib/aiModel';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { trackAICreditUsage } from '@/lib/subscriptionMiddleware';
 import { sendAutopilotPlanReadyEmail } from '@/lib/email';
@@ -8,6 +8,7 @@ import logger from '@/lib/logger';
 import { formatTovPromptSection } from '@/lib/brandVoice';
 import { getCaptionRuleTexts, formatPlaybookPromptSection } from '@/lib/captionPlaybook';
 import { getCalendarVoiceCaptions, formatCalendarVoicePromptSection } from '@/lib/calendarVoice';
+import { getBestTimes, getPerformancePrompt } from '@/lib/analytics/store';
 import { getStylePreferences } from '@/lib/preference-engine';
 import {
   inferHemisphere,
@@ -27,6 +28,7 @@ import type { RunContext } from '@/lib/autopilot-agent/tools';
 import { creditsForRun } from '@/lib/autopilot-agent/constants';
 import { organicEnabled, adsEnabled } from '@/lib/autopilot-agent/runBrief';
 import type { RunBrief } from '@/lib/autopilot-agent/runBrief';
+import { completionParams } from '@/lib/openaiParams';
 
 // Re-exported for backward compatibility — imported directly by
 // src/app/api/autopilot/plans/[planId]/confirm/route.ts.
@@ -73,7 +75,7 @@ export async function generateContentPlan(
   // Step 1: Gather context (same data the old engine fetched — now served to
   // the agent via tools instead of pre-stuffed into one giant prompt).
   logger.info('Autopilot v3: gathering context', { clientId });
-  const [brandCtx, events, recentPosts, existingPosts, gallery, project, stylePrefs, captionRules, calendarCaptions] =
+  const [brandCtx, events, recentPosts, existingPosts, gallery, project, stylePrefs, captionRules, performancePrompt, bestSlots, calendarCaptions] =
     await Promise.all([
       fetchBrandContext(clientId),
       getEventsForRange(clientId, startDate, endDate),
@@ -83,6 +85,8 @@ export async function generateContentPlan(
       getOrCreateDefaultProject(clientId, userId),
       getStylePreferences(clientId),
       getCaptionRuleTexts(clientId),
+      getPerformancePrompt(clientId),
+      getBestTimes(clientId),
       getCalendarVoiceCaptions(clientId),
     ]);
 
@@ -206,6 +210,8 @@ export async function generateContentPlan(
     adPlatform,
     brief: brief ?? null,
     captionRules,
+    performancePrompt,
+    bestSlots,
     calendarCaptions,
   };
 
@@ -399,9 +405,10 @@ export async function regenerateCaption(params: {
   platforms: string[];
 }): Promise<string> {
   const { clientId, galleryItem, postType, platforms } = params;
-  const [brandCtx, captionRules, calendarCaptions] = await Promise.all([
+  const [brandCtx, captionRules, performancePrompt, calendarCaptions] = await Promise.all([
     fetchBrandContext(clientId),
     getCaptionRuleTexts(clientId),
+    getPerformancePrompt(clientId),
     getCalendarVoiceCaptions(clientId),
   ]);
   const client = brandCtx.client;
@@ -417,6 +424,7 @@ ${client?.brand_voice_examples ? `Brand voice examples (match this voice):\n${cl
 ${formatTovPromptSection(client?.brand_tov ?? null)}
 ${formatCalendarVoicePromptSection(calendarCaptions)}
 ${formatPlaybookPromptSection(captionRules)}
+${performancePrompt}
 
 Photo details:
 - Description: ${galleryItem.ai_description || 'none'}
@@ -427,9 +435,8 @@ Photo details:
 Write ONLY the caption text (with hashtags). No explanation.`;
 
   const completion = await openai.chat.completions.create({
-    model: AI_MODEL,
-    messages: [{ role: 'user', content: prompt }],
     ...completionParams(AI_MODEL, { maxTokens: 800, temperature: 0.8 }),
+    messages: [{ role: 'user', content: prompt }],
   });
 
   return completion.choices[0]?.message?.content?.trim() || '';

@@ -3,7 +3,7 @@
 import { useContentStore } from '@/lib/contentStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, X, FolderOpen, Calendar, Clock, Check, AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Plus, Send } from 'lucide-react'
+import { Loader2, X, FolderOpen, Calendar, Clock, Check, AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Plus, Send, Wand2 } from 'lucide-react'
 import { 
   FacebookIcon, 
   InstagramIcon, 
@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/contexts/AuthContext'
+import { accountFullName } from '@/lib/socialAccounts'
 
 const PREVIEW_PLATFORM_LABELS: Record<string, string> = {
   facebook:  'Facebook',
@@ -31,7 +32,8 @@ const PREVIEW_PLATFORM_LABELS: Record<string, string> = {
 interface ConnectedAccount {
   _id: string;
   platform: string;
-  name: string;
+  name?: string;
+  displayName?: string;
   accountId?: string;
   profilePicture?: string;
   username?: string;
@@ -69,6 +71,8 @@ interface SocialPreviewColumnProps {
   getSelectedCaption?: () => string
   customCaptionFromPreview?: string
   onOpenScheduleModal?: () => void
+  /** Opens the Design Studio on the photo being previewed. */
+  onEditActiveImage?: () => void
 }
 
 export function SocialPreviewColumn({
@@ -88,6 +92,7 @@ export function SocialPreviewColumn({
   getSelectedCaption,
   customCaptionFromPreview = '',
   onOpenScheduleModal,
+  onEditActiveImage,
 }: SocialPreviewColumnProps) {
   const { getAccessToken } = useAuth()
   const {
@@ -119,6 +124,7 @@ export function SocialPreviewColumn({
 
   // Connected accounts state
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([])
+  // Selected account ids — not platforms, since a client can have two accounts on one platform
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set())
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false)
 
@@ -311,7 +317,8 @@ export function SocialPreviewColumn({
 
     // No media = a text-only post (e.g. copy + an article link); some platforms need media
     const isTextOnly = uploadedImages.length === 0
-    const mediaOnlyPlatforms = Array.from(selectedPlatforms).filter(p => ['instagram', 'tiktok', 'youtube'].includes(p.toLowerCase()))
+    const mediaOnlyPlatforms = Array.from(new Set(connectedAccounts.filter(a => selectedPlatforms.has(a._id)).map(a => a.platform)))
+      .filter(p => ['instagram', 'tiktok', 'youtube'].includes(p.toLowerCase()))
     if (isTextOnly && mediaOnlyPlatforms.length > 0) {
       setScheduleError(`${mediaOnlyPlatforms.join(', ')} posts need a photo or video. Upload one, or deselect ${mediaOnlyPlatforms.length > 1 ? 'those platforms' : 'that platform'}.`)
       return
@@ -352,7 +359,7 @@ export function SocialPreviewColumn({
 
       // Get selected accounts
       const selectedAccounts = connectedAccounts.filter(account =>
-        selectedPlatforms.has(account.platform)
+        selectedPlatforms.has(account._id)
       )
 
       if (selectedAccounts.length === 0) {
@@ -796,10 +803,10 @@ export function SocialPreviewColumn({
               <span className="ml-1">78</span>
             </div>
             <div className="flex items-center">
-              <svg className="w-4 h-4 text-pink-500" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
               </svg>
-              <span className="ml-1 text-pink-500">24</span>
+              <span className="ml-1 text-red-500">24</span>
             </div>
             <div className="flex items-center">
               <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1357,7 +1364,7 @@ export function SocialPreviewColumn({
                     onClick={() => setSelectedPreviewPlatform('instagram')}
                     className={`p-2 rounded-lg transition-colors ${
                       selectedPreviewPlatform === 'instagram'
-                        ? 'bg-pink-100 text-pink-600'
+                        ? 'bg-orange-50 text-orange-600'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -1397,9 +1404,29 @@ export function SocialPreviewColumn({
 
                 {/* Mobile Preview Container */}
                 <div className="bg-gray-100 p-4 rounded-lg">
-                  <div className="text-center text-xs text-gray-500 mb-2">
-                    Mobile Preview - {PREVIEW_PLATFORM_LABELS[selectedPreviewPlatform] || selectedPreviewPlatform}
-                  </div>
+                  {(() => {
+                    const active = uploadedImages.find(img => img.id === activeImageId) as
+                      | { mediaType?: string; blobUrl?: string; uploadFailed?: boolean }
+                      | undefined
+                    const canDesign = !!onEditActiveImage && !!active && active.mediaType !== 'video' && !!active.blobUrl && !active.uploadFailed
+                    return (
+                      <div className={`flex items-center gap-2 mb-2 ${canDesign ? 'justify-between' : 'justify-center'}`}>
+                        <div className="text-xs text-gray-500">
+                          Mobile Preview - {PREVIEW_PLATFORM_LABELS[selectedPreviewPlatform] || selectedPreviewPlatform}
+                        </div>
+                        {canDesign && (
+                          <button
+                            type="button"
+                            onClick={onEditActiveImage}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:opacity-90"
+                          >
+                            <Wand2 className="w-3.5 h-3.5" />
+                            Design this photo
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })()}
                   {(uploadedImages.length > 0 || selectedPreviewPlatform === 'linkedin' || selectedPreviewPlatform === 'tiktok') ? renderPlatformPreview() : (
                     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden max-w-sm mx-auto">
                       {/* Platform Header */}
@@ -1568,10 +1595,10 @@ export function SocialPreviewColumn({
                                 <span className="ml-1">78</span>
                               </div>
                               <div className="flex items-center">
-                                <svg className="w-4 h-4 text-pink-500" fill="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
                                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                                 </svg>
-                                <span className="ml-1 text-pink-500">24</span>
+                                <span className="ml-1 text-red-500">24</span>
                               </div>
                               <div className="flex items-center">
                                 <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1657,25 +1684,27 @@ export function SocialPreviewColumn({
                       type="button"
                       onClick={() => {
                         const newSelected = new Set(selectedPlatforms)
-                        if (newSelected.has(account.platform)) {
-                          newSelected.delete(account.platform)
+                        if (newSelected.has(account._id)) {
+                          newSelected.delete(account._id)
                         } else {
-                          newSelected.add(account.platform)
+                          newSelected.add(account._id)
                         }
                         setSelectedPlatforms(newSelected)
                       }}
                       className={`p-3 rounded-lg border-2 transition-all text-left ${
-                        selectedPlatforms.has(account.platform)
+                        selectedPlatforms.has(account._id)
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div>
+                        <div className="min-w-0">
                           <div className="font-medium text-sm capitalize">{account.platform}</div>
-                          <div className="text-xs text-gray-500">{account.name}</div>
+                          <div className="truncate text-xs text-gray-500" title={accountFullName(account) ?? undefined}>
+                            {accountFullName(account) ?? 'Connected account'}
+                          </div>
                         </div>
-                        {selectedPlatforms.has(account.platform) && (
+                        {selectedPlatforms.has(account._id) && (
                           <Check className="w-4 h-4 text-blue-600" />
                         )}
                       </div>
@@ -1777,7 +1806,7 @@ export function SocialPreviewColumn({
               Close
             </Button>
             <Button
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
               onClick={() => {
                 window.location.href = '/pricing'
               }}

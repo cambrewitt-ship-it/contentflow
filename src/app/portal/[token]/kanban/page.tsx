@@ -71,7 +71,7 @@ function ApprovalChips({ steps, partyId }: { steps: ApprovalStep[]; partyId?: st
                 ? "bg-amber-100 text-amber-700"
                 : "bg-muted text-muted-foreground"
             } ${isYou ? "ring-1 ring-offset-1" : ""}`}
-            style={isYou ? { ringColor: step.party?.color ?? "#6366f1" } : {}}
+            style={isYou ? { ringColor: step.party?.color ?? "#356df3" } : {}}
             title={step.party?.name ?? "Agency"}
           >
             {step.status === "approved" ? "✓" : step.status === "rejected" ? "✗" : "·"}{" "}
@@ -184,7 +184,7 @@ export default function PortalKanbanPage() {
                           variant="outline"
                           className={`text-[10px] px-1.5 py-0 ${
                             post.post_type_tag === "pr_event"
-                              ? "border-purple-300 text-purple-700 bg-purple-50"
+                              ? "border-blue-300 text-blue-700 bg-blue-50"
                               : "border-sky-300 text-sky-700 bg-sky-50"
                           }`}
                         >

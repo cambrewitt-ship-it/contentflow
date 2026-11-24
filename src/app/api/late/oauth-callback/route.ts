@@ -1,13 +1,17 @@
-// app/api/late/oauth-callback/route.ts
+// app/api/late/oauth-callback/route.ts — OAuth return from Zernio (formerly LATE)
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 import { getRequestAppUrl } from '@/lib/requestAppUrl';
+import { buildOAuthReturnUrl, oauthCompleteUrl } from '@/lib/returnPath';
 import { createSupabaseServer } from '@/lib/supabaseServer';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
 
 export async function GET(req: NextRequest) {
   // Get the correct app URL
   const appUrl = getRequestAppUrl(req);
+  // Every outcome goes through the public completion page, never straight to an
+  // auth-protected screen, so a browser without a session isn't sent to login.
+  const finish = (url: string) => NextResponse.redirect(oauthCompleteUrl(appUrl, url));
   
   try {
     // Handle malformed URLs with multiple ? characters
@@ -26,14 +30,21 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(cleanUrl);
     
     // Extract parameters from URL
-    const success = searchParams.get('success');
-    const platform = searchParams.get('platform');
-    const profileId = searchParams.get('profileId');
+    // LATE returns `connected=<platform>` on success; older flows sent `success` + `platform`
+    const connected = searchParams.get('connected');
+    const connectedPlatform = connected && !['true', '1'].includes(connected) ? connected : null;
+    const platform = searchParams.get('platform') || connectedPlatform;
+    const success = searchParams.get('success') === 'true' || !!connected;
+    let profileId = searchParams.get('profileId');
     const username = searchParams.get('username');
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
     let clientId = searchParams.get('clientId');
     const source = searchParams.get('source');
+    // The screen the user started the connection from; falls back to the defaults below
+    const returnTo = searchParams.get('returnTo');
+    const backTo = (fallbackUrl: string, params: Record<string, string>) =>
+      buildOAuthReturnUrl(appUrl, returnTo, params) ?? fallbackUrl;
     
     // Clean up clientId if it has additional data appended (common issue with some OAuth flows)
     if (clientId && clientId.includes('-ct_')) {
@@ -67,23 +78,30 @@ export async function GET(req: NextRequest) {
         ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=${encodeURIComponent(errorDescription || error)}`
         : `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=${encodeURIComponent(errorDescription || error)}`;
       
-      return NextResponse.redirect(errorRedirectUrl);
+      return finish(backTo(errorRedirectUrl, {
+        oauth_error: platform || 'unknown',
+        error_description: errorDescription || error,
+      }));
     }
 
     // Validate required parameters
-    if (!success || !platform || !profileId) {
+    if (!success || !platform) {
+      logger.warn('OAuth callback missing parameters', { params: Array.from(searchParams.keys()) });
 
       const errorRedirectUrl = clientId 
         ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform || 'unknown'}&error_description=Missing required OAuth parameters`
         : `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=Missing required OAuth parameters`;
       
-      return NextResponse.redirect(errorRedirectUrl);
+      return finish(backTo(errorRedirectUrl, {
+        oauth_error: platform || 'unknown',
+        error_description: 'Missing required OAuth parameters',
+      }));
     }
 
     // Validate client ownership before performing database operations
     if (!clientId) {
       const errorRedirectUrl = `${appUrl}/dashboard?oauth_error=${platform || 'unknown'}&error_description=Missing client identifier`;
-      return NextResponse.redirect(errorRedirectUrl);
+      return finish(errorRedirectUrl);
     }
 
     // This route is hit by a browser redirect from LATE, so there is no Bearer header —
@@ -95,12 +113,15 @@ export async function GET(req: NextRequest) {
     if (user) {
       const { data: client } = await supabase
         .from('clients')
-        .select('id')
+        .select('id, late_profile_id')
         .eq('id', clientId)
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (client) {
+      // Fall back to the client's LATE profile when the callback omits it
+      profileId = profileId || client?.late_profile_id || null;
+
+      if (client && profileId) {
         // Upsert the connection in a single round trip (insert or update on conflict)
         const now = new Date().toISOString();
         const { error: upsertError } = await supabase
@@ -134,12 +155,16 @@ export async function GET(req: NextRequest) {
         : `${appUrl}/dashboard/client/${clientId}`;
       const successRedirectUrl = `${basePath}?connected=${platform}&status=success${username ? `&username=${encodeURIComponent(username)}` : ''}`;
 
-      return NextResponse.redirect(successRedirectUrl);
+      return finish(backTo(successRedirectUrl, {
+        connected: platform,
+        status: 'success',
+        ...(username ? { username } : {}),
+      }));
     } else {
       // Fallback to general dashboard if no clientId
       const fallbackRedirectUrl = `${appUrl}/dashboard?oauth_success=${platform}${username ? `&username=${encodeURIComponent(username)}` : ''}`;
       logger.debug('Redirecting to general dashboard (fallback)', { platform });
-      return NextResponse.redirect(fallbackRedirectUrl);
+      return finish(fallbackRedirectUrl);
     }
 
   } catch (error: unknown) {
@@ -165,6 +190,6 @@ export async function GET(req: NextRequest) {
       ? `${appUrl}/dashboard/client/${clientId}?oauth_error=${platform}&error_description=Unexpected error during OAuth`
       : `${appUrl}/dashboard?oauth_error=${platform}&error_description=Unexpected error during OAuth`;
     
-    return NextResponse.redirect(errorRedirectUrl);
+    return finish(errorRedirectUrl);
   }
 }

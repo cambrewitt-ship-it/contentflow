@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import OpenAI from 'openai';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isValidImageData, isValidMediaData } from '../../../lib/blobUpload';
@@ -6,8 +6,9 @@ import { getUpcomingHolidays } from '../../../lib/data/holidays';
 import { handleApiError } from '../../../lib/apiErrorHandler';
 import { validateApiRequest } from '../../../lib/validationMiddleware';
 import { aiRequestSchema } from '../../../lib/validators';
-import { withAICreditCheck, trackAICreditUsage, checkAICreditsPermissionForUser } from '../../../lib/subscriptionMiddleware';
+import { trackAICreditUsage, checkAICreditsPermissionForUser } from '../../../lib/subscriptionMiddleware';
 import logger from '@/lib/logger';
+import { getPerformancePrompt } from '@/lib/analytics/store';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { sanitizeAndValidateContentIdeas } from '@/lib/ai-utils';
 import { detectPromptLeakage, logLeakageIncident } from '@/lib/ai-monitoring';
@@ -15,9 +16,10 @@ import { resolvePortalToken } from '@/lib/portalAuth';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { BRAND_VOICE_COLUMNS, resolveBrandVoice, formatTovPromptSection } from '@/lib/brandVoice';
 import { getCaptionRuleTexts, formatPlaybookPromptSection } from '@/lib/captionPlaybook';
-import { AI_MODEL, AI_MODEL_FAST, completionParams } from '@/lib/aiModel';
+import { AI_MODEL, AI_MODEL_FAST } from '@/lib/aiModel';
 import { getCalendarVoiceCaptions, formatCalendarVoicePromptSection } from '@/lib/calendarVoice';
 import { extractFirstUrl, fetchArticleContext, formatArticlePromptSection, formatUnreadableLinkPromptSection } from '@/lib/articleFetcher';
+import { completionParams } from '@/lib/openaiParams';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -200,6 +202,9 @@ ${brand.voice_examples}
   const playbook = formatPlaybookPromptSection(brand.playbook ?? []);
   if (playbook) parts.push(playbook);
 
+  // What has actually worked for this client (real post results)
+  if (brand.performance) parts.push(brand.performance);
+
   return parts.join('\n\n');
 }
 
@@ -217,6 +222,52 @@ function parseCaptionsJson(content: string, key: 'captions' | 'caption' | 'rule'
     return captions.length > 0 ? captions : null;
   } catch {
     return null;
+  }
+}
+
+// Captions written so far in a streamed reply: the strings in a partial
+// {"captions": [...]} object, or blank-line-separated plain text (the safety
+// fallback). The last caption may still be mid-sentence.
+function partialCaptions(text: string): string[] {
+  const trimmed = text.trimStart();
+  if (!trimmed.startsWith('{')) {
+    return text.split(/\n\n+/).map((c) => c.trim()).filter(Boolean);
+  }
+  const key = trimmed.indexOf('"captions"');
+  const start = key === -1 ? -1 : trimmed.indexOf('[', key);
+  if (start === -1) return [];
+
+  const captions: string[] = [];
+  let i = start + 1;
+  while (i < trimmed.length) {
+    const open = trimmed.indexOf('"', i);
+    const end = trimmed.indexOf(']', i);
+    if (open === -1 || (end !== -1 && end < open)) break;
+    let j = open + 1;
+    let raw = '';
+    while (j < trimmed.length && trimmed[j] !== '"') {
+      if (trimmed[j] === '\\') {
+        if (j + 1 >= trimmed.length) break;
+        raw += trimmed.slice(j, j + 2);
+        j += 2;
+      } else {
+        raw += trimmed[j];
+        j += 1;
+      }
+    }
+    captions.push(decodeJsonString(raw));
+    if (j >= trimmed.length) break; // still being written
+    i = j + 1;
+  }
+  return captions.map((c) => c.trim()).filter(Boolean);
+}
+
+function decodeJsonString(raw: string): string {
+  try {
+    return JSON.parse(`"${raw}"`);
+  } catch {
+    // A half-written escape at the end of a streamed chunk
+    return raw.replace(/\\u[0-9a-fA-F]{0,3}$/, '').replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
   }
 }
 
@@ -287,38 +338,45 @@ function sanitizeFallbackText(text?: string | null): string | undefined {
 // Fetch brand context for a client
 async function getBrandContext(supabase: SupabaseClient, clientId: string) {
   try {
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .select(
-        `company_description, website_url, brand_tone, target_audience, value_proposition, region, timezone, ${BRAND_VOICE_COLUMNS}`
-      )
-      .eq('id', clientId)
-      .single();
+    // The three lookups are independent, so run them together. Documents and the
+    // website scrape are only referenced by presence/count in the prompts, so fetch
+    // just enough to know they exist rather than their full extracted text.
+    const [
+      { data: client, error: clientError },
+      { data: documents, error: docsError },
+      { data: scrapes, error: scrapeError },
+    ] = await Promise.all([
+      supabase
+        .from('clients')
+        .select(
+          `company_description, website_url, brand_tone, target_audience, value_proposition, region, timezone, ${BRAND_VOICE_COLUMNS}`
+        )
+        .eq('id', clientId)
+        .single(),
+      supabase
+        .from('brand_documents')
+        .select('original_filename')
+        .eq('client_id', clientId)
+        .eq('processing_status', 'completed')
+        .not('extracted_text', 'is', null),
+      supabase
+        .from('website_scrapes')
+        .select('page_title, meta_description')
+        .eq('client_id', clientId)
+        .eq('scrape_status', 'completed')
+        .not('scraped_content', 'is', null)
+        .order('scraped_at', { ascending: false })
+        .limit(1),
+    ]);
 
     if (clientError || !client) {
       logger.error('Could not fetch client brand info:', { error: clientError?.message });
       return null;
     }
 
-    const { data: documents, error: docsError } = await supabase
-      .from('brand_documents')
-      .select('extracted_text, original_filename')
-      .eq('client_id', clientId)
-      .eq('processing_status', 'completed')
-      .not('extracted_text', 'is', null);
-
     if (docsError) {
       logger.error('Could not fetch brand documents:', { error: docsError.message });
     }
-
-    const { data: scrapes, error: scrapeError } = await supabase
-      .from('website_scrapes')
-      .select('scraped_content, page_title, meta_description')
-      .eq('client_id', clientId)
-      .eq('scrape_status', 'completed')
-      .not('scraped_content', 'is', null)
-      .order('scraped_at', { ascending: false })
-      .limit(1);
 
     if (scrapeError) {
       logger.error('Could not fetch website scrapes:', { error: scrapeError.message });
@@ -327,12 +385,15 @@ async function getBrandContext(supabase: SupabaseClient, clientId: string) {
     // Only the voice sources switched on for this client (TOV, examples, do's/don'ts)
     const voice = resolveBrandVoice(client);
 
-    const [playbook, calendarCaptions] = await Promise.all([
+    // What has actually worked for this client (real post results), refreshed in the background
+    const [performance, playbook, calendarCaptions] = await Promise.all([
+      getPerformancePrompt(clientId),
       getCaptionRuleTexts(clientId),
       getCalendarVoiceCaptions(clientId),
     ]);
 
     const brandContext = {
+      performance,
       company: client.company_description,
       tone: client.brand_tone,
       audience: client.target_audience,
@@ -445,7 +506,9 @@ export async function POST(request: NextRequest) {
       if (auth.error) return auth.error;
       supabase = auth.supabase;
 
-      const subscriptionCheck = await withAICreditCheck(request, 1);
+      // The token was already verified above — check credits by user id rather than
+      // re-verifying it with a second auth-server round trip.
+      const subscriptionCheck = await checkAICreditsPermissionForUser(auth.user.id, 1);
       if (!subscriptionCheck.allowed) {
         logger.error('Subscription check failed:', subscriptionCheck.error);
         return NextResponse.json(
@@ -489,87 +552,102 @@ export async function POST(request: NextRequest) {
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    let result: NextResponse | any;
-    switch (body.action) {
-      case 'analyze_image':
-        result = await analyzeImage(
-          openai,
-          body.imageData as string,
-          body.prompt as string | undefined
-        );
-        break;
-      case 'generate_captions':
-        result = await generateCaptions(
-          openai,
-          supabase,
-          body.imageData as string | undefined,
-          body.existingCaptions as string[] | undefined,
-          (body.aiContext ?? (body as Record<string, unknown>).postNotes) as
-            | string
-            | undefined,
-          (body.clientId as string | undefined) ?? clientId,
-          body.copyType as 'social-media' | 'email-marketing' | undefined,
-          body.copyTone as
-            | 'promotional'
-            | 'educational'
-            | 'personal'
-            | 'testimonial'
-            | 'engagement'
-            | undefined,
-          body.postNotesStyle as
-            | 'quote-directly'
-            | 'paraphrase'
-            | 'use-as-inspiration'
-            | undefined,
-          body.imageFocus as
-            | 'main-focus'
-            | 'supporting'
-            | 'background'
-            | 'none'
-            | undefined
-        );
-        break;
-      case 'remix_caption':
-        result = await remixCaption(
-          openai,
-          supabase,
-          body.imageData as string,
-          body.prompt as string,
-          body.existingCaptions as string[] | undefined,
-          body.aiContext as string | undefined,
-          (body.clientId as string | undefined) ?? clientId
-        );
-        break;
-      case 'generate_content_ideas':
-        result = await generateContentIdeas(openai, supabase, clientId, userId);
-        break;
-      case 'chat_caption':
-        result = await chatCaption(
-          openai,
-          supabase,
-          body.imageData as string | undefined,
-          body.userInstruction as string,
-          (body.conversationHistory as { role: 'user' | 'assistant'; content: string }[] | undefined) ?? [],
-          body.aiContext as string | undefined,
-          (body.clientId as string | undefined) ?? clientId,
-          body.copyType as 'social-media' | 'email-marketing' | undefined
-        );
-        break;
-      default:
-        return NextResponse.json(
-          { error: 'Invalid action specified' },
-          { status: 400 }
-        );
-    }
-
-    if ((result && result.status === 200) || (result && result.success)) {
-      const bodyData = body as Record<string, unknown>;
-      await trackAICreditUsage(userId, 1, body.action as string, bodyData.clientId as string | undefined, {
+    const bodyData = body as Record<string, unknown>;
+    // Bill the credit after the response is sent so the user isn't kept waiting on it
+    const recordCreditUsage = () =>
+      trackAICreditUsage(userId, 1, body.action as string, bodyData.clientId as string | undefined, {
         copyType: bodyData.copyType as string | undefined,
         copyTone: bodyData.copyTone as string | undefined,
         postNotesStyle: bodyData.postNotesStyle as string | undefined,
         imageFocus: bodyData.imageFocus as string | undefined,
       });
+
+    const runAction = async (onPartial?: PartialCaptionsHandler): Promise<NextResponse | any> => {
+      let result: NextResponse | any;
+      switch (body.action) {
+        case 'analyze_image':
+          result = await analyzeImage(
+            openai,
+            body.imageData as string,
+            body.prompt as string | undefined
+          );
+          break;
+        case 'generate_captions':
+          result = await generateCaptions(
+            openai,
+            supabase,
+            body.imageData as string | undefined,
+            body.existingCaptions as string[] | undefined,
+            (body.aiContext ?? (body as Record<string, unknown>).postNotes) as
+              | string
+              | undefined,
+            (body.clientId as string | undefined) ?? clientId,
+            body.copyType as 'social-media' | 'email-marketing' | undefined,
+            body.copyTone as
+              | 'promotional'
+              | 'educational'
+              | 'personal'
+              | 'testimonial'
+              | 'engagement'
+              | undefined,
+            body.postNotesStyle as
+              | 'quote-directly'
+              | 'paraphrase'
+              | 'use-as-inspiration'
+              | undefined,
+            body.imageFocus as
+              | 'main-focus'
+              | 'supporting'
+              | 'background'
+              | 'none'
+              | undefined,
+            onPartial
+          );
+          break;
+        case 'remix_caption':
+          result = await remixCaption(
+            openai,
+            supabase,
+            body.imageData as string,
+            body.prompt as string,
+            body.existingCaptions as string[] | undefined,
+            body.aiContext as string | undefined,
+            (body.clientId as string | undefined) ?? clientId
+          );
+          break;
+        case 'generate_content_ideas':
+          result = await generateContentIdeas(openai, supabase, clientId, userId);
+          break;
+        case 'chat_caption':
+          result = await chatCaption(
+            openai,
+            supabase,
+            body.imageData as string | undefined,
+            body.userInstruction as string,
+            (body.conversationHistory as { role: 'user' | 'assistant'; content: string }[] | undefined) ?? [],
+            body.aiContext as string | undefined,
+            (body.clientId as string | undefined) ?? clientId,
+            body.copyType as 'social-media' | 'email-marketing' | undefined,
+            onPartial
+          );
+          break;
+        default:
+          return NextResponse.json(
+            { error: 'Invalid action specified' },
+            { status: 400 }
+          );
+      }
+
+      return result;
+    };
+
+    if (bodyData.stream === true && (body.action === 'generate_captions' || body.action === 'chat_caption')) {
+      return streamCaptionsResponse(runAction, recordCreditUsage);
+    }
+
+    const result = await runAction();
+    if ((result && result.status === 200) || (result && result.success)) {
+      after(recordCreditUsage);
     }
 
     return result;
@@ -603,7 +681,7 @@ ${prompt ? `Additional context: ${prompt}` : ""}
 Provide your analysis in a clear, structured format.`;
 
     const response = await openai.chat.completions.create({
-      model: AI_MODEL,
+      ...completionParams(AI_MODEL, { maxTokens: 500, temperature: 0.7 }),
       messages: [
         {
           role: 'system',
@@ -626,7 +704,6 @@ Provide your analysis in a clear, structured format.`;
           ],
         },
       ],
-      ...completionParams(AI_MODEL, { maxTokens: 500, temperature: 0.7 }),
     });
 
     return NextResponse.json({
@@ -642,12 +719,51 @@ Provide your analysis in a clear, structured format.`;
   }
 }
 
-async function callOpenAIWithRetry(openai: OpenAI, params: any, maxRetries = 3) {
+type PartialCaptionsHandler = (captions: string[]) => void;
+
+// Runs a chat completion. With onText, the completion is streamed and onText receives
+// the full text written so far after every chunk.
+async function runCompletion(
+  openai: OpenAI,
+  params: any,
+  onText?: (textSoFar: string) => void
+): Promise<{ content: string; finishReason: string | null }> {
+  if (!onText) {
+    const response = await openai.chat.completions.create(params);
+    return {
+      content: response.choices[0]?.message?.content || '',
+      finishReason: response.choices[0]?.finish_reason ?? null,
+    };
+  }
+
+  const stream = await openai.chat.completions.create({
+    ...params,
+    stream: true,
+  } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming);
+  let content = '';
+  let finishReason: string | null = null;
+  for await (const chunk of stream) {
+    const choice = chunk.choices[0];
+    if (!choice) continue;
+    if (choice.delta?.content) {
+      content += choice.delta.content;
+      onText(content);
+    }
+    if (choice.finish_reason) finishReason = choice.finish_reason;
+  }
+  return { content, finishReason };
+}
+
+async function callOpenAIWithRetry(
+  openai: OpenAI,
+  params: any,
+  onText?: (textSoFar: string) => void,
+  maxRetries = 3
+) {
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const response = await openai.chat.completions.create(params);
-      return response;
+      return await runCompletion(openai, params, onText);
     } catch (error: any) {
       lastError = error;
       if (error?.status === 400 || error?.status === 401) {
@@ -663,6 +779,100 @@ async function callOpenAIWithRetry(openai: OpenAI, params: any, maxRetries = 3) 
   throw lastError;
 }
 
+// Streams a caption action's result as NDJSON: `partial` events carry the captions
+// written so far, then one `done` event carries the action's final JSON body (the
+// same captions/error the non-streaming response would return) plus its status.
+function streamCaptionsResponse(
+  runAction: (onPartial: PartialCaptionsHandler) => Promise<NextResponse | any>,
+  recordCreditUsage: () => Promise<unknown>
+) {
+  const encoder = new TextEncoder();
+  const PARTIAL_INTERVAL_MS = 75;
+
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      // If the browser has gone away, keep going quietly so the credit is still recorded
+      const send = (event: Record<string, unknown>) => {
+        try {
+          controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+        } catch {}
+      };
+
+      // Send at most one partial per interval; the latest one waits for the next slot
+      let lastSentAt = 0;
+      let lastSentKey = '';
+      let pending: string[] | null = null;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const flush = () => {
+        timer = null;
+        if (!pending) return;
+        const key = JSON.stringify(pending);
+        if (key !== lastSentKey) {
+          lastSentKey = key;
+          lastSentAt = Date.now();
+          send({ type: 'partial', captions: pending });
+        }
+        pending = null;
+      };
+      const onPartial: PartialCaptionsHandler = (captions) => {
+        if (captions.length === 0) return;
+        pending = captions;
+        if (timer) return;
+        timer = setTimeout(flush, Math.max(0, PARTIAL_INTERVAL_MS - (Date.now() - lastSentAt)));
+      };
+
+      try {
+        const result = await runAction(onPartial);
+        if (timer) clearTimeout(timer);
+        const status: number = result?.status ?? 200;
+        const data = typeof result?.json === 'function' ? await result.json() : result;
+        send({ type: 'done', status, ...data });
+        if (status === 200 || data?.success) {
+          await recordCreditUsage();
+        }
+      } catch (error: any) {
+        if (timer) clearTimeout(timer);
+        logger.error('Caption stream error:', { message: error?.message });
+        send({ type: 'done', status: 500, success: false, error: 'Failed to generate captions' });
+      } finally {
+        try {
+          controller.close();
+        } catch {}
+      }
+    },
+  });
+
+  return new Response(body, {
+    headers: {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+    },
+  });
+}
+
+// Whether a block of model output is a caption rather than an intro, label or leaked instruction
+function isGeneratedCaptionCandidate(caption: string): boolean {
+  const lower = caption.toLowerCase();
+  return (
+    caption.length > 15 &&
+    !lower.startsWith('here are') &&
+    !lower.startsWith("here's") &&
+    !lower.startsWith('here is') &&
+    !lower.startsWith('captions for') &&
+    !lower.startsWith('engaging captions') &&
+    !lower.startsWith('three captions') &&
+    !lower.startsWith('3 captions') &&
+    !lower.startsWith('caption ') &&
+    !lower.startsWith('caption option') &&
+    !lower.startsWith('option ') &&
+    !lower.match(/^(role|task|format|style|strategy|guideline|requirement|rule|instruction|output|provide|generate|create|write|deliver|ensure|match|follow|avoid|critical|important)[:\s]/) &&
+    !lower.match(/^(##?|###)\s/) &&
+    !lower.match(/^[🎯🚨📋🎨🎭👥💼🎤📝🌐📄✅❌]/) &&
+    !lower.match(/^(✓|✗|[-*•])\s*(professional|email|caption|hashtag|introduction|explanation|numbering)/)
+  );
+}
+
 async function generateCaptions(
   openai: OpenAI,
   supabase: SupabaseClient,
@@ -673,7 +883,8 @@ async function generateCaptions(
   copyType?: 'social-media' | 'email-marketing',
   copyTone?: 'promotional' | 'educational' | 'personal' | 'testimonial' | 'engagement',
   postNotesStyle?: 'quote-directly' | 'paraphrase' | 'use-as-inspiration',
-  imageFocus?: 'main-focus' | 'supporting' | 'background' | 'none'
+  imageFocus?: 'main-focus' | 'supporting' | 'background' | 'none',
+  onPartial?: PartialCaptionsHandler
 ) {
   try {
     const isVideo = imageData === 'VIDEO_PLACEHOLDER';
@@ -696,11 +907,12 @@ async function generateCaptions(
       throw new Error('Add Post Notes or a link to generate copy for a post without an image.');
     }
 
-    const sharedLinkSection = await getSharedLinkPromptSection(aiContext);
-
-    let brandContext: Awaited<ReturnType<typeof getBrandContext>> | null = null;
+    // The article fetch and the brand lookup are independent — run them together.
+    const [sharedLinkSection, brandContext] = await Promise.all([
+      getSharedLinkPromptSection(aiContext),
+      clientId ? getBrandContext(supabase, clientId) : Promise.resolve(null),
+    ]);
     if (clientId) {
-      brandContext = await getBrandContext(supabase, clientId);
       logger.info('🎨 Brand context fetched for caption generation:', {
         clientId,
         hasContext: !!brandContext,
@@ -839,8 +1051,20 @@ OUTPUT: JSON only, exactly {"captions": ["...", "...", "..."]}. Caption text onl
       });
     }
 
+    // While streaming, show captions as they're written; the full clean-up below
+    // still decides the final captions.
+    const onText = onPartial
+      ? (text: string) =>
+          onPartial(
+            copyType === 'email-marketing'
+              ? text.trim() ? [text.trim()] : []
+              : partialCaptions(text).filter(isGeneratedCaptionCandidate).slice(0, 3)
+          )
+      : undefined;
+
     const response = await callOpenAIWithRetry(openai, {
-      model: AI_MODEL,
+      ...completionParams(AI_MODEL, { maxTokens: 1200, temperature: 0.8 }),
+      ...(copyType === 'email-marketing' ? {} : { response_format: { type: 'json_object' } }),
       messages: [
         {
           role: 'system',
@@ -851,12 +1075,10 @@ OUTPUT: JSON only, exactly {"captions": ["...", "...", "..."]}. Caption text onl
           content: userContent,
         },
       ],
-      ...completionParams(AI_MODEL, { maxTokens: 1200, temperature: 0.8 }),
-      ...(copyType === 'email-marketing' ? {} : { response_format: { type: 'json_object' } }),
-    });
+    }, onText);
 
-    let content = response.choices[0]?.message?.content || '';
-    const finishReason = response.choices[0]?.finish_reason;
+    let content = response.content;
+    const finishReason = response.finishReason;
 
     if (
       (typeof finishReason === 'string' && finishReason.toLowerCase() === 'content_filter') ||
@@ -884,7 +1106,10 @@ OUTPUT: JSON only, exactly {"captions": ["...", "...", "..."]}. Caption text onl
           : 'Create three short, brand-safe social media captions suitable for a generic promotional post. Keep them positive and compliant.';
 
       const fallbackResponse = await callOpenAIWithRetry(openai, {
-        model: process.env.OPENAI_FALLBACK_MODEL || AI_MODEL_FAST,
+        ...completionParams(process.env.OPENAI_FALLBACK_MODEL || AI_MODEL_FAST, {
+          maxTokens: copyType === 'email-marketing' ? 500 : 600,
+          temperature: 0.7,
+        }),
         messages: [
           {
             role: 'system',
@@ -895,10 +1120,9 @@ OUTPUT: JSON only, exactly {"captions": ["...", "...", "..."]}. Caption text onl
             content: fallbackUserMessage,
           },
         ],
-        ...completionParams(process.env.OPENAI_FALLBACK_MODEL || AI_MODEL_FAST, { maxTokens: copyType === 'email-marketing' ? 500 : 600, temperature: 0.7 }),
-      });
+      }, onText);
 
-      const fallbackContent = fallbackResponse.choices[0]?.message?.content || '';
+      const fallbackContent = fallbackResponse.content;
       if (fallbackContent.trim().length > 0 && !isRefusalResponse(fallbackContent)) {
         content = fallbackContent;
       } else {
@@ -970,26 +1194,7 @@ OUTPUT: JSON only, exactly {"captions": ["...", "...", "..."]}. Caption text onl
 
       captions = potentialCaptions
         .map((caption) => caption.trim())
-        .filter((caption) => {
-          const lower = caption.toLowerCase();
-          return (
-            caption.length > 15 &&
-            !lower.startsWith('here are') &&
-            !lower.startsWith("here's") &&
-            !lower.startsWith('here is') &&
-            !lower.startsWith('captions for') &&
-            !lower.startsWith('engaging captions') &&
-            !lower.startsWith('three captions') &&
-            !lower.startsWith('3 captions') &&
-            !lower.startsWith('caption ') &&
-            !lower.startsWith('caption option') &&
-            !lower.startsWith('option ') &&
-            !lower.match(/^(role|task|format|style|strategy|guideline|requirement|rule|instruction|output|provide|generate|create|write|deliver|ensure|match|follow|avoid|critical|important)[:\s]/) &&
-            !lower.match(/^(##?|###)\s/) &&
-            !lower.match(/^[🎯🚨📋🎨🎭👥💼🎤📝🌐📄✅❌]/) &&
-            !lower.match(/^(✓|✗|[-*•])\s*(professional|email|caption|hashtag|introduction|explanation|numbering)/)
-          );
-        })
+        .filter(isGeneratedCaptionCandidate)
         .slice(0, 3);
 
       if (captions.length < 3) {
@@ -1082,7 +1287,7 @@ async function remixCaption(
       originalCaption = og[1];
     }
     const response = await openai.chat.completions.create({
-      model: AI_MODEL,
+      ...completionParams(AI_MODEL, { maxTokens: 600, temperature: 0.7 }),
       messages: [
         {
           role: 'system',
@@ -1093,7 +1298,6 @@ async function remixCaption(
           content: `Create a fresh variation of this caption: "${originalCaption}"`,
         },
       ],
-      ...completionParams(AI_MODEL, { maxTokens: 600, temperature: 0.7 }),
       response_format: { type: 'json_object' },
     });
 
@@ -1148,6 +1352,18 @@ async function remixCaption(
   }
 }
 
+function isChatCaptionCandidate(c: string): boolean {
+  const lower = c.toLowerCase();
+  return (
+    c.length > 15 &&
+    !lower.startsWith('here are') &&
+    !lower.startsWith("here's") &&
+    !lower.startsWith('caption ') &&
+    !lower.match(/^(option|variation|version)\s+\d+/i) &&
+    !lower.match(/^(##?|###)\s/)
+  );
+}
+
 async function chatCaption(
   openai: OpenAI,
   supabase: SupabaseClient,
@@ -1156,17 +1372,16 @@ async function chatCaption(
   conversationHistory: { role: 'user' | 'assistant'; content: string }[],
   aiContext: string | undefined,
   clientId: string | undefined,
-  copyType: 'social-media' | 'email-marketing' | undefined
+  copyType: 'social-media' | 'email-marketing' | undefined,
+  onPartial?: PartialCaptionsHandler
 ) {
   try {
-    let brandContext: Awaited<ReturnType<typeof getBrandContext>> | null = null;
-    if (clientId) {
-      brandContext = await getBrandContext(supabase, clientId);
-    }
+    const [brandContext, sharedLinkSection] = await Promise.all([
+      clientId ? getBrandContext(supabase, clientId) : Promise.resolve(null),
+      getSharedLinkPromptSection(aiContext),
+    ]);
 
     const brandVoiceSection = formatBrandVoiceSection(brandContext);
-
-    const sharedLinkSection = await getSharedLinkPromptSection(aiContext);
 
     const systemPrompt = `You are a social media copywriter iterating on captions through a conversation.
 
@@ -1221,14 +1436,18 @@ OUTPUT: JSON only, exactly {"captions": ["..."], "rule": "..."} with 1-3 caption
       });
     }
 
-    const response = await openai.chat.completions.create({
-      model: AI_MODEL,
-      messages,
-      ...completionParams(AI_MODEL, { maxTokens: 1000, temperature: 0.8 }),
-      response_format: { type: 'json_object' },
-    });
+    const { content } = await runCompletion(
+      openai,
+      {
+        ...completionParams(AI_MODEL, { maxTokens: 1000, temperature: 0.8 }),
+        response_format: { type: 'json_object' },
+        messages,
+      },
+      onPartial
+        ? (text) => onPartial(partialCaptions(text).filter(isChatCaptionCandidate).slice(0, 3))
+        : undefined
+    );
 
-    const content = response.choices[0]?.message?.content || '';
     const jsonCaptions = parseCaptionsJson(content);
     if (jsonCaptions) {
       return NextResponse.json({
@@ -1245,17 +1464,7 @@ OUTPUT: JSON only, exactly {"captions": ["..."], "rule": "..."} with 1-3 caption
 
     let captions = potentialCaptions
       .map((c) => c.trim())
-      .filter((c) => {
-        const lower = c.toLowerCase();
-        return (
-          c.length > 15 &&
-          !lower.startsWith('here are') &&
-          !lower.startsWith("here's") &&
-          !lower.startsWith('caption ') &&
-          !lower.match(/^(option|variation|version)\s+\d+/i) &&
-          !lower.match(/^(##?|###)\s/)
-        );
-      })
+      .filter(isChatCaptionCandidate)
       .slice(0, 3);
 
     if (captions.length === 0 && content.trim().length > 15) {
@@ -1466,7 +1675,7 @@ Make each idea unique to THIS business - not generic content any competitor coul
     );
 
     const response = await openai.chat.completions.create({
-      model: AI_MODEL,
+      ...completionParams(AI_MODEL, { maxTokens: 1000, temperature: 0.7 }),
       messages: [
         {
           role: 'system',
@@ -1526,7 +1735,6 @@ Each idea should be unique to THIS business - not generic content any competitor
 Only suggest future holidays/events after ${currentDate} that are relevant to ${clientRegion}.`,
         },
       ],
-      ...completionParams(AI_MODEL, { maxTokens: 1000, temperature: 0.7 }),
       response_format: { type: 'json_object' },
     });
 

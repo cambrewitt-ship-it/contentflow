@@ -1,0 +1,20 @@
+name: Monthly Client Reports
+
+on:
+  schedule:
+    # 1st of the month, early morning NZ on the 2nd. Three runs so a large agency
+    # gets through within the time limit (each run skips reports already built).
+    - cron: '17 19 1 * *'
+    - cron: '47 19 1 * *'
+    - cron: '17 20 1 * *'
+  workflow_dispatch:       # Allow manual trigger
+
+jobs:
+  monthly-reports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Build last month's client reports
+        run: |
+          curl -f -X GET "${{ secrets.APP_URL }}/api/cron/monthly-reports" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

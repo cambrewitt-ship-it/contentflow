@@ -1,0 +1,101 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Legacy landing theme — the public landing page (HomeContent, "/") keeps the
+   look it had before the app redesign. Everything here is scoped to
+   .legacy-theme, so the rest of the app uses the new design system.
+   Restores the original tokens, Tailwind gray/blue palettes, shadows, font
+   stack, typography rules and the white-to-blue page gradient.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.legacy-theme {
+  --font-ui: 'Poppins', 'Inter', 'SF Pro Display', 'Aptos', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif;
+  --radius: 0.625rem;
+  /* The original --background was a gradient, which made bg-background transparent */
+  --background: transparent;
+  --foreground: #374151;
+  --card: #ffffff;
+  --card-foreground: #374151;
+  --popover: #ffffff;
+  --popover-foreground: #374151;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #f8fafc;
+  --secondary-foreground: #374151;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #374151;
+  --destructive: #ef4444;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #2563eb;
+
+  /* Tailwind's default gray and blue scales */
+  --color-blue-50: oklch(97% 0.014 254.604);
+  --color-blue-100: oklch(93.2% 0.032 255.585);
+  --color-blue-200: oklch(88.2% 0.059 254.128);
+  --color-blue-300: oklch(80.9% 0.105 251.813);
+  --color-blue-400: oklch(70.7% 0.165 254.624);
+  --color-blue-500: oklch(62.3% 0.214 259.815);
+  --color-blue-600: oklch(54.6% 0.245 262.881);
+  --color-blue-700: oklch(48.8% 0.243 264.376);
+  --color-blue-800: oklch(42.4% 0.199 265.638);
+  --color-blue-900: oklch(37.9% 0.146 265.522);
+  --color-blue-950: oklch(28.2% 0.091 267.935);
+  --color-gray-50: oklch(98.5% 0.002 247.839);
+  --color-gray-100: oklch(96.7% 0.003 264.542);
+  --color-gray-200: oklch(92.8% 0.006 264.531);
+  --color-gray-300: oklch(87.2% 0.01 258.338);
+  --color-gray-400: oklch(70.7% 0.022 261.325);
+  --color-gray-500: oklch(55.1% 0.027 264.364);
+  --color-gray-600: oklch(44.6% 0.03 256.802);
+  --color-gray-700: oklch(37.3% 0.034 259.733);
+  --color-gray-800: oklch(27.8% 0.033 256.848);
+  --color-gray-900: oklch(21% 0.034 264.665);
+  --color-gray-950: oklch(13% 0.028 261.692);
+
+  /* Original page background (covers the app's ambient layer) */
+  background: #ffffff linear-gradient(135deg, #ffffff 0%, #f8fafc 25%, #e0f2fe 50%, #bae6fd 75%, #7dd3fc 100%);
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+/* Tailwind's default shadows */
+.legacy-theme .shadow-2xs { --tw-shadow: 0 1px var(--tw-shadow-color, rgb(0 0 0 / 0.05)); }
+.legacy-theme .shadow-xs { --tw-shadow: 0 1px 2px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.05)); }
+.legacy-theme .shadow-sm { --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1)); }
+.legacy-theme .shadow { --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1)); }
+.legacy-theme .shadow-md { --tw-shadow: 0 4px 6px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 2px 4px -2px var(--tw-shadow-color, rgb(0 0 0 / 0.1)); }
+.legacy-theme .shadow-lg { --tw-shadow: 0 10px 15px -3px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 4px 6px -4px var(--tw-shadow-color, rgb(0 0 0 / 0.1)); }
+.legacy-theme .shadow-xl { --tw-shadow: 0 20px 25px -5px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 8px 10px -6px var(--tw-shadow-color, rgb(0 0 0 / 0.1)); }
+.legacy-theme .shadow-2xl { --tw-shadow: 0 25px 50px -12px var(--tw-shadow-color, rgb(0 0 0 / 0.25)); }
+
+/* Original typography rules (they were unlayered, so they override utilities — kept that way) */
+.legacy-theme,
+.legacy-theme * {
+  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1, 'pnum' 1, 'tnum' 0, 'onum' 1, 'lnum' 0, 'zero' 0;
+  font-variant-numeric: oldstyle-nums;
+}
+.legacy-theme h1, .legacy-theme h2, .legacy-theme h3, .legacy-theme h4, .legacy-theme h5, .legacy-theme h6 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+.legacy-theme p, .legacy-theme span, .legacy-theme div, .legacy-theme a, .legacy-theme button,
+.legacy-theme input, .legacy-theme textarea, .legacy-theme label, .legacy-theme li {
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.6;
+}
+.legacy-theme button { font-weight: 500; letter-spacing: -0.01em; }
+.legacy-theme input, .legacy-theme textarea, .legacy-theme select { font-weight: 400; letter-spacing: -0.01em; }
+.legacy-theme .text-xs, .legacy-theme .text-sm { letter-spacing: 0.025em; }
+.legacy-theme .text-base, .legacy-theme .text-lg { letter-spacing: -0.01em; }
+.legacy-theme .text-xl, .legacy-theme .text-2xl, .legacy-theme .text-3xl { letter-spacing: -0.025em; }
+.legacy-theme ::selection { background-color: highlight; color: highlighttext; }
+
+@media (max-width: 767px) {
+  /* Mobile scrolled the original root background, which tiled once per screen height */
+  .legacy-theme { background-attachment: scroll; background-size: 100% 100vh; background-repeat: repeat; }
+}

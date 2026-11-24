@@ -4,13 +4,21 @@ import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Edit3, Calendar, Trash2, Upload, X, Image, File, RefreshCw, Loader2, Check, AlertTriangle, Minus } from 'lucide-react'
+import { Plus, Edit3, Calendar, Trash2, Upload, X, Image, File, RefreshCw, Loader2, Check, AlertTriangle, Minus, Globe, Sparkles, ArrowRight, CalendarCheck, Clock, MessagesSquare, Activity } from 'lucide-react'
+import { usePortfolio } from '@/components/analytics/Portfolio'
+import { attentionItems, AttentionBanner, StatCard } from '@/components/home/DashboardOverview'
 import Link from 'next/link'
 import BrandInformationPanel from '@/components/BrandInformationPanel'
+import BrandKitSection from '@/components/brand-kit/BrandKitSection'
+import CaptionLibrarySection from '@/components/caption-library/CaptionLibrarySection'
+import AnalyticsOverview from '@/components/analytics/AnalyticsOverview'
 import { CompactMonthCalendar } from '@/components/CompactMonthCalendar'
 import { useAuth } from '@/contexts/AuthContext'
 import OnboardingChecklist from '@/components/OnboardingChecklist'
 import { Client, BrandDocument, WebsiteScrape, OAuthMessage } from '@/types/api'
+import { currentReturnPath } from '@/lib/returnPath'
+import { accountNames } from '@/lib/socialAccounts'
+import { ConnectedAccountsList } from '@/components/ConnectedAccountsList'
 import { 
   FacebookIcon, 
   InstagramIcon, 
@@ -25,7 +33,10 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   const { clientId } = use(params)
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { getAccessToken } = useAuth()
+  const { getAccessToken, user } = useAuth()
+  // Overview for the top of the dashboard: status and attention items
+  const portfolio = usePortfolio(true)
+  const pulse = portfolio.clients[clientId]
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -59,7 +70,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   interface ConnectedAccount {
     _id: string;
     platform: string;
-    name: string;
+    name?: string;
+    username?: string;
+    displayName?: string;
     accountId?: string;
   }
 
@@ -653,8 +666,17 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   const getPlatformLabel = (platform: string, defaultLabel: string) => {
     if (connectingPlatform === platform) return 'Connecting...';
-    if (isPlatformConnected(platform)) return 'Connected';
+    if (isPlatformConnected(platform)) {
+      // The connected account's name (the green tick already says it's connected)
+      return accountNames(connectedAccounts.filter(a => a.platform === platform), 'short') || 'Connected';
+    }
     return defaultLabel;
+  };
+
+  // Full account name(s) for the tile's tooltip
+  const getPlatformAccountTitle = (platform: string, defaultLabel: string) => {
+    const names = accountNames(connectedAccounts.filter(a => a.platform === platform));
+    return names ? `${defaultLabel}: ${names}` : `Connect ${defaultLabel}`;
   };
 
   // Handle platform connection
@@ -678,8 +700,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         : '/api/late/connect-platform'
       
       const requestBody = platform === 'facebook'
-        ? { clientId }
-        : { platform, clientId }
+        ? { clientId, returnTo: currentReturnPath() }
+        : { platform, clientId, returnTo: currentReturnPath() }
       
       const response = await fetch(apiRoute, {
         method: 'POST',
@@ -960,21 +982,15 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
         {/* Onboarding Checklist */}
         <OnboardingChecklist clientId={clientId} refreshKey={connectedAccounts.length} />
 
-        {/* Header */}
-        <div className="mb-8">
-          
-          {/* Client Details Card and Action Buttons - Flex Layout */}
-          <div className="flex flex-col lg:flex-row gap-6">
-            {/* Client Details Card - Takes ~55% of width */}
-            <Card className="flex-[1.1] shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
-              <CardContent className="p-4 md:p-6 h-full">
-                <div className="flex items-center gap-4 md:gap-6 h-full">
+        {/* Header — welcome, brand logo (editable) and main actions */}
+        <header className="mb-6 mt-2 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-4 md:gap-6">
                   {/* Logo Display/Upload Section */}
                   <div className="relative flex-shrink-0">
-                    <div className={`w-16 h-16 md:w-24 md:h-24 rounded-xl flex items-center justify-center overflow-hidden ${
+                    <div className={`w-20 h-20 md:w-24 md:h-24 rounded-3xl flex items-center justify-center overflow-hidden border border-white/80 shadow-card ${
                       client?.logo_url 
-                        ? 'shadow-sm' 
-                        : 'bg-gradient-to-br from-gray-100 to-gray-200 border-2 border-gray-300'
+                        ? 'bg-white p-2' 
+                        : 'bg-gradient-to-br from-blue-100 to-cyan-100 text-blue-700'
                     }`}>
                       {client?.logo_url ? (
                         <img 
@@ -983,7 +999,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                           className="max-w-full max-h-full object-contain"
                         />
                       ) : (
-                        <span className="text-3xl font-bold text-gray-600">
+                        <span className="text-3xl font-bold text-blue-700">
                           {client?.name ? client.name.charAt(0).toUpperCase() : 'C'}
                         </span>
                       )}
@@ -1038,20 +1054,25 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                       </button>
                     )}
                   </div>
-                  
-                  <div className="flex-1 min-w-0 flex flex-col justify-center">
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2 md:mb-3">
-                      <h1 className="text-2xl md:text-3xl font-bold text-gray-800 break-words min-w-0">
-                        {client?.name || 'Business Profile Dashboard'}
-                      </h1>
-                      
-                      {/* Logo Upload/Edit Button */}
+            <div className="min-w-0">
+              <h1 className="text-[28px] font-bold leading-tight tracking-[-0.03em] text-gray-900 md:text-[34px]">
+                Welcome back, {(((user?.user_metadata as { full_name?: string } | undefined)?.full_name || '').split(' ')[0]) || user?.email?.split('@')[0] || 'there'}!
+              </h1>
+              <p className="mt-1 text-[15px] text-gray-500 md:text-lg">
+                Here&apos;s what&apos;s happening with <span className="font-medium text-gray-700">{client?.name || 'your business'}</span>.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="truncate">{website || 'No website set'}</span>
+                </span>
+                {/* Logo Upload/Edit Button */}
                       {!isEditingLogo && (
                         <Button
                           onClick={() => setIsEditingLogo(true)}
                           variant="outline"
                           size="sm"
-                          className="text-xs hover:bg-gray-50"
+                          className="h-7 rounded-lg text-xs hover:bg-gray-50"
                         >
                           {client?.logo_url ? (
                             <>
@@ -1066,43 +1087,29 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                           )}
                         </Button>
                       )}
-                    </div>
-                    <div className="flex items-center space-x-2 text-gray-600 min-w-0">
-                      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                      </svg>
-                      <span className="text-sm md:text-base truncate">{website || 'No website set'}</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* Action Buttons Container - Takes ~45% of width, right edge aligns with Content Calendar */}
-            {/* Hidden on phones, where the bottom nav covers Create/Calendar */}
-            <div className="flex-[0.9] hidden md:flex gap-6">
-              {/* Create Content Button */}
-              <Button
-                onClick={() => router.push(`/dashboard/client/${clientId}/content-suite`)}
-                className="bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white flex-1 h-full font-bold shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
-                style={{ borderRadius: '16px' }}
-              >
-                <Plus className="w-96 h-96 mb-3 stroke-[2.5]" />
-                <span className="text-xl font-bold">Create Content</span>
-              </Button>
-
-              {/* Calendar Button */}
-              <Button
-                onClick={() => router.push(`/dashboard/client/${clientId}/calendar`)}
-                className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 hover:from-blue-600 hover:via-blue-700 hover:to-blue-800 text-white flex-1 h-full font-bold shadow-md hover:shadow-xl transition-all duration-300 flex flex-col items-center justify-center"
-                style={{ borderRadius: '16px' }}
-              >
-                <Calendar className="w-96 h-96 mb-3 stroke-[2.5]" />
-                <span className="text-xl font-bold">Calendar</span>
-              </Button>
+              </div>
             </div>
           </div>
-        </div>
+          {/* Hidden on phones, where the bottom nav covers Create/Calendar */}
+          <div className="hidden flex-shrink-0 items-center gap-2 md:flex">
+            <Button
+              onClick={() => router.push(`/dashboard/client/${clientId}/calendar`)}
+              variant="outline"
+              className="h-12 rounded-2xl px-5 text-[15px]"
+            >
+              <Calendar className="h-5 w-5" />
+              Calendar
+            </Button>
+            <Button
+              onClick={() => router.push(`/dashboard/client/${clientId}/content-suite`)}
+              className="group h-12 rounded-2xl bg-gradient-ai px-6 text-[15px] font-semibold text-white shadow-[0_10px_30px_-8px_rgb(53_109_243/0.5)] hover:brightness-105"
+            >
+              <Sparkles className="h-5 w-5" />
+              Create Content
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </Button>
+          </div>
+        </header>
 
         {/* OAuth Messages */}
         {oauthMessage && (
@@ -1128,21 +1135,74 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           </div>
         )}
 
+        {/* Needs attention + key numbers */}
+        <div className="mb-6 space-y-6">
+          <AttentionBanner
+            items={attentionItems([pulse])}
+            names={{ [clientId]: client?.name || '' }}
+            showBrand={false}
+          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              icon={CalendarCheck}
+              value={pulse ? pulse.scheduledNext7 : '—'}
+              label="Scheduled Posts"
+              note="Next 7 days"
+              tone="blue"
+              href={`/dashboard/client/${clientId}/calendar`}
+              loading={!portfolio.loaded}
+            />
+            <StatCard
+              icon={Clock}
+              value={pulse ? pulse.awaitingApproval : '—'}
+              label="Awaiting Approval"
+              note={pulse && pulse.awaitingApproval > 0 ? 'Posts in the next 7 days' : 'Nothing waiting'}
+              tone="sky"
+              href={`/dashboard/client/${clientId}/calendar`}
+              loading={!portfolio.loaded}
+            />
+            <StatCard
+              icon={MessagesSquare}
+              value={unreadCount}
+              label="Unread Activity"
+              note={unreadCount > 0 ? 'In the Activity Hub below' : 'All caught up'}
+              tone="emerald"
+              href={`/dashboard/client/${clientId}/comments`}
+            />
+            <StatCard
+              icon={Activity}
+              value={pulse?.last30 && pulse.last30.posts ? `${pulse.last30.medianEngagementRate.toFixed(1)}%` : '—'}
+              label="Engagement Rate"
+              change={
+                pulse?.engagementChange != null && Math.abs(pulse.engagementChange) >= 0.01
+                  ? { value: `${Math.abs(Math.round(pulse.engagementChange * 100))}% vs last month`, up: pulse.engagementChange > 0 }
+                  : null
+              }
+              note={pulse?.last30 ? `Median · ${pulse.last30.posts} posts in 30 days` : 'Last 30 days'}
+              tone="blue"
+              href={`/dashboard/client/${clientId}/analytics`}
+              loading={!portfolio.loaded}
+            />
+          </div>
+        </div>
+        {/* Analytics: last 30 days' results, best-time heatmap, platform split, top post */}
+        <AnalyticsOverview clientId={clientId} />
+
         {/* Activity Hub & Month Calendar - Two Column Layout (40/60) */}
         <div className="mb-8 grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-6">
           {/* Client Activity Hub - Takes 40% */}
           <div className="flex flex-col">
-            <div className="flex items-center gap-3 mb-6">
-              <h2 className="text-xl md:text-2xl font-bold text-gray-800">Client Activity Hub</h2>
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="text-[22px] font-bold tracking-[-0.02em] text-gray-900">Client Activity Hub</h2>
               {unreadCount > 0 && (
-                <div className="bg-red-500 text-white text-sm font-bold rounded-full px-3 py-1 shadow-lg">
+                <div className="bg-red-500 text-white text-xs font-semibold rounded-full px-2.5 py-0.5 shadow-sm">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </div>
               )}
             </div>
             
             {activityLoading ? (
-              <Card className="shadow-md hover:shadow-lg transition-all duration-300 h-60 lg:h-[879px]" style={{ borderRadius: '16px' }}>
+              <Card className="rounded-3xl border-white/80 bg-white/90 shadow-card backdrop-blur-sm h-60 lg:h-[879px]">
                 <CardContent className="p-4 md:p-6 h-full flex items-center justify-center">
                   <div className="flex items-center justify-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mr-3"></div>
@@ -1151,13 +1211,13 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                 </CardContent>
               </Card>
             ) : (
-              <Card className="bg-white shadow-md hover:shadow-lg transition-all duration-300 flex flex-col max-h-[70vh] lg:max-h-none lg:h-[879px]" style={{ borderRadius: '16px' }}>
+              <Card className="rounded-3xl border-white/80 bg-white/90 shadow-card backdrop-blur-sm flex flex-col max-h-[70vh] lg:max-h-none lg:h-[879px]">
                 <CardContent className="p-4 md:p-6 flex-1 flex flex-col min-h-0">
                   {/* Scrollable Content Container */}
                   <div className="flex-1 overflow-y-auto space-y-6 pr-2">
                     {/* Upcoming Posts Section */}
                     <div>
-                      <h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center" style={{ fontSize: '18px' }}>
+                      <h3 className="text-[15px] font-semibold text-gray-900 mb-4 flex items-center">
                         <div className="w-2.5 h-2.5 bg-green-600 rounded-full mr-3"></div>
                         Upcoming Posts
                       </h3>
@@ -1172,7 +1232,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                             );
                           }
                           return upcomingPosts.map((activity) => (
-                            <div key={activity.id} className="bg-green-50 border border-green-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
+                            <div key={activity.id} className="bg-emerald-50/60 border border-emerald-100 rounded-2xl p-4 hover:shadow-card transition-shadow">
                               <div className="flex items-start gap-3">
                                 {/* Post Thumbnail */}
                                 <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
@@ -1213,7 +1273,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
                     {/* Recent Activity Section */}
                     <div>
-                      <h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center" style={{ fontSize: '18px' }}>
+                      <h3 className="text-[15px] font-semibold text-gray-900 mb-4 flex items-center">
                         <div className="w-2.5 h-2.5 bg-blue-600 rounded-full mr-3"></div>
                         Recent Activity
                       </h3>
@@ -1222,7 +1282,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                           .filter(activity => activity.type !== 'next_scheduled')
                           .slice(0, 10)
                           .map((activity) => (
-                          <div key={activity.id} className="bg-gray-50 border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
+                          <div key={activity.id} className="bg-white border border-gray-200/80 rounded-2xl p-4 hover:shadow-card transition-shadow">
                             <div className="flex items-start justify-between">
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold text-gray-800 mb-1">{activity.title}</p>
@@ -1251,8 +1311,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
           
           {/* Month View Calendar with Post Status - Takes 60% */}
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4 md:mb-6">Content Calendar</h2>
-            <Card className="bg-white shadow-md hover:shadow-lg transition-all duration-300" style={{ borderRadius: '16px' }}>
+            <h2 className="text-[22px] font-bold tracking-[-0.02em] text-gray-900 mb-4">Content Calendar</h2>
+            <Card className="rounded-3xl border-white/80 bg-white/90 shadow-card backdrop-blur-sm">
               <CardContent className="p-4 md:p-6">
                 {/* Post Status Grid - Single Row Layout */}
                 <div className="mb-6">
@@ -1265,33 +1325,33 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                       
                       return (
                         <>
-                          <div className="bg-green-50 rounded-xl p-3 hover:shadow-md transition-all flex flex-col items-center justify-center text-center">
+                          <div className="bg-emerald-50/70 rounded-2xl p-3 ring-1 ring-emerald-100 hover:shadow-card transition-all flex flex-col items-center justify-center text-center">
                             <div className="flex items-center mb-2">
                               <Check className="w-4 h-4 text-green-600 mr-1.5" />
-                              <span className="text-xs font-black text-green-800">Approved</span>
+                              <span className="text-xs font-semibold text-green-800">Approved</span>
                             </div>
-                            <div className="text-2xl font-black text-green-900">{approved}</div>
+                            <div className="text-2xl font-semibold text-green-900">{approved}</div>
                           </div>
-                          <div className="bg-red-50 rounded-xl p-3 hover:shadow-md transition-all flex flex-col items-center justify-center text-center">
+                          <div className="bg-red-50/70 rounded-2xl p-3 ring-1 ring-red-100 hover:shadow-card transition-all flex flex-col items-center justify-center text-center">
                             <div className="flex items-center mb-2">
                               <X className="w-4 h-4 text-red-600 mr-1.5" />
-                              <span className="text-xs font-black text-red-800">Rejected</span>
+                              <span className="text-xs font-semibold text-red-800">Rejected</span>
                             </div>
-                            <div className="text-2xl font-black text-red-900">{rejected}</div>
+                            <div className="text-2xl font-semibold text-red-900">{rejected}</div>
                           </div>
-                          <div className="bg-orange-50 rounded-xl p-3 hover:shadow-md transition-all flex flex-col items-center justify-center text-center">
+                          <div className="bg-amber-50/70 rounded-2xl p-3 ring-1 ring-amber-100 hover:shadow-card transition-all flex flex-col items-center justify-center text-center">
                             <div className="flex items-center mb-2">
                               <AlertTriangle className="w-4 h-4 text-orange-600 mr-1.5" />
-                              <span className="text-xs font-black text-orange-800">Needs Attention</span>
+                              <span className="text-xs font-semibold text-orange-800">Needs Attention</span>
                             </div>
-                            <div className="text-2xl font-black text-orange-900">{needsAttention}</div>
+                            <div className="text-2xl font-semibold text-orange-900">{needsAttention}</div>
                           </div>
-                          <div className="bg-gray-50 rounded-xl p-3 hover:shadow-md transition-all flex flex-col items-center justify-center text-center">
+                          <div className="bg-gray-50 rounded-2xl p-3 ring-1 ring-gray-200/70 hover:shadow-card transition-all flex flex-col items-center justify-center text-center">
                             <div className="flex items-center mb-2">
                               <div className="w-4 h-4 bg-gray-400 rounded-full mr-1.5"></div>
-                              <span className="text-xs font-black text-gray-800">Pending</span>
+                              <span className="text-xs font-semibold text-gray-800">Pending</span>
                             </div>
-                            <div className="text-2xl font-black text-gray-700">{pending}</div>
+                            <div className="text-2xl font-semibold text-gray-700">{pending}</div>
                           </div>
                         </>
                       );
@@ -1363,7 +1423,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('facebook')}
                     disabled={connectingPlatform === 'facebook'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('facebook', 'Facebook')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('facebook').buttonClasses
                     }`}
                   >
@@ -1381,7 +1442,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <FacebookIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('facebook').labelClasses
                     }`}>
                       {getPlatformLabel('facebook', 'Facebook')}
@@ -1392,7 +1453,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('instagram')}
                     disabled={connectingPlatform === 'instagram'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('instagram', 'Instagram')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('instagram').buttonClasses
                     }`}
                   >
@@ -1410,7 +1472,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <InstagramIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('instagram').labelClasses
                     }`}>
                       {getPlatformLabel('instagram', 'Instagram')}
@@ -1421,7 +1483,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('twitter')}
                     disabled={connectingPlatform === 'twitter'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('twitter', 'Twitter')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('twitter').buttonClasses
                     }`}
                   >
@@ -1439,7 +1502,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <TwitterIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('twitter').labelClasses
                     }`}>
                       {getPlatformLabel('twitter', 'Twitter')}
@@ -1450,7 +1513,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('linkedin')}
                     disabled={connectingPlatform === 'linkedin'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('linkedin', 'LinkedIn')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('linkedin').buttonClasses
                     }`}
                   >
@@ -1468,7 +1532,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <LinkedInIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('linkedin').labelClasses
                     }`}>
                       {getPlatformLabel('linkedin', 'LinkedIn')}
@@ -1479,7 +1543,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('tiktok')}
                     disabled={connectingPlatform === 'tiktok'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('tiktok', 'TikTok')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('tiktok').buttonClasses
                     }`}
                   >
@@ -1497,7 +1562,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <TikTokIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('tiktok').labelClasses
                     }`}>
                       {getPlatformLabel('tiktok', 'TikTok')}
@@ -1508,7 +1573,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('youtube')}
                     disabled={connectingPlatform === 'youtube'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('youtube', 'YouTube')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('youtube').buttonClasses
                     }`}
                   >
@@ -1526,7 +1592,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <YouTubeIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('youtube').labelClasses
                     }`}>
                       {getPlatformLabel('youtube', 'YouTube')}
@@ -1537,7 +1603,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('threads')}
                     disabled={connectingPlatform === 'threads'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('threads', 'Threads')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('threads').buttonClasses
                     }`}
                   >
@@ -1555,13 +1622,21 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <ThreadsIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('threads').labelClasses
                     }`}>
                       {getPlatformLabel('threads', 'Threads')}
                     </span>
                   </button>
                 </div>
+
+                {/* Each connected account by name, with Remove */}
+                <ConnectedAccountsList
+                  className="mt-5"
+                  clientId={clientId}
+                  accounts={connectedAccounts}
+                  onRemoved={(accountId) => setConnectedAccounts(prev => prev.filter(a => a._id !== accountId))}
+                />
               </div>
 
               {/* Brand Information Section */}
@@ -1573,6 +1648,16 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   brandDocuments={brandDocuments}
                   websiteScrapes={websiteScrapes}
                 />
+              </div>
+
+              {/* Brand Kit (Design Studio) */}
+              <div className="border-t-2 pt-8">
+                <BrandKitSection clientId={clientId} />
+              </div>
+
+              {/* Accounts to tag + hashtag sets (caption @/# autocomplete) */}
+              <div className="border-t-2 pt-8">
+                <CaptionLibrarySection clientId={clientId} />
               </div>
 
               {/* Delete Client Section */}

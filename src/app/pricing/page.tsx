@@ -801,6 +801,12 @@ function PricingPageContent() {
                 <a href="https://www.oneonethree.co.nz/our-services" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Services
                 </a>
+                <a href="https://www.planpulse.nz/" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  PlanPulse
+                </a>
+                <a href="https://webedit.oneonethree.co.nz/" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  WebEdit
+                </a>
                 <a href="https://www.oneonethree.co.nz/products" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Other Products
                 </a>

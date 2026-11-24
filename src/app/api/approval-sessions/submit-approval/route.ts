@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
 import { commentPostTypeFor, type ApprovalPostType } from '@/lib/approvalSessions';
+import { getRequestAppUrl } from '@/lib/requestAppUrl';
+import { approvalKindFromStatus, notifyApprovalWatchersAfterResponse } from '@/lib/approvalWatchers';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -228,6 +230,21 @@ export async function POST(request: NextRequest) {
           author_type: 'portal_party',
           content: client_comments.trim(),
         });
+    }
+
+    // Email the calendar's "Notify by email" list (after the response). The comment
+    // above is included in this email, not sent separately.
+    const kind = approvalKindFromStatus(approval_status);
+    if (kind) {
+      notifyApprovalWatchersAfterResponse({
+        clientId: session.client_id,
+        postId: post_id,
+        postType: commentPostTypeFor(post_type as ApprovalPostType),
+        kind,
+        actor: { name: (session as any).clients?.name ? `${(session as any).clients.name} (approval link)` : 'Approval link' },
+        message: typeof client_comments === 'string' ? client_comments : null,
+        appUrl: getRequestAppUrl(request),
+      });
     }
 
     return NextResponse.json({

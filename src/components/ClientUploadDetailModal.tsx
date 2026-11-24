@@ -12,7 +12,14 @@ import {
   Film,
   FileText,
 } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  CommentThreadList,
+  MentionTextarea,
+  ReplyingTo,
+  useCommentComposer,
+  useMentionables,
+  type ThreadComment,
+} from "@/components/comments";
 import logger from "@/lib/logger";
 
 export interface ClientUploadDetailItem {
@@ -25,27 +32,20 @@ export interface ClientUploadDetailItem {
   target_date?: string | null;
 }
 
-interface Comment {
-  id: string;
-  author_name: string;
-  author_type: "agency" | "portal_party";
-  content: string;
-  created_at: string;
-  party: { id: string; name: string; role: string; color: string | null } | null;
-}
-
 interface Props {
   upload: ClientUploadDetailItem;
   onClose: () => void;
   getAccessToken: () => string | null;
-  authorName: string;
+  /** Used to list who can be @mentioned. */
+  clientId?: string | null;
   onDelete?: (upload: ClientUploadDetailItem) => void;
 }
 
-export function ClientUploadDetailModal({ upload, onClose, getAccessToken, authorName, onDelete }: Props) {
-  const [comments, setComments] = useState<Comment[]>([]);
+export function ClientUploadDetailModal({ upload, onClose, getAccessToken, clientId, onDelete }: Props) {
+  const [comments, setComments] = useState<ThreadComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
-  const [newComment, setNewComment] = useState("");
+  const mentionables = useMentionables({ clientId, getAccessToken });
+  const composer = useCommentComposer(mentionables);
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
@@ -94,7 +94,7 @@ export function ClientUploadDetailModal({ upload, onClose, getAccessToken, autho
   }, [isLoadingComments, comments.length]);
 
   const handlePostComment = async () => {
-    if (!newComment.trim()) return;
+    if (!composer.draft.text.trim()) return;
     const token = getAccessToken();
     if (!token) return;
     setIsPostingComment(true);
@@ -107,8 +107,7 @@ export function ClientUploadDetailModal({ upload, onClose, getAccessToken, autho
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          author_name: authorName,
-          content: newComment.trim(),
+          ...composer.payload(),
           post_type: "portal_upload",
         }),
       });
@@ -118,7 +117,7 @@ export function ClientUploadDetailModal({ upload, onClose, getAccessToken, autho
         return;
       }
       setComments(prev => [...prev, data.comment]);
-      setNewComment("");
+      composer.reset();
       setTimeout(scrollToBottom, 100);
     } catch {
       setCommentError("Failed to post comment");
@@ -259,76 +258,34 @@ export function ClientUploadDetailModal({ upload, onClose, getAccessToken, autho
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-                    {comments.length === 0 && (
-                      <p className="text-sm text-gray-400">No comments yet.</p>
-                    )}
-                    {comments.map((c) => (
-                      <div key={c.id} className="flex gap-2.5">
-                        <div
-                          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-                          style={{
-                            backgroundColor:
-                              c.author_type === "agency"
-                                ? "#1e293b"
-                                : (c.party?.color ?? "#6366f1"),
-                          }}
-                        >
-                          {c.author_name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-semibold text-gray-800">{c.author_name}</span>
-                            {c.party && (
-                              <span
-                                className="text-[10px] px-1.5 py-0.5 rounded-full text-white font-medium"
-                                style={{ backgroundColor: c.party.color ?? "#6366f1" }}
-                              >
-                                {c.party.name}
-                              </span>
-                            )}
-                            {c.author_type === "agency" && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-white font-medium">
-                                Agency
-                              </span>
-                            )}
-                            <span className="text-[10px] text-gray-400 ml-auto">
-                              {new Date(c.created_at).toLocaleString(undefined, {
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap break-words">
-                            {c.content}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                    <CommentThreadList comments={comments} onReply={composer.startReply} />
                     <div ref={commentsEndRef} />
                   </div>
                 )}
 
                 {/* Comment composer */}
                 <div className="space-y-1.5">
+                  {composer.replyTo && (
+                    <ReplyingTo name={composer.replyTo.authorName} onCancel={composer.cancelReply} />
+                  )}
                   <div className="relative">
-                    <Textarea
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
+                    <MentionTextarea
+                      ref={composer.composerRef}
+                      draft={composer.draft}
+                      mentionables={mentionables}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                           e.preventDefault();
                           handlePostComment();
                         }
                       }}
-                      placeholder="Add a comment... (⌘↵ to send)"
+                      placeholder="Add a comment... type @ to tag someone (⌘↵ to send)"
                       className="resize-none text-sm pr-12 min-h-[80px]"
                       disabled={isPostingComment}
                     />
                     <button
                       onClick={handlePostComment}
-                      disabled={isPostingComment || !newComment.trim()}
+                      disabled={isPostingComment || !composer.draft.text.trim()}
                       className="absolute top-2 right-2 w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       {isPostingComment ? (

@@ -1,14 +1,30 @@
 "use client";
-import { User, Plus, Settings, LogOut, PenTool, Calendar, ArrowRight } from "lucide-react";
+import { User, Plus, CalendarCheck, CalendarDays, Clock, Users, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabaseClient";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { isSingleClientTier } from "../../lib/tierUtils";
 import OnboardingChecklist from "../../components/OnboardingChecklist";
+import { usePortfolio } from "../../components/analytics/Portfolio";
+import {
+  attentionItems,
+  AttentionBanner,
+  ClientCard,
+  ContentSuitePromo,
+  CreateContentAction,
+  formatCompact,
+  KpiColumn,
+  SectionCard,
+  StatCard,
+  Timeline,
+  WelcomeHeader,
+  type TimelineItem,
+} from "../../components/home/DashboardOverview";
+import ClientDashboard from "./client/[clientId]/page";
+
 
 interface Client {
   id: string;
@@ -55,6 +71,8 @@ export default function Dashboard() {
   const { user, signOut, getAccessToken } = useAuth();
   const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
+  // How every client is doing, and what needs attention (analytics snapshots + calendar)
+  const portfolio = usePortfolio(clients.length > 0);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
@@ -332,16 +350,74 @@ export default function Dashboard() {
     }
   }, [loading, subscription, clients, router]);
 
+  // Upcoming activity for the agency overview: each brand's next scheduled post,
+  // from the same read-only activity feed the brand dashboard shows.
+  const [upcoming, setUpcoming] = useState<Array<{ clientId: string; date: string; time: string | null; caption: string; status: string }>>([]);
+  const [upcomingLoading, setUpcomingLoading] = useState(false);
+  useEffect(() => {
+    if (clients.length < 2) return;
+    const token = getAccessToken();
+    if (!token) return;
+    let cancelled = false;
+    setUpcomingLoading(true);
+    Promise.all(
+      clients.slice(0, 12).map(async (c) => {
+        try {
+          const res = await fetch(`/api/clients/${c.id}/activity-logs`, {
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          });
+          if (!res.ok) return null;
+          const data = await res.json();
+          const next = (data.activities || []).find(
+            (a: { type?: string; details?: { scheduledDate?: string } | null }) => a.type === 'next_scheduled' && a.details?.scheduledDate
+          );
+          if (!next) return null;
+          return {
+            clientId: c.id,
+            date: next.details.scheduledDate as string,
+            time: (next.details.scheduledTime as string | null) ?? null,
+            caption: (next.details.caption as string) || '',
+            status: (next.status as string) || '',
+          };
+        } catch {
+          return null;
+        }
+      })
+    )
+      .then((rows) => {
+        if (cancelled) return;
+        setUpcoming(rows.filter((r): r is NonNullable<typeof r> => !!r));
+      })
+      .finally(() => {
+        if (!cancelled) setUpcomingLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [clients, getAccessToken]);
+
   // Show loading state while fetching data or while redirecting
   if (loading || isRedirecting) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mx-auto mb-4"></div>
-          <p className="text-muted-foreground">
-            {isRedirecting 
-              ? 'Redirecting to your dashboard...' 
-              : 'Loading your business profiles...'}
+      <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="mx-auto max-w-7xl" aria-busy="true">
+          <p className="sr-only">
+            {isRedirecting ? 'Redirecting to your dashboard...' : 'Loading your business profiles...'}
+          </p>
+          <div className="h-7 w-64 animate-pulse rounded-lg bg-gray-200/60" />
+          <div className="mt-2 h-4 w-80 max-w-full animate-pulse rounded-md bg-gray-200/50" />
+          <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-[108px] animate-pulse rounded-2xl border border-gray-200/60 bg-white/70" />
+            ))}
+          </div>
+          <div className="mt-6 grid gap-6 lg:grid-cols-3">
+            <div className="h-64 animate-pulse rounded-2xl border border-gray-200/60 bg-white/70 lg:col-span-2" />
+            <div className="h-64 animate-pulse rounded-2xl border border-gray-200/60 bg-white/70" />
+          </div>
+          <p className="mt-6 flex items-center gap-2 text-xs text-gray-500">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            {isRedirecting ? 'Redirecting to your dashboard...' : 'Loading your business profiles...'}
           </p>
         </div>
       </div>
@@ -351,12 +427,12 @@ export default function Dashboard() {
   if (error) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
-        <div className="text-center max-w-md">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <User className="h-8 w-8 text-red-600" />
+        <div className="w-full max-w-md rounded-2xl border border-gray-200/80 bg-white p-8 text-center shadow-card">
+          <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 ring-1 ring-red-100">
+            <User className="h-6 w-6 text-red-600" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground mb-4">Error Loading Business Profiles</h1>
-          <p className="text-muted-foreground mb-6">{error}</p>
+          <h1 className="text-[17px] font-semibold text-gray-900 mb-2">Error Loading Business Profiles</h1>
+          <p className="text-sm text-gray-500 mb-6">{error}</p>
           <Button onClick={() => window.location.reload()}>
             Try Again
           </Button>
@@ -364,6 +440,7 @@ export default function Dashboard() {
       </div>
     );
   }
+
 
   // Get plan label
   const getPlanLabel = () => {
@@ -385,7 +462,7 @@ export default function Dashboard() {
       case 'starter':
         return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'professional':
-        return 'bg-purple-100 text-purple-800 border-purple-300';
+        return 'bg-sky-100 text-sky-800 border-sky-300';
       case 'agency':
         return 'bg-green-100 text-green-800 border-green-300';
       case 'enterprise':
@@ -395,167 +472,231 @@ export default function Dashboard() {
     }
   };
 
+  const firstName = (() => {
+    const fullName = profile?.full_name || '';
+    return fullName.split(' ')[0] || profile?.username || user?.email?.split('@')[0] || 'User';
+  })();
+
+  // One brand: the home is that brand's own dashboard (with its Activity Hub and calendar)
+  if (clients.length === 1) {
+    return <SingleBrandHome clientId={clients[0].id} />;
+  }
+
+  const pulses = portfolio.clients;
+  const names = Object.fromEntries(clients.map((c) => [c.id, c.name]));
+  const portfolioList = clients.map((c) => pulses[c.id]).filter(Boolean);
+  const metricsLoading = clients.length > 0 && !portfolio.loaded;
+  const sum = (f: (p: (typeof portfolioList)[number]) => number) => portfolioList.reduce((n, p) => n + f(p!), 0);
+  const totalScheduled = sum((p) => p.scheduledNext7);
+  const totalAwaiting = sum((p) => p.awaitingApproval);
+  const totalFollowers = sum((p) => p.followers?.current ?? 0);
+  const totalGained = sum((p) => p.followers?.gained30d ?? 0);
+  const totalPosts30 = sum((p) => p.last30?.posts ?? 0);
+  const items = attentionItems(clients.map((c) => pulses[c.id]));
+  const critical = items.filter((i) => i.level === 'critical').length;
+  const perBrand = (f: (p: (typeof portfolioList)[number]) => number) =>
+    clients.filter((c) => pulses[c.id]).map((c) => ({ label: c.name, value: f(pulses[c.id]) }));
+  const engagementRows = clients
+    .map((c) => ({ c, r: pulses[c.id]?.last30 }))
+    .filter((x) => x.r && x.r.posts > 0)
+    .sort((a, b) => b.r!.medianEngagementRate - a.r!.medianEngagementRate);
+  const engagementMax = Math.max(...engagementRows.map((x) => x.r!.medianEngagementRate), 0);
+
+  const timeline: TimelineItem[] = upcoming
+    .map((u) => {
+      const when = new Date(`${u.date}T${u.time ? u.time.slice(0, 5) : '00:00'}`);
+      const p = pulses[u.clientId];
+      return {
+        id: u.clientId,
+        when,
+        dateOnly: !u.time,
+        title: `Scheduled post – ${names[u.clientId] ?? 'Client'}`,
+        subtitle: u.caption && u.caption !== 'No caption' ? u.caption : undefined,
+        href: `/dashboard/client/${u.clientId}/calendar`,
+        badge:
+          p && p.awaitingApproval > 0 ? (
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 ring-1 ring-blue-100">Approval</span>
+          ) : undefined,
+      };
+    })
+    .filter((t) => !Number.isNaN(t.when.getTime()))
+    .sort((a, b) => a.when.getTime() - b.when.getTime())
+    .slice(0, 5);
+
   return (
-    <div className="flex-1 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 mt-[50px]">
-          <div className="max-w-xl mx-auto">
-            {/* Time and Date - only show after at least one business profile exists */}
-            {clients.length > 0 && (
-              <div className="mb-4 text-center">
-                <p className="text-4xl font-bold font-mono text-foreground">
-                  {currentTime}
-                </p>
-                <p className="text-lg text-muted-foreground mt-2">
-                  {currentDate}
-                </p>
-              </div>
-            )}
-
-            {/* Welcome back text in the middle */}
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-foreground">
-                Welcome back, {(() => {
-                  const fullName = profile?.full_name || '';
-                  const firstName = fullName.split(' ')[0] || profile?.username || user?.email?.split('@')[0] || 'User';
-                  return firstName;
-                })()}!
-              </h1>
-            </div>
-          </div>
-        </div>
-
+    <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        {/* ── Welcome ─────────────────────────────────────────────────── */}
+        <WelcomeHeader
+          logo={<img src="/cm-logo.png" alt="Content Manager" className="w-14 mix-blend-multiply md:w-16" />}
+          title={<>Welcome back, {firstName}!</>}
+          subtitle={clients.length === 0 ? "Let's set up your first business profile." : "Here's what's happening with your clients."}
+          meta={
+            clients.length > 0 && currentDate ? (
+              <span className="inline-flex flex-wrap items-center gap-x-2">
+                <span>{currentDate}</span>
+                <span className="tabular-nums">{currentTime}</span>
+                {subscription && (
+                  <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${getPlanBadgeColor()}`}>
+                    {getPlanLabel()}
+                  </span>
+                )}
+              </span>
+            ) : undefined
+          }
+          actions={clients.length > 0 ? <CreateContentAction brands={clients} /> : undefined}
+        />
 
         {/* Onboarding Checklist */}
-        <div className="max-w-xl mx-auto">
+        <div className="max-w-3xl empty:hidden [&>div]:mb-0">
           <OnboardingChecklist />
         </div>
 
-        {/* Clients Section */}
-        <div className="mb-8">
-          <div className="mb-6 text-center">
-            <h2 className="text-2xl font-bold text-foreground">
-              Your Business Profiles
-            </h2>
+        {clients.length === 0 ? (
+          /* ── No brands yet ───────────────────────────────────────────── */
+          <div className="mx-auto max-w-lg rounded-3xl border border-white/80 bg-white/90 p-10 text-center shadow-card backdrop-blur-sm">
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-100 to-cyan-100/70 text-blue-700 ring-1 ring-blue-200/60">
+              <User className="h-7 w-7" />
+            </div>
+            <h3 className="text-[17px] font-semibold text-gray-900 mb-1">No business profiles yet</h3>
+            <p className="mb-6 text-sm text-gray-500">Add your brand to start creating and scheduling content.</p>
+            <Link href="/dashboard/clients/new">
+              <Button size="lg" className="h-10 rounded-xl px-6">
+                <Plus className="w-5 h-5" />
+                Create New Business Profile
+              </Button>
+            </Link>
           </div>
+        ) : (
+          <>
+            {/* ── Needs attention ─────────────────────────────────────── */}
+            <AttentionBanner items={items} names={names} showBrand />
 
-          {clients.length === 0 ? (
-            <div className="p-12 text-center">
-              <User className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">
-                No business profiles yet
-              </h3>
-              <Link href="/dashboard/clients/new">
-                <Button size="lg" className="px-8">
-                  <Plus className="w-5 h-5 mr-2" />
-                  Create New Business Profile
-                </Button>
-              </Link>
+            {/* ── Metrics ─────────────────────────────────────────────── */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard
+                icon={CalendarCheck}
+                value={totalScheduled}
+                label="Scheduled Posts"
+                note="Next 7 days"
+                tone="blue"
+                bars={perBrand((p) => p.scheduledNext7)}
+                loading={metricsLoading}
+              />
+              <StatCard
+                icon={Clock}
+                value={totalAwaiting}
+                label="Awaiting Approval"
+                note={totalAwaiting > 0 ? 'Posts in the next 7 days' : 'Nothing waiting'}
+                tone="sky"
+                bars={perBrand((p) => p.awaitingApproval)}
+                loading={metricsLoading}
+              />
+              <StatCard
+                icon={Users}
+                value={totalFollowers ? formatCompact(totalFollowers) : '—'}
+                label="Followers"
+                change={totalGained ? { value: `${totalGained > 0 ? '+' : ''}${formatCompact(totalGained)} (30d)`, up: totalGained > 0 } : null}
+                note="Across connected accounts"
+                tone="emerald"
+                bars={perBrand((p) => p.followers?.current ?? 0)}
+                loading={metricsLoading}
+              />
+              <StatCard
+                icon={AlertTriangle}
+                value={items.length}
+                label="Needs Attention"
+                note={critical > 0 ? `${critical} urgent` : items.length ? 'To review' : 'All clear'}
+                tone={critical > 0 ? 'red' : items.length ? 'amber' : 'emerald'}
+                bars={perBrand((p) => p.attention.length)}
+                loading={metricsLoading}
+              />
             </div>
-          ) : (
-            <div className={
-              clients.length === 1 
-                ? "flex justify-center" 
-                : "grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch"
-            }>
-              {clients.map((client) => (
-                <Card 
-                  key={client.id} 
-                  className={`transition-all hover:shadow-lg flex flex-col h-full opacity-90 ${
-                    clients.length === 1 ? "w-full max-w-2xl" : ""
-                  }`}
-                >
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="relative">
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${
-                            client.logo_url 
-                              ? '' 
-                              : 'bg-blue-100 text-blue-700'
-                          } overflow-hidden`}>
-                            {client.logo_url ? (
-                              <img 
-                                src={client.logo_url} 
-                                alt={`${client.name} logo`}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <span>{client.name.charAt(0).toUpperCase()}</span>
-                            )}
-                          </div>
-                          {/* Unread notification badge */}
-                          {unreadCounts[client.id] > 0 && (
-                            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-lg border-2 border-white">
-                              {unreadCounts[client.id] > 99 ? '99+' : unreadCounts[client.id]}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <CardTitle className="text-xl font-bold break-words leading-tight">
-                            {client.name}
-                          </CardTitle>
-                        </div>
+
+            {/* ── Clients + upcoming ──────────────────────────────────── */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+              <section>
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-[22px] font-bold tracking-[-0.02em] text-gray-900">Your Clients</h2>
+                  <Link
+                    href="/dashboard/clients/new"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-[13px] font-medium text-gray-800 shadow-xs transition-colors hover:bg-gray-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add client
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {clients.map((client) => (
+                    <ClientCard key={client.id} brand={client} pulse={pulses[client.id]} unread={unreadCounts[client.id] || 0} />
+                  ))}
+                </div>
+              </section>
+
+              <SectionCard title="Upcoming Activity" icon={CalendarDays}>
+                <Timeline items={timeline} loading={upcomingLoading && !upcoming.length} empty="No upcoming posts scheduled." />
+              </SectionCard>
+            </div>
+
+            {/* ── Performance + Content Suite ─────────────────────────── */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+              <SectionCard
+                title="Performance Overview"
+                action={<span className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-[13px] font-medium text-gray-700">Last 30 days</span>}
+              >
+                <div className="grid gap-6 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] md:items-center">
+                  <div>
+                    <p className="mb-3 text-xs font-medium text-gray-500">Median engagement rate by client</p>
+                    {!portfolio.loaded ? (
+                      <div className="space-y-3">
+                        {[0, 1, 2].map((i) => <div key={i} className="h-6 animate-pulse rounded-lg bg-gray-50" />)}
                       </div>
-                      <Link href={`/dashboard/client/${client.id}`}>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          className="bg-white/80 backdrop-blur-sm border-gray-300 hover:bg-gray-50 flex items-center gap-1"
-                        >
-                          View Dashboard
-                          <ArrowRight className="w-3 h-3" />
-                        </Button>
-                      </Link>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex-1 flex flex-col justify-between">
-                    {client.company_description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                        {client.company_description}
+                    ) : engagementRows.length === 0 ? (
+                      <p className="rounded-2xl bg-gray-50/80 px-4 py-6 text-center text-[13px] text-gray-500">
+                        Results appear once clients have connected accounts and published posts.
                       </p>
+                    ) : (
+                      <ul className="space-y-3">
+                        {engagementRows.slice(0, 6).map(({ c, r }) => (
+                          <li key={c.id}>
+                            <Link href={`/dashboard/client/${c.id}/analytics`} className="group block">
+                              <div className="mb-1 flex items-center justify-between gap-2 text-[13px]">
+                                <span className="truncate text-gray-700 group-hover:text-gray-900">{c.name}</span>
+                                <span className="font-semibold tabular-nums text-gray-900">{r!.medianEngagementRate.toFixed(1)}%</span>
+                              </div>
+                              <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                                <div
+                                  className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-[width] duration-700"
+                                  style={{ width: `${engagementMax ? Math.max(4, (r!.medianEngagementRate / engagementMax) * 100) : 0}%` }}
+                                />
+                              </div>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
                     )}
-                    
-                    {/* Action Buttons */}
-                    <div className="flex gap-3 mb-4">
-                      <Link 
-                        href={`/dashboard/client/${client.id}/content-suite`}
-                        className="flex-1"
-                      >
-                        <Button 
-                          className="w-full bg-gradient-to-r from-pink-300 via-purple-500 to-purple-700 hover:from-pink-400 hover:via-purple-600 hover:to-purple-800 text-white font-bold shadow-md hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
-                          style={{ borderRadius: '8px', height: '40px' }}
-                        >
-                          <Plus className="w-4 h-4" />
-                          <span className="text-sm">Create Content</span>
-                        </Button>
-                      </Link>
-                      <Link 
-                        href={`/dashboard/client/${client.id}/calendar`}
-                        className="flex-1"
-                      >
-                        <Button 
-                          className="w-full bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 hover:from-blue-600 hover:via-blue-700 hover:to-blue-800 text-white font-bold shadow-md hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
-                          style={{ borderRadius: '8px', height: '40px' }}
-                        >
-                          <Calendar className="w-4 h-4" />
-                          <span className="text-sm">Calendar</span>
-                        </Button>
-                      </Link>
-                    </div>
-                    
-                    <div className="text-xs text-muted-foreground mt-auto">
-                      <span>Created {new Date(client.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  </div>
+                  <div className="grid grid-cols-3 divide-x divide-gray-100">
+                    <KpiColumn
+                      value={totalGained ? `${totalGained > 0 ? '+' : ''}${formatCompact(totalGained)}` : '—'}
+                      label="Followers gained"
+                      positive={totalGained ? totalGained > 0 : null}
+                    />
+                    <KpiColumn value={portfolio.loaded ? String(totalPosts30) : '—'} label="Posts published" />
+                    <KpiColumn value={portfolio.loaded ? String(totalScheduled) : '—'} label="Scheduled next 7 days" />
+                  </div>
+                </div>
+              </SectionCard>
+              <ContentSuitePromo brands={clients} />
             </div>
-          )}
-        </div>
-
+          </>
+        )}
       </div>
     </div>
   );
-} 
+}
+
+/** One-brand accounts: Home shows that brand's dashboard (overview, Activity Hub and calendar). */
+function SingleBrandHome({ clientId }: { clientId: string }) {
+  const params = useMemo(() => Promise.resolve({ clientId }), [clientId]);
+  return <ClientDashboard params={params} />;
+}

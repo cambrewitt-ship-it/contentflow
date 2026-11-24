@@ -31,7 +31,7 @@ export default function GeneratedPostsReview({
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-base font-semibold text-gray-900 flex items-center gap-1.5">
-            <Heart className="h-4 w-4 text-pink-500 fill-pink-500" />
+            <Heart className="h-4 w-4 text-red-500 fill-red-500" />
             {candidates.length} {candidates.length === 1 ? 'post' : 'posts'} kept
           </h2>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -50,7 +50,7 @@ export default function GeneratedPostsReview({
           <Button
             onClick={onAddToCalendar}
             disabled={saving !== null}
-            className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white"
+            className="bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-700 hover:to-sky-600 text-white"
           >
             {saving === 'calendar' ? (
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />

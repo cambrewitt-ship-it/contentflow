@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Loader2, Sparkles, Images, RefreshCw, Plus, AlertCircle, Upload as UploadIcon, Check, Inbox } from 'lucide-react';
+import { X, Loader2, Sparkles, Images, RefreshCw, Plus, AlertCircle, Upload as UploadIcon, Check, Inbox, Wand2 } from 'lucide-react';
+import { LazyImageEditor } from '@/components/image-editor';
 import { ContentStoreProvider, useContentStore } from '@/lib/contentStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { SocialPreviewCard } from '@/components/SocialPreviewCard';
@@ -9,13 +10,15 @@ import PhotoSwapDialog from '@/components/PhotoSwapDialog';
 import { WeekDayChooser } from '@/components/WeekDayChooser';
 import { ChatCaptionOption } from '@/components/ChatCaptionOption';
 import { SuggestedRuleChip } from '@/components/SuggestedRuleChip';
+import { ThinkingIndicator } from '@/components/ThinkingIndicator';
 import { GeneratePromptBox, ChatRefineInput } from '@/components/CaptionPrompt';
 import { useInputGlide } from '@/hooks/useInputGlide';
 import { PlatformPicker } from '@/components/PlatformBadges';
 import { normalizeTargetPlatforms, type TargetPlatform } from '@/lib/targetPlatforms';
-import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea';
+import { CaptionToolsPanel } from '@/components/caption-tools/CaptionToolsPanel';
 
 interface Project {
   id: string;
@@ -101,6 +104,7 @@ function CreatePostModalContent({
     setPostNotes,
     addImage,
     removeImage,
+    replaceImage,
     copyType,
     generateAICaptions,
     remixCaption,
@@ -123,6 +127,10 @@ function CreatePostModalContent({
   const [customCaption, setCustomCaption] = useState('');
   const [customMode, setCustomMode] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  // Image editor: which uploaded photo is open in it
+  const [editorImageId, setEditorImageId] = useState<string | null>(null);
+  const editorImage = editorImageId ? uploadedImages.find((img) => img.id === editorImageId) : undefined;
+  const [blankDesignOpen, setBlankDesignOpen] = useState(false);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState('12:00');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -347,7 +355,7 @@ function CreatePostModalContent({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <Sparkles className="w-4 h-4 text-purple-500" />
+            <Sparkles className="w-4 h-4 text-orange-500" />
             <span className="text-sm font-semibold text-gray-900">New post</span>
           </div>
           <button
@@ -437,6 +445,17 @@ function CreatePostModalContent({
                               <AlertCircle className="w-4 h-4 text-white" />
                             </div>
                           )}
+                          {img.mediaType !== 'video' && !isUploading && !img.uploadFailed && (
+                            <button
+                              type="button"
+                              aria-label={`Edit photo ${i + 1}`}
+                              title="Edit image — add text, logos, filters"
+                              onClick={(e) => { e.stopPropagation(); setActiveImageId(img.id); setEditorImageId(img.id); }}
+                              className="absolute bottom-0.5 right-0.5 w-5 h-5 rounded-full bg-white/95 hover:bg-white text-blue-700 shadow flex items-center justify-center"
+                            >
+                              <Wand2 className="w-3 h-3" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             aria-label={`Remove photo ${i + 1}`}
@@ -520,7 +539,7 @@ function CreatePostModalContent({
                 {existingPost ? (
                   <div className="mt-3 space-y-1">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Caption</p>
-                    <Textarea
+                    <CaptionTextarea clientId={clientId}
                       value={existingCaption}
                       onChange={(e) => setExistingCaption(e.target.value)}
                       placeholder="Write a caption..."
@@ -568,6 +587,22 @@ function CreatePostModalContent({
                 >
                   <Images className="w-3.5 h-3.5" />
                   Gallery
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Design the selected photo, or start a graphic from a blank canvas
+                    const active = uploadedImages.find(
+                      (img) => img.id === activeImageId && img.mediaType !== 'video' && img.blobUrl && !img.uploadFailed
+                    );
+                    if (active) setEditorImageId(active.id);
+                    else setBlankDesignOpen(true);
+                  }}
+                  title="Add text, logos and brand colours — or start from a blank canvas"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-sky-500 hover:opacity-90 transition-opacity"
+                >
+                  <Wand2 className="w-3.5 h-3.5" />
+                  Design
                 </button>
               </div>
               <p className="text-[11px] text-gray-500 mt-1.5">
@@ -658,7 +693,7 @@ function CreatePostModalContent({
 
               {customMode ? (
                 <div className="space-y-1">
-                  <Textarea
+                  <CaptionTextarea clientId={clientId}
                     value={customCaption}
                     onChange={(e) => setCustomCaption(e.target.value)}
                     placeholder="Write your own caption..."
@@ -667,6 +702,7 @@ function CreatePostModalContent({
                     className="text-sm resize-y"
                   />
                   <p className="text-[11px] text-gray-400 text-right">{customCaption.length} characters</p>
+                  <CaptionToolsPanel caption={customCaption} onInsert={setCustomCaption} clientId={clientId} />
                 </div>
               ) : !chatMode ? (
                 <div className="space-y-2">
@@ -717,7 +753,7 @@ function CreatePostModalContent({
                             {msg.content}
                           </span>
                         ) : msg.isLoading ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />
+                          <ThinkingIndicator size="sm" />
                         ) : msg.captions && msg.captions.length > 0 ? (
                           <div className="space-y-1.5">
                             {msg.captions.map((cap) => (
@@ -810,6 +846,40 @@ function CreatePostModalContent({
         currentMediaGalleryId={null}
         onPhotoSelected={handleGalleryPhotoSelected}
       />
+
+      {blankDesignOpen && (
+        <LazyImageEditor
+          blankSize="square"
+          brandLogoUrl={accountAvatarUrl}
+          brandName={accountName}
+          clientId={clientId}
+          onCancel={() => setBlankDesignOpen(false)}
+          onSave={async (file, design) => {
+            setBlankDesignOpen(false);
+            await addImage(file, { design });
+          }}
+        />
+      )}
+
+      {editorImage && (
+        <LazyImageEditor
+          key={editorImage.id}
+          imageUrl={editorImage.blobUrl || editorImage.preview}
+          file={editorImage.file}
+          design={editorImage.design}
+          otherImages={uploadedImages
+            .filter((img) => img.id !== editorImage.id && img.mediaType !== 'video' && !img.uploadFailed)
+            .map((img) => img.blobUrl || img.preview)}
+          brandLogoUrl={accountAvatarUrl}
+          brandName={accountName}
+          clientId={clientId}
+          onCancel={() => setEditorImageId(null)}
+          onSave={async (file, design) => {
+            setEditorImageId(null);
+            await replaceImage(editorImage.id, file, design);
+          }}
+        />
+      )}
 
       <Dialog open={showCreditDialog} onOpenChange={setShowCreditDialog}>
         <DialogContent className="max-w-sm">

@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { AI_MODEL as MODEL, completionParams } from '@/lib/aiModel';
+import { AI_MODEL as MODEL } from '@/lib/aiModel';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
 import { formatTovPromptSection } from '@/lib/brandVoice';
 import { formatPlaybookPromptSection } from '@/lib/captionPlaybook';
@@ -7,6 +7,7 @@ import { fetchBrandContext } from './context';
 import type { BrandContext } from './context';
 import { formatRunBriefPrompt } from './runBrief';
 import type { RunBrief } from './runBrief';
+import { completionParams } from '@/lib/openaiParams';
 
 // One-shot revisions of a single Content Agent candidate, driven by the
 // account manager's feedback in swipe review: rewrite the copy, explain why
@@ -149,13 +150,12 @@ Account manager's feedback:
 ${feedback}`;
 
   const completion = await openai.chat.completions.create({
-    model: MODEL,
+    ...completionParams(MODEL, { temperature: 0.6 }),
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },
     ],
     response_format: { type: 'json_object' },
-    ...completionParams(MODEL, { maxTokens: 2000, temperature: 0.6 }),
   });
 
   let parsed: Record<string, unknown> = {};

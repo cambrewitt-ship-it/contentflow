@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/logger';
+import { rejectUnauthorizedCron } from '@/lib/cronAuth';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -33,17 +34,9 @@ const supabaseAdmin = createClient(
  */
 export async function GET(req: NextRequest) {
   try {
-    // Verify cron secret for security (set CRON_SECRET in environment variables)
-    const authHeader = req.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
-
-    // In production, require authentication
-    if (process.env.NODE_ENV === 'production' && cronSecret) {
-      if (authHeader !== `Bearer ${cronSecret}`) {
-        logger.warn('Unauthorized cron job attempt');
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-    }
+    // Requires CRON_SECRET in production (see src/lib/cronAuth.ts)
+    const rejected = rejectUnauthorizedCron(req, 'check-trial-expiry');
+    if (rejected) return rejected;
 
     const now = new Date().toISOString();
 
