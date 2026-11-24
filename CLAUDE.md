@@ -41,6 +41,12 @@ the whole codebase (and Vercel env vars).
   in-app browser), so connecting an account never ends on the login screen.
   Keep it that way for any new platform callback, and keep both callbacks and
   `/oauth/complete` in the middleware's public lists.
+- Accounts are named with `src/lib/socialAccounts.ts` (Zernio sends `displayName`/`username`, not `name`):
+  overview tiles, `/connect-platforms`, calendar Schedule buttons, the post modal, Content Suite and approval emails.
+  A client can have two accounts on one platform, so select/schedule by account `_id`, never by platform.
+- `ConnectedAccountsList` (overview + `/connect-platforms`) lists each account with Remove →
+  `POST /api/late/disconnect-account` → Zernio `DELETE /v1/accounts/{id}` (only accounts on the client's own
+  profile; Zernio keeps it 1h, reconnecting in that window restores it with its scheduled posts).
 
 ## Design Studio (image editor) and Brand Kits
 

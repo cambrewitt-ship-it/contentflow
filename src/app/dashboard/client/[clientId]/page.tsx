@@ -18,6 +18,7 @@ import OnboardingChecklist from '@/components/OnboardingChecklist'
 import { Client, BrandDocument, WebsiteScrape, OAuthMessage } from '@/types/api'
 import { currentReturnPath } from '@/lib/returnPath'
 import { accountNames } from '@/lib/socialAccounts'
+import { ConnectedAccountsList } from '@/components/ConnectedAccountsList'
 import { 
   FacebookIcon, 
   InstagramIcon, 
@@ -1628,6 +1629,14 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                     </span>
                   </button>
                 </div>
+
+                {/* Each connected account by name, with Remove */}
+                <ConnectedAccountsList
+                  className="mt-5"
+                  clientId={clientId}
+                  accounts={connectedAccounts}
+                  onRemoved={(accountId) => setConnectedAccounts(prev => prev.filter(a => a._id !== accountId))}
+                />
               </div>
 
               {/* Brand Information Section */}

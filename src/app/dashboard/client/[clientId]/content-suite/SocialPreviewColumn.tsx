@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/contexts/AuthContext'
+import { accountFullName } from '@/lib/socialAccounts'
 
 const PREVIEW_PLATFORM_LABELS: Record<string, string> = {
   facebook:  'Facebook',
@@ -31,7 +32,8 @@ const PREVIEW_PLATFORM_LABELS: Record<string, string> = {
 interface ConnectedAccount {
   _id: string;
   platform: string;
-  name: string;
+  name?: string;
+  displayName?: string;
   accountId?: string;
   profilePicture?: string;
   username?: string;
@@ -122,6 +124,7 @@ export function SocialPreviewColumn({
 
   // Connected accounts state
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([])
+  // Selected account ids — not platforms, since a client can have two accounts on one platform
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set())
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false)
 
@@ -314,7 +317,8 @@ export function SocialPreviewColumn({
 
     // No media = a text-only post (e.g. copy + an article link); some platforms need media
     const isTextOnly = uploadedImages.length === 0
-    const mediaOnlyPlatforms = Array.from(selectedPlatforms).filter(p => ['instagram', 'tiktok', 'youtube'].includes(p.toLowerCase()))
+    const mediaOnlyPlatforms = Array.from(new Set(connectedAccounts.filter(a => selectedPlatforms.has(a._id)).map(a => a.platform)))
+      .filter(p => ['instagram', 'tiktok', 'youtube'].includes(p.toLowerCase()))
     if (isTextOnly && mediaOnlyPlatforms.length > 0) {
       setScheduleError(`${mediaOnlyPlatforms.join(', ')} posts need a photo or video. Upload one, or deselect ${mediaOnlyPlatforms.length > 1 ? 'those platforms' : 'that platform'}.`)
       return
@@ -355,7 +359,7 @@ export function SocialPreviewColumn({
 
       // Get selected accounts
       const selectedAccounts = connectedAccounts.filter(account =>
-        selectedPlatforms.has(account.platform)
+        selectedPlatforms.has(account._id)
       )
 
       if (selectedAccounts.length === 0) {
@@ -1680,25 +1684,27 @@ export function SocialPreviewColumn({
                       type="button"
                       onClick={() => {
                         const newSelected = new Set(selectedPlatforms)
-                        if (newSelected.has(account.platform)) {
-                          newSelected.delete(account.platform)
+                        if (newSelected.has(account._id)) {
+                          newSelected.delete(account._id)
                         } else {
-                          newSelected.add(account.platform)
+                          newSelected.add(account._id)
                         }
                         setSelectedPlatforms(newSelected)
                       }}
                       className={`p-3 rounded-lg border-2 transition-all text-left ${
-                        selectedPlatforms.has(account.platform)
+                        selectedPlatforms.has(account._id)
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div>
+                        <div className="min-w-0">
                           <div className="font-medium text-sm capitalize">{account.platform}</div>
-                          <div className="text-xs text-gray-500">{account.name}</div>
+                          <div className="truncate text-xs text-gray-500" title={accountFullName(account) ?? undefined}>
+                            {accountFullName(account) ?? 'Connected account'}
+                          </div>
                         </div>
-                        {selectedPlatforms.has(account.platform) && (
+                        {selectedPlatforms.has(account._id) && (
                           <Check className="w-4 h-4 text-blue-600" />
                         )}
                       </div>

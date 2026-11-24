@@ -65,6 +65,14 @@ export async function listAccounts(profileId: string): Promise<ZernioAccount[]> 
   return data.accounts ?? []
 }
 
+/**
+ * DELETE /v1/accounts/{accountId}. Zernio keeps the account for a 1h grace window: reconnecting
+ * the same account within it restores it (same id, scheduled posts kept); then it's deleted.
+ */
+export async function disconnectAccount(accountId: string): Promise<void> {
+  await zernio('DELETE', `/accounts/${encodeURIComponent(accountId)}`)
+}
+
 // ── Comments ────────────────────────────────────────────────────────────────
 
 export interface CommentedPost {

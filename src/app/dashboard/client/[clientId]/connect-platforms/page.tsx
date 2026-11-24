@@ -16,6 +16,7 @@ import {
   ThreadsIcon
 } from '@/components/social-icons'
 import { accountNames } from '@/lib/socialAccounts'
+import { ConnectedAccountsList } from '@/components/ConnectedAccountsList'
 
 interface ConnectedAccount {
   _id: string
@@ -297,6 +298,14 @@ export default function ConnectPlatformsPage({ params }: { params: Promise<{ cli
                 )
               })}
             </div>
+          )}
+          {!loading && connectedAccounts.length > 0 && (
+            <ConnectedAccountsList
+              className="px-5 pb-5"
+              clientId={clientId}
+              accounts={connectedAccounts}
+              onRemoved={(accountId) => setConnectedAccounts((prev) => prev.filter((a) => a._id !== accountId))}
+            />
           )}
         </section>
 

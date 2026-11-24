@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PDFExportModal } from '@/components/PDFExportModal';
 import { ApprovalNotifyButton } from '@/components/ApprovalNotifyButton';
+import { accountFullName, accountShortName, platformName } from '@/lib/socialAccounts';
 import { FacebookIcon, InstagramIcon, TwitterIcon, LinkedInIcon } from '@/components/social-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useContentEvents } from '@/components/EventsCalendarLayer';
@@ -156,7 +157,9 @@ interface ClientUpload {
 interface ConnectedAccount {
   _id: string;
   platform: string;
-  name: string;
+  name?: string;
+  username?: string;
+  displayName?: string;
   accountId?: string;
 }
 
@@ -209,6 +212,7 @@ export default function CalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [isLoadingScheduledPosts, setIsLoadingScheduledPosts] = useState(false);
+  // _id of the account being scheduled to (two accounts can share a platform)
   const [schedulingPlatform, setSchedulingPlatform] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [movingPostId, setMovingPostId] = useState<string | null>(null);
@@ -2120,10 +2124,11 @@ export default function CalendarPage() {
       return;
     }
     
+    const target = `${platformName(account.platform)}${accountFullName(account) ? ` (${accountFullName(account)})` : ''}`;
     const confirmed = confirm(
       idsToSchedule.size === 1
-        ? `Schedule this post to ${account.platform}?`
-        : `Schedule ${idsToSchedule.size} posts to ${account.platform}?`
+        ? `Schedule this post to ${target}?`
+        : `Schedule ${idsToSchedule.size} posts to ${target}?`
     );
     if (!confirmed) return;
 
@@ -2141,7 +2146,7 @@ export default function CalendarPage() {
     }
     
     // Set loading state for this specific platform
-    setSchedulingPlatform(account.platform);
+    setSchedulingPlatform(account._id);
     
     // Add all posts to scheduling state
     setSchedulingPostIds(new Set(postsToSchedule.map(p => p.id)));
@@ -2708,7 +2713,8 @@ export default function CalendarPage() {
         )}
         {connectedAccounts.length > 0 ? (
           connectedAccounts.map((account) => {
-            const isScheduling = schedulingPlatform === account.platform;
+            const isScheduling = schedulingPlatform === account._id;
+            const accountLabel = accountShortName(account);
 
             const allScheduledPosts = Object.values(scheduledPosts).flat();
             const postsToSchedule = allScheduledPosts.filter(p => selectedPosts.has(p.id));
@@ -2757,7 +2763,7 @@ export default function CalendarPage() {
                 title={
                   selectedPosts.size === 0 ? 'Select posts to schedule' :
                   hasEmptyCaptions ? 'Add captions to selected posts before scheduling' :
-                  `Schedule ${selectedPosts.size} post${selectedPosts.size === 1 ? '' : 's'} to ${account.platform}`
+                  `Schedule ${selectedPosts.size} post${selectedPosts.size === 1 ? '' : 's'} to ${platformName(account.platform)}${accountFullName(account) ? ` — ${accountFullName(account)}` : ''}`
                 }
               >
                 {isScheduling ? (
@@ -2769,6 +2775,9 @@ export default function CalendarPage() {
                     {account.platform === 'twitter' && <TwitterIcon size={16} />}
                     {account.platform === 'linkedin' && <LinkedInIcon size={16} />}
                     <span>Schedule {selectedPosts.size > 0 ? `(${selectedPosts.size})` : ''}</span>
+                    {accountLabel && (
+                      <span className="max-w-[9rem] truncate text-xs font-normal opacity-90">· {accountLabel}</span>
+                    )}
                   </div>
                 )}
               </button>

@@ -44,3 +44,17 @@ export function accountNames(accounts: SocialAccountLike[], format: 'short' | 'f
   const names = accounts.map(format === 'short' ? accountShortName : accountFullName).filter((n): n is string => !!n)
   return names.length > 0 ? [...new Set(names)].join(', ') : null
 }
+
+const PLATFORM_NAMES: Record<string, string> = {
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  twitter: 'X (Twitter)',
+  linkedin: 'LinkedIn',
+  tiktok: 'TikTok',
+  youtube: 'YouTube',
+  threads: 'Threads',
+}
+
+export function platformName(platform: string): string {
+  return PLATFORM_NAMES[platform.toLowerCase()] ?? platform.charAt(0).toUpperCase() + platform.slice(1)
+}

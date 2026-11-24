@@ -39,6 +39,7 @@ import { CaptionTextarea } from '@/components/caption-library/CaptionTextarea';
 import { PostResults } from "@/components/analytics/PostResults";
 import { PostComments } from "@/components/social-comments/PostComments";
 import { FirstCommentField } from "@/components/social-comments/FirstCommentField";
+import { accountFullName, platformName } from "@/lib/socialAccounts";
 
 interface ApprovalStep {
   id: string;
@@ -84,7 +85,7 @@ interface Props {
   /** Set or clear ("pending") the approval status. */
   onChangeApprovalStatus?: (status: EditableApprovalStatus) => Promise<boolean>;
   /** Connected social accounts this post can be scheduled to from the modal. */
-  scheduleAccounts?: Array<{ _id: string; platform: string; name?: string }>;
+  scheduleAccounts?: Array<{ _id: string; platform: string; name?: string; username?: string; displayName?: string }>;
   onSchedule?: (account: { _id: string; platform: string; name?: string }) => Promise<void>;
   /** Platform currently being scheduled to (shows a spinner on that button). */
   schedulingPlatform?: string | null;
@@ -593,7 +594,9 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {scheduleAccounts.map((account) => {
-                        const isScheduling = schedulingPlatform === account.platform;
+                        // schedulingPlatform holds the _id of the account being scheduled to
+                        const isScheduling = schedulingPlatform === account._id;
+                        const accountLabel = accountFullName(account) ?? platformName(account.platform);
                         const alreadyScheduled = (post.platforms_scheduled ?? []).includes(account.platform);
                         return (
                           <button
@@ -606,16 +609,16 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
                                 ? `Already scheduled to ${account.platform}`
                                 : !editedCaption.trim()
                                 ? "Add a caption before scheduling"
-                                : `Schedule to ${account.name || account.platform}`
+                                : `Schedule to ${platformName(account.platform)} — ${accountLabel}`
                             }
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex max-w-full items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {isScheduling ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                               <PlatformBadges platforms={[account.platform]} size={14} />
                             )}
-                            {alreadyScheduled ? "Scheduled" : "Schedule"} to {account.name || account.platform}
+                            <span className="truncate">{alreadyScheduled ? "Scheduled" : "Schedule"} to {accountLabel}</span>
                           </button>
                         );
                       })}
