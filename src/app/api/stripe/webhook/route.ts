@@ -273,10 +273,14 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     cancel_at_period_end: false,
   });
 
-  await sendSubscriptionCanceledEmail({
-    userId: dbSubscription.user_id,
-    subscriptionId: subscription.id,
-  });
+  // Canceled because the user deleted their account — they get the
+  // account-deleted email instead.
+  if (subscription.cancellation_details?.comment !== 'account_deleted') {
+    await sendSubscriptionCanceledEmail({
+      userId: dbSubscription.user_id,
+      subscriptionId: subscription.id,
+    });
+  }
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {

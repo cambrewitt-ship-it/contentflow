@@ -3,6 +3,40 @@ import { createSupabaseAdmin, getAuthenticatedUser } from '@/lib/supabaseServer'
 import { handleApiError, extractErrorContext } from '@/lib/secureErrorHandler';
 import logger from '@/lib/logger';
 import { getUserContact, sendAccountDeletedEmail } from '@/lib/emails';
+import { stripe } from '@/lib/stripe';
+import { getUserSubscription } from '@/lib/subscriptionHelpers';
+
+/** Stripe statuses that can still bill the customer. */
+const LIVE_STATUSES = new Set(['trialing', 'active', 'past_due', 'unpaid', 'incomplete', 'paused']);
+
+/**
+ * Cancel every live Stripe subscription for this user, immediately.
+ * Throws if any cancellation fails, so we never delete an account that
+ * would keep getting charged.
+ */
+async function cancelStripeSubscriptions(userId: string): Promise<number> {
+  const dbSubscription = await getUserSubscription(userId);
+  const customerId = dbSubscription?.stripe_customer_id;
+  if (!customerId) return 0;
+
+  const subscriptions = await stripe.subscriptions.list({
+    customer: customerId,
+    status: 'all',
+    limit: 100,
+  });
+
+  let canceled = 0;
+  for (const sub of subscriptions.data) {
+    if (!LIVE_STATUSES.has(sub.status)) continue;
+    await stripe.subscriptions.cancel(sub.id, {
+      // Lets the webhook skip the "subscription ended" email — the user gets
+      // the account-deleted email instead.
+      cancellation_details: { comment: 'account_deleted' },
+    });
+    canceled++;
+  }
+  return canceled;
+}
 
 export async function DELETE(req: NextRequest) {
   const errorContext = extractErrorContext(req);
@@ -42,6 +76,23 @@ export async function DELETE(req: NextRequest) {
 
     // Capture name/email now — the auth user is gone by the time we email.
     const contact = await getUserContact(user.id);
+
+    // Stop billing before deleting anything. If Stripe fails, abort so the
+    // user isn't left with no account but an active subscription.
+    try {
+      const canceled = await cancelStripeSubscriptions(user.id);
+      logger.info('Stripe subscriptions canceled for account deletion', {
+        userId: user.id,
+        canceled,
+      });
+    } catch (stripeError) {
+      logger.error('❌ Failed to cancel Stripe subscription during account deletion:', stripeError);
+      return handleApiError(
+        stripeError,
+        { ...errorContext, operation: 'delete_account_cancel_subscription' },
+        'INTERNAL_ERROR'
+      );
+    }
 
     // Start a transaction-like operation to delete user data
     try {
