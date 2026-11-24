@@ -35,6 +35,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  Telescope,
 } from "lucide-react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
@@ -280,6 +281,12 @@ export default function Sidebar({ collapsed = false, onToggleCollapse }: Sidebar
               href: `/dashboard/client/${clientIdFromPath}/analytics`,
               icon: BarChart3,
               active: !!pathname?.includes("/analytics"),
+            },
+            {
+              name: "Competitor Research",
+              href: `/dashboard/client/${clientIdFromPath}/competitor-research`,
+              icon: Telescope,
+              active: !!pathname?.includes("/competitor-research"),
             },
             {
               name: "Comments",

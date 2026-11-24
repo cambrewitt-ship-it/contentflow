@@ -168,6 +168,22 @@ the whole codebase (and Vercel env vars).
 - Cron routes are public at the middleware (`/api/cron/`) and guarded by `rejectUnauthorizedCron`
   (`src/lib/cronAuth.ts`): production requires `CRON_SECRET`.
 
+## Competitor Research
+
+- Sidebar → Engage → Competitor Research (`/dashboard/client/[clientId]/competitor-research`,
+  `src/components/CompetitorResearch*.tsx`, logic in `src/lib/competitor-research/`). Setup and env vars:
+  `COMPETITOR_RESEARCH_SETUP.md`; tables in migrations/039 and 040 (run by hand in Supabase).
+- Each client has a niche profile (`clients.research_profile`: category, location, language, keywords, trend search
+  on/off) and up to 15 tracked Instagram/TikTok accounts (`competitor_accounts`). A run (`runCompetitorResearch`,
+  continued with `after()`) pulls 90 days of posts, ranks them against each account's own median, has the vision
+  model read the top posts, adds OpenAI web-search trends, and writes insights + post ideas in the client's voice
+  (`competitor_research_reports`). Ideas go to the calendar as unscheduled text drafts. 5 credits/run, 1/search.
+- Instagram = Graph API Business Discovery through ContentFlow's own IG account (`INSTAGRAM_RESEARCH_*`), one shared
+  rate limit: accounts are cached a day for all clients (`competitor_account_cache`), Meta's usage headers are
+  recorded (`research_api_usage`) and runs queue above 80% instead of failing. TikTok = Apify (`APIFY_API_TOKEN`),
+  optional. Competitor captions/images are stripped from reports after 90 days (`purge_competitor_research_data`).
+- `/api/cron/competitor-research` starts queued runs and purges old data; queued runs also start on page visits.
+
 ## Approval update emails ("Notify by email")
 
 - Calendar action bar → "Notify by email" (`src/components/ApprovalNotifyButton.tsx`): per-client list of
