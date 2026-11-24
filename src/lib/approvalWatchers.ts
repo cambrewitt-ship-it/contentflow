@@ -18,6 +18,7 @@ import { sendApprovalUpdateEmail, type ApprovalUpdateKind } from '@/lib/email';
 import { getAgencyUser, getAgencyUserById, getPostPreview, type CommentPostType } from '@/lib/commentNotifications';
 import { mentionsToPlainText } from '@/lib/mentions';
 import { listAccounts } from '@/lib/zernio/api';
+import { accountFullName } from '@/lib/socialAccounts';
 
 const TABLE = 'approval_watchers';
 
@@ -292,15 +293,10 @@ async function getConnectedAccounts(
     // The post's own platforms when it has connected ones, otherwise everything connected
     const relevant = forPost.length > 0 ? forPost : accounts;
     const label = forPost.length > 0 ? 'Posting to' : 'Connected accounts';
-    return { label, accounts: relevant.map(a => {
-      const handle = a.username ? (a.platform === 'linkedin' || a.platform === 'facebook' ? a.username : `@${a.username.replace(/^@/, '')}`) : null;
-      const display = a.displayName?.trim();
-      const name =
-        display && handle && display.toLowerCase() !== handle.replace(/^@/, '').toLowerCase()
-          ? `${display} (${handle})`
-          : display || handle || 'Connected account';
-      return { platform: platformLabel(a.platform), name };
-    }) };
+    return {
+      label,
+      accounts: relevant.map(a => ({ platform: platformLabel(a.platform), name: accountFullName(a) ?? 'Connected account' })),
+    };
   } catch (err) {
     logger.warn('Could not load connected accounts for approval email', err);
     return null;

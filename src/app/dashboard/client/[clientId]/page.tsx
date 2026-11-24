@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import OnboardingChecklist from '@/components/OnboardingChecklist'
 import { Client, BrandDocument, WebsiteScrape, OAuthMessage } from '@/types/api'
 import { currentReturnPath } from '@/lib/returnPath'
+import { accountNames } from '@/lib/socialAccounts'
 import { 
   FacebookIcon, 
   InstagramIcon, 
@@ -68,7 +69,9 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
   interface ConnectedAccount {
     _id: string;
     platform: string;
-    name: string;
+    name?: string;
+    username?: string;
+    displayName?: string;
     accountId?: string;
   }
 
@@ -662,8 +665,17 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
 
   const getPlatformLabel = (platform: string, defaultLabel: string) => {
     if (connectingPlatform === platform) return 'Connecting...';
-    if (isPlatformConnected(platform)) return 'Connected';
+    if (isPlatformConnected(platform)) {
+      // The connected account's name (the green tick already says it's connected)
+      return accountNames(connectedAccounts.filter(a => a.platform === platform), 'short') || 'Connected';
+    }
     return defaultLabel;
+  };
+
+  // Full account name(s) for the tile's tooltip
+  const getPlatformAccountTitle = (platform: string, defaultLabel: string) => {
+    const names = accountNames(connectedAccounts.filter(a => a.platform === platform));
+    return names ? `${defaultLabel}: ${names}` : `Connect ${defaultLabel}`;
   };
 
   // Handle platform connection
@@ -1410,7 +1422,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('facebook')}
                     disabled={connectingPlatform === 'facebook'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('facebook', 'Facebook')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('facebook').buttonClasses
                     }`}
                   >
@@ -1428,7 +1441,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <FacebookIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('facebook').labelClasses
                     }`}>
                       {getPlatformLabel('facebook', 'Facebook')}
@@ -1439,7 +1452,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('instagram')}
                     disabled={connectingPlatform === 'instagram'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('instagram', 'Instagram')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('instagram').buttonClasses
                     }`}
                   >
@@ -1457,7 +1471,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <InstagramIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('instagram').labelClasses
                     }`}>
                       {getPlatformLabel('instagram', 'Instagram')}
@@ -1468,7 +1482,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('twitter')}
                     disabled={connectingPlatform === 'twitter'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('twitter', 'Twitter')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('twitter').buttonClasses
                     }`}
                   >
@@ -1486,7 +1501,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <TwitterIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('twitter').labelClasses
                     }`}>
                       {getPlatformLabel('twitter', 'Twitter')}
@@ -1497,7 +1512,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('linkedin')}
                     disabled={connectingPlatform === 'linkedin'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('linkedin', 'LinkedIn')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('linkedin').buttonClasses
                     }`}
                   >
@@ -1515,7 +1531,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <LinkedInIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('linkedin').labelClasses
                     }`}>
                       {getPlatformLabel('linkedin', 'LinkedIn')}
@@ -1526,7 +1542,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('tiktok')}
                     disabled={connectingPlatform === 'tiktok'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('tiktok', 'TikTok')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('tiktok').buttonClasses
                     }`}
                   >
@@ -1544,7 +1561,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <TikTokIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('tiktok').labelClasses
                     }`}>
                       {getPlatformLabel('tiktok', 'TikTok')}
@@ -1555,7 +1572,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('youtube')}
                     disabled={connectingPlatform === 'youtube'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('youtube', 'YouTube')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('youtube').buttonClasses
                     }`}
                   >
@@ -1573,7 +1591,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <YouTubeIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('youtube').labelClasses
                     }`}>
                       {getPlatformLabel('youtube', 'YouTube')}
@@ -1584,7 +1602,8 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                   <button
                     onClick={() => handlePlatformConnect('threads')}
                     disabled={connectingPlatform === 'threads'}
-                    className={`relative flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    title={getPlatformAccountTitle('threads', 'Threads')}
+                    className={`relative min-w-0 flex flex-col items-center space-y-2 p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       getPlatformButtonStyles('threads').buttonClasses
                     }`}
                   >
@@ -1602,7 +1621,7 @@ export default function ClientDashboard({ params }: { params: Promise<{ clientId
                         <ThreadsIcon className="text-white" size={20} />
                       )}
                     </div>
-                    <span className={`text-xs font-medium ${
+                    <span className={`block w-full truncate text-center text-xs font-medium ${
                       getPlatformButtonStyles('threads').labelClasses
                     }`}>
                       {getPlatformLabel('threads', 'Threads')}

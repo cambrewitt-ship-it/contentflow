@@ -15,11 +15,14 @@ import {
   YouTubeIcon,
   ThreadsIcon
 } from '@/components/social-icons'
+import { accountNames } from '@/lib/socialAccounts'
 
 interface ConnectedAccount {
   _id: string
   platform: string
-  name: string
+  name?: string
+  username?: string
+  displayName?: string
   accountId?: string
 }
 
@@ -274,8 +277,11 @@ export default function ConnectPlatformsPage({ params }: { params: Promise<{ cli
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[13px] font-semibold text-gray-900">{label}</span>
-                      <span className={`block truncate text-xs ${styles.connected ? 'text-emerald-700' : 'text-gray-500'}`}>
-                        {styles.connected ? accounts.map((a) => a.name).filter(Boolean).join(', ') || 'Connected' : 'Not connected'}
+                      <span
+                        className={`block truncate text-xs ${styles.connected ? 'text-emerald-700' : 'text-gray-500'}`}
+                        title={styles.connected ? accountNames(accounts) ?? undefined : undefined}
+                      >
+                        {styles.connected ? accountNames(accounts) || 'Connected' : 'Not connected'}
                       </span>
                     </span>
                     <span
