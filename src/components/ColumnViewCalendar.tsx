@@ -204,6 +204,8 @@ export function buildWeekColumns(
   clientUploads: { [key: string]: ClientUpload[] },
   events: { [key: string]: CalendarEvent[] },
   contentEvents?: Record<string, ContentEvent[]>,
+  /** Give every day a header (drop target), e.g. while a post is being dragged */
+  showAllDays = false,
 ): Array<{ weekStart: Date; entries: WeekEntry[] }> {
   const weekColumns: Array<{ weekStart: Date; entries: WeekEntry[] }> = [];
 
@@ -274,7 +276,7 @@ export function buildWeekColumns(
       // Decluttering: only render a date's header when it actually has something to show.
       // A bare date (no posts, no events) contributes nothing — it's reachable only via the
       // "+" add-card button or the week-wide "Add note" hover affordance.
-      if (postsForDate.length > 0 || hasEvents) {
+      if (postsForDate.length > 0 || hasEvents || showAllDays) {
         entries.push({ type: 'divider', dateKey, dayDate, dayName: dayDate.toLocaleDateString('en-NZ', { weekday: 'short' }) });
         for (const post of postsForDate) {
           entries.push({ type: 'post', dateKey, post });
@@ -1050,6 +1052,7 @@ export function DateDivider({
   onEventClick,
   contentEventIndicators,
   variant = 'default',
+  dragActive = false,
 }: {
   dateKey: string;
   dayDate: Date;
@@ -1064,6 +1067,8 @@ export function DateDivider({
   contentEventIndicators?: import('@/components/EventsCalendarLayer').ContentEvent[];
   /** 'board' = the quieter Trello-style header used by TrelloBoardCalendar. */
   variant?: 'default' | 'board';
+  /** A post is being dragged (board): show the header as a drop target */
+  dragActive?: boolean;
 }) {
   const isBoard = variant === 'board';
   const { setNodeRef } = useDroppable({
@@ -1091,8 +1096,12 @@ export function DateDivider({
       }}
       className={
         isBoard
-          ? `group/divider mt-2 first:mt-0 mb-1 px-1 py-0.5 rounded-md transition-colors ${
-              isNativeDragOver || isDragOver ? 'bg-blue-100 ring-2 ring-blue-400' : ''
+          ? `group/divider mt-2 first:mt-0 mb-1 px-1 rounded-md transition-all ${
+              isNativeDragOver || isDragOver
+                ? 'py-2 bg-blue-600 ring-2 ring-blue-600 shadow-md'
+                : dragActive
+                  ? 'py-1.5 border border-dashed border-[#8590a2] bg-white/60'
+                  : 'py-0.5'
             }`
           : `mt-4 first:mt-0 mb-2 pb-1.5 border-b px-1 rounded-t-lg transition-colors ${
               isNativeDragOver || isDragOver ? 'border-blue-400 bg-blue-50' : isTodayDay ? 'border-blue-300' : 'border-gray-200/80'
@@ -1101,15 +1110,18 @@ export function DateDivider({
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className={`${isBoard ? 'text-[11px] tracking-wide' : 'text-xs'} font-semibold uppercase ${isTodayDay ? 'text-blue-700' : isBoard ? 'text-[#44546f]' : 'text-gray-700'}`}>
+          <span className={`${isBoard ? 'text-[11px] tracking-wide' : 'text-xs'} font-semibold uppercase ${isBoard && (isDragOver || isNativeDragOver) ? 'text-white' : isTodayDay ? 'text-blue-700' : isBoard ? 'text-[#44546f]' : 'text-gray-700'}`}>
             {dayName}
           </span>
-          <span className={`${isBoard ? 'text-[11px]' : 'text-xs'} ${isTodayDay ? (isBoard ? 'text-blue-600 font-bold' : 'inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 font-semibold text-white') : isBoard ? 'text-[#626f86]' : 'text-gray-600'}`}>
+          <span className={`${isBoard ? 'text-[11px]' : 'text-xs'} ${isBoard && (isDragOver || isNativeDragOver) ? 'text-white font-bold' : isTodayDay ? (isBoard ? 'text-blue-600 font-bold' : 'inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 font-semibold text-white') : isBoard ? 'text-[#626f86]' : 'text-gray-600'}`}>
             {getDayNumber(dayDate)}
           </span>
+          {isBoard && (isDragOver || isNativeDragOver) && (
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-100">Drop here</span>
+          )}
           {isTodayDay && !isBoard && <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">Today</span>}
         </div>
-        {onEventAdd && (
+        {onEventAdd && !(isBoard && dragActive) && (
           <button
             type="button"
             onClick={() => onEventAdd(dateKey)}

@@ -46,6 +46,7 @@ import {
   useDroppable,
   useDraggable,
   useDndContext,
+  MeasuringStrategy,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -325,6 +326,7 @@ function BoardCard({
   clientId,
   portalToken,
   onTagsChange,
+  isDropDay = false,
 }: {
   post: Post;
   density: Density;
@@ -344,6 +346,8 @@ function BoardCard({
   clientId?: string;
   portalToken?: string;
   onTagsChange?: (postId: string, tags: PostTag[]) => void;
+  /** A dragged post is over this card's day */
+  isDropDay?: boolean;
 }) {
   const isUpload = isUploadPost(post);
   const dateKey = post.scheduled_date || '';
@@ -496,7 +500,7 @@ function BoardCard({
         isUpload ? 'cursor-pointer' : 'cursor-pointer active:cursor-grabbing'
       } ${isDragging ? 'opacity-40' : ''} ${isDeleting ? 'opacity-50 pointer-events-none' : ''} ${
         isSelected ? 'ring-2 ring-blue-500' : ''
-      } ${isNativeDragOver ? 'ring-2 ring-blue-400 bg-blue-50' : ''}`}
+      } ${isNativeDragOver || isDropDay ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
     >
       {quickActions}
       {canTag && tagAnchor && (
@@ -602,6 +606,55 @@ function BoardCard({
   );
 }
 
+const dayLabel = (dateKey: string) =>
+  new Date(`${dateKey}T12:00:00`).toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'short' });
+
+/** Rides above the dragged card: says exactly where the post will land if dropped now. */
+function DropTargetLabel({
+  fromDateKey,
+  toDateKey,
+  toWeekStart,
+  compact,
+}: {
+  fromDateKey: string | null;
+  toDateKey: string | null;
+  toWeekStart: string | null;
+  compact: boolean;
+}) {
+  let text: string;
+  let tone: 'move' | 'same' | 'week' | 'none';
+  if (toDateKey) {
+    const same = toDateKey === fromDateKey;
+    text = same ? `Stays on ${dayLabel(toDateKey)}` : `Move to ${dayLabel(toDateKey)}`;
+    tone = same ? 'same' : 'move';
+  } else if (toWeekStart) {
+    const week = new Date(toWeekStart).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' });
+    text = `Week of ${week} — pick the day next`;
+    tone = 'week';
+  } else {
+    text = 'Drag onto a day';
+    tone = 'none';
+  }
+  const toneClass =
+    tone === 'move'
+      ? 'bg-blue-600 text-white'
+      : tone === 'week'
+        ? 'bg-sky-500 text-white'
+        : tone === 'same'
+          ? 'bg-gray-700 text-white'
+          : 'bg-white/90 text-[#44546f]';
+  return (
+    <div
+      className={`mb-1.5 inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold shadow-lg ${
+        compact ? 'text-[10px]' : 'text-xs'
+      } ${toneClass}`}
+    >
+      <CalendarDays className={compact ? 'h-3 w-3 flex-shrink-0' : 'h-3.5 w-3.5 flex-shrink-0'} />
+      <span className="truncate">{text}</span>
+    </div>
+  );
+}
+
 // Prefix for the "Add a post" drop zones, so collision detection can favour them under the pointer.
 const ADD_BUTTON_DROP_PREFIX = 'week-add-';
 
@@ -696,10 +749,12 @@ function BoardList({
   // A post held over this week's "Add a post" button: outline the whole list too, since the
   // dragged card sits on top of the button and hides most of its highlight.
   const { active: dragActive, over: dragOver } = useDndContext();
+  const isPostDrag = !!dragActive && !String(dragActive.id).startsWith('client-upload-');
   const isMoveTarget =
     !!dragActive &&
     !String(dragActive.id).startsWith('client-upload-') &&
-    dragOver?.id === `${ADD_BUTTON_DROP_PREFIX}${weekStart.toISOString()}`;
+    (dragOver?.id === `${ADD_BUTTON_DROP_PREFIX}${weekStart.toISOString()}` ||
+      dragOver?.id === `week-fallback-${weekStart.toISOString()}`);
 
   const postEntries = entries.filter((e): e is Extract<WeekEntry, { type: 'post' }> => e.type === 'post');
   const items = postEntries.map((e) => postKeyOf(e.post));
@@ -805,6 +860,7 @@ function BoardList({
                   onEventClick={props.onEventClick}
                   contentEventIndicators={props.contentEvents?.[entry.dateKey]}
                   variant="board"
+                  dragActive={isPostDrag}
                 />
               );
             }
@@ -831,6 +887,7 @@ function BoardList({
                 clientId={props.clientId}
                 portalToken={props.portalToken}
                 onTagsChange={props.onTagsChange}
+                isDropDay={isPostDrag && dragOverDateKey === entry.dateKey && !isUpload}
               />
             );
           })}
@@ -1013,7 +1070,7 @@ function MonthDayCell({
       }}
       className={`group/day min-w-0 min-h-[120px] flex flex-col rounded-lg p-1.5 transition-colors ${
         inMonth ? 'bg-[#e9ebee]' : 'bg-[#e9ebee]/50'
-      } ${isNativeDragOver || isDragOver ? 'bg-blue-100 ring-2 ring-blue-400' : ''} ${isToday ? 'ring-2 ring-[#0c66e4]' : ''}`}
+      } ${isNativeDragOver || isDragOver ? 'bg-blue-100 ring-[3px] ring-blue-600 shadow-md' : isToday ? 'ring-2 ring-[#0c66e4]' : ''}`}
     >
       <div className="flex items-center justify-between gap-1 mb-1 px-0.5">
         <span
@@ -1178,6 +1235,8 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const hasInitializedStartWeek = useRef(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
+  // The week under the pointer when it's over a list but not a particular day
+  const [dragOverWeek, setDragOverWeek] = useState<string | null>(null);
   // A post is over a week's "Add a post" button: fade the dragged card so the button shows through.
   const [overAddButton, setOverAddButton] = useState(false);
   // The chosen background; null = nothing chosen yet, so the board uses the brand default.
@@ -1215,9 +1274,20 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weeks]);
 
+  const isPostDragging = !!activeId && !activeId.startsWith('client-upload-');
   const columns = useMemo(
-    () => buildWeekColumns(startWeek, VISIBLE_WEEK_COUNT, scheduledPosts, clientUploads, events, contentEvents),
-    [startWeek, scheduledPosts, clientUploads, events, contentEvents]
+    () =>
+      buildWeekColumns(
+        startWeek,
+        VISIBLE_WEEK_COUNT,
+        scheduledPosts,
+        clientUploads,
+        events,
+        contentEvents,
+        // While a post is dragged, every day gets a header so it can be dropped on any day
+        isPostDragging
+      ),
+    [startWeek, scheduledPosts, clientUploads, events, contentEvents, isPostDragging]
   );
 
   // Month layout: whole weeks (Mon–Sun) covering the month, reusing the board's week builder.
@@ -1392,7 +1462,9 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
 
   const handleDragOver = (event: DragOverEvent) => {
     setOverAddButton(!!event.over && String(event.over.id).startsWith(ADD_BUTTON_DROP_PREFIX));
-    setDragOverDay((event.over?.data.current as { dateKey?: string } | undefined)?.dateKey ?? null);
+    const overData = event.over?.data.current as { dateKey?: string | null; weekStart?: string } | undefined;
+    setDragOverDay(overData?.dateKey ?? null);
+    setDragOverWeek(overData?.dateKey ? null : overData?.weekStart ?? null);
   };
 
   // Same drop semantics as ColumnViewCalendar: a card/divider carries its dateKey; the list's
@@ -1400,6 +1472,7 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setDragOverDay(null);
+    setDragOverWeek(null);
     setOverAddButton(false);
     setActiveId(null);
     const activeIdStr = String(active.id);
@@ -1637,8 +1710,10 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
+            measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
             onDragCancel={() => {
               setDragOverDay(null);
+              setDragOverWeek(null);
               setOverAddButton(false);
               setActiveId(null);
             }}
@@ -1705,8 +1780,16 @@ export const TrelloBoardCalendar = forwardRef<ColumnViewCalendarHandle, TrelloBo
 
             <DragOverlay>
               {activePost && activePost.type === 'post' ? (
-                <div className={`${isMonth ? 'w-[160px] text-xs' : 'w-[284px] text-sm'} rotate-3 rounded-lg bg-white shadow-2xl px-3 py-2 text-[#172b4d] line-clamp-3 transition-opacity ${overAddButton ? 'opacity-50' : ''}`}>
-                  {activePost.post.caption || 'Post'}
+                <div className={`${isMonth ? 'w-[160px]' : 'w-[284px]'} rotate-2 transition-opacity ${overAddButton ? 'opacity-60' : ''}`}>
+                  <DropTargetLabel
+                    fromDateKey={activePost.post.scheduled_date ?? null}
+                    toDateKey={dragOverDay}
+                    toWeekStart={dragOverWeek}
+                    compact={isMonth}
+                  />
+                  <div className={`${isMonth ? 'text-xs' : 'text-sm'} rounded-lg bg-white shadow-2xl ring-2 ring-blue-500 px-3 py-2 text-[#172b4d] line-clamp-3`}>
+                    {activePost.post.caption || 'Post'}
+                  </div>
                 </div>
               ) : null}
             </DragOverlay>

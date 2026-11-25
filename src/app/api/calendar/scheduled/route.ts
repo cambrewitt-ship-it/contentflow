@@ -5,7 +5,7 @@ import { createSupabaseWithToken, createSupabaseAdmin } from '@/lib/supabaseServ
 import { uuidSchema } from '@/lib/validators';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
 import { TARGET_PLATFORM_IDS, normalizeTargetPlatforms } from '@/lib/targetPlatforms';
-import { syncLateSchedule } from '@/lib/lateReschedule';
+import { syncLateSchedule, zernioPostState } from '@/lib/lateReschedule';
 
 const booleanStringSchema = z
   .union([z.literal('true'), z.literal('false')])
@@ -675,15 +675,19 @@ export async function DELETE(request: Request) {
 
         if (!lateResponse.ok) {
           const errorText = await lateResponse.text();
-          logger.error(`❌ Failed to delete from LATE (${post.late_post_id}):`, errorText);
-          return NextResponse.json({ 
-            error: 'Failed to delete from LATE',
-            details: errorText 
-          }, { status: lateResponse.status });
+          // Zernio refuses deletes for posts it no longer has (e.g. deleted already) or
+          // that already published/failed. Those are safe to remove from the calendar;
+          // only a post that would still publish has to stay until Zernio lets it go.
+          const state = await zernioPostState(post.late_post_id);
+          if (state === 'scheduled' || state === 'unknown') {
+            logger.error(`❌ Failed to delete from LATE (${post.late_post_id}):`, errorText);
+            return NextResponse.json({
+              error: 'Could not remove this post from the social scheduler, so it would still publish. Please try again.',
+              details: errorText
+            }, { status: 502 });
+          }
+          logger.warn(`LATE delete refused for ${post.late_post_id} (${state}); removing from the calendar only`);
         }
-
-        const lateData = await lateResponse.json().catch(() => ({}));
-        logger.info(`✅ Successfully deleted from LATE (${post.late_post_id}):`, lateData);
       } catch (lateError) {
         logger.error(`💥 Error deleting post from LATE (${post.late_post_id}):`, lateError);
         return NextResponse.json({ 

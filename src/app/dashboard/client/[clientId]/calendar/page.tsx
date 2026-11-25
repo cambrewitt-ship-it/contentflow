@@ -1602,7 +1602,10 @@ export default function CalendarPage() {
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ postId: (postToMove as Post).id, updates: { scheduled_date: newDate } }),
       });
-      if (!response.ok) throw new Error(`Failed to move post: ${response.statusText}`);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to move post (${response.status})`);
+      }
       setScheduledPosts(prev => {
         const updated = { ...prev };
         if (updated[oldDateKey!]) {
@@ -1720,31 +1723,7 @@ export default function CalendarPage() {
           caption: post?.caption?.substring(0, 50)
         });
         
-        // Delete from LATE if applicable
-        if (post?.late_post_id) {
-          console.log(`📡 Calling LATE API to delete post ${post.late_post_id}...`);
-          const lateResponse = await fetch(`/api/late/delete-post?latePostId=${post.late_post_id}`, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            },
-          });
-          
-          console.log(`📡 LATE delete response status for ${post.late_post_id}:`, lateResponse.status);
-          
-          if (!lateResponse.ok) {
-            const errorData = await lateResponse.json().catch(() => ({}));
-            console.error(`❌ Failed to delete from LATE (${post.late_post_id}):`, errorData);
-            throw new Error(`Failed to delete from LATE: ${errorData.error || lateResponse.statusText}`);
-          }
-          
-          const lateData = await lateResponse.json();
-          console.log(`✅ Successfully deleted from LATE (${post.late_post_id}):`, lateData);
-        } else {
-          console.log(`⚠️ No late_post_id found for post ${postId}, skipping LATE deletion`);
-        }
-        
+        // The server removes it from Zernio (LATE) too
         // Delete from database
         console.log(`🗄️ Deleting post ${postId} from database...`);
         const dbResponse = await fetch('/api/calendar/scheduled', {
@@ -1757,9 +1736,9 @@ export default function CalendarPage() {
         });
         
         if (!dbResponse.ok) {
-          const dbError = await dbResponse.text();
-          console.error(`❌ Failed to delete from database:`, dbError);
-          throw new Error(`Failed to delete ${postId} from database`);
+          const dbError = await dbResponse.json().catch(() => ({}));
+          console.error(`❌ Failed to delete post:`, dbError);
+          throw new Error(dbError.error || `Failed to delete post (${dbResponse.status})`);
         }
         
         console.log(`✅ Successfully deleted post ${postId} from database`);
@@ -1811,15 +1790,7 @@ export default function CalendarPage() {
     try {
       const accessToken = requireAccessToken();
 
-      if (post.late_post_id) {
-        await fetch(`/api/late/delete-post?latePostId=${post.late_post_id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        });
-      }
-
+      // The server removes it from Zernio (LATE) too
       const response = await fetch('/api/calendar/scheduled', {
         method: 'DELETE',
         headers: {
@@ -1830,7 +1801,8 @@ export default function CalendarPage() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to delete post (${response.status})`);
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to delete post (${response.status})`);
       }
 
       setScheduledPosts(prev => {

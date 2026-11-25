@@ -35,6 +35,31 @@ export function normalizeTimeOfDay(value: unknown): string | null {
   return `${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
 }
 
+/**
+ * Where a post stands in Zernio (LATE): 'scheduled' (still waiting to publish), 'missing'
+ * (deleted or never existed), 'done' (published, failed, cancelled…) or 'unknown' (the
+ * lookup itself failed). Used when Zernio refuses a delete or reschedule, to tell a post
+ * that is still going to publish apart from one that no longer matters there.
+ */
+export async function zernioPostState(latePostId: string): Promise<'scheduled' | 'missing' | 'done' | 'unknown'> {
+  try {
+    const res = await fetch(`https://getlate.dev/api/v1/posts/${latePostId}`, {
+      headers: { Authorization: `Bearer ${process.env.LATE_API_KEY}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (res.status === 404 || res.status === 410) return 'missing';
+    if (!res.ok) return 'unknown';
+    const body = (await res.json().catch(() => ({}))) as { post?: { status?: string }; status?: string };
+    const status = String(body.post?.status ?? body.status ?? '').toLowerCase();
+    if (!status) return 'unknown';
+    if (status === 'scheduled' || status === 'pending' || status === 'queued') return 'scheduled';
+    if (status === 'deleted') return 'missing';
+    return 'done';
+  } catch {
+    return 'unknown';
+  }
+}
+
 export type LateRescheduleResult = { ok: true } | { ok: false; status: number; error: string };
 
 /**
@@ -98,6 +123,13 @@ export async function syncLateSchedule(
 
   if (!response.ok) {
     const details = await response.text().catch(() => '');
+    // Zernio refuses to move posts it no longer has, or that already published/failed.
+    // Those won't publish at the old time, so the calendar can move freely.
+    const state = await zernioPostState(post.late_post_id);
+    if (state === 'missing' || state === 'done') {
+      logger.warn('Post no longer scheduled in LATE; moving it in the calendar only', { postId, state });
+      return { ok: true };
+    }
     logger.error('Failed to reschedule post in LATE', { postId, status: response.status, details });
     return { ok: false, status: 502, error: 'Could not move the scheduled post in the social scheduler. Please try again.' };
   }
