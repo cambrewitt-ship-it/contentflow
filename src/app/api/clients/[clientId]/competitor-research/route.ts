@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import logger from '@/lib/logger';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { createSupabaseAdmin } from '@/lib/supabaseServer';
-import { getResearchProfile } from '@/lib/competitor-research/profile';
+import { RESEARCH_SETUP_MESSAGE, ResearchSetupError, getResearchProfile } from '@/lib/competitor-research/profile';
 import {
   DISCOVERY_CREDITS,
   MAX_TRACKED_ACCOUNTS,
@@ -42,6 +42,12 @@ export async function GET(request: NextRequest, { params }: Params) {
         .order('created_at', { ascending: false })
         .limit(10),
     ]);
+    if (accounts.error?.code === '42P01' || reports.error?.code === '42P01') {
+      return NextResponse.json({ success: false, error: RESEARCH_SETUP_MESSAGE }, { status: 503 });
+    }
+    if (accounts.error || reports.error) {
+      logger.error('Competitor research load error:', accounts.error ?? reports.error);
+    }
 
     // Runs whose function invocation died never get marked failed; do it here.
     const staleIds = (reports.data ?? []).filter(isStaleRun).map(r => r.id);
@@ -77,6 +83,9 @@ export async function GET(request: NextRequest, { params }: Params) {
       },
     });
   } catch (error) {
+    if (error instanceof ResearchSetupError) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 503 });
+    }
     logger.error('GET /api/clients/[clientId]/competitor-research error:', error);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }

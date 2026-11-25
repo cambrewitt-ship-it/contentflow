@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Loader2, Check, Search, ImageIcon } from 'lucide-react';
+import { Loader2, Check, Search, ImageIcon, Upload } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface GalleryItem {
@@ -26,8 +26,10 @@ interface PhotoSwapDialogProps {
   onOpenChange: (open: boolean) => void;
   clientId: string;
   currentMediaGalleryId?: string | null;
-  onPhotoSelected: (mediaGalleryId: string) => void;
+  onPhotoSelected: (mediaGalleryId: string, mediaUrl: string) => void;
   isLoading?: boolean;
+  /** Shows an "Upload a new file" button (e.g. for photos that aren't in the gallery) */
+  onUploadInstead?: () => void;
 }
 
 export default function PhotoSwapDialog({
@@ -37,6 +39,7 @@ export default function PhotoSwapDialog({
   currentMediaGalleryId,
   onPhotoSelected,
   isLoading = false,
+  onUploadInstead,
 }: PhotoSwapDialogProps) {
   const { getAccessToken } = useAuth();
   const [items, setItems] = useState<GalleryItem[]>([]);
@@ -70,9 +73,9 @@ export default function PhotoSwapDialog({
     );
   });
 
-  const handleSelect = (id: string) => {
-    setSelected(id);
-    onPhotoSelected(id);
+  const handleSelect = (item: GalleryItem) => {
+    setSelected(item.id);
+    onPhotoSelected(item.id, item.media_url);
   };
 
   return (
@@ -118,7 +121,7 @@ export default function PhotoSwapDialog({
                     key={item.id}
                     type="button"
                     disabled={isLoading}
-                    onClick={() => handleSelect(item.id)}
+                    onClick={() => handleSelect(item)}
                     className={`relative rounded-lg overflow-hidden border-2 transition-all text-left group ${
                       isSelected
                         ? 'border-blue-500 ring-2 ring-blue-300'
@@ -163,6 +166,20 @@ export default function PhotoSwapDialog({
             </div>
           )}
         </div>
+
+        {onUploadInstead && (
+          <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+            <p className="text-xs text-gray-500">Not in the gallery?</p>
+            <button
+              type="button"
+              onClick={onUploadInstead}
+              disabled={isLoading}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-blue-300 hover:bg-blue-50"
+            >
+              <Upload className="h-3.5 w-3.5" /> Upload a new file
+            </button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -14,8 +14,12 @@ import {
   RotateCcw,
   Tag,
   Wand2,
+  Replace,
+  ImagePlus,
+  Film,
 } from "lucide-react";
 import { LazyImageEditor } from "@/components/image-editor";
+import PhotoSwapDialog from "@/components/PhotoSwapDialog";
 import { uploadMediaToBlob } from "@/lib/blobUpload";
 import { isVideoUrl } from "@/lib/videoUtils";
 import { SocialPreviewCard } from "@/components/SocialPreviewCard";
@@ -219,6 +223,62 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
   const sentToZernio = post.late_status === "scheduled" || post.late_status === "published";
   const canEditImages = !!onSaveMedia && !sentToZernio;
 
+  // Swap a photo for a new upload (index === postMedia.length adds one to a post with none)
+  const replaceInputRef = useRef<HTMLInputElement>(null);
+  const [replaceIndex, setReplaceIndex] = useState<number | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+
+  // Swap opens the client's Media Gallery (with "Upload a new file" in it); without a
+  // client id there's no gallery, so it goes straight to the file picker
+  const pickReplacement = (index: number) => {
+    setReplaceIndex(index);
+    setMediaError(null);
+    if (clientId) setGalleryOpen(true);
+    else replaceInputRef.current?.click();
+  };
+
+  const saveReplacement = async (index: number, url: string) => {
+    if (!onSaveMedia) return;
+    const next = index >= postMedia.length ? [...postMedia, url] : postMedia.map((u, i) => (i === index ? url : u));
+    const ok = await onSaveMedia(next);
+    if (!ok) setMediaError("Couldn't save the new photo. Please try again.");
+  };
+
+  const handleGalleryPick = async (_id: string, url: string) => {
+    const index = replaceIndex;
+    setGalleryOpen(false);
+    setReplaceIndex(null);
+    if (index === null) return;
+    setSavingMediaIndex(index);
+    try {
+      await saveReplacement(index, url);
+    } finally {
+      setSavingMediaIndex(null);
+    }
+  };
+
+  const handleReplaceFile = async (file: File | undefined) => {
+    const index = replaceIndex;
+    setReplaceIndex(null);
+    if (replaceInputRef.current) replaceInputRef.current.value = "";
+    if (index === null || !file) return;
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+      setMediaError("Choose a photo or video file.");
+      return;
+    }
+    setSavingMediaIndex(index);
+    setMediaError(null);
+    try {
+      const { url } = await uploadMediaToBlob(file, `content-${Date.now()}-${file.name}`);
+      await saveReplacement(index, url);
+    } catch (err) {
+      logger.error("Failed to replace post photo:", err);
+      setMediaError("Couldn't upload the new photo. Please try again.");
+    } finally {
+      setSavingMediaIndex(null);
+    }
+  };
+
   const handleSaveEditedImage = async (index: number, file: File) => {
     if (!onSaveMedia) return;
     setEditorIndex(null);
@@ -420,12 +480,12 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
   };
 
   useEffect(() => {
-    // While the image editor is open, Escape belongs to it
-    if (editorIndex !== null) return;
+    // While the image editor or photo picker is open, Escape belongs to it
+    if (editorIndex !== null || galleryOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, editorIndex]);
+  }, [onClose, editorIndex, galleryOpen]);
 
   return (
     <div
@@ -522,42 +582,95 @@ export function ClientPostDetailModal({ post, onClose, getAccessToken, accountNa
                 scheduledTime={post.scheduled_time ?? undefined}
               />
 
-              {onSaveMedia && postMedia.some((u) => !isVideoUrl(u)) && (
+              {onSaveMedia && (
                 <div className="mt-3">
+                  <input
+                    ref={replaceInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    className="hidden"
+                    onChange={(e) => handleReplaceFile(e.target.files?.[0])}
+                  />
                   <div className="flex gap-2 flex-wrap">
-                    {postMedia.map((url, i) =>
-                      isVideoUrl(url) ? null : (
-                        <div key={`${i}-${url}`} className="relative w-14 h-14 rounded-lg overflow-hidden border border-gray-200">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {postMedia.map((url, i) => (
+                      <div key={`${i}-${url}`} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
+                        {isVideoUrl(url) ? (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <Film className="w-5 h-5" />
+                          </div>
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
-                          {savingMediaIndex === i ? (
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                              <Loader2 className="w-4 h-4 text-white animate-spin" />
-                            </div>
-                          ) : (
-                            canEditImages && (
+                        )}
+                        {savingMediaIndex === i ? (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <Loader2 className="w-4 h-4 text-white animate-spin" />
+                          </div>
+                        ) : (
+                          canEditImages && (
+                            <div className="absolute inset-x-1 bottom-1 flex gap-0.5">
                               <button
                                 type="button"
-                                onClick={() => setEditorIndex(i)}
+                                onClick={() => pickReplacement(i)}
                                 disabled={savingMediaIndex !== null}
-                                className="absolute inset-x-1 bottom-1 flex items-center justify-center gap-0.5 rounded-full bg-white/95 hover:bg-white text-[10px] font-semibold text-blue-700 shadow py-0.5"
-                                title="Edit image — add text, logos, filters"
+                                className="flex-1 flex items-center justify-center gap-0.5 rounded-full bg-white/95 hover:bg-white text-[10px] font-semibold text-gray-700 shadow py-0.5"
+                                title={isVideoUrl(url) ? "Swap this video for another file" : "Swap this photo for another one"}
                               >
-                                <Wand2 className="w-2.5 h-2.5" /> Edit
+                                <Replace className="w-2.5 h-2.5" /> Swap
                               </button>
-                            )
-                          )}
-                        </div>
-                      )
+                              {!isVideoUrl(url) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditorIndex(i)}
+                                  disabled={savingMediaIndex !== null}
+                                  className="flex items-center justify-center rounded-full bg-white/95 hover:bg-white text-blue-700 shadow px-1 py-0.5"
+                                  title="Edit image — add text, logos, filters"
+                                  aria-label="Edit image"
+                                >
+                                  <Wand2 className="w-2.5 h-2.5" />
+                                </button>
+                              )}
+                            </div>
+                          )
+                        )}
+                      </div>
+                    ))}
+                    {postMedia.length === 0 && canEditImages && (
+                      <button
+                        type="button"
+                        onClick={() => pickReplacement(0)}
+                        disabled={savingMediaIndex !== null}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:border-blue-300 hover:text-blue-700"
+                      >
+                        {savingMediaIndex === 0 ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+                        Add a photo
+                      </button>
                     )}
                   </div>
-                  {sentToZernio && (
+                  {sentToZernio && postMedia.length > 0 && (
                     <p className="mt-1.5 text-[11px] text-gray-500">
-                      This post has already been sent for publishing, so its image can&apos;t be edited here.
+                      This post has already been sent for publishing, so its photos can&apos;t be changed here.
                     </p>
                   )}
                   {mediaError && <p className="mt-1.5 text-[11px] text-red-600">{mediaError}</p>}
                 </div>
+              )}
+
+              {clientId && (
+                <PhotoSwapDialog
+                  open={galleryOpen}
+                  onOpenChange={(open) => {
+                    setGalleryOpen(open);
+                    if (!open) setReplaceIndex(null);
+                  }}
+                  clientId={clientId}
+                  onPhotoSelected={handleGalleryPick}
+                  onUploadInstead={() => {
+                    // Keep replaceIndex for the file picker
+                    setGalleryOpen(false);
+                    replaceInputRef.current?.click();
+                  }}
+                />
               )}
 
               {editorIndex !== null && postMedia[editorIndex] && (
