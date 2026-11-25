@@ -3,7 +3,7 @@ import logger from '@/lib/logger';
 import { checkSocialMediaPostingPermission } from '@/lib/subscriptionMiddleware';
 import { requireClientOwnership } from '@/lib/authHelpers';
 import { markOnboardingStep } from '@/lib/onboardingHelpers';
-import { toLateMediaItem, LateUploadError } from '@/lib/lateMedia';
+import { toLateMediaItem, LateUploadError, isVideoMediaUrl } from '@/lib/lateMedia';
 import { zonedLocalToUtcMs } from '@/lib/lateReschedule';
 import { withFacebookCaptions } from '@/lib/captionLibraryServer';
 
@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
       postId, 
       caption, 
       lateMediaUrl, 
+      mediaType,
       scheduledDateTime, 
       selectedAccounts,
       clientId 
@@ -214,7 +215,8 @@ export async function POST(request: NextRequest) {
         ? {
             mediaItems: [
               {
-                type: 'image',
+                // Zernio rejects a type that contradicts the URL's extension
+                type: mediaType === 'video' || isVideoMediaUrl(lateMediaUrl) ? 'video' : 'image',
                 url: lateMediaUrl
               },
               ...extraMediaItems,
