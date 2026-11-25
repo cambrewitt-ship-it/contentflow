@@ -11,6 +11,13 @@ import {
 } from '@/components/social-icons';
 import { PlatformBadges } from '@/components/PlatformBadges';
 import { normalizeTargetPlatforms } from '@/lib/targetPlatforms';
+import { isVideoUrl } from '@/lib/videoUtils';
+
+// '#t=0.1' makes browsers (notably iOS Safari) paint the first frame as the
+// thumbnail instead of a blank box before the video is played.
+function videoSrc(url: string): string {
+  return url.includes('#') ? url : `${url}#t=0.1`;
+}
 
 const FEED_PLATFORMS = [
   { id: 'facebook',  label: 'Facebook' },
@@ -41,8 +48,10 @@ interface PostSocialPreviewProps {
 }
 
 export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, businessName = '', logoUrl, mediaUrls, targetPlatforms, platform: controlledPlatform, onPlatformChange }: PostSocialPreviewProps) {
-  const isVideo = fileType?.startsWith('video/') && !!fileUrl;
-  const mediaUrl = isVideo ? fileUrl! : (imageUrl || null);
+  const isFileVideo = !!fileType?.startsWith('video/') && !!fileUrl;
+  const mediaUrl = isFileVideo ? fileUrl! : (imageUrl || null);
+  // Calendar posts keep videos in image_url with no file_type, so also detect by URL
+  const isVideoByType = !!mediaUrl && (isFileVideo || isVideoUrl(mediaUrl));
   const targets = normalizeTargetPlatforms(targetPlatforms);
   const feedPlatforms = targets.length > 0 ? FEED_PLATFORMS.filter((p) => (targets as string[]).includes(p.id)) : FEED_PLATFORMS;
   const [internalPlatform, setInternalPlatform] = useState<string>(targets[0] ?? 'facebook');
@@ -58,6 +67,14 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
   const allMedia = mediaUrls && mediaUrls.length > 1 ? mediaUrls : null;
   const [carouselIndex, setCarouselIndex] = useState(0);
   const activeMediaUrl = allMedia ? allMedia[carouselIndex] : mediaUrl;
+  // URLs that failed to load as an image (e.g. a video without a file extension) get a video player instead
+  const [notImages, setNotImages] = useState<Set<string>>(() => new Set());
+  const markNotImage = (url: string | null) => () => {
+    if (url) setNotImages((prev) => (prev.has(url) ? prev : new Set(prev).add(url)));
+  };
+  const activeIsVideo = !!activeMediaUrl && (notImages.has(activeMediaUrl) || (allMedia ? isVideoUrl(activeMediaUrl) : isVideoByType));
+
+  const isVideo = isVideoByType || (!!mediaUrl && notImages.has(mediaUrl));
 
   const isStory = platform === 'fb-stories' || platform === 'ig-stories';
 
@@ -149,9 +166,9 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
       {caption && <div className="px-4 pb-3"><p style={{ color: '#050505', fontSize: '15px' }} className="whitespace-pre-wrap break-words">{caption}</p></div>}
       {activeMediaUrl ? (
         <div className="relative flex items-center justify-center bg-gray-50" style={{ maxHeight: '360px' }}>
-          {isVideo
-            ? <video src={activeMediaUrl} controls className="w-full object-contain bg-black" style={{ maxHeight: '360px' }} />
-            : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" className="w-full object-contain" style={{ maxHeight: '360px' }} />}
+          {activeIsVideo
+            ? <video key={activeMediaUrl} src={videoSrc(activeMediaUrl)} controls preload="metadata" playsInline className="w-full object-contain bg-black" style={{ maxHeight: '360px' }} />
+            : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" onError={markNotImage(activeMediaUrl)} className="w-full object-contain" style={{ maxHeight: '360px' }} />}
           {allMedia && allMedia.length > 1 && (
             <>
               <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}
@@ -223,9 +240,9 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
       </div>
       {activeMediaUrl ? (
         <div className="relative aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
-          {isVideo
-            ? <video src={activeMediaUrl} controls className="w-full h-full object-contain bg-black" />
-            : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" className="w-full h-full object-cover" />}
+          {activeIsVideo
+            ? <video key={activeMediaUrl} src={videoSrc(activeMediaUrl)} controls preload="metadata" playsInline className="w-full h-full object-contain bg-black" />
+            : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" onError={markNotImage(activeMediaUrl)} className="w-full h-full object-cover" />}
           {allMedia && allMedia.length > 1 && (
             <>
               <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}
@@ -278,9 +295,9 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
           {caption && <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap break-words mt-1">{caption}</p>}
           {activeMediaUrl ? (
             <div className="mt-2 rounded-2xl overflow-hidden border border-gray-200 relative">
-              {isVideo
-                ? <video src={activeMediaUrl} controls className="w-full max-h-52 object-contain bg-black" />
-                : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" className="w-full max-h-52 object-cover" />}
+              {activeIsVideo
+                ? <video key={activeMediaUrl} src={videoSrc(activeMediaUrl)} controls preload="metadata" playsInline className="w-full max-h-52 object-contain bg-black" />
+                : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" onError={markNotImage(activeMediaUrl)} className="w-full max-h-52 object-cover" />}
               {allMedia && allMedia.length > 1 && (
                 <>
                   <button onClick={() => setCarouselIndex(i => (i - 1 + allMedia.length) % allMedia.length)}
@@ -358,9 +375,9 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
     <div className="relative max-w-[240px] mx-auto rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '9/16', maxHeight: '440px' }}>
       {/* Media */}
       {activeMediaUrl ? (
-        isVideo
-          ? <video src={activeMediaUrl} className="absolute inset-0 w-full h-full object-cover" muted playsInline />
-          : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" className="absolute inset-0 w-full h-full object-cover" />
+        activeIsVideo
+          ? <video key={activeMediaUrl} src={videoSrc(activeMediaUrl)} controls preload="metadata" className="absolute inset-0 w-full h-full object-cover" playsInline />
+          : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" onError={markNotImage(activeMediaUrl)} className="absolute inset-0 w-full h-full object-cover" />
       ) : (
         <div className="absolute inset-0 bg-[#111111] flex items-center justify-center">
           <div className="w-[84px] h-[68px] rounded-2xl border-2 border-white/10 flex items-center justify-center">
@@ -504,9 +521,9 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
       {/* Image */}
       {activeMediaUrl ? (
         <div className="bg-gray-50 flex items-center justify-center" style={{ maxHeight: '300px' }}>
-          {isVideo
-            ? <video src={activeMediaUrl} controls className="w-full object-contain" style={{ maxHeight: '300px' }} />
-            : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" className="w-full object-cover" style={{ maxHeight: '300px' }} />}
+          {activeIsVideo
+            ? <video key={activeMediaUrl} src={videoSrc(activeMediaUrl)} controls preload="metadata" playsInline className="w-full object-contain" style={{ maxHeight: '300px' }} />
+            : /* eslint-disable-next-line @next/next/no-img-element */ <img src={activeMediaUrl} alt="Post" onError={markNotImage(activeMediaUrl)} className="w-full object-cover" style={{ maxHeight: '300px' }} />}
         </div>
       ) : (
         <div className="h-44 bg-gray-100 flex items-center justify-center border-y border-dashed border-gray-200">
@@ -548,8 +565,8 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
     <div className="relative max-w-[240px] mx-auto rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '9/16', maxHeight: '420px' }}>
       {mediaUrl ? (
         isVideo
-          ? <video src={mediaUrl} controls className="absolute inset-0 w-full h-full object-contain" />
-          : <img src={mediaUrl} alt="Story" className="absolute inset-0 w-full h-full object-cover" />
+          ? <video src={videoSrc(mediaUrl)} controls preload="metadata" playsInline className="absolute inset-0 w-full h-full object-contain" />
+          : <img src={mediaUrl} alt="Story" onError={markNotImage(mediaUrl)} className="absolute inset-0 w-full h-full object-cover" />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-blue-900 to-blue-600 flex items-center justify-center">
           <div className="text-center text-white/40"><ImageIcon className="w-10 h-10 mx-auto mb-2 opacity-40" /><p className="text-xs">Image preview</p></div>
@@ -592,8 +609,8 @@ export function PostSocialPreview({ imageUrl, fileUrl, fileType, caption, busine
     <div className="relative max-w-[240px] mx-auto rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '9/16', maxHeight: '420px' }}>
       {mediaUrl ? (
         isVideo
-          ? <video src={mediaUrl} controls className="absolute inset-0 w-full h-full object-contain" />
-          : <img src={mediaUrl} alt="Story" className="absolute inset-0 w-full h-full object-cover" />
+          ? <video src={videoSrc(mediaUrl)} controls preload="metadata" playsInline className="absolute inset-0 w-full h-full object-contain" />
+          : <img src={mediaUrl} alt="Story" onError={markNotImage(mediaUrl)} className="absolute inset-0 w-full h-full object-cover" />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-blue-950 via-blue-700 to-orange-400 flex items-center justify-center">
           <div className="text-center text-white/40"><ImageIcon className="w-10 h-10 mx-auto mb-2 opacity-40" /><p className="text-xs">Image preview</p></div>

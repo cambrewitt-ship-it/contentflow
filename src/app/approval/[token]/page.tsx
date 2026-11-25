@@ -598,7 +598,7 @@ export default function PublicApprovalPage() {
                             if (post.file_type?.startsWith('video/') && post.file_url) {
                               return (
                                 <div className="relative w-full mb-3">
-                                  <video src={post.file_url} controls className="w-full max-h-96 rounded-lg object-contain bg-black" />
+                                  <video src={`${post.file_url}#t=0.1`} controls preload="metadata" playsInline className="w-full max-h-96 rounded-lg object-contain bg-black" />
                                 </div>
                               );
                             }
@@ -607,7 +607,7 @@ export default function PublicApprovalPage() {
                               return (
                                 <div className="relative w-full mb-3">
                                   {isVideoUrl(activeImageUrl) ? (
-                                    <video src={activeImageUrl} controls playsInline className="w-full max-h-96 rounded-lg bg-black" />
+                                    <video key={activeImageUrl} src={`${activeImageUrl}#t=0.1`} controls preload="metadata" playsInline className="w-full max-h-96 rounded-lg bg-black" />
                                   ) : (
                                     <LazyApprovalImage src={activeImageUrl} alt="Post" className="w-full h-auto max-h-96 object-contain" />
                                   )}
