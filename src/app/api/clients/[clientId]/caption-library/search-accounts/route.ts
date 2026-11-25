@@ -4,8 +4,8 @@ import { requireClientOwnership } from '@/lib/authHelpers';
 import { accountSearchConfigured, searchInstagramAccounts } from '@/lib/captionAccountSearch';
 
 export const dynamic = 'force-dynamic';
-// Apify's search takes a few seconds (up to ~45s on a cold start)
-export const maxDuration = 60;
+// Apify's search (with the Facebook Page lookup) takes several seconds, up to ~90s
+export const maxDuration = 120;
 
 // Instagram account search for the caption box @ menu (Apify + exact-handle check).
 // GET ?q=joes coffee

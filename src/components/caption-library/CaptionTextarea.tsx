@@ -523,7 +523,9 @@ function MenuRow({
               {result.isPrivate && <Lock className="h-3 w-3 flex-shrink-0 text-gray-400" />}
             </span>
             <span className="block truncate text-[11px] text-gray-500">
-              {[result.name, followers && `${followers} followers`].filter(Boolean).join(' · ') || 'Instagram'}
+              {[result.name, followers && `${followers} followers`, result.facebookName && `FB: ${result.facebookName}`]
+                .filter(Boolean)
+                .join(' · ') || 'Instagram'}
             </span>
           </span>
           <span className="text-[10px] text-gray-400">new</span>
@@ -539,7 +541,7 @@ function MenuRow({
             <Search className="h-4 w-4 flex-shrink-0" />
           )}
           <span className="min-w-0 flex-1 truncate">
-            {searching ? 'Searching Instagram…' : `Search Instagram for “${item.query}”`}
+            {searching ? 'Searching Instagram & Facebook Pages…' : `Search Instagram for “${item.query}”`}
           </span>
         </button>
       )

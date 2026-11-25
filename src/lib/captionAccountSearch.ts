@@ -46,7 +46,7 @@ interface ApifySearchItem {
   isVerified?: boolean;
   private?: boolean;
   isPrivate?: boolean;
-  facebookPage?: { name?: string } | null;
+  facebookPage?: { name?: string; page_is_deleted?: boolean } | null;
   error?: string;
 }
 
@@ -54,12 +54,19 @@ async function apifySearch(query: string): Promise<InstagramAccountResult[]> {
   const token = process.env.APIFY_API_TOKEN;
   if (!token) return [];
 
-  const res = await fetch(`https://api.apify.com/v2/acts/${ACTOR}/run-sync-get-dataset-items?timeout=45`, {
+  const res = await fetch(`https://api.apify.com/v2/acts/${ACTOR}/run-sync-get-dataset-items?timeout=90`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     // A comma would make Apify search several terms
-    body: JSON.stringify({ search: query.replace(/,/g, ' '), searchType: 'user', searchLimit: RESULT_LIMIT }),
-    signal: AbortSignal.timeout(50_000),
+    // enhanceUserSearchWithFacebookPage: also look up each result's linked Facebook Page, so the
+    // Facebook version of a caption can use the Page's real name (Facebook can't tag via the API)
+    body: JSON.stringify({
+      search: query.replace(/,/g, ' '),
+      searchType: 'user',
+      searchLimit: RESULT_LIMIT,
+      enhanceUserSearchWithFacebookPage: true,
+    }),
+    signal: AbortSignal.timeout(95_000),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -79,7 +86,7 @@ async function apifySearch(query: string): Promise<InstagramAccountResult[]> {
       followers: typeof item.followersCount === 'number' ? item.followersCount : null,
       verified: !!(item.verified ?? item.isVerified),
       isPrivate: !!(item.private ?? item.isPrivate),
-      facebookName: item.facebookPage?.name || null,
+      facebookName: (!item.facebookPage?.page_is_deleted && item.facebookPage?.name?.trim()) || null,
       source: 'search',
     });
   }

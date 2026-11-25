@@ -135,7 +135,7 @@ export async function searchInstagramAccounts(clientId: string, query: string): 
   if (hit) return hit
   const res = await authedFetchJson<{ results: InstagramSearchResult[] }>(
     `/api/clients/${clientId}/caption-library/search-accounts?q=${encodeURIComponent(query.trim())}`,
-    { timeoutMs: 65_000 }
+    { timeoutMs: 110_000 }
   )
   const results = res.results ?? []
   searchCache.set(key, results)
