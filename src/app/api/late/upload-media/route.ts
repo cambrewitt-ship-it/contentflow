@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { isValidMediaData, base64ToBlob } from '../../../../lib/blobUpload';
 import logger from '@/lib/logger';
-import { uploadBufferToLate, LateUploadError } from '@/lib/lateMedia';
+import { uploadBufferToLate, LateUploadError, isVideoMediaUrl } from '@/lib/lateMedia';
 
 // Configure route to accept larger payloads for video uploads
 export const runtime = 'nodejs';
-export const maxDuration = 60; // Allow up to 60 seconds for video processing
+export const maxDuration = 300; // Large videos are downloaded and re-uploaded to Zernio
 
 export async function POST(request: Request) {
   // VERSION 2 - WITH COMPRESSION - If you see this, the new code is running
@@ -110,8 +110,15 @@ export async function POST(request: Request) {
     try {
       const mediaUrl = await uploadBufferToLate(buffer, mimeType, !!isVideo);
       logger.info('Upload successful, returning lateMediaUrl', { mediaUrl: mediaUrl.substring(0, 100) });
-      return NextResponse.json({ lateMediaUrl: mediaUrl });
+      return NextResponse.json({ lateMediaUrl: mediaUrl, mediaType: isVideo ? 'video' : 'image' });
     } catch (uploadError) {
+      // Zernio accepts any publicly reachable HTTPS URL: if re-hosting a video failed, post it from our storage
+      if (isVideo && validation.type === 'blob' && /^https:\/\//i.test(imageBlob) && isVideoMediaUrl(imageBlob)) {
+        logger.warn('Re-hosting video on LATE failed, returning the public URL instead', {
+          error: uploadError instanceof Error ? uploadError.message : String(uploadError),
+        });
+        return NextResponse.json({ lateMediaUrl: imageBlob, mediaType: 'video' });
+      }
       if (uploadError instanceof LateUploadError) {
         return NextResponse.json(
           { error: uploadError.message, details: uploadError.details },

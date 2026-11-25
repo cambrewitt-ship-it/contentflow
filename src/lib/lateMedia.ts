@@ -111,6 +111,90 @@ export class LateUploadError extends Error {
   }
 }
 
+const VIDEO_EXT_TO_MIME: Record<string, string> = {
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+  m4v: 'video/x-m4v',
+  avi: 'video/x-msvideo',
+  mpeg: 'video/mpeg',
+  mpg: 'video/mpeg',
+};
+const PRESIGN_CONTENT_TYPES = new Set([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
+  ...Object.values(VIDEO_EXT_TO_MIME), 'video/avi',
+]);
+
+// True when a media URL points at a video file (by its path's extension)
+export function isVideoMediaUrl(url: string): boolean {
+  try {
+    return /\.(mp4|mov|webm|m4v|avi|mpeg|mpg)$/i.test(new URL(url).pathname);
+  } catch {
+    return /\.(mp4|mov|webm|m4v|avi|mpeg|mpg)(\?|#|$)/i.test(url);
+  }
+}
+
+// Zernio's presign only takes specific MIME types (no octet-stream etc.)
+function presignContentType(mimeType: string, isVideo: boolean): string {
+  const clean = mimeType.split(';')[0].trim().toLowerCase();
+  if (PRESIGN_CONTENT_TYPES.has(clean)) return clean;
+  return isVideo ? 'video/mp4' : 'image/jpeg';
+}
+
+function extensionFor(contentType: string, isVideo: boolean): string {
+  const fromVideo = Object.entries(VIDEO_EXT_TO_MIME).find(([, mime]) => mime === contentType)?.[0];
+  if (fromVideo) return fromVideo;
+  const sub = contentType.split('/')[1];
+  if (sub === 'jpeg' || sub === 'jpg') return 'jpg';
+  return sub || (isVideo ? 'mp4' : 'jpg');
+}
+
+/**
+ * Uploads a file of any size (up to 5GB) to Zernio: POST /v1/media/presign, then PUT the bytes
+ * straight to storage. The direct multipart /v1/media upload only takes ~4.5MB, so videos must go
+ * this way.
+ */
+export async function uploadBufferToLateViaPresign(
+  buffer: Buffer,
+  inputMimeType: string,
+  isVideo: boolean
+): Promise<string> {
+  const contentType = presignContentType(inputMimeType, isVideo);
+  const filename = `${isVideo ? 'video' : 'image'}-${Date.now()}.${extensionFor(contentType, isVideo)}`;
+
+  const presignResponse = await fetch('https://getlate.dev/api/v1/media/presign', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.LATE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ filename, contentType, size: buffer.length }),
+  });
+  if (!presignResponse.ok) {
+    const text = await presignResponse.text().catch(() => '');
+    logger.error('LATE presign failed', { status: presignResponse.status, text: text.slice(0, 300) });
+    throw new LateUploadError('Media upload failed', 502, `Could not get an upload URL (${presignResponse.status}): ${text.slice(0, 200)}`);
+  }
+  const { uploadUrl, publicUrl } = (await presignResponse.json()) as { uploadUrl?: string; publicUrl?: string };
+  if (!uploadUrl || !publicUrl) {
+    throw new LateUploadError('Media upload failed', 502, 'Upload URL missing from presign response');
+  }
+
+  const putResponse = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: new Uint8Array(buffer),
+  });
+  if (!putResponse.ok) {
+    const text = await putResponse.text().catch(() => '');
+    logger.error('LATE presigned PUT failed', { status: putResponse.status, text: text.slice(0, 300) });
+    throw new LateUploadError('Media upload failed', 502, `Upload to storage failed (${putResponse.status})`);
+  }
+
+  logger.info('Uploaded media to LATE via presign', { size: buffer.length, contentType, publicUrl: publicUrl.slice(0, 100) });
+  return publicUrl;
+}
+
 // Compresses oversized images, uploads to LATE's media endpoint and returns the hosted URL
 export async function uploadBufferToLate(
   input: Buffer,
@@ -127,6 +211,11 @@ export async function uploadBufferToLate(
     buffer = compressed.buffer;
     mimeType = compressed.mimeType;
     logger.info(`Image compressed from ${actualSizeMB}MB to ${(buffer.length / (1024 * 1024)).toFixed(2)}MB`);
+  }
+
+  // Videos (and anything still over the direct-upload limit) go through presign + PUT
+  if (isVideo || buffer.length > MAX_LATE_SIZE) {
+    return uploadBufferToLateViaPresign(buffer, mimeType, isVideo);
   }
 
   const extension = mimeType.split('/')[1] || (isVideo ? 'mp4' : 'jpg');
@@ -195,7 +284,7 @@ function isTrustedMediaHost(url: URL): boolean {
 // Turns a stored media URL into a LATE media item, re-hosting it on LATE when it lives in our storage
 export async function toLateMediaItem(mediaUrl: string): Promise<{ type: 'image' | 'video'; url: string }> {
   const parsed = new URL(mediaUrl);
-  const looksLikeVideo = /\.(mp4|mov|webm|m4v|avi)$/i.test(parsed.pathname);
+  const looksLikeVideo = isVideoMediaUrl(mediaUrl);
 
   if (parsed.hostname.endsWith('getlate.dev') || !isTrustedMediaHost(parsed)) {
     return { type: looksLikeVideo ? 'video' : 'image', url: mediaUrl };
@@ -208,6 +297,17 @@ export async function toLateMediaItem(mediaUrl: string): Promise<{ type: 'image'
   const contentType = response.headers.get('content-type') || '';
   const isVideo = contentType.startsWith('video/') || looksLikeVideo;
   const buffer = Buffer.from(await response.arrayBuffer());
-  const url = await uploadBufferToLate(buffer, contentType || (isVideo ? 'video/mp4' : 'image/jpeg'), isVideo);
-  return { type: isVideo ? 'video' : 'image', url };
+  try {
+    const url = await uploadBufferToLate(buffer, contentType || (isVideo ? 'video/mp4' : 'image/jpeg'), isVideo);
+    return { type: isVideo ? 'video' : 'image', url };
+  } catch (error) {
+    // Zernio accepts any publicly reachable HTTPS URL, so a video can still go out from our storage
+    if (isVideo) {
+      logger.warn('Re-hosting video on LATE failed, passing the public URL instead', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { type: 'video', url: mediaUrl };
+    }
+    throw error;
+  }
 }

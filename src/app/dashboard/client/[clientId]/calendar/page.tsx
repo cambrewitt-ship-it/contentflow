@@ -2171,6 +2171,7 @@ export default function CalendarPage() {
         
         // No image = a text-only post (e.g. copy + an article link) — schedule it without media
         let lateMediaUrl: string | null = null;
+        let lateMediaType: 'image' | 'video' | undefined;
         if (!post.image_url && MEDIA_REQUIRED_PLATFORMS.includes(String(account.platform).toLowerCase())) {
           throw new Error(`${account.platform} posts need a photo or video — this post is text-only`);
         }
@@ -2222,6 +2223,7 @@ export default function CalendarPage() {
           console.log('🔍 Media upload response data:', JSON.stringify(mediaResponseData, null, 2));
         
           lateMediaUrl = mediaResponseData.lateMediaUrl;
+          lateMediaType = mediaResponseData.mediaType;
           console.log('🔍 Extracted lateMediaUrl:', lateMediaUrl);
         
           if (!lateMediaUrl) {
@@ -2253,6 +2255,7 @@ export default function CalendarPage() {
           postId: post.id,
           caption: finalCaption,
           lateMediaUrl: lateMediaUrl,
+          mediaType: lateMediaType,
           scheduledDateTime: scheduledDateTime,
           selectedAccounts: [account],
           clientId: clientId
