@@ -110,3 +110,34 @@ export async function suggestHashtags(clientId: string, caption: string): Promis
   )
   return res.hashtags ?? []
 }
+
+export interface InstagramSearchResult {
+  handle: string
+  name: string | null
+  profilePictureUrl: string | null
+  followers: number | null
+  verified: boolean
+  isPrivate: boolean
+  facebookName: string | null
+  source: 'exact' | 'search'
+}
+
+// Remembered for the page session, so re-opening the menu doesn't search (and bill) again
+const searchCache = new Map<string, InstagramSearchResult[]>()
+
+export function cachedInstagramSearch(query: string): InstagramSearchResult[] | undefined {
+  return searchCache.get(query.trim().toLowerCase())
+}
+
+export async function searchInstagramAccounts(clientId: string, query: string): Promise<InstagramSearchResult[]> {
+  const key = query.trim().toLowerCase()
+  const hit = searchCache.get(key)
+  if (hit) return hit
+  const res = await authedFetchJson<{ results: InstagramSearchResult[] }>(
+    `/api/clients/${clientId}/caption-library/search-accounts?q=${encodeURIComponent(query.trim())}`,
+    { timeoutMs: 65_000 }
+  )
+  const results = res.results ?? []
+  searchCache.set(key, results)
+  return results
+}

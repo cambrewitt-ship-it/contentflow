@@ -1,13 +1,19 @@
 'use client'
 
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { AtSign, Hash, Loader2, Settings2, Sparkles } from 'lucide-react'
+import { AtSign, BadgeCheck, Hash, Loader2, Lock, Search, Settings2, Sparkles } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { accountInsertText, extractHashtags, type CaptionAccount, type HashtagSet } from '@/lib/captionLibrary'
 import { caretCoordinates } from './caretPosition'
 import { CaptionLibraryDialog } from './CaptionLibraryDialog'
-import { suggestHashtags, useCaptionLibrary } from './useCaptionLibrary'
+import {
+  cachedInstagramSearch,
+  searchInstagramAccounts,
+  suggestHashtags,
+  useCaptionLibrary,
+  type InstagramSearchResult,
+} from './useCaptionLibrary'
 
 /**
  * Caption box with @ (accounts to tag) and # (hashtags) autocomplete for a client.
@@ -27,10 +33,22 @@ type Item =
   | { type: 'handle'; key: string; handle: string; count: number }
   | { type: 'set'; key: string; set: HashtagSet }
   | { type: 'tag'; key: string; tag: string; note: string }
+  | { type: 'ig'; key: string; result: InstagramSearchResult }
+  | { type: 'search'; key: string; query: string }
   | { type: 'ai'; key: string }
   | { type: 'manage'; key: string }
 
-const INSERTABLE = new Set<Item['type']>(['account', 'handle', 'set', 'tag'])
+const INSERTABLE = new Set<Item['type']>(['account', 'handle', 'ig', 'set', 'tag'])
+// Actions Enter may also run (they cost no AI credits)
+const ENTER_ACTIONS = new Set<Item['type']>(['search'])
+const MIN_SEARCH = 2
+
+function formatFollowers(n: number | null): string | null {
+  if (n === null) return null
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`
+  return String(n)
+}
 const MENU_WIDTH = 300
 const MENU_MAX_HEIGHT = 320
 
@@ -97,6 +115,13 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
   const [aiTags, setAiTags] = useState<string[] | null>(null)
   const [aiState, setAiState] = useState<{ loading: boolean; error: string | null }>({ loading: false, error: null })
   const [manageOpen, setManageOpen] = useState(false)
+  // Instagram search: the last query searched and its results
+  const [igSearch, setIgSearch] = useState<{
+    query: string
+    results: InstagramSearchResult[] | null
+    loading: boolean
+    error: string | null
+  } | null>(null)
 
   const updateQuery = useCallback(
     (el: HTMLTextAreaElement) => {
@@ -146,6 +171,25 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
         .slice(0, Math.max(0, 8 - out.length))
         .forEach(({ h }) => out.push({ type: 'handle', key: `h:${h.value}`, handle: h.value, count: h.count }))
 
+      // Instagram search results: from the last search, while the typed text still extends it
+      const qn = q.toLowerCase()
+      const searched =
+        igSearch && qn.startsWith(igSearch.query.toLowerCase()) ? igSearch : null
+      const shown = new Set(out.flatMap((i) => (i.type === 'account' ? [i.account.instagram] : i.type === 'handle' ? [i.handle] : [])))
+      const results = searched?.results ?? (q.length >= MIN_SEARCH ? cachedInstagramSearch(q) ?? null : null)
+      ;(results ?? [])
+        .filter((r) => !saved.has(r.handle) && !shown.has(r.handle))
+        .filter((r) => matchScore([r.handle, r.name], q) > 0)
+        .slice(0, 6)
+        .forEach((result) => out.push({ type: 'ig', key: `ig:${result.handle}`, result }))
+
+      const searchedThis = searched?.query.toLowerCase() === qn && (searched.results !== null || searched.loading)
+      if (q.length >= MIN_SEARCH && !searchedThis && !cachedInstagramSearch(q)) {
+        out.push({ type: 'search', key: 'search', query: q })
+      } else if (searched?.loading && searched.query.toLowerCase() === qn) {
+        out.push({ type: 'search', key: 'search', query: q })
+      }
+
     } else {
       // Tags already in the caption (apart from the one being typed) aren't suggested again
       const present = new Set(
@@ -185,7 +229,7 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
 
     out.push({ type: 'manage', key: 'manage' })
     return out
-  }, [query, data, aiTags, caption])
+  }, [query, data, aiTags, caption, igSearch])
 
   const open = !!clientId && query !== null && query.start !== dismissedStart && items.length > 0
 
@@ -235,12 +279,51 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
     }
   }
 
+  const runSearch = async (text: string) => {
+    if (!clientId || igSearch?.loading) return
+    setIgSearch({ query: text, results: null, loading: true, error: null })
+    try {
+      const results = await searchInstagramAccounts(clientId, text)
+      setIgSearch({ query: text, results, loading: false, error: results.length ? null : `No Instagram accounts found for "${text}".` })
+      setActiveIndex(0)
+    } catch (err) {
+      setIgSearch({
+        query: text,
+        results: null,
+        loading: false,
+        error: err instanceof Error ? err.message : 'Instagram search failed',
+      })
+    }
+  }
+
+  // A picked search result is saved to the caption library, so it's suggested next time
+  // and its name is used in the Facebook version of the caption
+  const saveSearchResult = (result: InstagramSearchResult) => {
+    const current = library.data
+    if (!current || current.setupRequired) return
+    if (current.accounts.some((a) => a.instagram === result.handle)) return
+    void library
+      .save({
+        accounts: [
+          ...current.accounts,
+          { id: crypto.randomUUID(), name: result.name || result.handle, instagram: result.handle, facebook: result.facebookName },
+        ],
+        hashtagSets: current.hashtagSets,
+      })
+      .catch((err) => console.warn('Could not save account to caption library', err))
+  }
+
   const choose = (item: Item) => {
     switch (item.type) {
       case 'account':
         return replaceQuery(accountInsertText(item.account))
       case 'handle':
         return replaceQuery(`@${item.handle}`)
+      case 'ig':
+        saveSearchResult(item.result)
+        return replaceQuery(`@${item.result.handle}`)
+      case 'search':
+        return void runSearch(item.query)
       case 'tag':
         return replaceQuery(`#${item.tag}`)
       case 'set': {
@@ -279,7 +362,7 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
       // Enter/Tab only insert suggestions — never trigger an action (or spend an AI credit) by accident
       if (
         active &&
-        INSERTABLE.has(active.type) &&
+        (INSERTABLE.has(active.type) || (ENTER_ACTIONS.has(active.type) && e.key === 'Enter')) &&
         ((e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.shiftKey) || (e.key === 'Tab' && !e.shiftKey))
       ) {
         e.preventDefault()
@@ -342,16 +425,21 @@ export const CaptionTextarea = forwardRef<HTMLTextAreaElement, Props>(function C
               item={item}
               active={i === activeIndex}
               aiState={aiState}
+              searching={!!igSearch?.loading}
               onHover={() => setActiveIndex(i)}
               onChoose={() => choose(item)}
             />
           ))}
-          {query?.trigger === '@' && !items.some((i) => i.type === 'account' || i.type === 'handle') && (
-            <p className="px-3 py-1.5 text-xs text-gray-500">
-              {query.text ? 'No saved account matches.' : 'No saved accounts yet.'} Instagram can&apos;t be searched —
-              type the exact @handle. It&apos;s saved automatically once it&apos;s in a saved caption.
-            </p>
+          {query?.trigger === '@' && igSearch?.error && query.text.toLowerCase() === igSearch.query.toLowerCase() && (
+            <p className="px-3 py-1.5 text-xs text-red-600">{igSearch.error}</p>
           )}
+          {query?.trigger === '@' &&
+            !items.some((i) => i.type === 'account' || i.type === 'handle' || i.type === 'ig' || i.type === 'search') && (
+              <p className="px-3 py-1.5 text-xs text-gray-500">
+                {query.text ? 'No saved account matches.' : 'No saved accounts yet.'} Type a name or handle to search
+                Instagram.
+              </p>
+            )}
           {aiState.error && query?.trigger === '#' && (
             <p className="px-3 py-1.5 text-xs text-red-600">{aiState.error}</p>
           )}
@@ -369,12 +457,14 @@ function MenuRow({
   item,
   active,
   aiState,
+  searching,
   onHover,
   onChoose,
 }: {
   item: Item
   active: boolean
   aiState: { loading: boolean; error: string | null }
+  searching: boolean
   onHover: () => void
   onChoose: () => void
 }) {
@@ -420,6 +510,39 @@ function MenuRow({
           <span className="text-[10px] text-gray-400">used {item.count}×</span>
         </button>
       )
+    case 'ig': {
+      const { result } = item
+      const followers = formatFollowers(result.followers)
+      return (
+        <button {...props} className={base}>
+          <InstagramAvatar result={result} />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1 truncate font-medium text-gray-900">
+              <span className="truncate">@{result.handle}</span>
+              {result.verified && <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0 text-blue-500" />}
+              {result.isPrivate && <Lock className="h-3 w-3 flex-shrink-0 text-gray-400" />}
+            </span>
+            <span className="block truncate text-[11px] text-gray-500">
+              {[result.name, followers && `${followers} followers`].filter(Boolean).join(' · ') || 'Instagram'}
+            </span>
+          </span>
+          <span className="text-[10px] text-gray-400">new</span>
+        </button>
+      )
+    }
+    case 'search':
+      return (
+        <button {...props} className={cn(base, 'border-t border-gray-100 text-blue-700')} disabled={searching}>
+          {searching ? (
+            <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin" />
+          ) : (
+            <Search className="h-4 w-4 flex-shrink-0" />
+          )}
+          <span className="min-w-0 flex-1 truncate">
+            {searching ? 'Searching Instagram…' : `Search Instagram for “${item.query}”`}
+          </span>
+        </button>
+      )
     case 'set':
       return (
         <button {...props} className={base}>
@@ -463,4 +586,25 @@ function MenuRow({
         </button>
       )
   }
+}
+
+function InstagramAvatar({ result }: { result: InstagramSearchResult }) {
+  const [failed, setFailed] = useState(false)
+  if (result.profilePictureUrl && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- Instagram CDN images, not optimisable
+      <img
+        src={result.profilePictureUrl}
+        alt=""
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+        className="h-7 w-7 flex-shrink-0 rounded-full object-cover"
+      />
+    )
+  }
+  return (
+    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-sky-400 text-[11px] font-semibold text-white">
+      {(result.name || result.handle).charAt(0).toUpperCase()}
+    </span>
+  )
 }

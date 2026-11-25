@@ -4,7 +4,8 @@ import { z } from 'zod'
 // @ and # autocomplete in caption boxes. Shared by the browser and the API.
 //
 // Neither Meta nor Zernio (LATE) lets us search Instagram/Facebook users or hashtags,
-// so suggestions come from this library plus the client's own past captions.
+// so suggestions come from this library plus the client's own past captions, and new
+// Instagram accounts from a third-party search (src/lib/captionAccountSearch.ts, Apify).
 //
 // Captions stay plain text: picking an account inserts "@instagramhandle", which
 // Instagram turns into a real tag. Facebook can't tag through the API, so when a post

@@ -78,6 +78,10 @@ TikTok Scraper actor. TikTok accounts are skipped (with a warning on the report)
 
 Each run fetches 20 recent videos per tracked TikTok account, billed by Apify per result.
 
+The same token also powers **"Search Instagram for …"** in the caption box @ menu (find accounts to tag that the
+client hasn't used yet), via Apify's Instagram Search Scraper — about $0.02 per search (8 results), only when
+someone clicks it. Optional: `APIFY_INSTAGRAM_SEARCH_ACTOR` (defaults to `apify~instagram-search-scraper`).
+
 ## Language
 
 Each client's niche profile has a language. Insights, captions, trend search and account

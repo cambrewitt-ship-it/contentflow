@@ -72,7 +72,12 @@ the whole codebase (and Vercel env vars).
   (table `client_caption_libraries`, migrations/032-caption-library.sql, run by hand in Supabase;
   API `/api/clients/[clientId]/caption-library`) — plus handles/hashtags found in the client's
   past captions, and optional AI hashtag ideas (`/suggest-hashtags`, 1 AI credit).
-- Neither Meta nor Zernio offers user or hashtag search, so there is no live lookup. Captions stay
+- Neither Meta nor Zernio offers user or hashtag search. Instagram accounts the client hasn't used yet are found
+  with "Search Instagram for …" in the @ menu (`/caption-library/search-accounts`, `src/lib/captionAccountSearch.ts`):
+  Apify's Instagram Search Scraper (`APIFY_API_TOKEN`, ~$0.003/result, a few seconds, so only on click/Enter —
+  never per keystroke) plus a Business Discovery exact-handle check (Competitor Research's IG account, respects its
+  shared rate-limit budget). A picked result is saved to the caption library (with its Facebook Page name when Apify
+  returns one). Hashtags have no live lookup. Captions stay
   plain text: an account inserts `@instagramhandle` (a real tag on Instagram). Facebook can't tag
   via the API, so `withFacebookCaptions` (`src/lib/captionLibraryServer.ts`) sends Facebook a
   `customContent` caption with saved handles swapped for the account's Facebook name. Any new
